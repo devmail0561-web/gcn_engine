@@ -5,7 +5,7 @@ use gcn_ir::{NodeType, RelationType, Scope, NodeOrigin};
 fn data_dir() -> std::path::PathBuf {
     // CARGO_MANIFEST_DIR = gcn-core/crates/gcn-frontend-fr
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../data/taxonomies")
+        .join("../../../gcn-references/taxonomies")
 }
 
 fn parser() -> FrenchParser {
