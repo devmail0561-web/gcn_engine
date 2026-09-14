@@ -1,0 +1,94 @@
+taxonomy: verbes
+version: "1.0"
+description: Classification of English verbs by causal direction in the GCN
+
+classes:
+  maintien:
+    causal_direction: maintien
+    examples:
+      - lemma: "remain"
+        note: state maintenance
+      - lemma: "stay"
+        note: continuity
+      - lemma: "persist"
+        note: prolonged state
+      - lemma: "last"
+        note: durational state
+      - lemma: "hold"
+        note: maintained state
+
+  production:
+    causal_direction: production
+    examples:
+      - lemma: "build"
+        note: constructive action
+      - lemma: "create"
+        note: generative action
+      - lemma: "make"
+        note: productive action
+      - lemma: "develop"
+        note: elaborative action
+      - lemma: "implement"
+        note: realization action
+      - lemma: "establish"
+        note: founding action
+      - lemma: "introduce"
+        note: initiating action
+
+  rupture:
+    causal_direction: rupture
+    examples:
+      - lemma: "collapse"
+        note: structural breakdown
+      - lemma: "fail"
+        note: functional failure
+      - lemma: "break"
+        note: rupture transition
+      - lemma: "decline"
+        note: deteriorative transition
+      - lemma: "crash"
+        note: sudden breakdown
+      - lemma: "deteriorate"
+        note: progressive degradation
+
+  propagation:
+    causal_direction: propagation
+    examples:
+      - lemma: "increase"
+        note: upward process
+      - lemma: "decrease"
+        note: downward process
+      - lemma: "grow"
+        note: expansive process
+      - lemma: "spread"
+        note: propagative process
+      - lemma: "rise"
+        note: ascending process
+      - lemma: "fall"
+        note: descending process
+      - lemma: "escalate"
+        note: amplifying process
+
+  auxiliaire:
+    causal_direction: ~
+    examples:
+      - lemma: "have"
+        note: auxiliary perfect
+      - lemma: "be"
+        note: auxiliary passive/progressive
+      - lemma: "do"
+        note: auxiliary emphasis/negation
+      - lemma: "will"
+        note: auxiliary future
+      - lemma: "would"
+        note: auxiliary conditional
+      - lemma: "could"
+        note: auxiliary possibility
+      - lemma: "should"
+        note: auxiliary normative
+      - lemma: "must"
+        note: auxiliary necessity
+      - lemma: "might"
+        note: auxiliary weak possibility
+      - lemma: "may"
+        note: auxiliary permission/possibility

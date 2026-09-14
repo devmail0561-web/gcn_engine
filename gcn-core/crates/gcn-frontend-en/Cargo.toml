@@ -1,0 +1,16 @@
+[package]
+name = "gcn-frontend-en"
+version = "0.1.0"
+edition = "2024"
+description = "English NLP frontend for GCN-Core"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+gcn-knowledge = { path = "../gcn-knowledge" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+smallvec = { workspace = true }
+
+[dev-dependencies]
+gcn-ir = { path = "../gcn-ir" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr" }

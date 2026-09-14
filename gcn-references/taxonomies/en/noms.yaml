@@ -1,0 +1,103 @@
+taxonomy: noms
+version: "1.0"
+description: Classification of English nouns by causal role in the GCN
+
+classes:
+  agent:
+    role: Active source of causality
+    position: origine
+    subtypes:
+      human:
+        description: Individual human agent
+        examples_fr:
+          - "person"
+          - "man"
+          - "woman"
+          - "child"
+          - "doctor"
+          - "worker"
+      collective:
+        description: Collective agent acting as one entity
+        examples_fr:
+          - "group"
+          - "crowd"
+          - "team"
+          - "people"
+          - "community"
+          - "society"
+      institutional:
+        description: Institutional agent with structural power
+        examples_fr:
+          - "government"
+          - "company"
+          - "state"
+          - "court"
+          - "school"
+          - "bank"
+          - "organization"
+      natural:
+        description: Non-intentional natural agent
+        examples_fr:
+          - "wind"
+          - "river"
+          - "volcano"
+          - "earthquake"
+          - "storm"
+          - "virus"
+
+  patient:
+    role: Entity undergoing the causal effect
+    position: terminus
+    examples:
+      - lemma: "victim"
+        note: negatively affected human patient
+      - lemma: "target"
+        note: object aimed at by the action
+      - lemma: "beneficiary"
+        note: patient receiving a positive effect
+      - lemma: "object"
+        note: physical entity affected
+      - lemma: "recipient"
+        note: receiver of a transfer
+
+  processus:
+    role: Named causal process
+    position: lien
+    examples:
+      - lemma: "evolution"
+        note: gradual change
+      - lemma: "growth"
+        note: progressive increase
+      - lemma: "decline"
+        note: progressive deterioration
+      - lemma: "transformation"
+        note: deep modification
+      - lemma: "propagation"
+        note: spatiotemporal extension
+      - lemma: "development"
+        note: structured progression
+
+  etat_systemique:
+    role: Stable configuration of a system
+    position: fond
+    examples:
+      - lemma: "equilibrium"
+        note: dynamic stability
+      - lemma: "crisis"
+        note: unstable system state
+      - lemma: "peace"
+        note: absence of conflict
+      - lemma: "situation"
+        note: general configuration
+      - lemma: "stability"
+        note: resistance to change
+      - lemma: "unemployment"
+        note: systemic under-employment state
+      - lemma: "inflation"
+        note: generalized price increase state
+      - lemma: "recession"
+        note: economic contraction state
+      - lemma: "war"
+        note: institutionalized armed conflict state
+      - lemma: "conflict"
+        note: structural opposition state

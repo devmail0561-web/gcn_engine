@@ -1,0 +1,65 @@
+taxonomy: verbes_causaux
+version: "1.0"
+description: English verbs that directly encode a causal relation in the Causal Natural Grammar
+
+classes:
+  cause_directe:
+    description: Verb whose predicate is the causal relation itself
+    relation_type: cause
+    examples:
+      - lemma: "cause"
+        note: explicit causal relation
+      - lemma: "trigger"
+        note: causal triggering
+      - lemma: "produce"
+        note: productive causation
+      - lemma: "generate"
+        note: generative causation
+      - lemma: "induce"
+        note: indirect causality
+      - lemma: "bring about"
+        note: resultative causation
+      - lemma: "lead to"
+        note: sequential causation
+      - lemma: "result in"
+        note: outcome causation
+      - lemma: "give rise to"
+        note: originating causation
+      - lemma: "create"
+        note: productive causation
+      - lemma: "drive"
+        note: propulsive causation
+
+  enable:
+    description: Verb expressing facilitation or causal enablement
+    relation_type: enable
+    examples:
+      - lemma: "enable"
+        note: causal enablement
+      - lemma: "allow"
+        note: permissive enablement
+      - lemma: "permit"
+        note: normative enablement
+      - lemma: "facilitate"
+        note: positive facilitation
+      - lemma: "support"
+        note: reinforcement causation
+
+  prevent:
+    description: Verb expressing causal blocking or prevention
+    relation_type: prevent
+    examples:
+      - lemma: "prevent"
+        note: total causal blockage
+      - lemma: "stop"
+        note: interruption
+      - lemma: "block"
+        note: causal obstruction
+      - lemma: "inhibit"
+        note: process inhibition
+      - lemma: "hinder"
+        note: causal slowing
+      - lemma: "restrict"
+        note: partial causal blockage
+      - lemma: "limit"
+        note: boundary causation

@@ -4,9 +4,11 @@ members = [
     "crates/gcn-ir",
     "crates/gcn-knowledge",
     "crates/gcn-frontend-fr",
+    "crates/gcn-frontend-en",
     "crates/gcn-frontend-code",
     "crates/gcn-middleend",
     "crates/gcn-backend",
+    "crates/gcn-verbalizer",
     "crates/gcn-cli",
 ]
 

@@ -1,0 +1,31 @@
+taxonomy: prepositions
+version: "1.0"
+description: English prepositions used in causal structures in the GCN
+
+classes:
+  lieu:
+    examples:
+      - lemma: "in"
+      - lemma: "on"
+      - lemma: "at"
+      - lemma: "by"
+      - lemma: "under"
+      - lemma: "over"
+      - lemma: "with"
+      - lemma: "without"
+      - lemma: "from"
+      - lemma: "to"
+      - lemma: "into"
+      - lemma: "through"
+      - lemma: "among"
+      - lemma: "between"
+      - lemma: "against"
+      - lemma: "within"
+      - lemma: "across"
+      - lemma: "about"
+      - lemma: "around"
+      - lemma: "behind"
+      - lemma: "beyond"
+      - lemma: "of"
+      - lemma: "for"
+      - lemma: "as"

@@ -1,0 +1,54 @@
+taxonomy: prepositions_causales
+version: "1.0"
+description: English causal prepositional phrases marking a causal relation in the GCN
+
+classes:
+  cause:
+    description: Preposition marking a causal source
+    relation_type: cause
+    direction: forward
+    examples:
+      - lemma: "because of"
+        note: direct cause (negative or neutral)
+      - lemma: "due to"
+        note: neutral formal cause
+      - lemma: "as a result of"
+        note: sequential cause
+      - lemma: "owing to"
+        note: formal causal attribution
+      - lemma: "on account of"
+        note: responsible cause
+      - lemma: "by virtue of"
+        note: enabling causal basis
+      - lemma: "following"
+        note: consecutive cause
+      - lemma: "in response to"
+        note: reactive cause
+
+  enable:
+    description: Preposition marking a positive or facilitating cause
+    relation_type: enable
+    direction: forward
+    examples:
+      - lemma: "thanks to"
+        note: positive and beneficial cause (enable)
+      - lemma: "through"
+        note: causal means/instrument
+
+  motivation:
+    description: Purpose phrase inverting causal direction (prospective finality)
+    relation_type: motivation
+    direction: goal_to_action
+    examples:
+      - lemma: "in order to"
+        note: explicit finality (infinitive required)
+      - lemma: "so as to"
+        note: explicit finality (infinitive required)
+      - lemma: "for the purpose of"
+        note: formal intentional finality
+      - lemma: "with the aim of"
+        note: intentional finality
+      - lemma: "with a view to"
+        note: prospective finality
+      - lemma: "to"
+        note: finality (infinitive required)

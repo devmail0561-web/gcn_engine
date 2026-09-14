@@ -1,0 +1,45 @@
+taxonomy: pronoms
+version: "1.0"
+description: English pronouns and their agent type in the GCN
+
+classes:
+  personnel:
+    examples:
+      - lemma: "i"
+        note: 1sg subject
+      - lemma: "you"
+        note: 2sg/pl subject
+      - lemma: "he"
+        note: 3sg masc
+      - lemma: "she"
+        note: 3sg fem
+      - lemma: "it"
+        note: 3sg neuter
+      - lemma: "we"
+        note: 1pl
+      - lemma: "they"
+        note: 3pl / singular epicene
+
+  demonstratif:
+    examples:
+      - lemma: "this"
+        note: proximal demonstrative
+      - lemma: "that"
+        note: distal demonstrative
+      - lemma: "these"
+        note: proximal plural
+      - lemma: "those"
+        note: distal plural
+
+  indefini:
+    examples:
+      - lemma: "one"
+        note: generic/impersonal agent
+      - lemma: "someone"
+        note: existential human agent
+      - lemma: "something"
+        note: existential non-human
+      - lemma: "everyone"
+        note: universal human agent
+      - lemma: "everything"
+        note: universal non-human

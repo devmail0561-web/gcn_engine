@@ -1,0 +1,102 @@
+taxonomy: conjonctions
+version: "1.0"
+description: Classification des conjonctions selon leur relation causale dans la Grammaire Causale Naturelle
+
+classes:
+  cause:
+    relation_type: cause_directe
+    examples_fr:
+      - lemma: "parce que"
+        note: cause explicite
+      - lemma: "puisque"
+        note: cause présupposée
+      - lemma: "car"
+        note: justification
+      - lemma: "comme"
+        note: cause antéposée
+      - lemma: "étant donné que"
+        note: cause factuelle
+      - lemma: "du fait que"
+        note: cause objective
+
+  consequence:
+    relation_type: effet_direct
+    examples_fr:
+      - lemma: "donc"
+        note: déduction logique
+      - lemma: "ainsi"
+        note: résultat constaté
+      - lemma: "par conséquent"
+        note: conséquence formelle
+      - lemma: "si bien que"
+        note: conséquence résultative
+      - lemma: "de sorte que"
+        note: conséquence intentionnelle ou factuelle
+      - lemma: "c'est pourquoi"
+        note: conclusion causale
+
+  condition:
+    relation_type: cause_conditionnelle
+    examples_fr:
+      - lemma: "si"
+        note: condition ouverte
+      - lemma: "à condition que"
+        note: condition restrictive
+      - lemma: "pourvu que"
+        note: condition suffisante
+      - lemma: "en cas de"
+        note: condition événementielle
+      - lemma: "à moins que"
+        note: condition négative
+      - lemma: "dans la mesure où"
+        note: condition proportionnelle
+
+  concession:
+    relation_type: cause_attendue_non_réalisée
+    signals_gap: true
+    examples_fr:
+      - lemma: "bien que"
+        note: concession standard
+      - lemma: "quoique"
+        note: concession littéraire
+      - lemma: "malgré que"
+        note: concession familière
+      - lemma: "même si"
+        note: concession hypothétique
+      - lemma: "encore que"
+        note: restriction concessive
+      - lemma: "en dépit du fait que"
+        note: concession emphatique
+
+  temps:
+    relation_type: séquence_temporelle
+    examples_fr:
+      - lemma: "quand"
+        note: simultanéité ou déclenchement
+      - lemma: "lorsque"
+        note: simultanéité formelle
+      - lemma: "avant que"
+        note: antériorité
+      - lemma: "après que"
+        note: postériorité
+      - lemma: "dès que"
+        note: immédiateté causale
+      - lemma: "pendant que"
+        note: durée parallèle
+
+  opposition:
+    relation_type: contraste_causal
+    signals_gap: true
+    examples_fr:
+      - lemma: "mais"
+        note: opposition directe
+      - lemma: "or"
+        note: opposition argumentative
+      - lemma: "cependant"
+        note: restriction
+      - lemma: "néanmoins"
+        note: persistance malgré obstacle
+      - lemma: "pourtant"
+        note: résultat inattendu
+      - lemma: "toutefois"
+        note: nuance restrictive

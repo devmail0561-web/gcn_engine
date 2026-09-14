@@ -1,0 +1,46 @@
+taxonomy: prepositions_causales
+version: "1.0"
+description: >
+  Locutions prépositionnelles qui créent une relation causale entre deux
+  groupes nominaux ou propositions dans la Grammaire Causale Naturelle.
+
+classes:
+  cause:
+    description: Préposition marquant la source causale (sens neutre ou négatif)
+    relation_type: cause
+    direction: forward
+    examples_fr:
+      - lemma: "à cause de"
+        note: cause négative
+      - lemma: "en raison de"
+        note: cause neutre formelle
+      - lemma: "par suite de"
+        note: cause séquentielle
+      - lemma: "du fait de"
+        note: cause factuelle objective
+      - lemma: "suite à"
+        note: cause consécutive
+
+  enable:
+    description: Préposition marquant une cause positive ou facilitante
+    relation_type: enable
+    direction: forward
+    examples_fr:
+      - lemma: "grâce à"
+        note: cause positive et bénéfique
+
+  motivation:
+    description: Locution de but inversant la direction causale (finalité prospective)
+    relation_type: motivation
+    direction: goal_to_action
+    examples_fr:
+      - lemma: "pour"
+        note: finalité directe (uniquement devant infinitif)
+      - lemma: "afin de"
+        note: finalité explicite
+      - lemma: "en vue de"
+        note: finalité prospective
+      - lemma: "dans le but de"
+        note: finalité intentionnelle explicite
+      - lemma: "de manière à"
+        note: finalité méthodique

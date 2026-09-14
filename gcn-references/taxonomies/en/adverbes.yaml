@@ -1,0 +1,114 @@
+taxonomy: adverbes
+version: "1.0"
+description: Classification of English adverbs by causal dimension in the GCN
+
+classes:
+  intensite:
+    dimension: force
+    causal_effect: modulation of causal strength
+    examples:
+      - lemma: "very"
+        value: 0.9
+      - lemma: "slightly"
+        value: 0.15
+      - lemma: "extremely"
+        value: 1.0
+      - lemma: "fairly"
+        value: 0.5
+      - lemma: "barely"
+        value: 0.05
+      - lemma: "strongly"
+        value: 0.85
+      - lemma: "significantly"
+        value: 0.8
+
+  temps:
+    dimension: temporalité
+    causal_effect: temporal anchoring of the cause
+    examples:
+      - lemma: "now"
+        anchor: present
+      - lemma: "yesterday"
+        anchor: passe_proche
+      - lemma: "tomorrow"
+        anchor: futur_proche
+      - lemma: "previously"
+        anchor: passe_lointain
+      - lemma: "soon"
+        anchor: futur_imminent
+      - lemma: "formerly"
+        anchor: passe_lointain
+      - lemma: "henceforth"
+        anchor: present_ouvert
+
+  frequence:
+    dimension: récurrence
+    causal_effect: repetition of the causal link
+    examples:
+      - lemma: "always"
+        kind: universelle
+      - lemma: "often"
+        kind: haute
+      - lemma: "sometimes"
+        kind: intermittente
+      - lemma: "rarely"
+        kind: basse
+      - lemma: "never"
+        kind: nulle
+      - lemma: "regularly"
+        kind: périodique
+      - lemma: "usually"
+        kind: haute
+
+  maniere:
+    dimension: modalité
+    causal_effect: qualification of causal mechanism
+    examples:
+      - lemma: "quickly"
+        note: process speed
+      - lemma: "slowly"
+        note: causal deceleration
+      - lemma: "gradually"
+        note: gradual unfolding
+      - lemma: "suddenly"
+        note: abrupt change
+      - lemma: "directly"
+        note: unmediated causation
+      - lemma: "indirectly"
+        note: mediated causation
+
+  negation:
+    dimension: polarité
+    causal_effect: inversion or cancellation of causal link
+    examples:
+      - lemma: "not"
+        total: true
+      - lemma: "no longer"
+        note: cessation
+      - lemma: "never"
+        note: frequential negation
+      - lemma: "hardly"
+        note: near-negation
+      - lemma: "n't"
+        total: true
+
+  probabilite:
+    dimension: certitude
+    causal_effect: certainty of the causal link
+    examples:
+      - lemma: "certainly"
+        value: 0.95
+      - lemma: "probably"
+        value: 0.75
+      - lemma: "perhaps"
+        value: 0.5
+      - lemma: "likely"
+        value: 0.8
+      - lemma: "possibly"
+        value: 0.4
+      - lemma: "necessarily"
+        value: 1.0
+      - lemma: "definitely"
+        value: 0.95
+      - lemma: "inevitably"
+        value: 0.97

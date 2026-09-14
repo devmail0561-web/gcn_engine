@@ -1,0 +1,58 @@
+taxonomy: verbes_causaux
+version: "1.0"
+description: >
+  Verbes qui encodent directement une relation causale entre deux entités.
+  Ces verbes fonctionnent comme des connecteurs causaux dans la phrase :
+  le sujet est la cause, l'objet est l'effet.
+
+classes:
+  cause_directe:
+    description: Verbe dont le prédicat est la relation causale elle-même
+    relation_type: cause
+    examples_fr:
+      - lemma: "entraîner"
+        note: cause directe et nécessaire
+      - lemma: "provoquer"
+        note: déclenchement causal
+      - lemma: "causer"
+        note: relation causale explicite
+      - lemma: "occasionner"
+        note: cause circonstancielle
+      - lemma: "générer"
+        note: production causale
+      - lemma: "induire"
+        note: causalité indirecte
+      - lemma: "engendrer"
+        note: causalité productive
+      - lemma: "susciter"
+        note: cause stimulante
+
+  enable:
+    description: Verbe exprimant une facilitation ou une habilitation causale
+    relation_type: enable
+    examples_fr:
+      - lemma: "permettre"
+        note: habilitation causale
+      - lemma: "favoriser"
+        note: facilitation positive
+      - lemma: "faciliter"
+        note: réduction des obstacles
+      - lemma: "autoriser"
+        note: habilitation normative
+
+  prevent:
+    description: Verbe exprimant un blocage ou une prévention causale
+    relation_type: prevent
+    examples_fr:
+      - lemma: "empêcher"
+        note: blocage causal total
+      - lemma: "prévenir"
+        note: prévention anticipatrice
+      - lemma: "bloquer"
+        note: obstruction causale
+      - lemma: "inhiber"
+        note: inhibition du processus
+      - lemma: "freiner"
+        note: ralentissement causal
+      - lemma: "entraver"
+        note: entrave à la progression

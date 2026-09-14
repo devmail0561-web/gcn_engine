@@ -11,6 +11,10 @@ pub enum Query {
     Chain(String, String),
     Cycles,
     Gaps,
+    /// Pearl niveau 2 — `DO <nœud>` : intervention do-calculus
+    Intervene(String),
+    /// Pearl niveau 3 — `COUNTERFACTUAL <nœud>` : raisonnement contrefactuel
+    Counterfactual(String),
 }
 
 impl Query {
@@ -37,9 +41,15 @@ impl Query {
         if s == "GAPS" {
             return Ok(Query::Gaps);
         }
+        if let Some(label) = s.strip_prefix("DO ") {
+            return Ok(Query::Intervene(label.trim().to_string()));
+        }
+        if let Some(label) = s.strip_prefix("COUNTERFACTUAL ") {
+            return Ok(Query::Counterfactual(label.trim().to_string()));
+        }
 
         Err(BackendError::QueryParseError(format!(
-            "unknown query '{}'. Valid: WHY <label>, WHAT <label>, CHAIN <a> -> <b>, CYCLES, GAPS",
+            "unknown query '{}'. Valid: WHY <label>, WHAT <label>, CHAIN <a> -> <b>, CYCLES, GAPS, DO <label>, COUNTERFACTUAL <label>",
             input
         )))
     }
@@ -69,6 +79,24 @@ pub enum QueryResult {
     GapList {
         gap_edges: Vec<GapDto>,
         unresolved_nodes: usize,
+    },
+    /// Pearl niveau 2 : résultat d'une intervention do-calculus.
+    Intervention {
+        target: String,
+        /// Nombre d'arêtes entrantes coupées par l'intervention.
+        severed_count: usize,
+        /// Arêtes entrantes supprimées (causes naturelles de `target` court-circuitées).
+        severed: Vec<LinkDto>,
+        /// Effets en aval de `target` après l'intervention.
+        effects: Vec<LinkDto>,
+    },
+    /// Pearl niveau 3 : résultat d'une requête contrefactuelle.
+    CounterfactualDiff {
+        target: String,
+        /// Tous les effets réels de `target` dans le monde actuel.
+        actual_effects: Vec<LinkDto>,
+        /// Effets counterfactuellement dépendants de `target` (n'auraient pas eu lieu sans X).
+        unique_effects: Vec<String>,
     },
 }
 
@@ -102,7 +130,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (target, links) = results.into_iter().next().unwrap();
+            let (target, links) = results.into_iter().next().expect("results non vide vérifié");
             Ok(QueryResult::Causes {
                 target,
                 links: links.iter().map(link_to_dto).collect(),
@@ -114,7 +142,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (source, links) = results.into_iter().next().unwrap();
+            let (source, links) = results.into_iter().next().expect("results non vide vérifié");
             Ok(QueryResult::Effects {
                 source,
                 links: links.iter().map(link_to_dto).collect(),
@@ -151,6 +179,27 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             Ok(QueryResult::GapList {
                 gap_edges,
                 unresolved_nodes: ir.unresolved.len(),
+            })
+        }
+
+        Query::Intervene(label) => {
+            let (target, result) = pearl::intervene(ir, label)
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            Ok(QueryResult::Intervention {
+                target,
+                severed_count: result.severed.len(),
+                severed: result.severed.iter().map(link_to_dto).collect(),
+                effects: result.effects.iter().map(link_to_dto).collect(),
+            })
+        }
+
+        Query::Counterfactual(label) => {
+            let (target, result) = pearl::counterfactual(ir, label)
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            Ok(QueryResult::CounterfactualDiff {
+                target,
+                actual_effects: result.actual_effects.iter().map(link_to_dto).collect(),
+                unique_effects: result.unique_effects,
             })
         }
     }

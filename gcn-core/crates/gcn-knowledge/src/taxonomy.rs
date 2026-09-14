@@ -36,6 +36,9 @@ pub struct TaxonomyClass {
     pub position: Option<String>,
     #[serde(default)]
     pub examples_fr: Option<Vec<LexicalEntry>>,
+    /// Entrées lexicales langage-agnostique (utilisé par les frontends non-français).
+    #[serde(default)]
+    pub examples: Option<Vec<LexicalEntry>>,
     #[serde(default)]
     pub subtypes: Option<HashMap<String, SubType>>,
 }

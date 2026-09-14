@@ -1,0 +1,108 @@
+taxonomy: conjonctions
+version: "1.0"
+description: Classification of English causal connectors according to the Causal Natural Grammar
+
+classes:
+  cause:
+    relation_type: cause_directe
+    examples:
+      - lemma: "because"
+        note: explicit direct cause
+      - lemma: "since"
+        note: presupposed cause
+      - lemma: "as"
+        note: fronted cause
+      - lemma: "given that"
+        note: factual cause
+      - lemma: "in that"
+        note: objective cause
+      - lemma: "seeing that"
+        note: observable cause
+
+  consequence:
+    relation_type: effet_direct
+    examples:
+      - lemma: "therefore"
+        note: logical deduction
+      - lemma: "thus"
+        note: observed result
+      - lemma: "hence"
+        note: formal consequence
+      - lemma: "so"
+        note: resultative consequence
+      - lemma: "consequently"
+        note: formal causal outcome
+      - lemma: "as a result"
+        note: causal conclusion
+      - lemma: "thereby"
+        note: means-consequence
+
+  condition:
+    relation_type: cause_conditionnelle
+    examples:
+      - lemma: "if"
+        note: open condition
+      - lemma: "provided that"
+        note: restrictive condition
+      - lemma: "as long as"
+        note: sufficient condition
+      - lemma: "in case"
+        note: eventive condition
+      - lemma: "unless"
+        note: negative condition
+      - lemma: "on condition that"
+        note: formal restrictive condition
+      - lemma: "supposing that"
+        note: hypothetical condition
+
+  concession:
+    relation_type: cause_attendue_non_réalisée
+    signals_gap: true
+    examples:
+      - lemma: "although"
+        note: standard concession
+      - lemma: "though"
+        note: informal concession
+      - lemma: "even though"
+        note: emphatic concession
+      - lemma: "even if"
+        note: hypothetical concession
+      - lemma: "while"
+        note: contrastive concession
+      - lemma: "whereas"
+        note: comparative concession
+
+  temps:
+    relation_type: séquence_temporelle
+    examples:
+      - lemma: "when"
+        note: simultaneity or trigger
+      - lemma: "once"
+        note: causal immediacy
+      - lemma: "after"
+        note: posteriority
+      - lemma: "before"
+        note: anteriority
+      - lemma: "as soon as"
+        note: immediate causation
+      - lemma: "until"
+        note: endpoint sequence
+      - lemma: "while"
+        note: parallel duration
+
+  opposition:
+    relation_type: contraste_causal
+    signals_gap: true
+    examples:
+      - lemma: "but"
+        note: direct opposition
+      - lemma: "yet"
+        note: argumentative opposition
+      - lemma: "however"
+        note: restriction
+      - lemma: "nevertheless"
+        note: persistence despite obstacle
+      - lemma: "nonetheless"
+        note: unexpected result
+      - lemma: "still"
+        note: restrictive nuance

@@ -282,3 +282,139 @@ fn json_roundtrip() {
     assert_eq!(restored.nodes.len(), ir.nodes.len());
     assert_eq!(restored.edges.len(), ir.edges.len());
 }
+
+// ─── Pearl niveau 2 — Intervention (DO) ─────────────────────────────────────
+
+#[test]
+fn parse_do() {
+    assert_eq!(Query::parse("DO crise?").unwrap(), Query::Intervene("crise".into()));
+    assert_eq!(Query::parse("DO hausse").unwrap(), Query::Intervene("hausse".into()));
+}
+
+#[test]
+fn intervene_cuts_incoming_and_propagates_forward() {
+    // Graphe : A → B → C
+    // Intervention sur B : coupe A→B, propage B→C
+    let ir = make_ir(
+        vec![
+            node(0, "A", NodeType::Action),
+            node(1, "B", NodeType::Transition),
+            node(2, "C", NodeType::Etat),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::Intervene("B".into()), &ir).unwrap();
+    if let QueryResult::Intervention { severed_count, severed, effects, .. } = result {
+        assert_eq!(severed_count, 1, "une arête entrante coupée (A→B)");
+        assert_eq!(severed.len(), 1);
+        assert_eq!(severed[0].from, "A");
+        assert_eq!(severed[0].to, "B");
+        assert!(!effects.is_empty(), "B→C doit être dans les effets");
+        assert_eq!(effects[0].to, "C");
+    } else {
+        panic!("résultat inattendu : {result:?}");
+    }
+}
+
+#[test]
+fn intervene_no_incoming_zero_severed() {
+    // Nœud racine sans arête entrante : severed_count = 0
+    let ir = make_ir(
+        vec![
+            node(0, "racine", NodeType::Action),
+            node(1, "effet", NodeType::Etat),
+        ],
+        vec![edge(0, 1, RelationType::Cause)],
+    );
+    let result = execute(&Query::Intervene("racine".into()), &ir).unwrap();
+    if let QueryResult::Intervention { severed_count, effects, .. } = result {
+        assert_eq!(severed_count, 0);
+        assert_eq!(effects.len(), 1);
+    } else {
+        panic!("résultat inattendu");
+    }
+}
+
+#[test]
+fn intervene_node_not_found() {
+    let ir = make_ir(
+        vec![node(0, "A", NodeType::Action)],
+        vec![],
+    );
+    assert!(matches!(
+        execute(&Query::Intervene("INEXISTANT".into()), &ir),
+        Err(BackendError::NodeNotFound(_))
+    ));
+}
+
+// ─── Pearl niveau 3 — Contrefactuels ─────────────────────────────────────────
+
+#[test]
+fn parse_counterfactual() {
+    assert_eq!(
+        Query::parse("COUNTERFACTUAL crise?").unwrap(),
+        Query::Counterfactual("crise".into())
+    );
+}
+
+#[test]
+fn counterfactual_unique_effect_detected() {
+    // Graphe : A → B → C (chaîne simple)
+    // COUNTERFACTUAL B : C est uniquement atteignable via B → unique
+    let ir = make_ir(
+        vec![
+            node(0, "A", NodeType::Action),
+            node(1, "B", NodeType::Transition),
+            node(2, "C", NodeType::Etat),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::Counterfactual("B".into()), &ir).unwrap();
+    if let QueryResult::CounterfactualDiff { actual_effects, unique_effects, .. } = result {
+        assert!(!actual_effects.is_empty());
+        assert!(unique_effects.contains(&"C".to_string()), "C est uniquement causé par B");
+    } else {
+        panic!("résultat inattendu");
+    }
+}
+
+#[test]
+fn counterfactual_shared_effect_not_unique() {
+    // Graphe : A → C et B → C (C a deux chemins)
+    // COUNTERFACTUAL B : C n'est PAS unique (A→C existe sans B)
+    let ir = make_ir(
+        vec![
+            node(0, "A", NodeType::Action),
+            node(1, "B", NodeType::Action),
+            node(2, "C", NodeType::Etat),
+        ],
+        vec![
+            edge(0, 2, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::Counterfactual("B".into()), &ir).unwrap();
+    if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
+        assert!(!unique_effects.contains(&"C".to_string()), "C a un chemin alternatif via A");
+    } else {
+        panic!("résultat inattendu");
+    }
+}
+
+#[test]
+fn counterfactual_node_not_found() {
+    let ir = make_ir(
+        vec![node(0, "A", NodeType::Action)],
+        vec![],
+    );
+    assert!(matches!(
+        execute(&Query::Counterfactual("INEXISTANT".into()), &ir),
+        Err(BackendError::NodeNotFound(_))
+    ));
+}

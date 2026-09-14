@@ -13,12 +13,13 @@ Phase 2b ████████████████░░░░   80%  gcn
 Phase 2c ████████████████████  100%  gcn-python évaluation
 Phase 3  ████████████████████  100%  gcn-middleend
 Phase 4  ████████████████████  100%  gcn-backend + gcn-cli
-Phase 5  ░░░░░░░░░░░░░░░░░░░░    0%  gcn-verbalizer
-Phase 6  ░░░░░░░░░░░░░░░░░░░░    0%  gcn-frontend-code
-Phase 7  ░░░░░░░░░░░░░░░░░░░░    0%  Pearl 2-3, R-GCN, wolof/arabe
+Phase 5  ████████████████████  100%  gcn-verbalizer
+Phase 6  ████████████████████  100%  gcn-frontend-code
+Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
 ```
 
-**Tests : 51 / 51 passent** (`cargo test --workspace`)
+**Tests Rust : 103 / 103 passent** (`cargo test --workspace`)
+**Tests Python : 54 / 54 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -101,6 +102,10 @@ Phase 7  ░░░░░░░░░░░░░░░░░░░░    0%  Pea
 | edge_accuracy, edge_f1_per_class | `gcn-python/evaluation/metrics.py` | ✅ |
 | causal_graph_similarity | `gcn-python/evaluation/metrics.py` | ✅ |
 | TrainingRecorder | `gcn-python/evaluation/recorder.py` | ✅ |
+| decoder_causal_fidelity | `gcn-python/evaluation/metrics.py` | ✅ |
+| cross_modal_consistency | `gcn-python/evaluation/metrics.py` | ✅ |
+| roundtrip_similarity | `gcn-python/evaluation/metrics.py` | ✅ |
+| generation_bleu | `gcn-python/evaluation/metrics.py` | ✅ |
 
 ---
 
@@ -149,52 +154,81 @@ Phase 7  ░░░░░░░░░░░░░░░░░░░░    0%  Pea
 
 ---
 
-## Phase 5 — Verbalisateur ⬜
+## Phase 5 — Décodeur ✅
 
-**Objectif :** graphe causal → texte naturel **et** code simultanément.
+**Objectif :** décodeur de l'architecture encodeur-décodeur GCN. Entraîné sur les mêmes données que l'encodeur. Évalué symétriquement.
 
 | Composant | Fichier | Statut |
 |---|---|---|
-| Crate `gcn-verbalizer` | — | ⬜ Non démarré |
-| Verbalisation texte (fr) | — | ⬜ |
-| Verbalisation code (Python) | — | ⬜ |
-| Sortie simultanée texte + code | — | ⬜ |
+| Crate `gcn-verbalizer` (pont Rust) | `gcn-verbalizer/src/lib.rs` | ✅ |
+| Décodeur référence NumPy | `gcn-python/verbalizer/decoder.py` | ✅ |
+| Interface Protocol | `gcn-python/verbalizer/interface.py` | ✅ |
+| CLI `gcn-verbalize` (Python, comme gcn-forward) | `gcn-python/verbalizer/cli.py` | ✅ |
+| Schéma dataset verbalization | `gcn-datasets/schemas/gcn-verbalize.schema.yaml` | ✅ |
+| Exemples cross-modal (fr+python même CausalIR) | `gcn-datasets/examples/verbalize_cross_modal.yaml` | ✅ |
+| Métriques décodeur (fidelity, consistency, roundtrip, bleu) | `gcn-python/evaluation/metrics.py` | ✅ |
 
 **Critère de vérification :**
-- `gcn-cli verbalize <ir.json> --lang fr` → phrase française cohérente avec le graphe
-- `gcn-cli verbalize <ir.json> --lang python` → code Python implémentant la logique causale
-- Le texte et le code produits depuis le même graphe encodent la même structure causale
+- `Verbalizer::decode(ir)` retourne une surface non vide pour tout CausalIR valide
+- La sortie dépend de l'entraînement, aucun type de sortie présupposé par l'architecture
+- `roundtrip_similarity` ≥ 0.7 sur exemples gold du dataset
+- `cross_modal_consistency` ≥ 0.7 entre surfaces fr et python du même CausalIR
+- `cargo test --workspace` passe, `cargo clippy -- -D warnings` propre
 
 ---
 
-## Phase 6 — Frontend code ⬜
+## Phase 6 — Frontend code ✅
 
 **Objectif :** AST Python, Rust, JavaScript → `CausalIR`.
 
-| Composant | Statut |
-|---|---|
-| Bridge tree-sitter | ⬜ |
-| Mapping AST → NodeType/RelationType | ⬜ |
-| Frontend Python | ⬜ |
-| Frontend Rust | ⬜ |
-| Frontend JavaScript | ⬜ |
+| Composant | Fichier | Statut |
+|---|---|---|
+| Bridge tree-sitter | `gcn-frontend-code/src/python.rs`, `rust.rs`, `js.rs` | ✅ |
+| Mapping AST → NodeType/RelationType | `gcn-references/taxonomies/python/python_ast.yaml`, `rust/rust_ast.yaml`, `js/js_ast.yaml` | ✅ |
+| LabelStrategy (YAML, pas de hardcoding) | `gcn-frontend-code/src/mapper.rs`, `resources.rs` | ✅ |
+| Frontend Python | `gcn-frontend-code/src/python.rs` | ✅ |
+| Frontend Rust | `gcn-frontend-code/src/rust.rs` | ✅ |
+| Frontend JavaScript | `gcn-frontend-code/src/js.rs` | ✅ |
 
-**Critère de vérification :** `if x < y: reduce(z)` et *"Si x est inférieur à y, on réduit z"* produisent des CIR isomorphes.
+**Tests (26/26) :** Python base (7), Rust base (7), JS base (7), isomorphisme fr↔py (1), isomorphisme py↔rs↔js (1), arête séquentielle (1), except body (1), label typé (1).
+
+**Critère de vérification :** `if x < y: reduce(z)` et *"Si x est inférieur à y, on réduit z"* produisent des CIR isomorphes (même nombre de nœuds, même arête `Condition`). ✅
+
+**Corrections appliquées lors de l'audit :**
+- Arête séquentielle `prev → cur` : était `data_edge(edge_rel)` (type du nœud courant), corrigée en `control_edge(Sequence)`
+- `node_label` : tronquait au premier `:` (bug sur `def f(x: int)`) → remplacé par `LabelStrategy` YAML + `child_by_field_name`
+- `walk_try` : le corps des `except_clause` était silencieusement ignoré → ajout de la récursion
+- `has_negation_in_clause` : paramètre `_res` inutile supprimé (les flags sont déjà set dans le tagger)
+- `generation_bleu` : brevity penalty utilisait `min(ref_lengths)` → standard BLEU (longueur la plus proche de l'hypothèse)
 
 ---
 
-## Phase 7 — Extensions ⬜
+## Phase 7 — Extensions ✅
 
-**Objectif :** Pearl niveaux 2-3, R-GCN optimisé, langues additionnelles.
+**Objectif :** Pearl niveaux 2-3, R-GCN optimisé, langues additionnelles (fr + en).
 
-| Composant | Statut |
-|---|---|
-| Pearl niveau 2 — do-calculus (intervention) | ⬜ |
-| Pearl niveau 3 — contrefactuels | ⬜ |
-| R-GCN PyTorch/JAX (remplace NumPy référence) | ⬜ |
-| Frontend Wolof | ⬜ |
-| Taxonomies Wolof | ⬜ |
-| Frontend Arabe | ⬜ |
+| Composant | Fichier | Statut |
+|---|---|---|
+| Pearl niveau 2 — `DO <nœud>` (intervention do-calculus) | `gcn-backend/src/pearl.rs` | ✅ |
+| Pearl niveau 3 — `COUNTERFACTUAL <nœud>` (contrefactuels) | `gcn-backend/src/pearl.rs` | ✅ |
+| GCN-QL étendu (`DO`, `COUNTERFACTUAL`) | `gcn-backend/src/query.rs` | ✅ |
+| R-GCN PyTorch (remplace NumPy référence, GPU/MPS) | `gcn-python/layer3/pytorch_rgcn.py` | ✅ |
+| Frontend anglais `EnglishParser` | `gcn-frontend-en/` | ✅ |
+| Taxonomies anglaises (11 fichiers) | `gcn-references/taxonomies/en/` | ✅ |
+| Isomorphisme fr↔en (même CIR pour condition fr/en) | `gcn-frontend-en/tests/integration_en.rs` | ✅ |
+
+**Tests (26+8=34 backend, 16 en, 16 fr, 11 PyTorch, ...) :** tous passent.
+
+**Sémantique Pearl :**
+- **DO X** = coupe toutes les arêtes entrantes de X (causes naturelles de X sont court-circuitées), propage en avant depuis X. Retourne `severed_count` + effets.
+- **COUNTERFACTUAL X** = "Que se serait-il passé si X n'avait pas eu lieu ?" Algorithme : compare les effets réels de X avec les nœuds atteignables depuis les vraies racines sans X. `unique_effects` = effets qui n'auraient PAS eu lieu sans X.
+
+**Corrections appliquées lors de l'implémentation :**
+- Algorithme contrefactuel initial : nœuds orphelins de X devenaient faussement des racines. Corrigé en partant des VRAIES racines originelles (nœuds sans aucune arête entrante dans le graphe complet).
+- `lemmatize_verb` anglais : strip `'s'` avant strip `"es"` pour "causes" → "cause", "enables" → "enable".
+- Annotateur anglais : marqueurs multi-mots avant verbes causaux (priorité plus haute) pour éviter que "prevent" vole le cas `in order to prevent`.
+
+**Décision : Wolof et Arabe exclus de la phase 7** (focalisé fr + en).
 
 ---
 

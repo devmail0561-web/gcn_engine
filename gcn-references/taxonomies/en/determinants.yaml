@@ -1,0 +1,52 @@
+taxonomy: determinants
+version: "1.0"
+description: English determiners and their causal scope in the GCN
+
+classes:
+  defini:
+    scope: specific
+    examples:
+      - lemma: "the"
+        scope: specific
+
+  indefini:
+    scope: existential
+    examples:
+      - lemma: "a"
+        scope: existential
+      - lemma: "an"
+        scope: existential
+
+  universel:
+    scope: universal
+    examples:
+      - lemma: "every"
+        scope: universal
+      - lemma: "all"
+        scope: universal
+      - lemma: "each"
+        scope: universal
+      - lemma: "any"
+        scope: universal
+
+  partitif:
+    scope: partial
+    examples:
+      - lemma: "some"
+        scope: partial
+      - lemma: "many"
+        scope: partial
+      - lemma: "few"
+        scope: partial
+      - lemma: "several"
+        scope: partial
+      - lemma: "most"
+        scope: partial
+
+  nul:
+    scope: null
+    examples:
+      - lemma: "no"
+        scope: null
+      - lemma: "neither"
+        scope: null
