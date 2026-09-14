@@ -279,6 +279,7 @@ dependencies = [
  "petgraph",
  "rayon",
  "serde",
+ "smallvec",
  "thiserror",
 ]
 

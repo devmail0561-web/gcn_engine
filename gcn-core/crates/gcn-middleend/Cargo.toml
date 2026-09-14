@@ -11,3 +11,6 @@ petgraph = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 rayon = { workspace = true }
+
+[dev-dependencies]
+smallvec = { workspace = true }
