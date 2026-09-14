@@ -751,10 +751,10 @@ text + lang_code
 | 2b | `gcn-python/` couches 1-3 : `layer1/`, `layer2/`, `layer3/`, `pipeline/` | 🔄 En cours |
 | 2c | `gcn-python/evaluation/` : métriques (accuracy, F1/classe, similarité graphe), `TrainingRecorder` (loss + courbes d'apprentissage par epoch, export CSV) | ⬜ |
 | 3 | `gcn-middleend` (graphe DiGraph, cycles Tarjan, propagation contraintes, validation) | ✅ Terminé — 17 tests |
-| 4 | `gcn-backend` (Pearl niveaux 1-2-3, GCN-QL L12) + `gcn-cli` (L8-L9) | ⬜ |
-| 5 | `gcn-verbalizer` — graphe causal → texte naturel ou code (petit LM ~100M params, ne raisonne pas, verbalise) | ⬜ |
+| 4 | `gcn-backend` (Pearl niveau 1 + GCN-QL L12) + `gcn-cli` (L8-L9) + interface Rust↔Python | ⬜ |
+| 5 | `gcn-verbalizer` — graphe causal → texte naturel **et** code simultanément (petit LM ~100M params, piloté par `SourceLanguage`, ne raisonne pas, verbalise) | ⬜ |
 | 6 | `gcn-frontend-code` (Python AST, Rust AST, JS) | ⬜ |
-| 7 | Pearl niveaux 2-3 complets, R-GCN, support wolof/arabe | ⬜ |
+| 7 | Pearl niveaux 2-3 (intervention, contrefactuel), R-GCN optimisé, support wolof/arabe | ⬜ |
 
 ## Vérification
 
@@ -762,5 +762,6 @@ text + lang_code
 2. **Phase 2** : Tous les exemples du papier (`paper_examples.yaml`) passent le pipeline frontend-fr → CIR et produisent les graphes attendus. Test spécifique : causalité implicite sur phrases juxtaposées.
 3. **Phase 3** : Tests d'intégration phrase → CIR → graphe. Détection des cycles sur l'exemple "ventes → coûts → qualité → ventes". Test feedback loop : annotation incohérente → middleend retourne `Inconsistency::TemporalContradiction`. Test fusion incrémentale : 3 phrases → graphe unifié.
 4. **Phase 4** : `gcn-cli analyze "Si les ventes baissent, on réduit les coûts."` → JSON CIR correct. `gcn-cli query "WHY ventes?"` → chaîne causale. `gcn-cli query "GAPS?"` → lacunes.
-5. **Phase 5** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe.
+5. **Phase 5** : `gcn-cli verbalize <cir.json> --lang fr` → phrase française cohérente. `gcn-cli verbalize <cir.json> --lang python` → code Python implémentant la logique causale. Test isomorphisme : texte et code produits depuis le même graphe encodent la même structure causale.
+6. **Phase 6** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe.
 6. **End-to-end** : `cargo test --workspace` passe, `cargo clippy -- -D warnings` propre, `cargo build --release` produit un binaire < 15MB, `gcn-cli setup` télécharge le modèle UDPipe.
