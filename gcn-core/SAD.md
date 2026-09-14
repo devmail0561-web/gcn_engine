@@ -55,66 +55,60 @@ Les couches ML (Couches 1-3 CGNP) sont implémentées dans le package Python `gc
 ### Structure du workspace Cargo
 
 ```
-gcn-core/
-├── Cargo.toml                        # Workspace root
-├── CLAUDE.md
-├── crates/
-│   ├── gcn-ir/                       # Types CIR (noyau, 0 dépendances internes)
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── node.rs               # CausalNode, NodeType, AgentType
-│   │       ├── edge.rs               # CausalEdge, RelationType
-│   │       ├── modifier.rs           # Intensity, Negation, Probability, etc.
-│   │       ├── scope.rs              # Scope enum (Universal, Existential, Partial, Null)
-│   │       ├── ir.rs                 # CausalIR struct (conteneur principal)
-│   │       ├── temporal.rs           # TemporalRef, TemporalAnchor
-│   │       ├── code.rs              # Types spécifiques code (CodeCausalType, DataFlow, etc.)
-│   │       └── error.rs              # GcnError, GcnResult
-│   ├── gcn-knowledge/                # Base de connaissances
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── taxonomy.rs           # Chargeur taxonomies YAML → structs typés
-│   │       ├── lexicon.rs            # Lexique causal par langue
-│   │       ├── inference.rs          # Règles d'inférence de types
-│   │       └── loader.rs             # Validation YAML
-│   ├── gcn-frontend-fr/              # Frontend français
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── parser.rs             # Wrapper UDPipe
-│   │       ├── annotator.rs          # Annotation GCN (rules + optional ML)
-│   │       ├── resolver.rs           # Résolution pronominale
-│   │       └── emitter.rs            # Tokens annotés → CIR
-│   ├── gcn-frontend-code/            # Frontend langages de programmation
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── ts_bridge.rs          # Bridge tree-sitter générique
-│   │       ├── python.rs             # AST Python → CIR
-│   │       ├── rust_lang.rs          # AST Rust → CIR
-│   │       ├── javascript.rs         # AST JS → CIR
-│   │       └── mapping.rs            # Règles mapping AST → types causaux
-│   ├── gcn-middleend/                # Optimisation + graphe
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── resolver.rs           # Résolution inter-phrases
-│   │       ├── propagator.rs         # Propagation de contraintes
-│   │       ├── graph.rs              # CausalGraph (petgraph DiGraph, incrémental)
-│   │       ├── cycle.rs              # Détection/annotation cycles
-│   │       ├── validator.rs          # Validation structurelle + feedback
-│   │       └── optimizer.rs          # Fusion, simplification
-│   ├── gcn-backend/                  # Raisonnement + sortie
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── reasoner.rs           # Pearl niveaux 1-2-3
-│   │       ├── query.rs              # Moteur de requêtes causales
-│   │       ├── verbalizer.rs         # Graphe → texte
-│   │       └── export.rs             # DOT, JSON, GraphML
-│   ├── gcn-cli/                      # CLI
-│   │   └── src/main.rs
-│   └── gcn-python/ → voir gcn-python/ (package Python sibling, pas un crate Rust)
-├── data/
-│   ├── taxonomies/                   # 11 taxonomies GCN (YAML) — partagées FR et futures langues
-│   │   ├── verbes.yaml               # 5 classes : etat, action, transition, processus, auxiliaire
-│   │   ├── verbes_causaux.yaml       # 3 classes : cause_directe, enable, prevent
+projet_CNM/
+├── gcn-core/                         # Moteur Rust pur — workspace Cargo
+│   ├── Cargo.toml
+│   ├── Cargo.lock
+│   ├── SAD.md
+│   └── crates/
+│       ├── gcn-ir/                   # Types CIR (noyau, 0 dépendances internes)
+│       │   └── src/
+│       │       ├── lib.rs
+│       │       ├── node.rs           # CausalNode, NodeType, AgentType
+│       │       ├── edge.rs           # CausalEdge, RelationType
+│       │       ├── modifier.rs       # Intensity, Negation, Probability, etc.
+│       │       ├── scope.rs          # Scope enum (Universal, Existential, Partial, Null)
+│       │       ├── ir.rs             # CausalIR struct (conteneur principal)
+│       │       ├── temporal.rs       # TemporalRef, TemporalAnchor
+│       │       ├── code.rs           # Types spécifiques code (CodeCausalType, DataFlow, etc.)
+│       │       └── error.rs          # GcnError, GcnResult
+│       ├── gcn-knowledge/            # Base de connaissances
+│       │   └── src/
+│       │       ├── lib.rs
+│       │       ├── taxonomy.rs       # Chargeur taxonomies YAML → structs typés
+│       │       ├── lexicon.rs        # Lexique causal par langue
+│       │       ├── inference.rs      # Règles d'inférence de types
+│       │       └── loader.rs         # Validation YAML
+│       ├── gcn-frontend-fr/          # Frontend français (parser symbolique)
+│       │   └── src/
+│       │       ├── lib.rs
+│       │       ├── tokenizer.rs
+│       │       ├── tagger.rs
+│       │       ├── rules.rs
+│       │       ├── annotator.rs
+│       │       ├── resources.rs      # Chargement LexicalResources depuis gcn-references/
+│       │       └── emitter.rs        # Tokens annotés → CausalIR
+│       ├── gcn-frontend-code/        # Frontend langages de programmation (stub)
+│       │   └── src/lib.rs
+│       ├── gcn-middleend/            # Graphe causal, cycles, contraintes, validation
+│       │   └── src/
+│       │       ├── lib.rs            # process(CausalIR) → MiddleendResult
+│       │       ├── graph.rs          # DiGraph depuis CausalIR
+│       │       ├── cycle.rs          # Détection SCC (Tarjan) + classification
+│       │       ├── propagate.rs      # TemporalGap, ordre temporel
+│       │       ├── validate.rs       # Self-loop, orphelins, confidence, Condition
+│       │       └── error.rs          # Diagnostic, MiddleendError
+│       ├── gcn-backend/              # Raisonnement Pearl + export (Phase 4)
+│       │   └── src/lib.rs
+│       ├── gcn-verbalizer/           # Verbalisateur graphe → texte/code (Phase 5)
+│       │   └── src/lib.rs
+│       └── gcn-cli/                  # CLI
+│           └── src/main.rs
+│
+├── gcn-references/                   # Références linguistiques — hors moteur
+│   ├── taxonomies/                   # 11 taxonomies GCN (YAML)
+│   │   ├── verbes.yaml
+│   │   ├── verbes_causaux.yaml
 │   │   ├── adverbes.yaml
 │   │   ├── adjectifs.yaml
 │   │   ├── conjonctions.yaml
@@ -123,24 +117,24 @@ gcn-core/
 │   │   ├── noms.yaml
 │   │   ├── pronoms.yaml
 │   │   ├── determinants.yaml
-│   │   └── nominalizations.yaml      # verb → forme nominale pour labels CIR
+│   │   └── nominalizations.yaml
 │   └── lexicons/
-│       ├── fr/                       # Lexique français
+│       ├── fr/
 │       ├── wo/                       # Wolof (futur)
 │       └── en/                       # Anglais (futur)
-├── datasets/
+│
+├── gcn-datasets/                     # Données annotées — hors moteur
 │   ├── schemas/
 │   │   ├── gcn-nl.schema.yaml        # Schéma dataset langues naturelles
 │   │   └── gcn-pl.schema.yaml        # Schéma dataset langues de programmation
 │   └── examples/
-│       ├── fr_causal_basic.yaml      # Exemples français annotés
-│       ├── fr_causal_cycles.yaml     # Exemples avec cycles
-│       ├── python_basic.yaml         # Exemples Python annotés
-│       └── rust_basic.yaml           # Exemples Rust annotés
-└── tests/
-    ├── integration/
-    └── fixtures/
-        └── paper_examples.yaml       # Tous les exemples du papier
+│       ├── fr_causal_basic.yaml
+│       ├── fr_causal_cycles.yaml
+│       ├── python_basic.yaml
+│       └── rust_basic.yaml
+│
+├── gcn-python/                       # Couches ML (Python, framework-agnostique)
+└── docs/                             # SAD papier de recherche (.docx)
 ```
 
 ### Dépendances inter-crates
@@ -400,7 +394,7 @@ snippet:
 
 ## Les 8 taxonomies GCN (structure YAML)
 
-Chaque fichier `data/taxonomies/*.yaml` suit cette structure et contient les entrées françaises du papier :
+Chaque fichier `gcn-references/taxonomies/*.yaml` suit cette structure et contient les entrées françaises du papier :
 
 1. **verbes.yaml** — 4 classes (état, action, transition, processus) + règles compositionnelles (aspect modifie le type)
 2. **adverbes.yaml** — 7 classes (intensité, temps, fréquence, manière, lieu, négation, probabilité) avec valeurs numériques
@@ -652,7 +646,9 @@ Le package `gcn-python/` (sibling de `gcn-core/`) implémente les **3 couches ML
 
 ```
 projet_CNM/
-├── gcn-core/        # Rust : IR, taxonomies, middle-end, backend Pearl, CLI
+├── gcn-core/        # Rust : moteur pur (IR, middle-end, backend Pearl, CLI)
+├── gcn-references/  # Références linguistiques (taxonomies, lexicons)
+├── gcn-datasets/    # Données annotées d'entraînement
 └── gcn-python/      # Python : couches ML 1-3 de l'architecture CGNP
     ├── pyproject.toml
     └── src/gcn_python/
@@ -754,10 +750,11 @@ text + lang_code
 | 2a | `gcn-frontend-fr` (règles, CIR, 16 tests) | ✅ Terminé |
 | 2b | `gcn-python/` couches 1-3 : `layer1/`, `layer2/`, `layer3/`, `pipeline/` | 🔄 En cours |
 | 2c | `gcn-python/evaluation/` : métriques (accuracy, F1/classe, similarité graphe), `TrainingRecorder` (loss + courbes d'apprentissage par epoch, export CSV) | ⬜ |
-| 3 | `gcn-middleend` (contraintes, graphe, cycles Tarjan, feedback L3-L4-L7) | ⬜ |
-| 4 | `gcn-backend` (Pearl niveau 1, GCN-QL L12) + `gcn-cli` (L8-L9) | ⬜ |
-| 5 | `gcn-frontend-code` (Python AST, Rust AST, JS) | ⬜ |
-| 6 | Pearl niveaux 2-3, couche 3 R-GCN complète, support wolof/arabe | ⬜ |
+| 3 | `gcn-middleend` (graphe DiGraph, cycles Tarjan, propagation contraintes, validation) | ✅ Terminé — 17 tests |
+| 4 | `gcn-backend` (Pearl niveaux 1-2-3, GCN-QL L12) + `gcn-cli` (L8-L9) | ⬜ |
+| 5 | `gcn-verbalizer` — graphe causal → texte naturel ou code (petit LM ~100M params, ne raisonne pas, verbalise) | ⬜ |
+| 6 | `gcn-frontend-code` (Python AST, Rust AST, JS) | ⬜ |
+| 7 | Pearl niveaux 2-3 complets, R-GCN, support wolof/arabe | ⬜ |
 
 ## Vérification
 
