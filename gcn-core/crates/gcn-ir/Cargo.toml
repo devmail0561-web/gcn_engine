@@ -1,0 +1,14 @@
+[package]
+name = "gcn-ir"
+version = "0.1.0"
+edition = "2024"
+description = "Causal Intermediate Representation types for GCN-Core"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+smallvec = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

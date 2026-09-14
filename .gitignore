@@ -1,0 +1,20 @@
+# Rust
+gcn-core/target/
+
+# Python
+gcn-python/__pycache__/
+gcn-python/src/**/__pycache__/
+gcn-python/tests/__pycache__/
+gcn-python/*.egg-info/
+gcn-python/src/*.egg-info/
+gcn-python/.pytest_cache/
+gcn-python/dist/
+gcn-python/build/
+gcn-python/models/
+
+# General
+.env
+*.pyc
+*.pyo
+*.so
+*.DS_Store

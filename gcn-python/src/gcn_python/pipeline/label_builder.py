@@ -1,0 +1,83 @@
+from __future__ import annotations
+from pathlib import Path
+import yaml
+
+from ..layer1.representation import UDRepresentation
+from ..taxonomy.loader import TaxonomyIndex
+
+_nom_cache: dict[tuple[str, str], dict[str, str]] = {}
+
+
+def build_label(
+    rep: UDRepresentation,
+    node_type: str,
+    tax: TaxonomyIndex,
+    taxonomies_dir: Path | None = None,
+) -> str:
+    """
+    (UDRepresentation, node_type, TaxonomyIndex) → str label CIR.
+
+    Format selon node_type :
+      action               → "{verb_lemma}({subject_lemma})"
+      etat/transition/     → "{nominalization}({entity})" ou "{verb}({subject})"
+      processus
+      entite/etat_system.  → "{entity_lemma}"
+      condition            → "cause_cachée(?)"
+    """
+    subject = _find_subject_lemma(rep)
+    entity = _find_entity_lemma(rep)
+    nom = _nominalize(rep.root_lemma, rep.lang, taxonomies_dir)
+
+    if node_type == "condition":
+        return "cause_cachée(?)"
+    if node_type in ("entite", "etat_systemique"):
+        return entity or rep.root_lemma
+    if node_type == "action":
+        return f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
+    # etat, transition, processus
+    if entity:
+        return f"{nom}({entity})"
+    if subject:
+        return f"{rep.root_lemma}({subject})"
+    return nom
+
+
+def _find_subject_lemma(rep: UDRepresentation) -> str | None:
+    for t in rep.tokens:
+        if t.get("dep_rel") in {"nsubj", "nsubj:pass"}:
+            return t["lemma"]
+    return None
+
+
+def _find_entity_lemma(rep: UDRepresentation) -> str | None:
+    for t in rep.tokens:
+        if t.get("dep_rel") in {"nsubj", "nsubj:pass"} and t.get("pos") in {"NOUN", "PROPN"}:
+            return t["lemma"]
+    for t in rep.tokens:
+        if t.get("pos") in {"NOUN", "PROPN"} and t.get("dep_rel") != "punct":
+            return t["lemma"]
+    return None
+
+
+def _nominalize(lemma: str, lang: str, taxonomies_dir: Path | None) -> str:
+    if taxonomies_dir is None:
+        return lemma
+    cache_key = (str(taxonomies_dir), lang)
+    if cache_key not in _nom_cache:
+        _nom_cache[cache_key] = _load_nominalizations(taxonomies_dir, lang)
+    return _nom_cache[cache_key].get(lemma, lemma)
+
+
+def _load_nominalizations(taxonomies_dir: Path, lang: str) -> dict[str, str]:
+    table: dict[str, str] = {}
+    for search_dir in [taxonomies_dir / lang, taxonomies_dir]:
+        nom_path = search_dir / "nominalizations.yaml"
+        if nom_path.exists():
+            doc = yaml.safe_load(nom_path.read_text(encoding="utf-8"))
+            if isinstance(doc, dict):
+                for _cls, cls_data in (doc.get("classes") or {}).items():
+                    for entry in (cls_data or {}).get("examples_fr") or []:
+                        if isinstance(entry, dict) and "lemma" in entry and "note" in entry:
+                            table[entry["lemma"].lower()] = entry["note"]
+            break
+    return table

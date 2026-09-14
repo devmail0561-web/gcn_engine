@@ -1,0 +1,13 @@
+[package]
+name = "gcn-middleend"
+version = "0.1.0"
+edition = "2024"
+description = "Causal graph construction, constraint propagation, validation"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+gcn-knowledge = { path = "../gcn-knowledge" }
+petgraph = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }

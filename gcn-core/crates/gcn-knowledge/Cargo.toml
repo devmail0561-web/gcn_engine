@@ -1,0 +1,15 @@
+[package]
+name = "gcn-knowledge"
+version = "0.1.0"
+edition = "2024"
+description = "GCN taxonomies, lexicons, and type inference rules"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+yaml_serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

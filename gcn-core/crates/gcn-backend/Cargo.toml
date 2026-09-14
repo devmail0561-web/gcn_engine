@@ -1,0 +1,12 @@
+[package]
+name = "gcn-backend"
+version = "0.1.0"
+edition = "2024"
+description = "Causal reasoning (Pearl), query engine, export"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+gcn-middleend = { path = "../gcn-middleend" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

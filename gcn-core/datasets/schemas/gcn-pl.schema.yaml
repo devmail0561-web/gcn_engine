@@ -1,0 +1,867 @@
+# =============================================================================
+# GCN-PL Schema — Dataset format for Programming Languages
+# =============================================================================
+#
+# Grammaire Causale Naturelle : Representation Intermediaire Causale (CIR)
+# appliquee aux langages de programmation.
+#
+# Ce schema decrit le format d'annotation de snippets de code source.
+# Le pipeline : source code -> tree-sitter AST -> annotation GCN -> CIR.
+#
+# Langages supportes : Python, Rust, JavaScript.
+# Parseur : tree-sitter (grammaires specifiques par langage).
+#
+# Schema version : 1.0
+# =============================================================================
+
+schema:
+  name: "GCN-PL"
+  version: "1.0"
+  description: >
+    Format de dataset pour l'annotation causale de langages de programmation.
+    Chaque snippet de code est annote a deux niveaux : noeuds AST avec
+    classification causale GCN, puis representation intermediaire causale (CIR)
+    avec noeuds, aretes et detection de cycles.
+  levels:
+    - ast_node    # Noeud de l'arbre syntaxique abstrait (tree-sitter)
+    - cir         # Representation Intermediaire Causale (graphe causal)
+
+# =============================================================================
+# Niveau 1 : Snippet (conteneur racine)
+# =============================================================================
+
+snippet:
+  description: >
+    Unite de base du dataset GCN-PL. Un snippet correspond a un fragment
+    de code source coherent (fonction, bloc, module) annote avec sa CIR.
+
+  fields:
+
+    id:
+      type: string
+      required: true
+      format: "<lang_prefix>-<numero_sequentiel>"
+      description: >
+        Identifiant unique du snippet dans le dataset.
+      examples:
+        - "py-001"   # Premier snippet Python
+        - "rs-001"   # Premier snippet Rust
+        - "js-001"   # Premier snippet JavaScript
+
+    lang:
+      type: enum
+      required: true
+      values:
+        - python
+        - rust
+        - javascript
+      description: >
+        Langage de programmation du snippet. Determine la grammaire
+        tree-sitter utilisee pour le parsing AST.
+
+    source_code:
+      type: string
+      required: true
+      description: >
+        Code source brut du snippet, tel qu'il serait ecrit dans un fichier.
+        Preserve l'indentation et les sauts de ligne.
+      encoding: "UTF-8"
+
+    ast_nodes:
+      type: list
+      required: true
+      items: ast_node
+      description: >
+        Liste ordonnee des noeuds AST pertinents pour l'analyse causale.
+        Seuls les noeuds portant une semantique causale sont inclus
+        (declarations, affectations, conditions, boucles, appels, retours).
+        Les noeuds purement syntaxiques (parentheses, virgules) sont omis.
+
+    cir:
+      type: object
+      required: true
+      description: >
+        Representation Intermediaire Causale derivee du snippet.
+        Contient le graphe causal (noeuds + aretes) et les cycles detectes.
+
+# =============================================================================
+# Niveau 2 : Noeud AST (annotation tree-sitter + GCN)
+# =============================================================================
+
+ast_node:
+  description: >
+    Un noeud de l'arbre syntaxique abstrait produit par tree-sitter,
+    enrichi d'une annotation causale GCN. Chaque noeud AST pertinent
+    est classifie selon son type causal (CodeCausalType).
+
+  fields:
+
+    id:
+      type: integer
+      required: true
+      description: >
+        Identifiant numerique sequentiel du noeud AST dans le snippet.
+        Commence a 0.
+
+    kind:
+      type: string
+      required: true
+      description: >
+        Type de noeud tree-sitter (nom exact du noeud dans la grammaire).
+      examples_python:
+        - "function_definition"     # def f(args):
+        - "assignment"              # x = expr
+        - "augmented_assignment"    # x += expr
+        - "if_statement"            # if cond:
+        - "for_statement"           # for x in iterable:
+        - "while_statement"         # while cond:
+        - "call"                    # f(args)
+        - "return_statement"        # return expr
+        - "try_statement"           # try: ... except:
+        - "import_statement"        # import x
+        - "class_definition"        # class C:
+        - "assert_statement"        # assert cond
+        - "delete_statement"        # del x
+        - "expression_statement"    # expr (appel de methode, etc.)
+      examples_rust:
+        - "function_item"           # fn f(args) -> T { }
+        - "let_declaration"         # let x = expr;
+        - "if_expression"           # if cond { } else { }
+        - "match_expression"        # match expr { arms }
+        - "for_expression"          # for x in iter { }
+        - "while_expression"        # while cond { }
+        - "call_expression"         # f(args)
+        - "method_call_expression"  # obj.method(args)
+        - "return_expression"       # return expr (ou expr implicite)
+        - "struct_item"             # struct S { }
+        - "impl_item"              # impl T { }
+        - "macro_invocation"        # macro!(args)
+      examples_javascript:
+        - "function_declaration"    # function f(args) { }
+        - "arrow_function"          # (args) => expr
+        - "variable_declaration"    # let/const/var x = expr
+        - "if_statement"            # if (cond) { }
+        - "for_statement"           # for (...) { }
+        - "for_in_statement"        # for (x in obj) { }
+        - "call_expression"         # f(args)
+        - "return_statement"        # return expr
+        - "try_statement"           # try { } catch (e) { }
+        - "class_declaration"       # class C { }
+        - "throw_statement"         # throw new Error(...)
+
+    text:
+      type: string
+      required: true
+      description: >
+        Texte source correspondant au noeud AST.
+        Pour les noeuds longs (fonctions entieres), peut etre tronque
+        a la premiere ligne avec "..." pour indiquer la suite.
+
+    start_line:
+      type: integer
+      required: true
+      description: >
+        Ligne de debut du noeud dans le code source (1-indexed).
+
+    start_col:
+      type: integer
+      required: true
+      description: >
+        Colonne de debut du noeud dans le code source (0-indexed).
+
+    end_line:
+      type: integer
+      required: true
+      description: >
+        Ligne de fin du noeud dans le code source (1-indexed).
+
+    end_col:
+      type: integer
+      required: true
+      description: >
+        Colonne de fin du noeud dans le code source (0-indexed).
+
+    gcn:
+      type: object
+      required: true
+      description: >
+        Annotation causale GCN du noeud AST. Classifie le noeud
+        selon son role causal dans le flux de donnees et de controle.
+
+      fields:
+
+        causal_type:
+          type: enum
+          required: true
+          values:
+            variable_state:
+              description: >
+                Lecture d'une variable — etat d'une entite.
+                Correspond a NodeType::Etat dans la CIR.
+              examples: ["x", "status", "market.price"]
+
+            assignment:
+              description: >
+                Affectation d'une variable — action de transition d'etat.
+                Correspond a NodeType::Action ou NodeType::Transition dans la CIR.
+              examples: ["total = sum(sales)", "let status = market.evaluate()"]
+
+            function_call:
+              description: >
+                Appel de fonction — action avec agent (appelant) et patient
+                (arguments/objet mute). Peut etre pur ou avec effets de bord.
+              examples: ["sum(sales)", "market.reduce_costs(0.1)", "log_removal(item)"]
+
+            conditional:
+              description: >
+                Branchement conditionnel — suspend la chaine causale
+                jusqu'a evaluation. Correspond a NodeType::Condition.
+              examples: ["if total < threshold:", "match status { ... }"]
+
+            loop:
+              description: >
+                Boucle — processus iteratif, cause continue.
+                Correspond a NodeType::Processus dans la CIR.
+              examples: ["for item in inventory:", "while not done:"]
+
+            return_value:
+              description: >
+                Valeur de retour — consequence causale d'un calcul.
+                Correspond a NodeType::Etat (etat resultant) dans la CIR.
+              examples: ["return reduction", "return 0.0", "Ok(Report::adjusted())"]
+
+            exception:
+              description: >
+                Levee ou capture d'exception — rupture ou concession
+                dans la chaine causale. Correspond a un edge de type
+                concession ou opposition.
+              examples: ["raise ValueError(...)", "except KeyError:", "Err(Error::...)"]
+
+            import_dependency:
+              description: >
+                Importation de module — relation de dependance structurelle.
+                Ne produit pas de noeud CIR mais peut etre notee comme contexte.
+              examples: ["import pandas", "use std::collections::HashMap"]
+
+            type_definition:
+              description: >
+                Definition de type (class, struct, enum) — agent structurel.
+                Correspond a NodeType::Entite dans la CIR.
+              examples: ["class Market:", "struct Report", "enum Status"]
+
+            mutation:
+              description: >
+                Mutation d'un objet — transition d'etat sur une entite.
+                Correspond a NodeType::Transition dans la CIR.
+              examples: ["inventory.remove(item)", "market.reduce_costs(0.1)"]
+
+            assertion:
+              description: >
+                Assertion — contrainte causale verifiee a l'execution.
+                Correspond a NodeType::Condition avec verification stricte.
+              examples: ["assert total >= 0", "debug_assert!(market.is_valid())"]
+
+        attributes:
+          type: object
+          required: false
+          description: >
+            Attributs complementaires du noeud AST, decrivant son role
+            dans le flux de donnees et de controle.
+
+          fields:
+
+            data_flow:
+              type: enum
+              required: false
+              values:
+                - read        # Lecture de variable (consommation)
+                - write       # Ecriture de variable (production)
+                - read_write  # Lecture puis ecriture (mutation in-place)
+              description: >
+                Direction du flux de donnees pour ce noeud.
+
+            control_flow:
+              type: enum
+              required: false
+              values:
+                - branch      # Point de branchement (if, match, switch)
+                - merge       # Point de convergence (fin de if/else, join)
+                - loop_entry  # Entree de boucle
+                - loop_exit   # Sortie de boucle (break, condition fausse)
+              description: >
+                Role dans le flux de controle du programme.
+
+            scope_level:
+              type: integer
+              required: false
+              description: >
+                Niveau d'imbrication lexicale du noeud (0 = top-level,
+                1 = dans une fonction, 2 = dans un if dans une fonction, etc.).
+
+            side_effect:
+              type: boolean
+              required: false
+              description: >
+                Indique si le noeud produit des effets de bord
+                (mutation d'etat externe, I/O, ecriture fichier, etc.).
+
+            pure:
+              type: boolean
+              required: false
+              description: >
+                Indique si la fonction/expression est pure (meme entree
+                donne toujours meme sortie, aucun effet de bord).
+                Mutuellement exclusif avec side_effect: true.
+
+            variable:
+              type: string
+              required: false
+              description: >
+                Nom de la variable lue ou ecrite par ce noeud.
+              examples: ["total", "reduction", "status", "item"]
+
+            function:
+              type: string
+              required: false
+              description: >
+                Nom de la fonction definie ou appelee par ce noeud.
+              examples: ["adjust_costs", "sum", "reduce_costs", "log_removal"]
+
+            type_info:
+              type: string
+              required: false
+              description: >
+                Information de type associee au noeud (type de retour,
+                type de variable, signature). Peut etre infere ou annote.
+              examples: ["float", "Status", "Result<Report, Error>", "bool"]
+
+# =============================================================================
+# Niveau 3 : CIR — Representation Intermediaire Causale
+# =============================================================================
+
+cir:
+  description: >
+    Graphe causal derive du snippet de code. Les noeuds representent
+    des etats, actions, conditions et processus; les aretes representent
+    des dependances de donnees, de controle, et des relations causales.
+
+  fields:
+
+    nodes:
+      type: list
+      required: true
+      items: cir_node
+      description: >
+        Liste des noeuds causaux du graphe CIR.
+
+    edges:
+      type: list
+      required: true
+      items: cir_edge
+      description: >
+        Liste des aretes causales reliant les noeuds.
+
+    cycles:
+      type: list
+      required: false
+      items: cir_cycle
+      description: >
+        Cycles detectes dans le graphe causal (boucles de retroaction).
+        Typiquement produits par des boucles while avec mutation d'etat,
+        ou par des appels recursifs.
+
+# -----------------------------------------------------------------------------
+# Noeud CIR
+# -----------------------------------------------------------------------------
+
+cir_node:
+  description: >
+    Un noeud dans le graphe causal CIR. Represente un etat, une action,
+    une transition, un processus ou une condition identifiee dans le code.
+
+  fields:
+
+    id:
+      type: string
+      required: true
+      format: "n<numero_sequentiel_3_chiffres>"
+      description: >
+        Identifiant unique du noeud dans la CIR du snippet.
+      examples: ["n001", "n002", "n003"]
+
+    type:
+      type: enum
+      required: true
+      values:
+        etat:
+          description: >
+            Etat d'une variable ou d'une entite. Pas de dynamique causale
+            propre — repond a "qu'est-ce qui a produit cet etat ?".
+          code_mapping: "variable_state, return_value, let_declaration"
+        action:
+          description: >
+            Intervention causale directe — un appel de fonction, une
+            affectation, une operation qui produit un effet.
+          code_mapping: "assignment, function_call"
+        transition:
+          description: >
+            Changement d'etat ponctuel — mutation, passage d'un etat
+            a un autre. Delta instantane.
+          code_mapping: "mutation, assignment (quand transition d'etat)"
+        processus:
+          description: >
+            Cause continue — boucle, iteration, accumulation progressive.
+            Le temps est intrinseque au processus.
+          code_mapping: "loop (for, while)"
+        condition:
+          description: >
+            Suspend la chaine causale jusqu'a evaluation. Branchement
+            conditionnel, pattern matching, assertion.
+          code_mapping: "conditional (if, match, switch), assertion"
+        entite:
+          description: >
+            Agent ou patient structurel — type, classe, module.
+            Ne produit pas de causalite directe mais peuple la chaine.
+          code_mapping: "type_definition (class, struct, enum)"
+        etat_systemique:
+          description: >
+            Contexte global filtrant — configuration, etat d'environnement.
+            Affecte toutes les chaines causales du snippet.
+          code_mapping: "import_dependency, global state"
+
+    label:
+      type: string
+      required: true
+      description: >
+        Description humainement lisible du noeud. Pour le code,
+        reprend generalement l'expression source simplifiee.
+      examples:
+        - "total = sum(sales)"
+        - "total < threshold"
+        - "market.reduce_costs(0.1)"
+        - "return reduction"
+
+    code_span:
+      type: object
+      required: true
+      description: >
+        Position du noeud dans le code source. Pour les noeuds
+        inferes (origin: inferred), peut pointer vers le noeud
+        AST dont ils derivent.
+      fields:
+        start_line:
+          type: integer
+          required: true
+          description: "Ligne de debut (1-indexed)."
+        start_col:
+          type: integer
+          required: true
+          description: "Colonne de debut (0-indexed)."
+        end_line:
+          type: integer
+          required: true
+          description: "Ligne de fin (1-indexed)."
+        end_col:
+          type: integer
+          required: true
+          description: "Colonne de fin (0-indexed)."
+
+    scope:
+      type: enum
+      required: false
+      default: "unknown"
+      values:
+        - universal      # Toutes les instances (boucle sur collection complete)
+        - existential    # Au moins une instance (condition verifiee)
+        - partial        # Sous-ensemble (filtre, slice)
+        - "null"         # Aucune instance (branche impossible, dead code)
+        - specific       # Instance precise identifiee
+        - unknown        # Non resolu
+      description: >
+        Portee quantificative du noeud. En code, souvent determinee
+        par le contexte de boucle (universal) ou de condition (existential).
+
+    temporal_index:
+      type: integer
+      required: false
+      description: >
+        Index temporel dans l'ordre d'execution du snippet.
+        Commence a 0 pour la premiere instruction executee.
+        Les branches conditionnelles partagent le meme index
+        que leur condition.
+
+    origin:
+      type: enum
+      required: false
+      default: "explicit"
+      values:
+        - explicit       # Directement present dans le code source
+        - inferred       # Deduit par analyse (type implicite, retour implicite)
+        - hypothetical   # Postule pour combler une lacune causale
+      description: >
+        Origine du noeud. En code, la plupart des noeuds sont explicites.
+        Les noeuds inferes correspondent a des valeurs de retour implicites,
+        des types deduits, ou des effets de bord identifies par analyse.
+
+    modifiers:
+      type: list
+      required: false
+      items: modifier
+      description: >
+        Modificateurs appliques au noeud. Moins frequents en code qu'en
+        langue naturelle, mais incluent la negation (conditions inversees)
+        et l'intensite (poids numeriques).
+
+    attributes:
+      type: object
+      required: false
+      description: >
+        Attributs specifiques au noeud, dependant de son type.
+
+      fields:
+
+        variable:
+          type: string
+          required: false
+          description: >
+            Nom de la variable associee au noeud (pour etat, transition).
+          examples: ["total", "reduction", "status", "market"]
+
+        function:
+          type: string
+          required: false
+          description: >
+            Nom de la fonction associee au noeud (pour action, processus).
+          examples: ["adjust_costs", "reduce_costs", "sum"]
+
+        type_info:
+          type: string
+          required: false
+          description: >
+            Type de la variable ou de la valeur de retour.
+          examples: ["float", "int", "Status", "Result<Report, Error>"]
+
+        value_constraint:
+          type: string
+          required: false
+          description: >
+            Contrainte de valeur pour les noeuds de type condition.
+            Exprimee sous forme fonctionnelle.
+          examples:
+            - "less_than(total, threshold)"
+            - "equals(status, Status::Declining)"
+            - "is_true(item.expired)"
+
+        entity:
+          type: string
+          required: false
+          description: >
+            Entite (objet, structure) sur laquelle porte le noeud.
+          examples: ["market", "inventory", "sales"]
+
+        agent:
+          type: string
+          required: false
+          description: >
+            Agent effectuant l'action (fonction appelante, module).
+
+        patient:
+          type: string
+          required: false
+          description: >
+            Patient recevant l'action (variable mutee, argument).
+
+# -----------------------------------------------------------------------------
+# Arete CIR
+# -----------------------------------------------------------------------------
+
+cir_edge:
+  description: >
+    Une arete dans le graphe causal CIR. Represente une dependance
+    de donnees, de controle, ou une relation causale entre deux noeuds.
+
+  fields:
+
+    source:
+      type: string
+      required: true
+      description: >
+        Identifiant du noeud source (cause, producteur, condition).
+      format: "n<numero>"
+
+    target:
+      type: string
+      required: true
+      description: >
+        Identifiant du noeud cible (effet, consommateur, consequence).
+      format: "n<numero>"
+
+    relation:
+      type: enum
+      required: true
+      values:
+        data_dependency:
+          description: >
+            Dependance de donnees — le noeud cible lit une valeur
+            produite par le noeud source. Flux de donnees.
+          examples: ["total lu par la condition", "reduction lue par return"]
+
+        control_dependency:
+          description: >
+            Dependance de controle — le noeud cible n'est execute
+            que si le noeud source (condition) est evalue a vrai/faux.
+          examples: ["if branch => body", "match arm => action"]
+
+        condition:
+          description: >
+            Relation conditionnelle — le noeud source est une condition
+            qui suspend l'execution du noeud cible.
+          examples: ["total < threshold => reduction = ...", "status == Declining => reduce_costs"]
+
+        sequence:
+          description: >
+            Relation sequentielle — le noeud cible est execute apres
+            le noeud source dans l'ordre du programme.
+          examples: ["assignment => return", "evaluate => match"]
+
+        cause:
+          description: >
+            Relation causale directe — le noeud source cause
+            l'execution ou l'etat du noeud cible.
+          examples: ["mutation => nouvel etat", "appel => effet de bord"]
+
+        enable:
+          description: >
+            Facilitation — le noeud source rend possible (mais ne force pas)
+            l'execution du noeud cible.
+          examples: ["import => utilisation du module"]
+
+        prevent:
+          description: >
+            Prevention — le noeud source empeche l'execution du noeud cible.
+          examples: ["guard clause => early return", "assert failure => block"]
+
+      description: >
+        Type de relation causale entre les deux noeuds.
+        Les relations data_dependency et control_dependency sont specifiques
+        au code; les autres sont partagees avec GCN-NL.
+
+    attributes:
+      type: object
+      required: false
+      description: >
+        Attributs complementaires de l'arete.
+
+      fields:
+
+        confidence:
+          type: float
+          required: false
+          default: 1.0
+          range: [0.0, 1.0]
+          description: >
+            Confiance dans la relation. Pour le code, generalement 1.0
+            (la relation est deterministe). Peut etre < 1.0 pour les
+            relations inferees (causalite implicite entre fonctions).
+
+        explicit:
+          type: boolean
+          required: false
+          default: true
+          description: >
+            Indique si la relation est explicitement presente dans le code.
+            En code, presque toutes les relations sont explicites.
+            Les relations inferees (effet de bord distant, dependance
+            transitive) sont marquees explicit: false.
+
+        negated:
+          type: boolean
+          required: false
+          default: false
+          description: >
+            Indique si la relation est niee. Exemple : une condition
+            inversee (if NOT cond) nie la relation condition.
+
+        temporal_gap:
+          type: object
+          required: false
+          description: >
+            Ecart temporel entre source et cible. Rarement utilise en code
+            synchrone, pertinent pour le code asynchrone (await, callbacks).
+          fields:
+            min:
+              type: integer
+              required: false
+              description: "Ecart minimal (en pas d'execution)."
+            max:
+              type: integer
+              required: false
+              description: "Ecart maximal (en pas d'execution)."
+            nature:
+              type: enum
+              values:
+                - immediate   # Instruction suivante
+                - deferred    # Callback, await, planifie
+                - continuous  # Boucle, stream
+              description: "Nature de l'ecart temporel."
+
+        marker_token:
+          type: integer
+          required: false
+          description: >
+            Index du noeud AST qui porte le marqueur de la relation
+            (le mot-cle if, for, return, etc.).
+
+        in_cycle:
+          type: integer
+          required: false
+          description: >
+            Identifiant du cycle auquel cette arete appartient.
+            Null si l'arete n'est pas dans un cycle.
+
+# -----------------------------------------------------------------------------
+# Cycle CIR
+# -----------------------------------------------------------------------------
+
+cir_cycle:
+  description: >
+    Un cycle detecte dans le graphe causal. En code, correspond
+    typiquement a une boucle avec mutation d'etat, une recursion,
+    ou un pattern de retry/feedback.
+
+  fields:
+
+    id:
+      type: integer
+      required: true
+      description: >
+        Identifiant unique du cycle dans le snippet.
+
+    path:
+      type: list
+      required: true
+      items:
+        type: string
+        format: "n<numero>"
+      description: >
+        Liste ordonnee des identifiants de noeuds formant le cycle.
+        Le dernier noeud se reconnecte au premier.
+      examples:
+        - ["n001", "n002", "n003", "n001"]
+
+    cycle_type:
+      type: enum
+      required: true
+      values:
+        feedback_positive:
+          description: >
+            Retroaction positive — le cycle amplifie l'etat.
+            Exemple : boucle d'accumulation, croissance exponentielle.
+        feedback_negative:
+          description: >
+            Retroaction negative — le cycle stabilise l'etat.
+            Exemple : boucle de correction, PID controller.
+        oscillation:
+          description: >
+            Oscillation — le cycle alterne entre etats opposes.
+            Exemple : retry avec backoff, toggle.
+      description: >
+        Type de retroaction du cycle.
+
+# =============================================================================
+# Modificateur (partage avec GCN-NL)
+# =============================================================================
+
+modifier:
+  description: >
+    Modificateur applique a un noeud CIR. En code, les modificateurs
+    sont moins frequents qu'en langue naturelle. Les plus courants
+    sont la negation (condition inversee) et l'intensite (poids).
+
+  fields:
+
+    kind:
+      type: enum
+      required: true
+      values:
+        - negation      # Condition inversee (if not, unless)
+        - intensity     # Poids numerique (facteur multiplicatif)
+        - probability   # Probabilite (code stochastique)
+        - frequency     # Frequence d'execution (hot path, rare path)
+      description: "Type de modificateur."
+
+    value:
+      type: float
+      required: false
+      description: >
+        Valeur numerique du modificateur (pour intensity, probability).
+
+    total:
+      type: boolean
+      required: false
+      description: >
+        Pour negation : true si negation totale (not), false si partielle.
+
+    source_form:
+      type: string
+      required: false
+      description: >
+        Texte source du modificateur dans le code.
+      examples: ["not", "!", "~", "0.1", "0.001"]
+
+# =============================================================================
+# Conventions et regles
+# =============================================================================
+
+conventions:
+  id_format:
+    snippet: "<lang_prefix>-<3_digits>"   # py-001, rs-001, js-001
+    cir_node: "n<3_digits>"               # n001, n002, n003
+    cir_cycle: "<integer>"                # 0, 1, 2
+
+  relation_names: "snake_case"
+    # data_dependency, control_dependency, condition, sequence,
+    # cause, enable, prevent
+
+  node_type_names: "snake_case"
+    # etat, action, transition, processus, condition, entite, etat_systemique
+
+  encoding: "UTF-8"
+
+  mapping_rules:
+    description: >
+      Regles de mapping AST -> CIR (CodeCausalType -> NodeType).
+    mappings:
+      - ast: variable_state
+        cir: etat
+        note: "Lecture de variable = etat observe"
+      - ast: assignment
+        cir: action
+        note: "Affectation = action productrice. Transition si mutation d'etat existant."
+      - ast: function_call
+        cir: action
+        note: "Appel de fonction = action avec agent et patient"
+      - ast: conditional
+        cir: condition
+        note: "Branchement = condition suspensive"
+      - ast: loop
+        cir: processus
+        note: "Boucle = processus iteratif continu"
+      - ast: return_value
+        cir: etat
+        note: "Retour = etat resultant"
+      - ast: exception
+        cir: transition
+        note: "Exception = rupture, transition vers etat d'erreur"
+      - ast: import_dependency
+        cir: etat_systemique
+        note: "Import = contexte global (optionnel, souvent omis)"
+      - ast: type_definition
+        cir: entite
+        note: "Definition de type = agent structurel"
+      - ast: mutation
+        cir: transition
+        note: "Mutation = transition d'etat ponctuelle"
+      - ast: assertion
+        cir: condition
+        note: "Assertion = condition stricte (verification)"

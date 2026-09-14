@@ -1,0 +1,10 @@
+[package]
+name = "gcn-frontend-code"
+version = "0.1.0"
+edition = "2024"
+description = "Programming language frontend for GCN-Core (tree-sitter)"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+serde = { workspace = true }
+thiserror = { workspace = true }

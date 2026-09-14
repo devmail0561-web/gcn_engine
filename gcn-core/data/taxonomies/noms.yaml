@@ -1,0 +1,136 @@
+taxonomy: noms
+version: "1.0"
+description: Classification des noms selon leur rôle dans la chaîne causale de la Grammaire Causale Naturelle
+
+classes:
+  agent:
+    role: Source active de la causalité
+    position: origine
+    subtypes:
+      human:
+        description: Agent humain individuel
+        examples_fr:
+          - "personne"
+          - "homme"
+          - "femme"
+          - "enfant"
+          - "médecin"
+      collective:
+        description: Agent collectif agissant comme une entité
+        examples_fr:
+          - "groupe"
+          - "foule"
+          - "équipe"
+          - "peuple"
+          - "communauté"
+      institutional:
+        description: Agent institutionnel doté de pouvoir structurel
+        examples_fr:
+          - "gouvernement"
+          - "entreprise"
+          - "État"
+          - "tribunal"
+          - "école"
+      natural:
+        description: Agent naturel non intentionnel
+        examples_fr:
+          - "vent"
+          - "fleuve"
+          - "volcan"
+          - "séisme"
+          - "tempête"
+
+  patient:
+    role: Entité subissant l'effet causal
+    position: terminus
+    examples_fr:
+      - lemma: "victime"
+        note: patient humain affecté négativement
+      - lemma: "cible"
+        note: objet visé par l'action
+      - lemma: "bénéficiaire"
+        note: patient recevant un effet positif
+      - lemma: "objet"
+        note: entité physique affectée
+      - lemma: "surface"
+        note: lieu d'impact
+      - lemma: "destinataire"
+        note: récepteur du transfert
+
+  processus:
+    role: Déroulement causal nommé
+    position: lien
+    examples_fr:
+      - lemma: "évolution"
+        note: changement graduel
+      - lemma: "croissance"
+        note: augmentation progressive
+      - lemma: "dégradation"
+        note: détérioration étendue
+      - lemma: "transformation"
+        note: modification profonde
+      - lemma: "propagation"
+        note: extension spatiotemporelle
+      - lemma: "développement"
+        note: progression structurée
+
+  etat_systemique:
+    role: Configuration stable d'un système
+    position: fond
+    examples_fr:
+      - lemma: "équilibre"
+        note: stabilité dynamique
+      - lemma: "crise"
+        note: état instable du système
+      - lemma: "paix"
+        note: absence de conflit
+      - lemma: "situation"
+        note: configuration générale
+      - lemma: "statu quo"
+        note: maintien du système
+      - lemma: "stabilité"
+        note: résistance au changement
+      - lemma: "chômage"
+        note: état systémique de sous-emploi
+      - lemma: "inflation"
+        note: état de hausse généralisée des prix
+      - lemma: "récession"
+        note: état de contraction économique
+      - lemma: "guerre"
+        note: état de conflit armé institutionnalisé
+      - lemma: "conflit"
+        note: état d'opposition structurelle
+
+  abstrait:
+    role: Concept ou entité non matérielle participant à la chaîne causale
+    position: variable
+    examples_fr:
+      - lemma: "cause"
+        note: méta-référence causale
+      - lemma: "raison"
+        note: justification abstraite
+      - lemma: "conséquence"
+        note: effet nommé
+      - lemma: "idée"
+        note: contenu mental
+      - lemma: "liberté"
+        note: concept sociopolitique
+      - lemma: "justice"
+        note: principe normatif
+
+  relation:
+    role: Lien structurel entre entités dans le réseau causal
+    position: arc
+    examples_fr:
+      - lemma: "lien"
+        note: connexion générique
+      - lemma: "rapport"
+        note: relation mesurable
+      - lemma: "influence"
+        note: effet asymétrique
+      - lemma: "dépendance"
+        note: relation nécessaire
+      - lemma: "corrélation"
+        note: covariation observée
+      - lemma: "interaction"
+        note: influence bidirectionnelle

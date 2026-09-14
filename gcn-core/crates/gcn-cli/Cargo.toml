@@ -1,0 +1,15 @@
+[package]
+name = "gcn-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Command-line interface for GCN-Core"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+gcn-knowledge = { path = "../gcn-knowledge" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr" }
+gcn-frontend-code = { path = "../gcn-frontend-code" }
+gcn-middleend = { path = "../gcn-middleend" }
+gcn-backend = { path = "../gcn-backend" }
+clap = { workspace = true }
+serde_json = { workspace = true }

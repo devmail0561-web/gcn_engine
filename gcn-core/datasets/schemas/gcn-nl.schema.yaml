@@ -1,0 +1,1071 @@
+# =============================================================================
+# GCN-NL Schema — Grammaire Causale Naturelle : Format de Dataset Langues Naturelles
+# =============================================================================
+#
+# Version : 1.0
+# Description : Schéma de référence pour les datasets annotés en langues naturelles.
+#               Trois niveaux hiérarchiques : token → phrase (CIR) → document.
+#               Chaque phrase porte à la fois l'annotation linguistique (tokens)
+#               et la représentation causale intermédiaire (CIR).
+#
+# Encodage : UTF-8
+# Convention d'identifiants :
+#   - Document : "doc-{lang}-{nnn}"
+#   - Phrase   : "s001", "s002", ...
+#   - Noeud CIR: "n001", "n002", ...
+# Convention de nommage : snake_case pour les relations et types
+# =============================================================================
+
+schema:
+  name: "gcn-nl"
+  version: "1.0"
+  description: >
+    Format de dataset pour l'annotation causale de textes en langues naturelles
+    selon la Grammaire Causale Naturelle (GCN). Couvre le français, le wolof,
+    l'arabe et l'anglais. Chaque document contient des phrases annotées au niveau
+    token (morphosyntaxe + annotation GCN) et au niveau CIR (graphe causal).
+
+# =============================================================================
+# NIVEAU 1 : DOCUMENT
+# =============================================================================
+
+document:
+  description: "Conteneur de plus haut niveau — un texte complet annoté."
+  fields:
+
+    id:
+      type: string
+      required: true
+      format: "doc-{lang}-{nnn}"
+      description: >
+        Identifiant unique du document. Préfixé par la langue et un numéro
+        séquentiel (ex: "doc-fr-001", "doc-wo-042").
+
+    lang:
+      type: enum
+      required: true
+      values: [fr, wo, ar, en]
+      description: >
+        Code ISO 639-1 de la langue naturelle du document.
+          fr — Français
+          wo — Wolof
+          ar — Arabe
+          en — Anglais
+
+    metadata:
+      type: object
+      required: false
+      description: "Métadonnées optionnelles du document."
+      fields:
+        schema_version:
+          type: string
+          description: "Version du schéma GCN-NL utilisé (ex: '1.0')."
+        pipeline:
+          type: list[string]
+          description: >
+            Liste ordonnée des étapes du pipeline ayant produit les annotations
+            (ex: ['udpipe_tokenize', 'gcn_annotate', 'gcn_resolve']).
+        created_at:
+          type: string
+          required: false
+          format: "ISO 8601"
+          description: "Date de création du document annoté."
+        source:
+          type: string
+          required: false
+          description: "Origine du texte (corpus, article, phrase construite, etc.)."
+
+    sentences:
+      type: list[Sentence]
+      required: true
+      description: "Liste ordonnée des phrases du document."
+
+# =============================================================================
+# NIVEAU 2 : PHRASE (SENTENCE)
+# =============================================================================
+
+sentence:
+  description: >
+    Une phrase du document, annotée à deux niveaux : tokens (morphosyntaxe + GCN)
+    et CIR (représentation causale intermédiaire sous forme de graphe).
+  fields:
+
+    id:
+      type: string
+      required: true
+      format: "s001, s002, ..."
+      description: >
+        Identifiant unique de la phrase au sein du document. Numérotation
+        séquentielle à trois chiffres.
+
+    text:
+      type: string
+      required: true
+      description: >
+        Texte brut de la phrase, avec ponctuation et accents préservés.
+        Encodage UTF-8.
+
+    tokens:
+      type: list[Token]
+      required: true
+      description: >
+        Liste ordonnée des tokens de la phrase. Chaque token porte son
+        annotation morphosyntaxique (POS, dépendances) et son annotation
+        GCN (type causal, classe, attributs).
+
+    cir:
+      type: CIR
+      required: true
+      description: >
+        Représentation Causale Intermédiaire de la phrase : graphe causal
+        composé de noeuds (entités/états/actions) et d'arêtes (relations
+        causales). C'est la sortie du frontend GCN.
+
+# =============================================================================
+# NIVEAU 3 : TOKEN
+# =============================================================================
+
+token:
+  description: >
+    Unité lexicale minimale, annotée morphosyntaxiquement (Universal Dependencies)
+    et causalement (GCN). Le token est le pont entre l'analyse linguistique
+    et la représentation causale.
+  fields:
+
+    id:
+      type: integer
+      required: true
+      description: >
+        Position du token dans la phrase, indexée à partir de 1.
+        Le token 0 est réservé comme racine virtuelle des dépendances.
+
+    form:
+      type: string
+      required: true
+      description: >
+        Forme de surface du token telle qu'elle apparaît dans le texte
+        (ex: "baissent", "coûts", "Si").
+
+    lemma:
+      type: string
+      required: true
+      description: >
+        Forme canonique du token — lemme dictionnaire
+        (ex: "baisser", "coût", "si").
+
+    pos:
+      type: string
+      required: true
+      description: >
+        Étiquette morphosyntaxique au format UPOS (Universal POS tags).
+        Valeurs principales :
+          VERB  — verbe
+          NOUN  — nom commun
+          PROPN — nom propre
+          ADJ   — adjectif
+          ADV   — adverbe
+          DET   — déterminant
+          PRON  — pronom
+          ADP   — adposition (préposition)
+          SCONJ — conjonction de subordination
+          CCONJ — conjonction de coordination
+          PUNCT — ponctuation
+          AUX   — auxiliaire
+          NUM   — numéral
+          PART  — particule
+          INTJ  — interjection
+          SYM   — symbole
+          X     — autre
+
+    dep_rel:
+      type: string
+      required: true
+      description: >
+        Relation de dépendance syntaxique (Universal Dependencies).
+        Valeurs fréquentes :
+          root    — racine de la phrase
+          nsubj   — sujet nominal
+          obj     — objet direct
+          iobj    — objet indirect
+          obl     — complément oblique
+          advmod  — modifieur adverbial
+          amod    — modifieur adjectival
+          det     — déterminant
+          mark    — marqueur (conjonction de subordination)
+          cc      — coordonnant
+          conj    — conjoint
+          nmod    — modifieur nominal
+          advcl   — clause adverbiale
+          acl     — clause adnominale
+          xcomp   — complément phrastique ouvert
+          ccomp   — complément phrastique fermé
+          case    — marqueur casuel (préposition)
+          punct   — ponctuation
+          aux     — auxiliaire
+          cop     — copule
+          expl    — expletif
+          flat    — structure plate (nom propre composé)
+          fixed   — expression figée
+          compound — composé
+
+    dep_head:
+      type: integer
+      required: true
+      description: >
+        Identifiant du token tête dans l'arbre de dépendances.
+        0 indique la racine virtuelle (le token est root de la phrase).
+
+    gcn:
+      type: GCNAnnotation
+      required: true
+      description: >
+        Annotation causale GCN du token. Relie le token aux taxonomies
+        GCN (8 classes de mots) et à ses propriétés causales.
+
+# =============================================================================
+# ANNOTATION GCN (sous-structure de Token)
+# =============================================================================
+
+gcn_annotation:
+  description: >
+    Couche d'annotation causale GCN appliquée à chaque token.
+    Classifie le token selon les 8 taxonomies GCN et attribue
+    des propriétés causales utilisées pour construire la CIR.
+  fields:
+
+    causal_type:
+      type: enum
+      required: true
+      values: [verbe, nom, adverbe, adjectif, conjonction, preposition, pronom, determinant]
+      description: >
+        Catégorie GCN principale du token, correspondant à l'une des
+        8 taxonomies de la Grammaire Causale Naturelle :
+          verbe       — opérateur causal principal (4 classes)
+          nom         — entité peuplant la chaîne causale (6 classes)
+          adverbe     — modificateur de la relation causale (7 classes)
+          adjectif    — modificateur de l'entité (5 classes)
+          conjonction — connecteur de relations causales (6 classes)
+          preposition — marqueur de rôle causal (5 classes)
+          pronom      — référence anaphorique (4 classes)
+          determinant — quantificateur de portée (7 classes)
+
+    causal_class:
+      type: enum
+      required: true
+      description: >
+        Sous-classe causale au sein de la taxonomie, dépendant du causal_type.
+      values_by_type:
+
+        verbe:
+          values: [etat, action, transition, processus]
+          description: >
+            Les 4 classes verbales fondamentales de la GCN :
+              etat       — situation stable sans changement (être, avoir, savoir)
+                           Direction causale : maintien. S(t) = S(t+1)
+              action     — intervention causale directe d'un agent (faire, construire)
+                           Direction causale : production. Agent -> Effet
+              transition — changement d'état ponctuel (devenir, tomber, mourir)
+                           Direction causale : rupture. S(t) != S(t+1), dt -> 0
+              processus  — accumulation temporelle continue (croître, vieillir)
+                           Direction causale : bidirectionnel. Cause continue
+
+        nom:
+          values: [agent, patient, processus, etat_systemique, abstrait, relation]
+          description: >
+            Les 6 classes nominales :
+              agent           — entité causatrice (humain, collectif, institutionnel, naturel)
+              patient         — entité subissant l'effet causal
+              processus       — nom déverbal désignant un processus (vente, croissance)
+              etat_systemique — contexte filtrant global (crise, stabilité, marché)
+              abstrait        — concept sans rôle causal direct (idée, théorie)
+              relation        — lien entre entités (rapport, lien, connexion)
+
+        adverbe:
+          values: [intensite, temps, frequence, maniere, lieu, negation, probabilite]
+          description: >
+            Les 7 classes adverbiales (modificateurs de la CIR) :
+              intensite   — degré d'intensité (très, peu, extrêmement)
+              temps       — ancrage temporel (hier, maintenant, bientôt)
+              frequence   — récurrence (toujours, souvent, jamais)
+              maniere     — modalité de l'action (rapidement, bien)
+              lieu        — portée spatiale (ici, partout, localement)
+              negation    — inversion causale (ne...pas, ne...plus)
+              probabilite — degré de certitude (probablement, certainement)
+
+        adjectif:
+          values: [intrinseque, temporaire, relationnel, quantitatif, temporel]
+          description: >
+            Les 5 classes adjectivales :
+              intrinseque  — propriété permanente (grand, lourd, rouge)
+              temporaire   — état transitoire (malade, fatigué, ouvert)
+              relationnel  — relation à une autre entité (économique, national)
+              quantitatif  — mesure numérique (nombreux, double, rare)
+              temporel     — maturité temporelle (nouveau, récent, ancien)
+
+        conjonction:
+          values: [cause, consequence, condition, concession, temps, opposition]
+          description: >
+            Les 6 classes de conjonctions (connecteurs causaux) :
+              cause       — "parce que", "car", "puisque"
+              consequence — "donc", "ainsi", "par conséquent"
+              condition   — "si", "à condition que", "pourvu que"
+              concession  — "bien que", "malgré" — signale une lacune causale
+              temps       — "quand", "lorsque", "après que"
+              opposition  — "mais", "or", "cependant" — rupture causale
+
+        preposition:
+          values: [spatiale, temporelle, cause, moyen, but]
+          description: >
+            Les 5 classes prépositionnelles :
+              spatiale   — lieu (dans, sur, à)
+              temporelle — temps (depuis, pendant, après)
+              cause      — causalité (à cause de, en raison de)
+              moyen      — instrument (par, avec, au moyen de)
+              but        — finalité (pour, afin de) — inverse la direction causale
+
+        pronom:
+          values: [personnel, demonstratif, relatif, indefini]
+          description: >
+            Les 4 classes pronominales :
+              personnel   — référence directe (il, elle, nous)
+              demonstratif — référence déictique (celui-ci, cela)
+              relatif     — liaison subordonnée (qui, que, dont)
+              indefini    — référence vague (on, quelqu'un) — signale lacune causale
+
+        determinant:
+          values: [defini, indefini, partitif, demonstratif, possessif, quantitatif, interrogatif]
+          description: >
+            Les 7 classes de déterminants (quantificateurs de portée) :
+              defini       — "le", "la", "les" — scope spécifique ou universel
+              indefini     — "un", "une", "des" — scope existentiel
+              partitif     — "du", "de la" — scope partiel
+              demonstratif — "ce", "cette" — scope spécifique
+              possessif    — "mon", "son" — scope spécifique + relation
+              quantitatif  — "tout", "chaque", "aucun" — scope universel/null
+              interrogatif — "quel" — scope indéterminé
+
+    attributes:
+      type: object
+      required: false
+      description: >
+        Attributs causaux optionnels du token, dépendant du causal_type.
+      fields:
+
+        direction:
+          type: enum
+          values: [forward, backward, both, accumulative, suspended, none]
+          applies_to: [verbe, conjonction, preposition]
+          description: >
+            Direction du flux causal :
+              forward      — cause -> effet (actions, conjonctions de cause)
+              backward     — effet <- cause (état : qu'est-ce qui a produit cet état ?)
+              both         — bidirectionnel (processus : cause et effet continus)
+              accumulative — accumulation progressive (état systémique)
+              suspended    — chaîne suspendue jusqu'à déclenchement (condition)
+              none         — pas de flux causal (entités pures)
+
+        scope:
+          type: enum
+          values: [universal, existential, partial, null, specific, unknown]
+          applies_to: [determinant, pronom, nom]
+          description: >
+            Portée logique du quantificateur :
+              universal   — pour-tout (tous les X, chaque X)
+              existential — il-existe (certains X, quelques X)
+              partial     — quantité partielle (du X, de la X)
+              null        — non-existence (aucun X, personne)
+              specific    — instance identifiée (le X, ce X)
+              unknown     — portée non résolue
+
+        reversibility:
+          type: boolean
+          applies_to: [verbe]
+          description: >
+            Indique si le processus/action est réversible.
+            true  — "baisser" (les ventes peuvent remonter)
+            false — "mourir" (irréversible)
+
+        agent_type:
+          type: enum
+          values: [human, collective, institutional, natural]
+          applies_to: [nom, pronom]
+          description: >
+            Type d'agentivité de l'entité :
+              human         — individu (il, Marie)
+              collective    — groupe (on, les employés)
+              institutional — organisation (l'entreprise, l'État)
+              natural       — force naturelle (le climat, la gravité)
+
+# =============================================================================
+# CIR — REPRÉSENTATION CAUSALE INTERMÉDIAIRE
+# =============================================================================
+
+cir:
+  description: >
+    Graphe causal extrait de la phrase. Composé de noeuds (entités causales)
+    et d'arêtes (relations causales). C'est le contrat central de GCN :
+    tout frontend (français, wolof, Python, Rust) produit une CIR,
+    et le middle-end / backend ne connaissent que ce format.
+
+  fields:
+    nodes:
+      type: list[CausalNode]
+      required: true
+      description: "Liste des noeuds du graphe causal de la phrase."
+
+    edges:
+      type: list[CausalEdge]
+      required: true
+      description: "Liste des arêtes (relations) du graphe causal de la phrase."
+
+# =============================================================================
+# NOEUD CAUSAL (CausalNode)
+# =============================================================================
+
+causal_node:
+  description: >
+    Un noeud du graphe causal, représentant une entité, un état, une action,
+    une transition, un processus, une condition ou un état systémique.
+    Chaque noeud est ancré dans le texte via token_span.
+  fields:
+
+    id:
+      type: string
+      required: true
+      format: "n001, n002, ..."
+      description: >
+        Identifiant unique du noeud au sein de la phrase.
+        Numérotation séquentielle à trois chiffres.
+
+    type:
+      type: enum
+      required: true
+      values: [etat, action, transition, processus, condition, entite, etat_systemique]
+      description: >
+        Type causal du noeud, déterminé par la classe verbale et le contexte :
+          etat            — situation stable, regarde en arrière
+                            ("Qu'est-ce qui a produit cet état ?")
+                            Direction causale : none
+          action          — intervention causale directe d'un agent, regarde en avant
+                            ("Qu'est-ce que ça va produire ?")
+                            Direction causale : forward
+          transition      — changement d'état ponctuel, charnière passé/futur
+                            Direction causale : forward
+          processus       — accumulation temporelle, cause continue
+                            Direction causale : both (bidirectionnel)
+          condition       — suspend la chaîne causale jusqu'à déclenchement
+                            Direction causale : suspended
+          entite          — agent ou patient, peuple la chaîne sans être opérateur
+                            Direction causale : none
+          etat_systemique — contexte filtrant (crise, stabilité), affecte toutes les chaînes
+                            Direction causale : accumulative
+
+    label:
+      type: string
+      required: true
+      description: >
+        Étiquette lisible du noeud, résumant son contenu sémantique.
+        Format typique : "verbe(patient)" ou "qualité(entité)".
+        Exemples : "décroissance(ventes)", "réduire(coûts)", "crise(marché)".
+
+    token_span:
+      type: list[integer]
+      required: true
+      format: "[start_token_id, end_token_id]"
+      description: >
+        Ancrage dans le texte : identifiants du premier et du dernier token
+        couverts par ce noeud. Permet de remonter du graphe causal au texte.
+
+    origin:
+      type: enum
+      required: false
+      default: explicit
+      values: [explicit, inferred, hypothetical]
+      description: >
+        Provenance du noeud :
+          explicit     — présent littéralement dans le texte source
+          inferred     — déduit par résolution (coréférence, agent implicite)
+          hypothetical — postulé par une lacune causale (concession -> cause cachée)
+
+    scope:
+      type: enum
+      required: false
+      default: unknown
+      values: [universal, existential, partial, null, specific, unknown]
+      description: >
+        Portée logique du noeud, héritée des déterminants et quantificateurs :
+          universal   — s'applique à toutes les instances (tous les marchés)
+          existential — s'applique à certaines instances (certains marchés)
+          partial     — quantité partielle (du travail)
+          null        — non-existence (aucun marché)
+          specific    — instance identifiée (le marché)
+          unknown     — portée non encore résolue
+
+    modifiers:
+      type: list[Modifier]
+      required: false
+      default: []
+      description: >
+        Liste des modificateurs appliqués au noeud, issus des adverbes
+        et adjectifs annotés dans les tokens. Chaque modificateur altère
+        les propriétés causales du noeud.
+
+    temporal_ref:
+      type: TemporalRef
+      required: false
+      default: unresolved
+      description: >
+        Référence temporelle du noeud dans la chaîne causale.
+
+    temporal_index:
+      type: integer
+      required: false
+      description: >
+        Index temporel ordinal du noeud au sein de la phrase.
+        Permet d'ordonner les noeuds chronologiquement.
+        0 = premier événement, 1 = suivant, etc.
+
+    attributes:
+      type: NodeAttributes
+      required: false
+      description: "Attributs sémantiques du noeud."
+
+# =============================================================================
+# ATTRIBUTS DU NOEUD (NodeAttributes)
+# =============================================================================
+
+node_attributes:
+  description: >
+    Attributs sémantiques optionnels d'un noeud causal.
+    Peuplés par l'analyse des rôles syntaxiques (sujet, objet)
+    et des annotations GCN des tokens.
+  fields:
+
+    entity:
+      type: string
+      required: false
+      description: >
+        Entité principale associée au noeud (lemme du nom noyau).
+        Ex: "ventes", "coûts", "marché".
+
+    quality:
+      type: string
+      required: false
+      description: >
+        Qualité ou propriété modifiant l'entité.
+        Ex: "décroissance", "haute", "dégradée".
+
+    agent:
+      type: string
+      required: false
+      description: >
+        Agent causal — l'entité qui provoque l'action/transition.
+        Ex: "on", "l'entreprise", "le climat".
+
+    patient:
+      type: string
+      required: false
+      description: >
+        Patient causal — l'entité qui subit l'action/transition.
+        Ex: "coûts", "qualité", "ventes".
+
+    agent_type:
+      type: enum
+      required: false
+      values: [human, collective, institutional, natural]
+      description: >
+        Type d'agentivité :
+          human         — individu identifiable
+          collective    — groupe d'individus
+          institutional — organisation, institution
+          natural       — force naturelle, phénomène physique
+
+    reversible:
+      type: boolean
+      required: false
+      description: >
+        Le processus/action est-il réversible ?
+        true  — peut revenir à l'état antérieur (baisser/monter)
+        false — irréversible (mourir, détruire)
+
+# =============================================================================
+# MODIFICATEUR (Modifier)
+# =============================================================================
+
+modifier:
+  description: >
+    Modificateur appliqué à un noeud causal. Issu des adverbes (7 classes)
+    et adjectifs (5 classes). Chaque variante a un champ 'kind' discriminant
+    et des champs spécifiques.
+  discriminator: kind
+  variants:
+
+    intensity:
+      description: "Modificateur d'intensité — degré de force causale."
+      fields:
+        kind: {type: string, value: "intensity"}
+        value:
+          type: float
+          range: [0.0, 2.0]
+          description: >
+            Facteur d'intensité. 1.0 = neutre, <1.0 = atténué, >1.0 = amplifié.
+            Ex: "très" -> 1.5, "peu" -> 0.3, "extrêmement" -> 1.8
+        source_form:
+          type: string
+          description: "Forme de surface de l'adverbe d'intensité (ex: 'très')."
+
+    negation:
+      description: >
+        Modificateur de négation — inverse ou annule la relation causale.
+      fields:
+        kind: {type: string, value: "negation"}
+        total:
+          type: boolean
+          description: >
+            true  — négation totale ("ne...pas", "ne...jamais")
+            false — négation partielle ("ne...guère", "ne...plus")
+
+    probability:
+      description: "Modificateur de probabilité — degré de certitude."
+      fields:
+        kind: {type: string, value: "probability"}
+        value:
+          type: float
+          range: [0.0, 1.0]
+          description: >
+            Probabilité subjective.
+            Ex: "certainement" -> 0.95, "probablement" -> 0.7, "peut-être" -> 0.4
+        source_form:
+          type: string
+          description: "Forme de surface (ex: 'probablement')."
+
+    temporality:
+      description: "Modificateur temporel — ancrage dans le temps."
+      fields:
+        kind: {type: string, value: "temporality"}
+        anchor:
+          type: enum
+          values: [past, present, future]
+          description: >
+            Ancre temporelle :
+              past    — "hier", "autrefois", "jadis"
+              present — "maintenant", "actuellement"
+              future  — "demain", "bientôt", "prochainement"
+        source_form:
+          type: string
+          description: "Forme de surface (ex: 'hier')."
+
+    frequency:
+      description: "Modificateur de fréquence — récurrence de l'événement."
+      fields:
+        kind: {type: string, value: "frequency"}
+        frequency_kind:
+          type: enum
+          values: [always, often, sometimes, rarely, never]
+          description: >
+            Catégorie de fréquence :
+              always    — "toujours", "systématiquement"
+              often     — "souvent", "fréquemment"
+              sometimes — "parfois", "de temps en temps"
+              rarely    — "rarement", "exceptionnellement"
+              never     — "jamais" (distinct de la négation grammaticale)
+        source_form:
+          type: string
+          description: "Forme de surface (ex: 'toujours')."
+
+    manner:
+      description: "Modificateur de manière — modalité de l'action."
+      fields:
+        kind: {type: string, value: "manner"}
+        description:
+          type: string
+          description: "Description sémantique de la manière (ex: 'rapidement', 'avec soin')."
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+    location:
+      description: "Modificateur de lieu — portée spatiale."
+      fields:
+        kind: {type: string, value: "location"}
+        scope:
+          type: enum
+          values: [local, regional, global]
+          description: >
+            Portée spatiale :
+              local    — "ici", "sur place"
+              regional — "dans la région", "au niveau national"
+              global   — "partout", "mondialement"
+        source_form:
+          type: string
+          description: "Forme de surface (ex: 'partout')."
+
+    intrinsic_property:
+      description: "Propriété intrinsèque — adjectif permanent de l'entité."
+      fields:
+        kind: {type: string, value: "intrinsic_property"}
+        property:
+          type: string
+          description: "Propriété décrite (ex: 'grand', 'lourd', 'rouge')."
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+    temporary_state:
+      description: "État temporaire — adjectif transitoire de l'entité."
+      fields:
+        kind: {type: string, value: "temporary_state"}
+        state:
+          type: string
+          description: "État décrit (ex: 'malade', 'fatigué', 'ouvert')."
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+    relational:
+      description: "Adjectif relationnel — relation à un domaine."
+      fields:
+        kind: {type: string, value: "relational"}
+        relation:
+          type: string
+          description: "Domaine de relation (ex: 'économique', 'national', 'politique')."
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+    quantitative:
+      description: "Modificateur quantitatif — mesure numérique."
+      fields:
+        kind: {type: string, value: "quantitative"}
+        impact:
+          type: float
+          description: >
+            Impact numérique sur la chaîne causale.
+            Ex: "double" -> 2.0, "nombreux" -> 1.5
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+    temporal_quality:
+      description: "Qualité temporelle — maturité de l'entité."
+      fields:
+        kind: {type: string, value: "temporal_quality"}
+        maturity:
+          type: enum
+          values: [new, recent, mature, old]
+          description: >
+            Stade de maturité :
+              new    — "nouveau", "neuf"
+              recent — "récent"
+              mature — "mûr", "établi"
+              old    — "ancien", "vieux"
+        source_form:
+          type: string
+          description: "Forme de surface."
+
+# =============================================================================
+# RÉFÉRENCE TEMPORELLE (TemporalRef)
+# =============================================================================
+
+temporal_ref:
+  description: >
+    Référence temporelle d'un noeud dans la chaîne causale.
+    Basée sur le modèle T, T+n, T-n, T+epsilon du papier GCN.
+  discriminator: kind
+  variants:
+
+    absolute:
+      description: "Timestamp absolu (pour ancrage externe)."
+      fields:
+        kind: {type: string, value: "absolute"}
+        value:
+          type: integer
+          description: "Timestamp (Unix epoch ou index arbitraire)."
+
+    relative:
+      description: "Référence relative T+n ou T-n."
+      fields:
+        kind: {type: string, value: "relative"}
+        base:
+          type: integer
+          description: "Index temporel de base (T)."
+        offset:
+          type: integer
+          description: "Décalage par rapport à la base (+n ou -n)."
+
+    epsilon:
+      description: >
+        Temporalité immédiate T+epsilon.
+        Indique que l'événement suit immédiatement (ex: "dès que", "aussitôt").
+
+    range:
+      description: "Intervalle temporel [T_start, T_end] pour les processus."
+      fields:
+        kind: {type: string, value: "range"}
+        start:
+          type: integer
+          description: "Début de l'intervalle."
+        end:
+          type: integer
+          description: "Fin de l'intervalle."
+
+    unresolved:
+      description: >
+        Temporalité non encore déterminée. Valeur par défaut.
+        Sera résolue par le middle-end lors de la propagation de contraintes.
+
+# =============================================================================
+# ARÊTE CAUSALE (CausalEdge)
+# =============================================================================
+
+causal_edge:
+  description: >
+    Relation causale orientée entre deux noeuds du graphe.
+    Porte le type de relation, la confiance, l'ancrage temporel,
+    et les indicateurs d'explicité et de négation.
+  fields:
+
+    source:
+      type: string
+      required: true
+      description: >
+        Identifiant du noeud source (cause/antécédent).
+        Format : "n001", "n002", etc.
+
+    target:
+      type: string
+      required: true
+      description: >
+        Identifiant du noeud cible (effet/conséquent).
+        Format : "n001", "n002", etc.
+
+    relation:
+      type: enum
+      required: true
+      values: [cause, enable, prevent, condition, concession, sequence, motivation, filter, opposition]
+      description: >
+        Type de relation causale (langues naturelles uniquement) :
+          cause      — causalité directe ("parce que", "car")
+          enable     — facilitation sans forçage ("grâce à")
+          prevent    — blocage de la chaîne causale ("empêcher")
+          condition  — suspension jusqu'à évaluation ("si", "à condition que")
+          concession — lacune causale signalée ("bien que", "malgré")
+          sequence   — succession temporelle ("quand", "après")
+          motivation — causalité intentionnelle inversée ("pour", "afin de")
+                       L'effet (but) est mentionné avant la cause (action)
+          filter     — état systémique filtrant globalement
+          opposition — rupture causale ("mais", "or")
+
+    attributes:
+      type: object
+      required: false
+      description: "Attributs de la relation causale."
+      fields:
+
+        confidence:
+          type: float
+          range: [0.0, 1.0]
+          required: true
+          description: >
+            Degré de confiance dans la relation causale.
+            1.0 — marqueur explicite non ambigu
+            0.5 — causalité inférée par proximité/juxtaposition
+            < 0.5 — relation hypothétique ou très incertaine
+
+        temporal_gap:
+          type: TemporalGap
+          required: false
+          description: >
+            Écart temporel entre la cause et l'effet.
+            Absent si l'écart est inconnu ou non pertinent.
+
+        explicit:
+          type: boolean
+          required: true
+          description: >
+            true  — la relation est marquée par un connecteur explicite dans le texte
+                    (conjonction, préposition causale)
+            false — la relation est inférée (juxtaposition, proximité sémantique)
+
+        negated:
+          type: boolean
+          required: false
+          default: false
+          description: >
+            true  — la relation elle-même est niée
+                    ("La crise n'a PAS causé le chômage" — nie l'edge, pas le noeud)
+            false — la relation est affirmée (cas normal)
+
+        marker_token:
+          type: integer
+          required: false
+          description: >
+            Identifiant du token marqueur causal qui a déclenché cette relation.
+            Ex: token "si" (id=1) pour une relation condition.
+            Absent si la relation est inférée (explicit=false).
+
+# =============================================================================
+# ÉCART TEMPOREL (TemporalGap)
+# =============================================================================
+
+temporal_gap:
+  description: >
+    Modélisation de l'écart temporel entre une cause et son effet
+    sur une arête du graphe causal.
+  fields:
+
+    min:
+      type: integer
+      required: false
+      description: "Écart temporel minimal (en unités relatives)."
+
+    max:
+      type: integer
+      required: false
+      description: "Écart temporel maximal (en unités relatives)."
+
+    nature:
+      type: enum
+      required: true
+      values: [immediate, deferred, continuous]
+      description: >
+        Nature de l'écart :
+          immediate  — T+epsilon, effet quasi-instantané
+                       ("il tombe et se casse le bras")
+          deferred   — T+n, effet différé dans le temps
+                       ("les ventes baissent -> on réduit les coûts, semaines plus tard")
+          continuous — [T, T+n], processus d'accumulation
+                       ("la qualité se dégrade progressivement")
+
+# =============================================================================
+# GRAPHE CAUSAL (niveau document, optionnel)
+# =============================================================================
+
+causal_graph:
+  description: >
+    Graphe causal global du document, construit par fusion des CIR
+    de toutes les phrases. Produit par le middle-end.
+    Optionnel dans le dataset (peut être reconstruit depuis les CIR).
+  fields:
+
+    nodes:
+      type: list[CausalNode]
+      required: true
+      description: "Tous les noeuds du graphe, fusionnés et déréférencés."
+
+    edges:
+      type: list[CausalEdge]
+      required: true
+      description: "Toutes les arêtes, y compris les liens inter-phrases."
+
+    cycles:
+      type: list[CausalCycle]
+      required: false
+      description: >
+        Boucles de rétroaction détectées dans le graphe (composantes
+        fortement connexes de taille > 1, via Tarjan SCC).
+
+    unresolved:
+      type: list[Ambiguity]
+      required: false
+      description: "Ambiguïtés non résolues dans le graphe."
+
+# =============================================================================
+# CYCLE CAUSAL (CausalCycle)
+# =============================================================================
+
+causal_cycle:
+  description: >
+    Boucle de rétroaction dans le graphe causal : un chemin cyclique
+    où l'effet d'une chaîne causale revient influencer sa propre cause.
+  fields:
+
+    id:
+      type: integer
+      required: true
+      description: "Identifiant unique du cycle."
+
+    path:
+      type: list[string]
+      required: true
+      description: >
+        Séquence ordonnée des identifiants de noeuds formant le cycle.
+        Le dernier noeud a une arête vers le premier.
+        Ex: ["n001", "n002", "n003", "n001"]
+
+    cycle_type:
+      type: enum
+      required: true
+      values: [feedback_positive, feedback_negative, oscillation]
+      description: >
+        Type de boucle de rétroaction :
+          feedback_positive — amplification (vicious/virtuous circle)
+                              Ex: ventes baissent -> coûts réduits -> qualité baisse
+                                  -> ventes baissent encore
+          feedback_negative — stabilisation (homeostasis)
+                              Ex: prix monte -> demande baisse -> prix baisse
+          oscillation       — alternance entre deux états
+                              Ex: offre/demande en dents de scie
+
+# =============================================================================
+# AMBIGUÏTÉ (Ambiguity)
+# =============================================================================
+
+ambiguity:
+  description: >
+    Signalement d'un champ ambigu sur un noeud causal.
+    Le pipeline ne tranche pas : il expose les candidats avec leur confiance.
+  fields:
+
+    node_id:
+      type: string
+      required: true
+      description: "Identifiant du noeud ambigu."
+
+    field:
+      type: enum
+      required: true
+      values: [node_type, scope, agent_type, coref_target]
+      description: >
+        Quel champ du noeud est ambigu :
+          node_type    — "baisser" est-il Processus ou Action ?
+          scope        — "un marché" est-il Universel ou Existentiel ?
+          agent_type   — "on" est-il Humain ou Indéfini ?
+          coref_target — "il" réfère à quel antécédent ?
+
+    candidates:
+      type: list[AmbiguityCandidate]
+      required: true
+      description: "Liste des valeurs candidates, ordonnées par confiance décroissante."
+
+    context_hint:
+      type: string
+      required: false
+      description: "Indice contextuel pour aider la résolution humaine ou ML."
+
+# =============================================================================
+# CANDIDAT D'AMBIGUÏTÉ (AmbiguityCandidate)
+# =============================================================================
+
+ambiguity_candidate:
+  description: "Une valeur candidate pour un champ ambigu."
+  fields:
+
+    value:
+      type: string
+      required: true
+      description: "Valeur proposée (ex: 'processus', 'action', 'universel')."
+
+    confidence:
+      type: float
+      range: [0.0, 1.0]
+      required: true
+      description: "Confiance dans cette valeur."
+
+    rule_source:
+      type: string
+      required: true
+      description: >
+        Règle ayant produit ce candidat.
+        Ex: "compositional_rule: verbe + depuis -> processus"
+        Ex: "taxonomy_lookup: baisser -> processus (default)"
