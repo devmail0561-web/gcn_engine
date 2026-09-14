@@ -208,8 +208,10 @@ version = "0.1.0"
 dependencies = [
  "gcn-ir",
  "gcn-middleend",
+ "petgraph",
  "serde",
  "serde_json",
+ "smallvec",
  "thiserror",
 ]
 

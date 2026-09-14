@@ -7,6 +7,11 @@ description = "Causal reasoning (Pearl), query engine, export"
 [dependencies]
 gcn-ir = { path = "../gcn-ir" }
 gcn-middleend = { path = "../gcn-middleend" }
+petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+smallvec = { workspace = true }
+gcn-middleend = { path = "../gcn-middleend" }
