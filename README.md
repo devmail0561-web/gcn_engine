@@ -72,7 +72,9 @@ projet_CNM/
 │       ├── layer1/     Extraction UD (spaCy) → vecteurs de clauses
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
 │       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerPT PyTorch)
-│       ├── pipeline/   CGNPipeline.forward() + gcn-forward CLI
+│       ├── pipeline/   CGNPipeline.forward() + loss() + backward() + gcn-forward CLI
+│       ├── data/       GCNDataLoader — itère sur gcn-datasets/ → TrainingSample
+│       ├── training/   gcn-train + gcn-bootstrap CLI + checkpoint save/load
 │       ├── verbalizer/ Décodeur NumPy référence + gcn-verbalize CLI
 │       └── evaluation/ Métriques + TrainingRecorder
 │
@@ -184,12 +186,32 @@ gcn analyze "..." --data-dir ./gcn-references/taxonomies --format dot | dot -Tpn
 
 ### Pipeline Python (couches ML)
 ```bash
-# Via la CLI Python (référence NumPy)
+# Via la CLI Python (référence NumPy — poids aléatoires sans --model-path)
 gcn-forward --lang fr --taxonomy-dir ./gcn-references/taxonomies "Les ventes baissent."
 
 # Via gcn-cli (interface Rust↔Python)
 gcn forward "Les ventes baissent." --lang fr --enrich
 ```
+
+### Entraîner un modèle
+
+```bash
+# Générer des données d'entraînement depuis des textes bruts
+gcn-bootstrap --input phrases_fr.txt --lang fr --out-dir gcn-datasets/generated/
+
+# Lancer l'entraînement (SGD NumPy référence)
+gcn-train --data-dir gcn-datasets/ \
+          --taxonomy-dir ./gcn-references/taxonomies \
+          --epochs 50 --lr 0.001 --output model.npz
+
+# Inférence avec un modèle entraîné
+gcn-forward --lang fr \
+            --taxonomy-dir ./gcn-references/taxonomies \
+            --model-path model.npz \
+            "Les ventes baissent parce que les coûts augmentent."
+```
+
+Le data scientist substitue `MLPEncoder` et `RGCNLayer` par ses propres implémentations PyTorch/JAX via les Protocol `CausalEncoder` et `CausalGraph`.
 
 ---
 
@@ -370,9 +392,15 @@ from gcn_python.evaluation.recorder import TrainingRecorder
 
 recorder = TrainingRecorder()
 for epoch in range(100):
-    loss = pipeline.loss(pred_ir, gold_ir)
+    pipeline.forward(text)
+    node_logits = pipeline._cached_node_logits
+    edge_logits = pipeline._cached_edge_logits
+    loss_val, d_node, d_edge = pipeline.loss(
+        node_logits, edge_logits, gold_node_labels, gold_edge_labels
+    )
+    pipeline.backward(d_node, d_edge, lr=0.001)
     metrics = causal_graph_similarity(pred_ir, gold_ir)
-    recorder.record(epoch, loss, metrics)
+    recorder.record(epoch, loss_val, metrics)
 
 recorder.to_csv("training_log.csv")
 print(recorder.best_epoch("overall", "max"))
@@ -424,7 +452,7 @@ cargo test -p gcn-frontend-code    # 27 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 26 tests (Pearl 1-2-3)
 
-# Python (54 tests)
+# Python (76 collectés, 71 passent, 5 skippés sans spaCy fr)
 cd gcn-python && python -m pytest
 ```
 

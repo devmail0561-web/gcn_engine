@@ -736,11 +736,20 @@ projet_CNM/
         │   ├── reference.py      # RGCNLayer NumPy (message passing relationnel)
         │   └── pytorch_rgcn.py   # RGCNLayerPT PyTorch (GPU/MPS, autograd, scatter_add_)
         ├── pipeline/
-        │   ├── cgnp.py           # CGNPipeline.forward(text) → CausalIR JSON
-        │   │                     # CGNPipeline.loss() + backward() pour entraînement
+        │   ├── cgnp.py           # CGNPipeline.forward() → CIR JSON
+        │   │                     # .loss(node_logits, edge_logits, gold_node, gold_edge) → (float, d_node, d_edge)
+        │   │                     # .backward(d_node, d_edge, lr) → SGD + snapshots par nœud
         │   ├── label_builder.py
         │   ├── ir_emitter.py     # → JSON conforme schéma serde Rust CausalIR
-        │   └── cli.py            # gcn-forward --lang fr --model path "texte"
+        │   └── cli.py            # gcn-forward --lang fr [--model-path model.npz] "texte"
+        ├── data/
+        │   ├── loader.py         # GCNDataLoader — itère sur YAML → TrainingSample
+        │   ├── yaml_reader.py    # load_all_sentences(data_dir, lang) → List[SentenceRecord]
+        │   └── schema.py         # SentenceRecord, ClauseRecord, EdgeRecord
+        ├── training/
+        │   ├── train.py          # gcn-train CLI — boucle SGD multi-epoch
+        │   ├── checkpoint.py     # save/load checkpoint .npz
+        │   └── bootstrap.py      # gcn-bootstrap CLI — génération YAML via gcn analyze
         └── evaluation/
             ├── metrics.py        # Métriques NumPy pures (framework-agnostiques)
             │                     #   node_accuracy, node_f1_per_class
@@ -769,6 +778,9 @@ class CausalGraph(Protocol):
         edge_index: np.ndarray,           # (2, E)
         edge_types: np.ndarray,           # (E,) int
     ) -> np.ndarray: ...                  # (N, D_out)
+    def backward_message_pass(
+        self, d_output: np.ndarray,       # (N, D_out) — gradient aval
+    ) -> tuple[np.ndarray, list[np.ndarray]]: ...  # (d_input, [dW_r, dW_0])
     def parameters(self) -> list[np.ndarray]: ...
     def update(self, grads: list[np.ndarray], lr: float) -> None: ...
 ```
@@ -818,7 +830,7 @@ text + lang_code
 |---|---|---|
 | 1 | `gcn-ir` + `gcn-knowledge` (11 taxonomies YAML fr) | ✅ Terminé |
 | 2a | `gcn-frontend-fr` (règles, CIR, 16 tests) | ✅ Terminé |
-| 2b | `gcn-python/` couches 1-3 + `pipeline/` (référence NumPy) | ✅ Terminé |
+| 2b | `gcn-python/` couches 1-3 + `pipeline/` + `training/` (boucle SGD NumPy) | ✅ Terminé |
 | 2c | `gcn-python/evaluation/` : métriques, `TrainingRecorder` | ✅ Terminé |
 | 3 | `gcn-middleend` (graphe DiGraph, cycles Tarjan, propagation, validation) — 17 tests | ✅ Terminé |
 | 4 | `gcn-backend` (Pearl niveau 1 + GCN-QL) + `gcn-cli` + interface Rust↔Python — 26 tests | ✅ Terminé |
@@ -835,7 +847,7 @@ text + lang_code
 5. **Phase 5** : `Verbalizer::decode(ir)` retourne une surface non vide pour tout CausalIR valide. `roundtrip_similarity` ≥ 0.7 sur les exemples gold du dataset. `cross_modal_consistency` ≥ 0.7 entre deux surfaces du même graphe. La sortie dépend de l'entraînement, pas de l'architecture.
 6. **Phase 6** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe. ✅
 7. **Phase 7** : `gcn query "DO X"` et `gcn query "COUNTERFACTUAL X"` retournent les résultats attendus. `gcn-frontend-en` produit un CIR isomorphe à `gcn-frontend-fr` pour la même structure conditionnelle. `RGCNLayerPT.message_pass()` implémente le Protocol `CausalGraph`. ✅
-8. **End-to-end** : `cargo test --workspace` passe (103 tests), `cargo clippy -- -D warnings` propre, `python -m pytest gcn-python/tests/` passe (54 tests).
+8. **End-to-end** : `cargo test --workspace` passe (103 tests), `cargo clippy -- -D warnings` propre, `python -m pytest gcn-python/tests/` passe (76 collectés, 71 passent, 5 skippés sans spaCy fr).
 
 ## Architecture du décodeur
 

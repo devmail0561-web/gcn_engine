@@ -9,7 +9,7 @@ Suivi détaillé de l'avancement par phase, composant et critère de vérificati
 ```
 Phase 1  ████████████████████  100%  gcn-ir + gcn-knowledge
 Phase 2a ████████████████████  100%  gcn-frontend-fr
-Phase 2b ████████████████░░░░   80%  gcn-python couches ML
+Phase 2b ████████████████████  100%  gcn-python couches ML
 Phase 2c ████████████████████  100%  gcn-python évaluation
 Phase 3  ████████████████████  100%  gcn-middleend
 Phase 4  ████████████████████  100%  gcn-backend + gcn-cli
@@ -19,7 +19,7 @@ Phase 7  ████████████████████  100%  Pea
 ```
 
 **Tests Rust : 103 / 103 passent** (`cargo test --workspace`)
-**Tests Python : 54 / 54 passent** (`pytest gcn-python/tests/`)
+**Tests Python : 71 / 71 passent** (5 skippés sans spaCy fr) (`pytest gcn-python/tests/`)
 
 ---
 
@@ -69,9 +69,9 @@ Phase 7  ████████████████████  100%  Pea
 
 ---
 
-## Phase 2b — Couches ML Python 🔄
+## Phase 2b — Couches ML Python ✅
 
-**Objectif :** implémentations de référence NumPy des 3 couches CGNP.
+**Objectif :** implémentations de référence NumPy des 3 couches CGNP + boucle d'entraînement SGD.
 
 | Composant | Fichier | Statut |
 |---|---|---|
@@ -85,12 +85,25 @@ Phase 7  ████████████████████  100%  Pea
 | CGNPipeline.forward() | `gcn-python/pipeline/cgnp.py` | ✅ |
 | ir_emitter (→ JSON Rust) | `gcn-python/pipeline/ir_emitter.py` | ✅ |
 | gcn-forward CLI | `gcn-python/pipeline/cli.py` | ✅ |
-| backward() rétropropagation | `gcn-python/pipeline/cgnp.py` | ⚠️ No-op — à implémenter par le DS |
-| loss() cross-entropy | `gcn-python/pipeline/cgnp.py` | ⚠️ 0/1 référence — à remplacer |
+| backward() rétropropagation + SGD | `gcn-python/pipeline/cgnp.py` | ✅ |
+| loss() cross-entropie NumPy | `gcn-python/pipeline/cgnp.py` | ✅ |
+| GCNDataLoader + TrainingSample | `gcn-python/data/loader.py` | ✅ |
+| gcn-train CLI (boucle SGD) | `gcn-python/training/train.py` | ✅ |
+| gcn-bootstrap CLI (génération YAML) | `gcn-python/training/bootstrap.py` | ✅ |
+| checkpoint save/load (.npz) | `gcn-python/training/checkpoint.py` | ✅ |
+| gcn-forward --model-path | `gcn-python/pipeline/cli.py` | ✅ |
+| backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
+| Protocol CausalGraph backward | `gcn-python/layer3/interface.py` | ✅ |
 
-**Manquant pour compléter 2b :**
-- [ ] La `loss()` référence utilise une erreur 0/1 — doit être une cross-entropy pour un entraînement réel
-- [ ] `backward()` est un no-op intentionnel : le data scientist implémente sa propre rétropropagation
+**Tests (7/9) :** cross-entropie, gradient shape, gradient sum, backward R-GCN shape, backward updates weights, checkpoint roundtrip, dataloader batches. (2 skippés : modèle spaCy fr non installé.)
+
+**Corrections audit appliquées :**
+- `recorder.py` : docstring mise à jour avec la nouvelle signature `loss()`
+- `layer2/reference.py` : `_backward_mlp` retourne `(grads, d_input)` — élimine la duplication dans `backward_node_dx`
+- `layer3/reference.py` : `.copy()` sur les tableaux d'entrée au `message_pass` — évite les mutations externes
+- `rules.rs` : normalisation NFC avant `strip_suffix` (unicode-normalization)
+- `annotator.rs` : paramètre `_res` mort supprimé de `extract_object`
+- `lib.rs` : test debug AST avec assertions réelles
 
 ---
 

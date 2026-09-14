@@ -9,6 +9,35 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.8.0] — 2026-09-14
+
+### Ajouté
+- **Boucle d'entraînement Phase 2b** — `gcn-python/training/`
+  - `CGNPipeline.loss(node_logits, edge_logits, gold_node, gold_edge)` : cross-entropie NumPy réelle sur nœuds (7 classes) et arêtes (11 classes) — retourne `(float, d_node, d_edge)`
+  - `CGNPipeline.backward(d_node, d_edge, lr)` : SGD complet avec sauvegarde de snapshots de cache MLP par nœud/arête au `forward()` — élimine tout re-run forward au `backward()` et la fragilité du cache partagé
+  - `RGCNLayer.backward_message_pass(d_output)` : rétropropagation R-GCN NumPy, retourne `(d_input, [dW_r, dW_0])`
+  - `CausalGraph` Protocol étendu : `backward_message_pass(d_output) -> tuple[ndarray, list[ndarray]]`
+  - `MLPEncoder.backward_node_dx(d_logits)` : gradient vers l'entrée pour le R-GCN ; `snapshot_node_cache()` / `restore_node_cache()` pour backward déterministe
+  - `GCNDataLoader` (`data/loader.py`) : itération sur datasets YAML annotés → `TrainingSample(sentence, gold_node_labels, gold_edge_labels)`
+  - `gcn-train` CLI : boucle SGD multi-epoch, export CSV optionnel, vérification décroissance loss en fin d'entraînement
+  - `gcn-bootstrap` CLI : génération automatique de données YAML depuis `gcn analyze` (Rust subprocess)
+  - `training/checkpoint.py` : `save_checkpoint(pipeline, path)` / `load_checkpoint(pipeline, path)` en format `.npz` NumPy
+  - `gcn-forward --model-path` : chargement d'un checkpoint entraîné (avertissement stderr si absent)
+  - `RGCNLayerPT.backward_message_pass()` : stub `NotImplementedError` pour satisfaire le Protocol (`autograd` PyTorch à la place)
+  - 9 tests dans `tests/test_training.py` (7 passent, 2 skippés sans modèle spaCy fr)
+
+### Corrigé (audit)
+- `recorder.py` : docstring mettait à jour l'ancienne API `loss(pred, gold)` → corrigée avec la nouvelle signature
+- `layer2/reference.py` : `backward_node_dx` dupliquait la boucle de `_backward_mlp` — `_backward_mlp` retourne maintenant `(grads, d_input)`, `backward_node_dx` délègue
+- `layer3/reference.py` : `message_pass` stockait des références directes aux tableaux d'entrée → `.copy()` sur les 3 tableaux
+- `rules.rs` : ajout `unicode-normalization` (dépendance), normalisation NFC avant `strip_suffix`/`ends_with` — corrige le cas des tokens NFD français
+- `annotator.rs` : paramètre `_res: &LexicalResources` jamais utilisé supprimé de `extract_object` et de son callsite
+- `lib.rs` : test `debug_ast_if` (sans assertion, toujours vert) remplacé par `python_parser_produces_expected_ast_nodes` avec assertions réelles
+- `python.rs` : commentaire expliquant que le dispatch structurel AST est topologique (pas des données lexicales)
+- `metrics.py` : commentaire documentant le BLEU tronqué comme comportement intentionnel pour les courtes hypothèses NLP
+
+---
+
 ## [0.7.0] — 2026-09-14
 
 ### Ajouté
@@ -169,7 +198,8 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/Maik-start/projet_CNM/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Maik-start/projet_CNM/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Maik-start/projet_CNM/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Maik-start/projet_CNM/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Maik-start/projet_CNM/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Maik-start/projet_CNM/compare/v0.4.0...v0.5.0
