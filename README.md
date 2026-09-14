@@ -58,10 +58,12 @@ projet_CNM/
 │   ├── crates/
 │   │   ├── gcn-ir/             Représentation causale intermédiaire (types purs)
 │   │   ├── gcn-knowledge/      Chargement des taxonomies YAML
-│   │   ├── gcn-frontend-fr/    Parser français symbolique
-│   │   ├── gcn-frontend-code/  Parser code (stub — Phase 6)
+│   │   ├── gcn-frontend-fr/    Parser français symbolique (bootstrap annotation)
+│   │   ├── gcn-frontend-en/    Parser anglais symbolique (bootstrap annotation)
+│   │   ├── gcn-frontend-code/  Parser code AST (Python, Rust, JS via tree-sitter)
 │   │   ├── gcn-middleend/      Construction graphe, cycles, validation
-│   │   ├── gcn-backend/        Raisonnement Pearl + GCN-QL + export
+│   │   ├── gcn-backend/        Raisonnement Pearl 1-2-3 + GCN-QL + export
+│   │   ├── gcn-verbalizer/     Décodeur CausalIR → surface (pont Rust)
 │   │   └── gcn-cli/            Interface ligne de commande
 │   └── SAD.md                  Software Architecture Document
 │
@@ -69,16 +71,22 @@ projet_CNM/
 │   └── src/gcn_python/
 │       ├── layer1/     Extraction UD (spaCy) → vecteurs de clauses
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
-│       ├── layer3/     CausalGraph Protocol (R-GCN référence NumPy)
+│       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerPT PyTorch)
 │       ├── pipeline/   CGNPipeline.forward() + gcn-forward CLI
+│       ├── verbalizer/ Décodeur NumPy référence + gcn-verbalize CLI
 │       └── evaluation/ Métriques + TrainingRecorder
 │
 ├── gcn-references/     ← Références linguistiques (hors moteur)
-│   └── taxonomies/     11 taxonomies GCN (YAML) — français
+│   └── taxonomies/
+│       ├── fr/         11 taxonomies GCN (YAML) — français
+│       ├── en/         10 taxonomies GCN (YAML) — anglais
+│       ├── python/     Mappings AST Python → types causaux
+│       ├── rust/       Mappings AST Rust → types causaux
+│       └── js/         Mappings AST JavaScript → types causaux
 │
 └── gcn-datasets/       ← Données annotées (hors moteur)
-    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml
-    └── examples/       Exemples annotés FR, Python, Rust
+    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml, gcn-verbalize.schema.yaml
+    └── examples/       Exemples annotés FR, Python, Rust, cross-modal
 ```
 
 ---
@@ -92,7 +100,9 @@ projet_CNM/
 ### Python (couches ML)
 - Python **3.10+**
 - `pip install -e gcn-python/`
-- `python -m spacy download fr_core_news_sm`
+- `python -m spacy download fr_core_news_sm` (français)
+- `python -m spacy download en_core_web_sm` (anglais)
+- `pip install torch` (optionnel — pour `RGCNLayerPT` GPU/MPS)
 
 ---
 
@@ -143,20 +153,28 @@ Sortie JSON :
 gcn analyze "Les ventes baissent parce que la qualité a chuté." \
     --data-dir ./gcn-references/taxonomies > graph.json
 
-# WHY : remonter les causes
-gcn query "WHY ventes?" --ir graph.json
+# Niveau 1 — Association
+gcn query "WHY ventes?" --ir graph.json        # ancêtres causaux
+gcn query "WHAT qualité?" --ir graph.json       # descendants causaux
+gcn query "CHAIN qualité -> ventes?" --ir graph.json  # chemin causal
+gcn query "CYCLES?" --ir graph.json             # boucles de rétroaction
+gcn query "GAPS?" --ir graph.json               # lacunes causales
 
-# WHAT : descendre les effets
-gcn query "WHAT qualité?" --ir graph.json
+# Niveau 2 — Intervention do-calculus
+gcn query "DO qualité" --ir graph.json
+# → severed_count (causes coupées), effects (propagation forcée)
 
-# CHAIN : y a-t-il un chemin causal ?
-gcn query "CHAIN qualité -> ventes?" --ir graph.json
+# Niveau 3 — Contrefactuel
+gcn query "COUNTERFACTUAL qualité" --ir graph.json
+# → actual_effects (monde réel), unique_effects (n'auraient pas eu lieu sans qualité)
+```
 
-# CYCLES : boucles de rétroaction
-gcn query "CYCLES?" --ir graph.json
-
-# GAPS : lacunes causales
-gcn query "GAPS?" --ir graph.json
+### Analyser un texte anglais
+```bash
+gcn analyze "Sales fell because costs rose." \
+    --data-dir ./gcn-references/taxonomies --format json
+# source_lang: { natural: { lang: "english" } }
+# Même CausalIR que l'équivalent français — isomorphisme fr↔en
 ```
 
 ### Export Graphviz
@@ -184,8 +202,12 @@ gcn forward "Les ventes baissent." --lang fr --enrich
 | `CHAIN <a> -> <b>?` | Chemin causal entre deux nœuds | 1 — Association |
 | `CYCLES?` | Liste les boucles de rétroaction | 1 — Association |
 | `GAPS?` | Liste les lacunes causales non résolues | 1 — Association |
+| `DO <label>?` | Intervention : court-circuite les causes de X, propage ses effets | 2 — Intervention |
+| `COUNTERFACTUAL <label>?` | "Que se serait-il passé si X n'avait pas eu lieu ?" | 3 — Contrefactuel |
 
-Les niveaux 2 (intervention `do(X)`) et 3 (contrefactuels) seront ajoutés en Phase 7.
+**Pearl niveau 2 — `DO X`** : coupe toutes les arêtes entrantes du nœud X (ses causes naturelles sont court-circuitées), puis propage les effets en avant depuis X. Retourne les arêtes coupées (`severed`) et les effets aval.
+
+**Pearl niveau 3 — `COUNTERFACTUAL X`** : compare le monde actuel (effets réels de X) avec le monde hypothétique sans X. `unique_effects` = nœuds qui ne seraient PAS atteints si X n'avait pas eu lieu (aucun chemin alternatif depuis les racines du graphe).
 
 ---
 
@@ -215,11 +237,17 @@ pub enum RelationType {
 }
 ```
 
-### `gcn-frontend-fr` — Parser français
+### `gcn-frontend-fr` / `gcn-frontend-en` — Parsers symboliques
 
 ```rust
+// Français
 let parser = FrenchParser::new(Path::new("gcn-references/taxonomies"))?;
 let ir: CausalIR = parser.parse("Si les ventes baissent, on réduit les coûts.")?;
+
+// Anglais — même API, même CausalIR produit
+let parser = EnglishParser::new(Path::new("gcn-references/taxonomies"))?;
+let ir: CausalIR = parser.parse("If costs rise, sales fall.")?;
+// Les deux parsers produisent un CIR isomorphe (même RelationType::Condition)
 ```
 
 ### `gcn-middleend` — Enrichissement
@@ -233,9 +261,17 @@ let result = gcn_middleend::process(ir)?;
 ### `gcn-backend` — Raisonnement et export
 
 ```rust
-// GCN-QL
+// GCN-QL niveau 1 (association)
 let query = Query::parse("WHY ventes?")?;
 let result = execute(&query, &ir)?;
+
+// GCN-QL niveau 2 (intervention do-calculus)
+let query = Query::parse("DO crise")?;
+// -> QueryResult::Intervention { severed_count, severed, effects, .. }
+
+// GCN-QL niveau 3 (contrefactuel)
+let query = Query::parse("COUNTERFACTUAL hausse")?;
+// -> QueryResult::CounterfactualDiff { actual_effects, unique_effects, .. }
 
 // Export
 let json = to_json(&ir)?;
@@ -267,7 +303,28 @@ class MyEncoder:
     def update(self, grads, lr): ...
 ```
 
-### Implémenter un `CausalGraph` R-GCN (Couche 3)
+### Utiliser la couche 3 R-GCN (NumPy ou PyTorch)
+
+```python
+# Référence NumPy (pas de dépendance ML)
+from gcn_python.layer3.reference import RGCNLayer
+layer = RGCNLayer(d_in=64, d_out=128)
+
+# PyTorch optimisé (GPU/MPS, autograd)
+from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
+layer = RGCNLayerPT(d_in=64, d_out=128, device="cuda")
+
+# Les deux implémentent le même Protocol CausalGraph
+out = layer.message_pass(node_features, edge_index, edge_types)  # (N, D_out)
+
+# Entraînement PyTorch natif
+optimizer = torch.optim.Adam(layer.torch_parameters(), lr=1e-3)
+out = layer.forward_torch(H, edge_index, edge_types)
+loss.backward()
+optimizer.step()
+```
+
+### Implémenter son propre `CausalGraph` R-GCN
 
 ```python
 from gcn_python.layer3.interface import CausalGraph
@@ -356,16 +413,18 @@ document:
 ## Tests
 
 ```bash
-# Suite complète (51 tests)
-cd gcn-core && cargo test
+# Suite complète Rust (103 tests)
+cd gcn-core && cargo test --workspace
 
 # Par crate
 cargo test -p gcn-ir
-cargo test -p gcn-frontend-fr
-cargo test -p gcn-middleend
-cargo test -p gcn-backend
+cargo test -p gcn-frontend-fr      # 16 tests
+cargo test -p gcn-frontend-en      # 16 tests (dont isomorphisme fr↔en)
+cargo test -p gcn-frontend-code    # 27 tests (Python, Rust, JS)
+cargo test -p gcn-middleend        # 17 tests
+cargo test -p gcn-backend          # 26 tests (Pearl 1-2-3)
 
-# Python
+# Python (54 tests)
 cd gcn-python && python -m pytest
 ```
 
@@ -377,13 +436,13 @@ cd gcn-python && python -m pytest
 |---|---|---|
 | 1 | `gcn-ir` + `gcn-knowledge` | ✅ Terminé |
 | 2a | `gcn-frontend-fr` (16 tests) | ✅ Terminé |
-| 2b | `gcn-python` couches 1-3 | 🔄 En cours |
-| 2c | `gcn-python/evaluation` | ✅ Terminé |
+| 2b | `gcn-python` couches 1-3 (référence NumPy) | ✅ Terminé |
+| 2c | `gcn-python/evaluation` (métriques, TrainingRecorder) | ✅ Terminé |
 | 3 | `gcn-middleend` (17 tests) | ✅ Terminé |
-| 4 | `gcn-backend` + `gcn-cli` (18 tests) | ✅ Terminé |
-| 5 | `gcn-verbalizer` — graphe → texte **et** code | ⬜ |
-| 6 | `gcn-frontend-code` — AST Python/Rust/JS | ⬜ |
-| 7 | Pearl niveaux 2-3, R-GCN optimisé, wolof/arabe | ⬜ |
+| 4 | `gcn-backend` Pearl 1 + `gcn-cli` (26 tests) | ✅ Terminé |
+| 5 | `gcn-verbalizer` — CausalIR → surface (texte et code) | ✅ Terminé |
+| 6 | `gcn-frontend-code` — AST Python/Rust/JS (27 tests) | ✅ Terminé |
+| 7 | Pearl 2-3, R-GCN PyTorch, `gcn-frontend-en` (16 tests) | ✅ Terminé |
 
 ---
 

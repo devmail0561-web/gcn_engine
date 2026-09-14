@@ -8,6 +8,68 @@ Basé sur le papier de recherche de Michel Tendeng, Université Numérique Cheik
 
 Le projet GCN (Grammaire Causale Naturelle) de Michel Tendeng propose un cadre formel pour extraire la causalité depuis la structure grammaticale du langage naturel. L'architecture retenue (CGNP → GCN-Core) suit un modèle de **compilateur** : Frontend → CIR → Middle-end → Backend. L'utilisateur demande la création du SAD complet avec stack technique, choix du langage, et exemples de datasets pour langues naturelles et de programmation.
 
+## Objectif et usages
+
+GCN-Core est une **architecture encodeur-décodeur avec CausalIR comme représentation pivot**. Son objectif est de fournir une base pour construire des modèles qui raisonnent sur la causalité plutôt que de l'apprendre comme effet émergent.
+
+### Objectif central
+
+Poser la causalité comme **structure de premier plan**, explicite et vérifiable — pas comme corrélation statistique enfouie dans des poids. Le CausalIR est la représentation commune à toutes les langues et modalités : ce que le modèle a appris à encoder et décoder.
+
+### Ce que peut produire un modèle entraîné sur GCN-Core
+
+La sortie dépend entièrement des données d'entraînement. Selon le corpus utilisé, la même architecture peut servir à construire :
+
+- **Un modèle de langage** — entraîné sur des textes en langue naturelle
+- **Un modèle de codage** — entraîné sur du code source
+- **Un modèle de traduction** — entraîné sur des paires multilingues ou cross-modal
+- **Un modèle agentique** — entraîné sur des traces d'actions et leurs conséquences causales
+- **Un modèle de raisonnement contrefactuel** — via Pearl niveaux 2-3
+
+L'architecture ne présuppose pas le type de sortie. C'est l'entraînement qui détermine ce que le modèle sait faire.
+
+### Ce que GCN apporte que les LLMs n'ont pas
+
+| LLM | GCN-Core |
+|---|---|
+| Causalité implicite dans les poids | Causalité explicite dans le CausalIR |
+| Ininterprétable | Graphe auditable nœud par nœud |
+| Confond corrélation et causalité | Distingue `Cause`, `Concession`, `Opposition`, `Enable`, `Prevent` |
+| Pas de formalisme Pearl natif | Pearl niveaux 1-2-3 intégrés |
+
+## Philosophie de l'architecture
+
+GCN-Core est une **architecture encodeur-décodeur**, à l'image du Transformer — pas un moteur de base de données ni une application utilisateur finale.
+
+| Composant | Rôle | Analogie Transformer |
+|---|---|---|
+| Frontends + couches 1-3 | Encodeur : Texte/Code → CausalIR | Encoder stack |
+| CausalIR | Représentation pivot — structurée, sérialisable, interrogeable | Hidden states / latent representation |
+| gcn-verbalizer | Décodeur : CausalIR → Texte/Code | Decoder stack |
+| gcn-datasets | Corpus d'entraînement pour les deux côtés simultanément | Training corpus |
+
+Le décodeur est **partie intégrante de l'architecture** au même titre que l'encodeur. Les mêmes paires `(texte, CausalIR)` entraînent les deux côtés : l'encodeur apprend à produire le CausalIR, le décodeur apprend à en produire la surface.
+
+Le CLI `gcn` est un outil de développement et d'inspection — pas l'interface finale. Les applications se construisent sur l'API Rust/Python en consommant le CausalIR.
+
+## Pipeline d'annotation
+
+Les taxonomies de `gcn-references/` guident la création des données d'entraînement. Elles ne sont **jamais lues par le moteur à l'inférence** — elles servent uniquement aux annotateurs.
+
+```
+gcn-references/taxonomies/    ← consulté par l'annotateur (pas par le modèle)
+          ↓
+Annotateur (humain ou outil bootstrap)
+          ↓ produit
+gcn-datasets/                 ← corpus annoté (texte/code + CausalIR)
+          ↓ entraîne
+Couches ML (layer1, layer2, layer3)   ← apprennent les patterns depuis les données
+```
+
+**Exemple :** `conjonctions.yaml` indique que "si" → `RelationType::Condition`. L'annotateur étiquette `"Si les ventes baissent, on réduit les coûts."` → CausalIR avec un Condition edge. Le modèle apprend ensuite le pattern `si + VERB(advcl)` → Condition depuis les annotations — sans jamais lire `conjonctions.yaml`.
+
+**`gcn-frontend-fr` et `gcn-frontend-code`** sont des outils de bootstrap : ils auto-annotent du texte/code pour aider à constituer `gcn-datasets/`. Une fois le modèle entraîné sur suffisamment de données, il les remplace pour l'inférence.
+
 ## Langage retenu : Rust
 
 | Contrainte | Justification Rust |
@@ -48,7 +110,8 @@ Les couches ML (Couches 1-3 CGNP) sont implémentées dans le package Python `gc
 | `pyyaml>=6.0` | Chargement taxonomies GCN |
 | `click>=8.1` | CLI `gcn-forward` |
 
-`torch`, `jax`, `tensorflow` — dépendances du data scientist, pas du moteur.
+`torch>=2.0` — disponible via `RGCNLayerPT` (couche 3 PyTorch, GPU/MPS). Optionnel : `ImportError` explicite si non installé.
+`jax`, `tensorflow` — dépendances du data scientist, pas du moteur.
 
 ## Fichiers à créer
 
@@ -79,16 +142,25 @@ projet_CNM/
 │       │       ├── lexicon.rs        # Lexique causal par langue
 │       │       ├── inference.rs      # Règles d'inférence de types
 │       │       └── loader.rs         # Validation YAML
-│       ├── gcn-frontend-fr/          # Frontend français (parser symbolique)
+│       ├── gcn-frontend-fr/          # Bootstrap d'annotation français — remplacé par les couches ML à l'inférence
 │       │   └── src/
 │       │       ├── lib.rs
 │       │       ├── tokenizer.rs
 │       │       ├── tagger.rs
 │       │       ├── rules.rs
 │       │       ├── annotator.rs
-│       │       ├── resources.rs      # Chargement LexicalResources depuis gcn-references/
+│       │       ├── resources.rs      # Charge les taxonomies gcn-references/fr/ (annotation uniquement)
 │       │       └── emitter.rs        # Tokens annotés → CausalIR
-│       ├── gcn-frontend-code/        # Frontend langages de programmation (stub)
+│       ├── gcn-frontend-en/          # Bootstrap d'annotation anglais — même architecture que gcn-frontend-fr
+│       │   └── src/
+│       │       ├── lib.rs            # EnglishParser::new(taxonomies_root) + parse(text)
+│       │       ├── tokenizer.rs
+│       │       ├── tagger.rs
+│       │       ├── rules.rs          # Morphologie anglaise (lemmatize_verb, looks_like_verb_morphologically)
+│       │       ├── annotator.rs      # Marqueurs multi-mots prioritaires sur verbes causaux
+│       │       ├── resources.rs      # Charge gcn-references/en/ via TaxonomyClass.examples (champ générique)
+│       │       └── emitter.rs        # Tokens annotés → CausalIR (source_lang: English)
+│       ├── gcn-frontend-code/        # Bootstrap d'annotation code — remplacé par les couches ML à l'inférence
 │       │   └── src/lib.rs
 │       ├── gcn-middleend/            # Graphe causal, cycles, contraintes, validation
 │       │   └── src/
@@ -100,28 +172,18 @@ projet_CNM/
 │       │       └── error.rs          # Diagnostic, MiddleendError
 │       ├── gcn-backend/              # Raisonnement Pearl + export (Phase 4)
 │       │   └── src/lib.rs
-│       ├── gcn-verbalizer/           # Verbalisateur graphe → texte/code (Phase 5)
+│       ├── gcn-verbalizer/           # Décodeur de l'architecture (Phase 5)
 │       │   └── src/lib.rs
 │       └── gcn-cli/                  # CLI
 │           └── src/main.rs
 │
-├── gcn-references/                   # Références linguistiques — hors moteur
-│   ├── taxonomies/                   # 11 taxonomies GCN (YAML)
-│   │   ├── verbes.yaml
-│   │   ├── verbes_causaux.yaml
-│   │   ├── adverbes.yaml
-│   │   ├── adjectifs.yaml
-│   │   ├── conjonctions.yaml
-│   │   ├── prepositions.yaml
-│   │   ├── prepositions_causales.yaml
-│   │   ├── noms.yaml
-│   │   ├── pronoms.yaml
-│   │   ├── determinants.yaml
-│   │   └── nominalizations.yaml
-│   └── lexicons/
-│       ├── fr/
-│       ├── wo/                       # Wolof (futur)
-│       └── en/                       # Anglais (futur)
+├── gcn-references/                   # Référentiels pour annotateurs — guide la création de gcn-datasets/ (pas lu à l'inférence)
+│   └── taxonomies/                   # Taxonomies par langue/modalité
+│       ├── fr/                       # Taxonomies françaises (11 fichiers : verbes, conjonctions, etc.)
+│       ├── en/                       # Taxonomies anglaises (10 fichiers)
+│       ├── python/                   # Mappings AST Python → types causaux
+│       ├── rust/                     # Mappings AST Rust → types causaux
+│       └── js/                       # Mappings AST JavaScript → types causaux
 │
 ├── gcn-datasets/                     # Données annotées — hors moteur
 │   ├── schemas/
@@ -143,6 +205,7 @@ projet_CNM/
 
 ```
 gcn-cli → gcn-frontend-fr → gcn-ir
+        → gcn-frontend-en → gcn-ir
         → gcn-frontend-code → gcn-ir
         → gcn-middleend → gcn-ir + gcn-knowledge
         → gcn-backend → gcn-ir + gcn-middleend
@@ -623,22 +686,28 @@ pub enum NodeOrigin {
 }
 ```
 
-### L12 — Langage de requêtes non spécifié
+### L12 — Langage de requêtes GCN-QL (implémenté)
 
-Le plan mentionne `query.rs` sans définir la syntaxe des requêtes causales. Ajout :
+Syntaxe GCN-QL complète (tous niveaux de Pearl) :
 
 ```
-# Syntaxe GCN-QL (Causal Query Language)
-WHY <entity>?                           # Pearl niveau 1 — remonte les causes
-WHAT_IF DO(<entity> = <value>)?         # Pearl niveau 2 — intervention
-WHAT_IF NOT(<entity>)?                  # Pearl niveau 3 — contrefactuel
-CHAIN <entity_a> -> <entity_b>?         # Existe-t-il un chemin causal?
-CYCLES?                                 # Liste les boucles de rétroaction
-GAPS?                                   # Liste les lacunes causales non résolues
-SCOPE <entity>?                         # Portée causale d'une entité
+# Pearl niveau 1 — Association (observationnel)
+WHY <label>?                    # Ancêtres causaux (BFS inverse)
+WHAT <label>?                   # Descendants causaux (BFS avant)
+CHAIN <a> -> <b>?               # Chemin causal entre deux nœuds
+CYCLES?                         # Boucles de rétroaction (Tarjan SCC)
+GAPS?                           # Lacunes causales (TemporalGap)
+
+# Pearl niveau 2 — Intervention (do-calculus)
+DO <label>?                     # Coupe les causes de X, propage ses effets
+                                # → QueryResult::Intervention { severed_count, severed, effects }
+
+# Pearl niveau 3 — Contrefactuel
+COUNTERFACTUAL <label>?         # "Si X n'avait pas eu lieu, quels effets disparaissent ?"
+                                # → QueryResult::CounterfactualDiff { actual_effects, unique_effects }
 ```
 
-Implémenté comme un petit parser (pas besoin de bibliothèque externe — `nom` ou même un parser à la main suffit). Ajout optionnel de `nom = "8.1.0"` dans les dépendances de `gcn-backend`.
+Implémenté comme un parser à la main dans `gcn-backend/src/query.rs` (pas de dépendance externe).
 
 ## Architecture CGNP — Package Python (gcn-python/)
 
@@ -664,7 +733,8 @@ projet_CNM/
         │   └── reference.py      # MLPEncoder NumPy (fc→ReLU→fc→ReLU→fc)
         ├── layer3/               # Couche 3 : graphe causal R-GCN
         │   ├── interface.py      # CausalGraph Protocol
-        │   └── reference.py      # RGCNLayer NumPy (message passing relationnel)
+        │   ├── reference.py      # RGCNLayer NumPy (message passing relationnel)
+        │   └── pytorch_rgcn.py   # RGCNLayerPT PyTorch (GPU/MPS, autograd, scatter_add_)
         ├── pipeline/
         │   ├── cgnp.py           # CGNPipeline.forward(text) → CausalIR JSON
         │   │                     # CGNPipeline.loss() + backward() pour entraînement
@@ -734,7 +804,7 @@ text + lang_code
 ## Décisions architecturales
 
 - **DA-1** : La CIR est le contrat central. Tout frontend produit une CIR, le middle-end/backend ne connaissent que la CIR.
-- **DA-2** : Les couches ML (2-3) sont dans `gcn-python/` — framework-agnostique (NumPy de référence, DS substitue PyTorch/JAX). L'interface Python↔Rust est CausalIR JSON via subprocess.
+- **DA-2** : Les couches ML (2-3) sont dans `gcn-python/` — framework-agnostique (NumPy de référence, `RGCNLayerPT` PyTorch disponible, DS substitue son implémentation via Protocol). L'interface Python↔Rust est CausalIR JSON via subprocess.
 - **DA-3** : Le graphe est orienté AVEC cycles (petgraph DiGraph, pas Dag) — section 4.1.bis du papier.
 - **DA-4** : Les lacunes causales sont des données de première classe (concession, opposition, pronoms indéfinis).
 - **DA-5** : La compositionnalité verbale est implémentée — le type causal d'un verbe dépend de l'aspect et du contexte.
@@ -746,15 +816,15 @@ text + lang_code
 
 | Phase | Composants | Statut |
 |---|---|---|
-| 1 | `gcn-ir` + `gcn-knowledge` (11 taxonomies YAML) | ✅ Terminé |
+| 1 | `gcn-ir` + `gcn-knowledge` (11 taxonomies YAML fr) | ✅ Terminé |
 | 2a | `gcn-frontend-fr` (règles, CIR, 16 tests) | ✅ Terminé |
-| 2b | `gcn-python/` couches 1-3 : `layer1/`, `layer2/`, `layer3/`, `pipeline/` | 🔄 En cours |
-| 2c | `gcn-python/evaluation/` : métriques (accuracy, F1/classe, similarité graphe), `TrainingRecorder` (loss + courbes d'apprentissage par epoch, export CSV) | ⬜ |
-| 3 | `gcn-middleend` (graphe DiGraph, cycles Tarjan, propagation contraintes, validation) | ✅ Terminé — 17 tests |
-| 4 | `gcn-backend` (Pearl niveau 1 + GCN-QL L12) + `gcn-cli` (L8-L9) + interface Rust↔Python | ⬜ |
-| 5 | `gcn-verbalizer` — graphe causal → texte naturel **et** code simultanément (petit LM ~100M params, piloté par `SourceLanguage`, ne raisonne pas, verbalise) | ⬜ |
-| 6 | `gcn-frontend-code` (Python AST, Rust AST, JS) | ⬜ |
-| 7 | Pearl niveaux 2-3 (intervention, contrefactuel), R-GCN optimisé, support wolof/arabe | ⬜ |
+| 2b | `gcn-python/` couches 1-3 + `pipeline/` (référence NumPy) | ✅ Terminé |
+| 2c | `gcn-python/evaluation/` : métriques, `TrainingRecorder` | ✅ Terminé |
+| 3 | `gcn-middleend` (graphe DiGraph, cycles Tarjan, propagation, validation) — 17 tests | ✅ Terminé |
+| 4 | `gcn-backend` (Pearl niveau 1 + GCN-QL) + `gcn-cli` + interface Rust↔Python — 26 tests | ✅ Terminé |
+| 5 | `gcn-verbalizer` (décodeur CausalIR → surface) + métriques décodeur | ✅ Terminé |
+| 6 | `gcn-frontend-code` (Python/Rust/JS AST via tree-sitter) — 27 tests | ✅ Terminé |
+| 7 | Pearl 2-3 (intervention, contrefactuel), `RGCNLayerPT` PyTorch, `gcn-frontend-en` — 16 tests | ✅ Terminé |
 
 ## Vérification
 
@@ -762,6 +832,34 @@ text + lang_code
 2. **Phase 2** : Tous les exemples du papier (`paper_examples.yaml`) passent le pipeline frontend-fr → CIR et produisent les graphes attendus. Test spécifique : causalité implicite sur phrases juxtaposées.
 3. **Phase 3** : Tests d'intégration phrase → CIR → graphe. Détection des cycles sur l'exemple "ventes → coûts → qualité → ventes". Test feedback loop : annotation incohérente → middleend retourne `Inconsistency::TemporalContradiction`. Test fusion incrémentale : 3 phrases → graphe unifié.
 4. **Phase 4** : `gcn-cli analyze "Si les ventes baissent, on réduit les coûts."` → JSON CIR correct. `gcn-cli query "WHY ventes?"` → chaîne causale. `gcn-cli query "GAPS?"` → lacunes.
-5. **Phase 5** : `gcn-cli verbalize <cir.json> --lang fr` → phrase française cohérente. `gcn-cli verbalize <cir.json> --lang python` → code Python implémentant la logique causale. Test isomorphisme : texte et code produits depuis le même graphe encodent la même structure causale.
-6. **Phase 6** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe.
-6. **End-to-end** : `cargo test --workspace` passe, `cargo clippy -- -D warnings` propre, `cargo build --release` produit un binaire < 15MB, `gcn-cli setup` télécharge le modèle UDPipe.
+5. **Phase 5** : `Verbalizer::decode(ir)` retourne une surface non vide pour tout CausalIR valide. `roundtrip_similarity` ≥ 0.7 sur les exemples gold du dataset. `cross_modal_consistency` ≥ 0.7 entre deux surfaces du même graphe. La sortie dépend de l'entraînement, pas de l'architecture.
+6. **Phase 6** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe. ✅
+7. **Phase 7** : `gcn query "DO X"` et `gcn query "COUNTERFACTUAL X"` retournent les résultats attendus. `gcn-frontend-en` produit un CIR isomorphe à `gcn-frontend-fr` pour la même structure conditionnelle. `RGCNLayerPT.message_pass()` implémente le Protocol `CausalGraph`. ✅
+8. **End-to-end** : `cargo test --workspace` passe (103 tests), `cargo clippy -- -D warnings` propre, `python -m pytest gcn-python/tests/` passe (54 tests).
+
+## Architecture du décodeur
+
+Le décodeur `gcn-verbalizer` est la partie génératrice de l'architecture encodeur-décodeur GCN.
+
+**Principe** : CausalIR JSON → surface. Ce que le décodeur produit dépend entièrement de son entraînement — aucun type de sortie n'est présupposé par l'architecture.
+
+**Entraînement** : même corpus que l'encodeur (`gcn-datasets/`). Les paires `(CausalIR, surface)` du schéma `gcn-verbalize.schema.yaml` servent les deux côtés.
+
+**Évaluation** :
+- `decoder_causal_fidelity` : re-parser la sortie et comparer au CausalIR source
+- `cross_modal_consistency` : comparer deux surfaces (fr + python) du même CausalIR
+- `roundtrip_similarity` : mesurer la fidélité du cycle complet
+- `generation_bleu` : qualité de surface pour le langage naturel
+
+**Interface Rust** : `gcn_verbalizer::decode(ir: &CausalIR) -> Result<String, VerbalizerError>`
+**Interface Python** : `VerbalizerDecoder.decode(ir_json: str) -> str`
+
+### Composants
+
+| Composant | Rôle |
+|---|---|
+| `gcn-verbalizer/src/lib.rs` | Pont Rust — appelle `gcn-verbalize` (subprocess), retourne `String` |
+| `gcn-python/verbalizer/interface.py` | Protocol `VerbalizerDecoder` |
+| `gcn-python/verbalizer/decoder.py` | Implémentation NumPy référence (remplaçable par PyTorch/JAX) |
+| `gcn-python/verbalizer/cli.py` | CLI `gcn-verbalize` — entrée JSON stdin, sortie texte stdout |
+| `gcn-datasets/schemas/gcn-verbalize.schema.yaml` | Schéma des paires d'entraînement `(CausalIR, surface_text, lang)` |
