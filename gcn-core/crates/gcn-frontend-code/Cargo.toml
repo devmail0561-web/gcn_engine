@@ -8,3 +8,13 @@ description = "Programming language frontend for GCN-Core (tree-sitter)"
 gcn-ir = { path = "../gcn-ir" }
 serde = { workspace = true }
 thiserror = { workspace = true }
+tree-sitter = "0.27.0"
+tree-sitter-python = "0.25.0"
+tree-sitter-rust = "0.24.2"
+tree-sitter-javascript = "0.25.0"
+smallvec = { workspace = true }
+yaml_serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+gcn-frontend-fr = { path = "../gcn-frontend-fr" }

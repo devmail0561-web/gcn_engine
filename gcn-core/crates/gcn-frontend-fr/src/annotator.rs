@@ -85,7 +85,7 @@ pub fn annotate(tagged: &[TaggedToken], res: &LexicalResources) -> SentenceAnnot
     }
 }
 
-fn split_sentences<'a>(tokens: &'a [TaggedToken]) -> Vec<&'a [TaggedToken]> {
+fn split_sentences(tokens: &[TaggedToken]) -> Vec<&[TaggedToken]> {
     let mut result = Vec::new();
     let mut start = 0;
     for (i, t) in tokens.iter().enumerate() {
@@ -143,7 +143,7 @@ fn annotate_sentence(tokens: &[TaggedToken], res: &LexicalResources) -> Sentence
 /// "qu'" → "que", "n'" → "ne", etc.
 fn normalize_clitic(s: &str) -> String {
     if s.ends_with('\'') || s.ends_with('\u{2019}') {
-        let base = s.trim_end_matches(|c: char| c == '\'' || c == '\u{2019}');
+        let base = s.trim_end_matches(['\'', '\u{2019}']);
         match base.to_lowercase().as_str() {
             "qu" => "que".to_string(),
             "n"  => "ne".to_string(),
@@ -233,10 +233,8 @@ fn try_causal_marker(
             let right_tokens = &tokens[start + mlen..];
 
             // "pour" only as motivation before infinitive
-            if marker.requires_infinitive {
-                if !right_contains_infinitive(right_tokens) {
-                    continue;
-                }
+            if marker.requires_infinitive && !right_contains_infinitive(right_tokens) {
+                continue;
             }
 
             // Handle sentence-initial marker: left is empty, split right at comma
@@ -265,11 +263,9 @@ fn handle_initial_marker(
     // Find comma position in right_tokens
     let comma_pos = right_tokens.iter().position(|t| t.token.lower == ",");
 
-    let (sub_tokens, main_tokens) = if let Some(cp) = comma_pos {
+    let (sub_tokens, main_tokens) = {
+        let cp = comma_pos?;
         (&right_tokens[..cp], &right_tokens[cp + 1..])
-    } else {
-        // No comma: can't split, skip
-        return None;
     };
 
     if sub_tokens.is_empty() || main_tokens.is_empty() {
@@ -286,7 +282,7 @@ fn handle_initial_marker(
     let main_clause = build_clause(strip_punct_ends(main_tokens), res);
 
     // Scope override for condition markers
-    let (mut sub_clause_scoped, main_scoped) = if marker.relation == RelationType::Condition {
+    let (sub_clause_scoped, main_scoped) = if marker.relation == RelationType::Condition {
         let mut s = sub_clause;
         s.scope = Scope::Universal;
         let mut m = main_clause;
@@ -441,7 +437,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     }
 
     // --- Negation in clause ---
-    let neg_on_node = has_negation_in_clause(tokens, res);
+    let neg_on_node = has_negation_in_clause(tokens);
 
     // --- depuis flag ---
     let has_depuis = tokens.iter().any(|t| t.token.lower == "depuis");
@@ -477,25 +473,22 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     };
 
     // --- Object / entity ---
-    let (patient, entity_opt) = extract_object(tokens, main_verb_idx, res);
+    let (patient, entity_opt) = extract_object(tokens, main_verb_idx);
 
     // --- Resolve EtatSystemique from noun entity ---
     let mut resolved_type = node_type;
-    if let Some(ent) = &entity_opt {
-        if let Some(&nt) = res.noun_node_types.get(ent.as_str()) {
-            resolved_type = nt;
-        }
+    if let Some(ent) = &entity_opt
+        && let Some(&nt) = res.noun_node_types.get(ent.as_str())
+    {
+        resolved_type = nt;
     }
     // Also check if patient matches
-    if resolved_type == NodeType::Action || resolved_type == NodeType::Etat {
-        if let Some(pat) = &patient {
-            if let Some(&nt) = res.noun_node_types.get(pat.as_str()) {
-                if nt == NodeType::EtatSystemique {
-                    // The patient is an EtatSystemique — entity overrides node class
-                    resolved_type = NodeType::EtatSystemique;
-                }
-            }
-        }
+    if (resolved_type == NodeType::Action || resolved_type == NodeType::Etat)
+        && let Some(pat) = &patient
+        && let Some(&nt) = res.noun_node_types.get(pat.as_str())
+        && nt == NodeType::EtatSystemique
+    {
+        resolved_type = NodeType::EtatSystemique;
     }
 
     // --- Agent type ---
@@ -549,7 +542,7 @@ fn find_main_verb(tokens: &[TaggedToken], res: &LexicalResources) -> Option<usiz
     last_lex_verb.or(last_any_verb)
 }
 
-fn has_negation_in_clause(tokens: &[TaggedToken], res: &LexicalResources) -> bool {
+fn has_negation_in_clause(tokens: &[TaggedToken]) -> bool {
     let has_particle = tokens.iter().any(|t| t.is_negation_particle);
     let has_completer = tokens.iter().any(|t| t.is_negation_completer);
     has_particle && has_completer
@@ -577,7 +570,6 @@ fn extract_subject(tokens: &[TaggedToken], verb_idx: Option<usize>) -> Option<St
 fn extract_object(
     tokens: &[TaggedToken],
     verb_idx: Option<usize>,
-    res: &LexicalResources,
 ) -> (Option<String>, Option<String>) {
     let vi = match verb_idx {
         Some(i) => i,

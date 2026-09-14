@@ -1,6 +1,8 @@
 from gcn_python.evaluation.metrics import (
     node_accuracy, node_f1_per_class, node_macro_f1,
     edge_accuracy, edge_macro_f1, causal_graph_similarity,
+    decoder_causal_fidelity, cross_modal_consistency,
+    roundtrip_similarity, generation_bleu,
 )
 from gcn_python.evaluation.recorder import TrainingRecorder
 import tempfile
@@ -151,6 +153,84 @@ def test_recorder_to_json():
         assert len(data) == 1
         assert data[0]["epoch"] == 0
         assert data[0]["node_accuracy"] == 0.7
+
+
+# ---------------------------------------------------------------------------
+# Métriques décodeur
+# ---------------------------------------------------------------------------
+
+_IR_A = {
+    "nodes": [
+        {"node_type": "processus", "id": 0, "label": "ventes"},
+        {"node_type": "action",    "id": 1, "label": "coûts"},
+    ],
+    "edges": [[0, 1, {"relation": "condition"}]],
+}
+_IR_B = {  # même structure, légèrement différente (surface différente)
+    "nodes": [
+        {"node_type": "processus", "id": 0, "label": "sales"},
+        {"node_type": "action",    "id": 1, "label": "costs"},
+    ],
+    "edges": [[0, 1, {"relation": "condition"}]],
+}
+_IR_DIFFERENT = {
+    "nodes": [{"node_type": "etat", "id": 0, "label": "x"}],
+    "edges": [],
+}
+
+
+def test_decoder_causal_fidelity_perfect():
+    result = decoder_causal_fidelity(_IR_A, _IR_A)
+    assert result["causal_fidelity"] == 1.0
+
+
+def test_decoder_causal_fidelity_has_expected_keys():
+    result = decoder_causal_fidelity(_IR_A, _IR_B)
+    assert "causal_fidelity" in result
+    assert "node_type_accuracy" in result
+    assert "edge_relation_accuracy" in result
+
+
+def test_cross_modal_consistency_same_structure():
+    result = cross_modal_consistency(_IR_A, _IR_B)
+    assert result["consistency"] == 1.0  # same types and relations
+    assert "node_type_accuracy" in result
+
+
+def test_cross_modal_consistency_different_structure():
+    result = cross_modal_consistency(_IR_A, _IR_DIFFERENT)
+    assert result["consistency"] < 1.0
+
+
+def test_roundtrip_similarity_perfect():
+    result = roundtrip_similarity(_IR_A, _IR_A)
+    assert result["roundtrip"] == 1.0
+
+
+def test_roundtrip_similarity_has_key():
+    result = roundtrip_similarity(_IR_A, _IR_B)
+    assert "roundtrip" in result
+    assert 0.0 <= result["roundtrip"] <= 1.0
+
+
+def test_generation_bleu_perfect():
+    score = generation_bleu("le chat mange", ["le chat mange"])
+    assert score == 1.0
+
+
+def test_generation_bleu_empty_hypothesis():
+    score = generation_bleu("", ["le chat mange"])
+    assert score == 0.0
+
+
+def test_generation_bleu_partial():
+    score = generation_bleu("le chat", ["le chat mange"])
+    assert 0.0 < score < 1.0
+
+
+def test_generation_bleu_multiple_references():
+    score = generation_bleu("if x: y()", ["if x: y()", "if x:\n    y()"])
+    assert score > 0.0
 
 
 # ---------------------------------------------------------------------------

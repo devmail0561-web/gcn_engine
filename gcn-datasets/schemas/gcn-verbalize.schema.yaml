@@ -1,0 +1,82 @@
+# =============================================================================
+# GCN-Verbalize Schema — Paires d'entraînement pour le décodeur verbalisateur
+# =============================================================================
+#
+# Version : 1.0
+# Description : Format de dataset pour entraîner le décodeur GCN-Verbalizer.
+#               Chaque exemple est une paire (CausalIR, surface_text) où
+#               surface_text peut être du texte naturel OU du code source.
+#
+#               Un même CausalIR peut apparaître dans plusieurs exemples avec
+#               des surfaces différentes (cross-modal) : cela entraîne le
+#               décodeur à produire des sorties cohérentes dans toutes les langues.
+#
+#               Le décodeur apprend depuis source_lang du CausalIR ce qu'il
+#               doit produire — aucun paramètre de langue explicite n'est utilisé.
+#
+# Encodage : UTF-8
+# =============================================================================
+
+schema:
+  name: "gcn-verbalize"
+  version: "1.0"
+  description: >
+    Paires (CausalIR, surface_text) pour l'entraînement du décodeur verbalisateur.
+    Un même CausalIR peut être associé à plusieurs surfaces (cross-modal).
+
+# =============================================================================
+# STRUCTURE D'UN EXEMPLE
+# =============================================================================
+
+example:
+  id: "string — identifiant unique, ex: vb-fr-001"
+
+  # CausalIR source — la représentation causale structurée
+  # Doit être un CausalIR valide (même format que la sortie de gcn analyze)
+  causal_ir:
+    source_lang:
+      # Soit : natural: {lang: fr | wo | en | ar}
+      # Soit : programming: {lang: python | rust | javascript}
+      _description: "SourceLanguage sérialisé — conditionne implicitement la sortie du décodeur"
+    source_text: "string — texte ou code source d'origine"
+    nodes:
+      - id: "integer"
+        node_type: "etat | action | transition | processus | condition | entite | etat_systemique"
+        label: "string — étiquette courte du nœud"
+        origin: "explicit | inferred | hypothetical"
+    edges:
+      - _format: "[src_node_id, dst_node_id, {relation, confidence, negated, explicit}]"
+
+  # Surface textuelle cible — ce que le décodeur doit produire
+  surface:
+    lang: "string — code langue ou modalité : fr, wo, python, rust, etc."
+    text: "string — texte naturel ou code source attendu en sortie"
+    quality: "gold | silver | reference"
+    # gold     = annoté manuellement
+    # silver   = généré puis vérifié
+    # reference = sortie du décodeur de référence (placeholder)
+
+# =============================================================================
+# EXEMPLE CROSS-MODAL
+# Un même CausalIR avec deux surfaces différentes (fr + python)
+# =============================================================================
+
+cross_modal_example:
+  id: "vb-cross-001"
+  causal_ir:
+    source_lang:
+      natural:
+        lang: fr
+    source_text: "Si les ventes baissent, on réduit les coûts."
+    nodes:
+      - {id: 0, node_type: processus, label: "décroissance(ventes)", origin: explicit}
+      - {id: 1, node_type: action,    label: "réduire(coûts)",        origin: explicit}
+    edges:
+      - [0, 1, {relation: condition, confidence: 1.0, negated: false, explicit: true}]
+  surfaces:
+    - lang: fr
+      text: "Si les ventes baissent, on réduit les coûts."
+      quality: gold
+    - lang: python
+      text: "if sales_drop:\n    reduce_costs()"
+      quality: gold

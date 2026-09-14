@@ -33,19 +33,18 @@ fn check_sequence_ordering(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
         .collect();
 
     for (src, dst, edge) in &ir.edges {
-        if edge.relation == RelationType::Sequence {
-            if let (Some(&si), Some(&di)) = (ti.get(&src.0), ti.get(&dst.0)) {
-                if si > di {
-                    diagnostics.push(Diagnostic {
-                        node_id: Some(*src),
-                        severity: DiagnosticSeverity::Warning,
-                        kind: DiagnosticKind::TemporalOrderViolation {
-                            src: *src,
-                            dst: *dst,
-                        },
-                    });
-                }
-            }
+        if edge.relation == RelationType::Sequence
+            && let (Some(&si), Some(&di)) = (ti.get(&src.0), ti.get(&dst.0))
+            && si > di
+        {
+            diagnostics.push(Diagnostic {
+                node_id: Some(*src),
+                severity: DiagnosticSeverity::Warning,
+                kind: DiagnosticKind::TemporalOrderViolation {
+                    src: *src,
+                    dst: *dst,
+                },
+            });
         }
     }
 }

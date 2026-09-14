@@ -4,10 +4,14 @@ import pytest
 
 @pytest.fixture
 def taxonomy_dir() -> Path:
-    d = Path(__file__).parents[2] / "gcn-core" / "data" / "taxonomies"
-    if not d.is_dir():
-        pytest.skip(f"Taxonomy dir not found: {d}")
-    return d
+    candidates = [
+        Path(__file__).parents[2] / "gcn-references" / "taxonomies",
+        Path(__file__).parents[2] / "gcn-core" / "data" / "taxonomies",
+    ]
+    for d in candidates:
+        if d.is_dir():
+            return d
+    pytest.skip(f"Taxonomy dir not found (tried: {candidates})")
 
 
 @pytest.fixture

@@ -25,6 +25,8 @@ class RGCNLayer:
         scale = np.sqrt(2.0 / d_in)
         self.W_r = rng.normal(0, scale, (self.n_relations, d_out, d_in)).astype(np.float32)
         self.W_0 = rng.normal(0, scale, (d_out, d_in)).astype(np.float32)
+        self._fwd_inputs: tuple | None = None
+        self._fwd_output: np.ndarray | None = None
 
     def message_pass(
         self,
@@ -47,7 +49,50 @@ class RGCNLayer:
                 for e_idx, d in enumerate(dst_r):
                     out[d] += msgs[e_idx] / counts[d]
 
-        return _sigmoid(out)
+        h = _sigmoid(out)
+        # Copier les tableaux : évite que des mutations externes corrompent le backward
+        self._fwd_inputs = (node_features.copy(), edge_index.copy(), edge_types.copy())
+        self._fwd_output = h
+        return h
+
+    def backward_message_pass(
+        self,
+        d_output: np.ndarray,       # (N, D_out)
+    ) -> tuple[np.ndarray, list[np.ndarray]]:
+        """Rétropropagation à travers le message passing R-GCN.
+
+        Retourne (d_input, [dW_r, dW_0]) où d_input est le gradient vers
+        les features d'entrée (ignoré — pas de paramètres apprenables en amont).
+        """
+        assert self._fwd_inputs is not None, "backward_message_pass appelé avant message_pass"
+        node_features, edge_index, edge_types = self._fwd_inputs
+        h = self._fwd_output
+        N = node_features.shape[0]
+
+        # Gradient à travers sigmoid : d_pre_act = d_output * h * (1 - h)
+        d_pre_act = d_output * h * (1.0 - h)  # (N, D_out)
+
+        # Self-loop : out_self = node_features @ W_0.T
+        dW_0 = d_pre_act.T @ node_features           # (D_out, D_in)
+        d_input = d_pre_act @ self.W_0               # (N, D_in)
+
+        dW_r = np.zeros_like(self.W_r)               # (n_relations, D_out, D_in)
+
+        if edge_index.shape[1] > 0:
+            src, dst = edge_index[0], edge_index[1]
+            for r in range(self.n_relations):
+                mask = edge_types == r
+                if not np.any(mask):
+                    continue
+                src_r, dst_r = src[mask], dst[mask]
+                counts = np.maximum(np.bincount(dst_r, minlength=N).astype(np.float32), 1.0)
+
+                # Gradient des messages normalisés vers W_r et noeuds sources
+                d_msgs = d_pre_act[dst_r] / counts[dst_r, np.newaxis]  # (|E_r|, D_out)
+                dW_r[r] = d_msgs.T @ node_features[src_r]               # (D_out, D_in)
+                np.add.at(d_input, src_r, d_msgs @ self.W_r[r])         # (|E_r|, D_in)
+
+        return d_input, [dW_r, dW_0]
 
     def parameters(self) -> list[np.ndarray]:
         return [self.W_r, self.W_0]

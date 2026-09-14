@@ -68,7 +68,7 @@ impl LexicalResources {
         let causal_verb_relations = build_causal_verb_relations(&lexicon);
         let verb_classes = build_verb_classes(&lexicon);
         let det_scope = build_det_scope(&lexicon);
-        let (noun_node_types, known_nouns_all) = build_noun_tables(&lexicon);
+        let (noun_node_types, _known_nouns_all) = build_noun_tables(&lexicon);
         let (known_dets, det_scope_extra) = build_det_sets(&lexicon);
         let (known_prons, pron_agent_types) = build_pron_tables(&lexicon);
         let (known_advs, negation_particles, negation_completers) = build_adv_tables(&lexicon);
@@ -193,7 +193,7 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
 fn build_causal_verb_relations(lexicon: &Lexicon) -> HashMap<String, RelationType> {
     let mut map = HashMap::new();
     if let Some(tax) = lexicon.taxonomy("verbes_causaux") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             let relation = match &class.relation_type {
                 Some(rt) => match relation_type_str_to_enum(rt) {
                     Some(r) => r,
@@ -214,7 +214,7 @@ fn build_causal_verb_relations(lexicon: &Lexicon) -> HashMap<String, RelationTyp
 fn build_verb_classes(lexicon: &Lexicon) -> HashMap<String, NodeType> {
     let mut map = HashMap::new();
     if let Some(tax) = lexicon.taxonomy("verbes") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             let node_type = match &class.causal_direction {
                 Some(dir) => match causal_direction_to_node_type(dir) {
                     Some(nt) => nt,
@@ -235,11 +235,10 @@ fn build_verb_classes(lexicon: &Lexicon) -> HashMap<String, NodeType> {
 fn build_det_scope(lexicon: &Lexicon) -> HashMap<String, Scope> {
     let mut map = HashMap::new();
     if let Some(tax) = lexicon.taxonomy("determinants") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             let class_scope = class.scope.as_deref().and_then(scope_str_to_enum);
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
-                    // Individual entry scope overrides class scope
                     let scope = entry.scope.as_deref()
                         .and_then(scope_str_to_enum)
                         .or(class_scope);
@@ -257,7 +256,7 @@ fn build_det_sets(lexicon: &Lexicon) -> (HashSet<String>, HashMap<String, Scope>
     let mut set = HashSet::new();
     let mut scope_map = HashMap::new();
     if let Some(tax) = lexicon.taxonomy("determinants") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             let class_scope = class.scope.as_deref().and_then(scope_str_to_enum);
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
@@ -293,7 +292,7 @@ fn build_noun_tables(lexicon: &Lexicon) -> (HashMap<String, NodeType>, HashSet<S
             }
             // Also check subtypes for agent subtypes
             if let Some(subtypes) = &class.subtypes {
-                for (subtype_name, subtype) in subtypes {
+                for subtype in subtypes.values() {
                     if let Some(examples) = &subtype.examples_fr {
                         for lemma in examples {
                             known.insert(lemma.to_lowercase());
@@ -362,7 +361,7 @@ fn build_adv_tables(lexicon: &Lexicon) -> (HashSet<String>, HashSet<String>, Has
 fn build_prep_set(lexicon: &Lexicon) -> HashSet<String> {
     let mut set = HashSet::new();
     if let Some(tax) = lexicon.taxonomy("prepositions") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
                     set.insert(entry.lemma.to_lowercase());
@@ -372,7 +371,7 @@ fn build_prep_set(lexicon: &Lexicon) -> HashSet<String> {
     }
     // Also add causal prep lemmas
     if let Some(tax) = lexicon.taxonomy("prepositions_causales") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
                     // Only single-word prepositions go in the set
@@ -390,7 +389,7 @@ fn build_prep_set(lexicon: &Lexicon) -> HashSet<String> {
 fn build_conj_set(lexicon: &Lexicon) -> HashSet<String> {
     let mut set = HashSet::new();
     if let Some(tax) = lexicon.taxonomy("conjonctions") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
                     // Only single-word conjunctions
@@ -408,7 +407,7 @@ fn build_conj_set(lexicon: &Lexicon) -> HashSet<String> {
 fn build_nominalizations(lexicon: &Lexicon) -> HashMap<String, String> {
     let mut map = HashMap::new();
     if let Some(tax) = lexicon.taxonomy("nominalizations") {
-        for (_class_name, class) in &tax.classes {
+        for class in tax.classes.values() {
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
                     // The `note` field holds the nominalized form
@@ -424,13 +423,12 @@ fn build_nominalizations(lexicon: &Lexicon) -> HashMap<String, String> {
 
 fn build_auxiliary_forms(lexicon: &Lexicon) -> HashSet<String> {
     let mut set = HashSet::new();
-    if let Some(tax) = lexicon.taxonomy("verbes") {
-        if let Some(aux_class) = tax.classes.get("auxiliaire") {
-            if let Some(examples) = &aux_class.examples_fr {
-                for entry in examples {
-                    set.insert(entry.lemma.to_lowercase());
-                }
-            }
+    if let Some(tax) = lexicon.taxonomy("verbes")
+        && let Some(aux_class) = tax.classes.get("auxiliaire")
+        && let Some(examples) = &aux_class.examples_fr
+    {
+        for entry in examples {
+            set.insert(entry.lemma.to_lowercase());
         }
     }
     set

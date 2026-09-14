@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import sys
 from pathlib import Path
 import click
 
@@ -23,7 +24,12 @@ DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxono
     help="Path to taxonomies directory",
 )
 @click.option("--pretty/--compact", default=True, help="Pretty-print JSON output")
-def forward_cmd(text: str, lang: str, taxonomy_dir: Path | None, pretty: bool):
+@click.option(
+    "--model-path", type=click.Path(path_type=Path), default=None,
+    help="Checkpoint .npz (produit par gcn-train). Sans ce flag : poids aléatoires.",
+)
+def forward_cmd(text: str, lang: str, taxonomy_dir: Path | None, pretty: bool,
+                model_path: Path | None):
     """
     Run the CGNP forward pass: text → CausalIR JSON → stdout.
 
@@ -51,6 +57,14 @@ def forward_cmd(text: str, lang: str, taxonomy_dir: Path | None, pretty: bool):
         lang=lang,
         vocabulary=vocab,
     )
+
+    if model_path is not None:
+        from ..training.checkpoint import load_checkpoint
+        if not model_path.exists():
+            raise click.ClickException(f"Checkpoint introuvable : {model_path}")
+        load_checkpoint(pipeline, model_path)
+    else:
+        click.echo("Avertissement : poids aléatoires (pas de --model-path)", file=sys.stderr)
 
     result = pipeline.forward(text)
     click.echo(json.dumps(result, ensure_ascii=False, indent=2 if pretty else None))

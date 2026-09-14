@@ -1,0 +1,202 @@
+"""Tests de la boucle d'entraînement Phase 2b."""
+from __future__ import annotations
+from pathlib import Path
+import numpy as np
+import pytest
+
+from gcn_python.constants import NODE_TYPES, RELATION_TYPES
+from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer2.reference import MLPEncoder
+from gcn_python.layer3.reference import RGCNLayer
+from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
+from gcn_python.taxonomy.loader import TaxonomyIndex
+
+
+# ---------------------------------------------------------------------------
+# Fixture : pipeline minimal sans spaCy (taxonomy requise)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def pipeline(taxonomy_dir: Path) -> CGNPipeline:
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
+    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
+    return CGNPipeline(encoder=encoder, graph=graph,
+                       taxonomy_dir=taxonomy_dir, lang="fr", vocabulary=vocab)
+
+
+# ---------------------------------------------------------------------------
+# Tests loss — cross-entropie
+# ---------------------------------------------------------------------------
+
+def test_loss_cross_entropy_returns_float_and_two_arrays():
+    logits = np.random.randn(3, 7).astype(np.float32)
+    labels = np.array([0, 2, 5], dtype=np.int64)
+    loss, d = _cross_entropy(logits, labels)
+    assert isinstance(loss, float)
+    assert d.shape == (3, 7)
+
+
+def test_loss_gradient_shape():
+    n_nodes, n_edges = 4, 3
+    node_logits = np.random.randn(n_nodes, len(NODE_TYPES)).astype(np.float32)
+    edge_logits = np.random.randn(n_edges, len(RELATION_TYPES)).astype(np.float32)
+    gold_node = np.zeros(n_nodes, dtype=np.int64)
+    gold_edge = np.zeros(n_edges, dtype=np.int64)
+
+    node_loss, d_node = _cross_entropy(node_logits, gold_node)
+    edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge)
+
+    assert d_node.shape == (n_nodes, len(NODE_TYPES))
+    assert d_edge.shape == (n_edges, len(RELATION_TYPES))
+    assert isinstance(node_loss + edge_loss, float)
+
+
+def test_loss_gradient_sums_near_zero():
+    """Le gradient cross-entropie sum ≈ 0 (softmax - one_hot, moyenné)."""
+    logits = np.random.randn(5, 7).astype(np.float32)
+    labels = np.array([1, 0, 3, 6, 2], dtype=np.int64)
+    _, d = _cross_entropy(logits, labels)
+    # Somme des gradients ≈ 0 (la softmax somme à 1, one_hot somme à 1)
+    assert abs(d.sum()) < 1e-5
+
+
+# ---------------------------------------------------------------------------
+# Tests RGCNLayer backward
+# ---------------------------------------------------------------------------
+
+def test_rgcn_backward_shape(taxonomy_dir: Path):
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+    D = vocab.d_clause
+    N, E = 4, 3
+    rng = np.random.default_rng(42)
+
+    graph = RGCNLayer(d_in=D, d_out=D, seed=0)
+    node_features = rng.random((N, D)).astype(np.float32)
+    edge_index = np.array([[0, 1, 2], [1, 2, 3]], dtype=np.int64)
+    edge_types = np.array([0, 1, 0], dtype=np.int64)
+
+    _ = graph.message_pass(node_features, edge_index, edge_types)
+    d_output = rng.random((N, D)).astype(np.float32)
+    d_input, grads = graph.backward_message_pass(d_output)
+
+    assert d_input.shape == (N, D)
+    assert grads[0].shape == graph.W_r.shape   # (n_relations, D_out, D_in)
+    assert grads[1].shape == graph.W_0.shape   # (D_out, D_in)
+
+
+def test_rgcn_update_changes_weights(taxonomy_dir: Path):
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+    D = vocab.d_clause
+    rng = np.random.default_rng(1)
+
+    graph = RGCNLayer(d_in=D, d_out=D, seed=1)
+    W_r_before = graph.W_r.copy()
+    W_0_before = graph.W_0.copy()
+
+    node_features = rng.random((3, D)).astype(np.float32)
+    edge_index = np.array([[0, 1], [1, 2]], dtype=np.int64)
+    edge_types = np.array([0, 0], dtype=np.int64)
+
+    graph.message_pass(node_features, edge_index, edge_types)
+    d_output = rng.random((3, D)).astype(np.float32)
+    _, grads = graph.backward_message_pass(d_output)
+    graph.update(grads, lr=0.1)
+
+    assert not np.allclose(graph.W_r, W_r_before)
+    assert not np.allclose(graph.W_0, W_0_before)
+
+
+# ---------------------------------------------------------------------------
+# Tests pipeline backward
+# ---------------------------------------------------------------------------
+
+def test_backward_updates_encoder_weights(pipeline: CGNPipeline):
+    params_before = [p.copy() for p in pipeline.encoder.parameters()]
+    try:
+        pipeline.forward("Les ventes baissent parce que les coûts augmentent.")
+    except OSError as e:
+        pytest.skip(str(e))
+    node_logits = pipeline._cached_node_logits
+    if node_logits is None or len(node_logits) == 0:
+        pytest.skip("Aucun nœud détecté par spaCy")
+
+    edge_logits = pipeline._cached_edge_logits
+    gold_node = np.zeros(len(node_logits), dtype=np.int64)
+    gold_edge = (np.zeros(len(edge_logits), dtype=np.int64)
+                 if edge_logits is not None else None)
+    _, d_node, d_edge = pipeline.loss(node_logits, edge_logits, gold_node, gold_edge)
+    pipeline.backward(d_node, d_edge, lr=0.1)
+
+    params_after = pipeline.encoder.parameters()
+    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
+
+
+def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
+    """10 epochs sur un seul exemple : la loss doit décroître."""
+    text = "Les ventes baissent parce que les coûts augmentent."
+    losses = []
+
+    for _ in range(10):
+        try:
+            pipeline.forward(text)
+        except OSError as e:
+            pytest.skip(str(e))
+        node_logits = pipeline._cached_node_logits
+        if node_logits is None or len(node_logits) == 0:
+            pytest.skip("Aucun nœud détecté par spaCy")
+        edge_logits = pipeline._cached_edge_logits
+        gold_node = np.zeros(len(node_logits), dtype=np.int64)
+        gold_edge = (np.zeros(len(edge_logits), dtype=np.int64)
+                     if edge_logits is not None else None)
+        loss_val, d_node, d_edge = pipeline.loss(node_logits, edge_logits, gold_node, gold_edge)
+        losses.append(loss_val)
+        pipeline.backward(d_node, d_edge, lr=0.01)
+
+    assert losses[-1] < losses[0], f"Loss non décroissante : {losses[0]:.4f} → {losses[-1]:.4f}"
+
+
+# ---------------------------------------------------------------------------
+# Test checkpoint
+# ---------------------------------------------------------------------------
+
+def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+
+    params_orig = [p.copy() for p in pipeline.encoder.parameters()]
+
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    # Nouveau pipeline avec seed différent (poids différents)
+    tax = TaxonomyIndex.load(pipeline.taxonomy_dir, pipeline.lang)
+    vocab = FeatureVocabulary.build(tax)
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=99)
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
+    p2 = CGNPipeline(enc2, gr2, pipeline.taxonomy_dir, pipeline.lang, vocab)
+
+    load_checkpoint(p2, ckpt)
+    params_loaded = p2.encoder.parameters()
+
+    for orig, loaded in zip(params_orig, params_loaded):
+        assert np.allclose(orig, loaded), "Poids non restaurés correctement"
+
+
+# ---------------------------------------------------------------------------
+# Test DataLoader
+# ---------------------------------------------------------------------------
+
+def test_dataloader_yields_batches(paper_examples_yaml: Path):
+    from gcn_python.data.loader import GCNDataLoader
+    loader = GCNDataLoader(paper_examples_yaml.parent, lang="fr")
+    samples = list(loader)
+    assert len(samples) > 0
+    for s in samples:
+        assert s.gold_node_labels.dtype == np.int64
+        assert s.gold_edge_labels.dtype == np.int64

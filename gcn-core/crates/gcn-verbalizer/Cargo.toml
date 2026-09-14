@@ -1,0 +1,10 @@
+[package]
+name = "gcn-verbalizer"
+version = "0.1.0"
+edition = "2024"
+description = "Bridge to the GCN verbalizer decoder (CausalIR → text)"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

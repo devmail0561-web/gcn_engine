@@ -1,4 +1,5 @@
-//! GCN Knowledge: taxonomies, lexicons, and type inference rules for the Grammaire Causale Naturelle.
+//! GCN Knowledge: support aux outils de bootstrap d'annotation (gcn-frontend-fr, gcn-frontend-code).
+//! Charge les taxonomies de gcn-references/ pour les annotateurs — pas utilisé par le pipeline ML d'inférence.
 
 pub mod taxonomy;
 pub mod loader;

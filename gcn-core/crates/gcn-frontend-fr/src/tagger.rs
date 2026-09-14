@@ -118,12 +118,11 @@ fn classify(lower: &str, res: &LexicalResources) -> (Pos, String) {
 
     // Try lemmatizing and matching against verb taxonomies (handles inflected forms)
     let lemma = lemmatize_verb(lower);
-    if lemma != lower {
-        if res.verb_classes.contains_key(lemma.as_str())
-            || res.causal_verb_relations.contains_key(lemma.as_str())
-        {
-            return (Pos::Verb, lemma);
-        }
+    if lemma != lower
+        && (res.verb_classes.contains_key(lemma.as_str())
+            || res.causal_verb_relations.contains_key(lemma.as_str()))
+    {
+        return (Pos::Verb, lemma);
     }
 
     // Morphological verb detection (imparfait, past participle, present plural -ent)

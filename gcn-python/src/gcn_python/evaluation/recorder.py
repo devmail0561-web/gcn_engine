@@ -27,14 +27,18 @@ class TrainingRecorder:
 
         recorder = TrainingRecorder()
         for epoch in range(n_epochs):
-            loss = pipeline.loss(pred, gold)
+            pipeline.forward(text)
+            node_logits = pipeline._cached_node_logits
+            edge_logits = pipeline._cached_edge_logits
+            loss_val, d_node, d_edge = pipeline.loss(
+                node_logits, edge_logits, gold_node, gold_edge
+            )
+            pipeline.backward(d_node, d_edge, lr=0.001)
             metrics = {
                 "node_accuracy": node_accuracy(pred_types, gold_types),
-                "node_macro_f1": node_macro_f1(pred_types, gold_types),
-                "edge_accuracy": edge_accuracy(pred_rels, gold_rels),
                 "edge_macro_f1": edge_macro_f1(pred_rels, gold_rels),
             }
-            recorder.record(epoch, loss, metrics)
+            recorder.record(epoch, loss_val, metrics)
 
         recorder.to_csv("training_history.csv")
         curve = recorder.learning_curve()

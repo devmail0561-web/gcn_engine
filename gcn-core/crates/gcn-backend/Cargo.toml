@@ -14,4 +14,3 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 smallvec = { workspace = true }
-gcn-middleend = { path = "../gcn-middleend" }

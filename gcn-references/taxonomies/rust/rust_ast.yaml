@@ -1,0 +1,87 @@
+taxonomy: rust_ast
+version: "1.0"
+description: >
+  Mapping des nœuds AST Rust (tree-sitter-rust) vers les types causaux GCN.
+  node_type : type causal du nœud (NodeType)
+  edge_type : type de relation vers les nœuds du corps (RelationType)
+  label_strategy : stratégie d'extraction du label depuis l'AST
+  transparent : nœuds grammaticaux sans sémantique propre — on descend
+                dans leur premier enfant nommé.
+
+transparent:
+  - "expression_statement"
+
+mappings:
+  - node_kind: "if_expression"
+    node_type: "condition"
+    edge_type: "condition"
+    label_strategy: "condition_field"
+
+  - node_kind: "while_expression"
+    node_type: "processus"
+    edge_type: "sequence"
+    label_strategy: "condition_field"
+
+  - node_kind: "for_expression"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "loop_expression"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "match_expression"
+    node_type: "condition"
+    edge_type: "condition"
+
+  - node_kind: "function_item"
+    node_type: "action"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "let_declaration"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "assignment_expression"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "compound_assignment_expr"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "call_expression"
+    node_type: "action"
+    edge_type: "data_dependency"
+
+  - node_kind: "macro_invocation"
+    node_type: "action"
+    edge_type: "data_dependency"
+
+  - node_kind: "return_expression"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "use_declaration"
+    node_type: "entite"
+    edge_type: "data_dependency"
+
+  - node_kind: "struct_item"
+    node_type: "entite"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "enum_item"
+    node_type: "entite"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "impl_item"
+    node_type: "entite"
+    edge_type: "cause"
+
+  - node_kind: "trait_item"
+    node_type: "entite"
+    edge_type: "cause"
+    label_strategy: "name_field"

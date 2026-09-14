@@ -1,4 +1,5 @@
 use gcn_ir::{NodeType, RelationType, Scope, AgentType};
+use unicode_normalization::UnicodeNormalization;
 
 // ---------------------------------------------------------------------------
 // Type mappings: YAML string values → Rust enum variants
@@ -114,21 +115,23 @@ pub fn is_infinitive(form: &str) -> bool {
 /// Attempt to lemmatize a verb form to its infinitive using morphological rules.
 /// For regular verbs only; irregular forms should be in the taxonomy.
 pub fn lemmatize_verb(form: &str) -> String {
-    let f = form.to_lowercase();
+    // Normaliser NFC pour que strip_suffix/ends_with fonctionnent sur les accents
+    // composés (NFD e+U+0301 vs NFC U+00E9) quelle que soit la source du tokenizer.
+    let f: String = form.to_lowercase().nfc().collect();
 
     // Strip reflexive clitic from "s'effondre" → "effondre"
-    let f = if f.starts_with("s'") { &f[2..] } else { f.as_str() };
+    let f = f.strip_prefix("s'").unwrap_or(f.as_str());
 
     // Passé composé participle: -é/-ée → stem + er
-    if f.ends_with("ée") {
-        return format!("{}er", &f[..f.len()-3]);
+    if let Some(stripped) = f.strip_suffix("ée") {
+        return format!("{}er", stripped);
     }
     if f.ends_with("és") || f.ends_with("ées") {
         let end = if f.ends_with("ées") { 4 } else { 3 };
         return format!("{}er", &f[..f.len()-end]);
     }
-    if f.ends_with('é') {
-        return format!("{}er", &f[..f.len()-2]);
+    if let Some(stripped) = f.strip_suffix('é') {
+        return format!("{}er", stripped);
     }
 
     // Passé composé 2nd group: -i → stem + ir
@@ -141,14 +144,14 @@ pub fn lemmatize_verb(form: &str) -> String {
     }
 
     // Imparfait: -ait → stem + er; -aient → stem + er
-    if f.ends_with("aient") {
-        return format!("{}er", &f[..f.len()-5]);
+    if let Some(stripped) = f.strip_suffix("aient") {
+        return format!("{}er", stripped);
     }
-    if f.ends_with("ait") {
-        return format!("{}er", &f[..f.len()-3]);
+    if let Some(stripped) = f.strip_suffix("ait") {
+        return format!("{}er", stripped);
     }
-    if f.ends_with("ais") {
-        return format!("{}er", &f[..f.len()-3]);
+    if let Some(stripped) = f.strip_suffix("ais") {
+        return format!("{}er", stripped);
     }
 
     // Present 3rd plural -ent: baissent → baisser

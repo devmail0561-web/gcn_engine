@@ -1,0 +1,87 @@
+taxonomy: js_ast
+version: "1.0"
+description: >
+  Mapping des nœuds AST JavaScript (tree-sitter-javascript) vers les types causaux GCN.
+  node_type : type causal du nœud (NodeType)
+  edge_type : type de relation vers les nœuds du corps (RelationType)
+  label_strategy : stratégie d'extraction du label depuis l'AST
+  transparent : nœuds grammaticaux sans sémantique propre — on descend
+                dans leur premier enfant nommé.
+
+transparent:
+  - "expression_statement"
+  - "export_statement"
+
+mappings:
+  - node_kind: "if_statement"
+    node_type: "condition"
+    edge_type: "condition"
+    label_strategy: "condition_field"
+
+  - node_kind: "while_statement"
+    node_type: "processus"
+    edge_type: "sequence"
+    label_strategy: "condition_field"
+
+  - node_kind: "for_statement"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "for_in_statement"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "function_declaration"
+    node_type: "action"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "function"
+    node_type: "action"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "arrow_function"
+    node_type: "action"
+    edge_type: "cause"
+
+  - node_kind: "variable_declaration"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "lexical_declaration"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "assignment_expression"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "call_expression"
+    node_type: "action"
+    edge_type: "data_dependency"
+
+  - node_kind: "return_statement"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "throw_statement"
+    node_type: "transition"
+    edge_type: "concession"
+
+  - node_kind: "try_statement"
+    node_type: "etat"
+    edge_type: "concession"
+
+  - node_kind: "catch_clause"
+    node_type: "etat"
+    edge_type: "concession"
+
+  - node_kind: "import_statement"
+    node_type: "entite"
+    edge_type: "data_dependency"
+
+  - node_kind: "class_declaration"
+    node_type: "entite"
+    edge_type: "cause"
+    label_strategy: "name_field"

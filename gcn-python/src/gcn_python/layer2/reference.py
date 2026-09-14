@@ -84,7 +84,8 @@ class MLPEncoder:
 
     def _backward_mlp(
         self, d_logits: np.ndarray, layers: list[_LinearLayer], cache: list
-    ) -> list[tuple[np.ndarray, np.ndarray]]:
+    ) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
+        """Retourne (grads, d_input) où d_input est le gradient vers l'entrée."""
         grads = []
         d = d_logits
         for i in reversed(range(len(layers))):
@@ -94,13 +95,42 @@ class MLPEncoder:
             dx, dW, db = layers[i].backward(d)
             grads.insert(0, (dW, db))
             d = dx
-        return grads
+        return grads, d
 
     def backward_node(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+        grads, _ = self._backward_mlp(d_logits, self._node_layers, self._node_cache)
+        return grads
+
+    def backward_node_dx(self, d_logits: np.ndarray) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
+        """Comme backward_node mais retourne aussi le gradient vers l'entrée (pour R-GCN)."""
         return self._backward_mlp(d_logits, self._node_layers, self._node_cache)
 
     def backward_edge(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
-        return self._backward_mlp(d_logits, self._edge_layers, self._edge_cache)
+        grads, _ = self._backward_mlp(d_logits, self._edge_layers, self._edge_cache)
+        return grads
+
+    def snapshot_node_cache(self) -> list:
+        """Snapshot du cache node + inputs des couches (pour backward par nœud)."""
+        return [
+            ((z.copy(), h.copy()), l._cache.get("x", np.zeros(0)).copy())
+            for (z, h), l in zip(self._node_cache, self._node_layers)
+        ]
+
+    def restore_node_cache(self, snapshot: list) -> None:
+        self._node_cache = [(z.copy(), h.copy()) for (z, h), _ in snapshot]
+        for ((_, _), x), layer in zip(snapshot, self._node_layers):
+            layer._cache["x"] = x.copy()
+
+    def snapshot_edge_cache(self) -> list:
+        return [
+            ((z.copy(), h.copy()), l._cache.get("x", np.zeros(0)).copy())
+            for (z, h), l in zip(self._edge_cache, self._edge_layers)
+        ]
+
+    def restore_edge_cache(self, snapshot: list) -> None:
+        self._edge_cache = [(z.copy(), h.copy()) for (z, h), _ in snapshot]
+        for ((_, _), x), layer in zip(snapshot, self._edge_layers):
+            layer._cache["x"] = x.copy()
 
     def parameters(self) -> list[np.ndarray]:
         params = []

@@ -23,6 +23,12 @@ class CausalGraph(Protocol):
     ) -> np.ndarray:                # (N, D_out) — représentations enrichies
         ...
 
+    def backward_message_pass(
+        self,
+        d_output: np.ndarray,       # (N, D_out) — gradient depuis la couche suivante
+    ) -> tuple[np.ndarray, list[np.ndarray]]:  # (d_input (N, D_in), [dW_r, dW_0])
+        ...
+
     def parameters(self) -> list[np.ndarray]:
         ...
 

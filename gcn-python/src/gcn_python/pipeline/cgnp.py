@@ -19,9 +19,9 @@ class CGNPipeline:
     Le data scientist instancie ce pipeline avec ses implémentations de
     CausalEncoder (Couche 2) et CausalGraph (Couche 3).
 
-    - forward(text)         → CausalIR dict (prêt pour serde_json Rust)
-    - loss(pred, gold)      → float
-    - backward(loss)        → point d'entrée rétropropagation (no-op de référence)
+    - forward(text)                           → CausalIR dict (prêt pour serde_json Rust)
+    - loss(node_logits, edge_logits, ...)     → (float, d_node, d_edge)
+    - backward(d_node, d_edge, lr)            → rétropropagation + mise à jour SGD
     """
 
     def __init__(
@@ -39,9 +39,35 @@ class CGNPipeline:
         self.vocabulary = vocabulary
         self._tax = TaxonomyIndex.load(taxonomy_dir, lang)
 
+        # Cache rempli par forward() — utilisé par loss() et backward()
+        self._cached_clause_vecs: np.ndarray | None = None
+        self._cached_enriched_vecs: np.ndarray | None = None
+        self._cached_edge_vecs: np.ndarray | None = None
+        self._cached_node_logits: np.ndarray | None = None
+        self._cached_edge_logits: np.ndarray | None = None
+        self._cached_edge_index: np.ndarray | None = None
+        self._cached_edge_type_idxs: np.ndarray | None = None
+        # Snapshots des activations MLP par nœud/arête — évitent de re-exécuter
+        # forward_node au backward (pas de re-run, pas de fragilitié de cache)
+        self._cached_node_snapshots: list | None = None
+        self._cached_edge_snapshots: list | None = None
+
     def forward(self, text: str) -> dict:
         """text → CausalIR dict (JSON-serializable, conforme schéma serde Rust)"""
         reps = extract(text, self.lang)
+
+        # Réinitialiser le cache
+        self._cached_clause_vecs = None
+        self._cached_enriched_vecs = None
+        self._cached_edge_vecs = None
+        self._cached_node_logits = None
+        self._cached_edge_logits = None
+        self._cached_edge_index = None
+        self._cached_edge_type_idxs = None
+        self._cached_node_snapshots = None
+        self._cached_edge_snapshots = None
+        _snap = hasattr(self.encoder, 'snapshot_node_cache')
+
         if not reps:
             return emit(text, self.lang, [], [], [], [], [])
 
@@ -49,14 +75,24 @@ class CGNPipeline:
         clause_vecs = np.stack([
             vectorize_clause(r, self.vocabulary, self._tax) for r in reps
         ])  # (N, D_clause)
+        self._cached_clause_vecs = clause_vecs
 
-        # Couche 2 — prédiction des types de nœuds
-        node_logits = np.stack([self.encoder.forward_node(v) for v in clause_vecs])
+        # Couche 2 — prédiction des types de nœuds (snapshot par nœud pour backward)
+        node_logits_list: list[np.ndarray] = []
+        node_snapshots: list = []
+        for v in clause_vecs:
+            node_logits_list.append(self.encoder.forward_node(v))
+            if _snap:
+                node_snapshots.append(self.encoder.snapshot_node_cache())
+        node_logits = np.stack(node_logits_list)
         node_type_idxs = np.argmax(node_logits, axis=1)
         node_types = [NODE_TYPES[i] for i in node_type_idxs]
 
         # Prédiction des arêtes entre clauses adjacentes
         edge_triples: list[tuple[int, int, str, float, bool, int | None]] = []
+        edge_vecs: list[np.ndarray] = []
+        all_edge_logits: list[np.ndarray] = []
+        edge_snapshots: list = []
         if len(reps) >= 2:
             for src_i in range(len(reps) - 1):
                 dst_i = src_i + 1
@@ -65,10 +101,20 @@ class CGNPipeline:
                     src_i, dst_i, len(reps),
                     self.vocabulary, self._tax,
                 )
-                edge_logits = self.encoder.forward_edge(edge_vec)
-                rel_idx = int(np.argmax(edge_logits))
-                rel_conf = float(_softmax(edge_logits.reshape(1, -1))[0, rel_idx])
+                edge_vecs.append(edge_vec)
+                edge_logit = self.encoder.forward_edge(edge_vec)
+                all_edge_logits.append(edge_logit)
+                if _snap:
+                    edge_snapshots.append(self.encoder.snapshot_edge_cache())
+                rel_idx = int(np.argmax(edge_logit))
+                rel_conf = float(_softmax(edge_logit.reshape(1, -1))[0, rel_idx])
                 edge_triples.append((src_i, dst_i, RELATION_TYPES[rel_idx], rel_conf, False, None))
+
+        if edge_vecs:
+            self._cached_edge_vecs = np.stack(edge_vecs)
+            self._cached_edge_logits = np.stack(all_edge_logits)
+            if _snap:
+                self._cached_edge_snapshots = edge_snapshots
 
         # Couche 3 — R-GCN message passing
         if len(reps) > 1 and edge_triples:
@@ -80,12 +126,26 @@ class CGNPipeline:
                  for e in edge_triples],
                 dtype=np.int64,
             )
+            self._cached_edge_index = edge_index
+            self._cached_edge_type_idxs = edge_type_idxs
             enriched = self.graph.message_pass(clause_vecs, edge_index, edge_type_idxs)
-            # Re-predict if R-GCN output matches D_clause
+            # Re-predict from enriched features ; snapshots overridés par ce pass
             if enriched.shape[1] == self.vocabulary.d_clause:
-                node_logits2 = np.stack([self.encoder.forward_node(v) for v in enriched])
+                node_logits2_list: list[np.ndarray] = []
+                node_snapshots = []
+                for v in enriched:
+                    node_logits2_list.append(self.encoder.forward_node(v))
+                    if _snap:
+                        node_snapshots.append(self.encoder.snapshot_node_cache())
+                node_logits2 = np.stack(node_logits2_list)
                 node_type_idxs = np.argmax(node_logits2, axis=1)
                 node_types = [NODE_TYPES[i] for i in node_type_idxs]
+                node_logits = node_logits2
+                self._cached_enriched_vecs = enriched
+
+        self._cached_node_logits = node_logits
+        if _snap:
+            self._cached_node_snapshots = node_snapshots
 
         node_labels = [
             build_label(r, nt, self._tax, self.taxonomy_dir)
@@ -97,29 +157,147 @@ class CGNPipeline:
         return emit(text, self.lang, node_types, node_labels, token_spans,
                     scopes, edge_triples)
 
-    def loss(self, pred: dict, gold: dict) -> float:
+    def loss(
+        self,
+        node_logits: np.ndarray,    # (N, 7)  — logits nœuds du forward
+        edge_logits: np.ndarray | None,  # (E, 11) — logits arêtes du forward, ou None
+        gold_node: np.ndarray,      # (N,) int — indices dans NODE_TYPES
+        gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
+    ) -> tuple[float, np.ndarray, np.ndarray]:
         """
-        Loss de référence (0/1 sur types de nœuds).
-        Le DS remplace par sa propre loss avec son framework.
-        """
-        pred_nodes = pred.get("nodes", [])
-        gold_nodes = gold.get("nodes", [])
-        if not gold_nodes:
-            return 0.0
-        errors = sum(
-            float(p.get("node_type") != g.get("node_type"))
-            for p, g in zip(pred_nodes, gold_nodes)
-        )
-        return errors / len(gold_nodes)
+        Cross-entropie NumPy sur nœuds + arêtes.
 
-    def backward(self, loss: float) -> None:
+        Retourne (total_loss, d_node_logits, d_edge_logits).
+        Gradients normalisés par le nombre d'exemples.
         """
-        Point d'entrée rétropropagation — no-op de référence.
-        Le DS appelle encoder.backward_node / backward_edge directement.
+        node_loss, d_node = _cross_entropy(node_logits, gold_node)
+
+        if edge_logits is not None and gold_edge is not None and len(edge_logits) > 0:
+            e = min(len(edge_logits), len(gold_edge))
+            edge_loss, d_edge = _cross_entropy(edge_logits[:e], gold_edge[:e])
+        else:
+            edge_loss = 0.0
+            d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
+
+        return node_loss + edge_loss, d_node, d_edge
+
+    def backward(
+        self,
+        d_node_logits: np.ndarray,  # (N, 7)
+        d_edge_logits: np.ndarray,  # (E, 11)
+        lr: float = 0.01,
+    ) -> None:
         """
-        pass
+        Rétropropagation + SGD sur l'implémentation de référence NumPy.
+
+        Opère sur MLPEncoder (backward_node_dx / backward_edge) et
+        RGCNLayer (backward_message_pass). Le DS PyTorch override cette méthode.
+        """
+        if not hasattr(self.encoder, 'backward_node_dx'):
+            return  # implémentation non-référence, le DS gère son propre backward
+
+        vecs = (self._cached_enriched_vecs
+                if self._cached_enriched_vecs is not None
+                else self._cached_clause_vecs)
+        if vecs is None or len(vecs) == 0:
+            return
+
+        n = min(len(d_node_logits), len(vecs))
+        _has_node_snap = (
+            hasattr(self.encoder, 'restore_node_cache')
+            and self._cached_node_snapshots is not None
+            and len(self._cached_node_snapshots) >= n
+        )
+        _has_edge_snap = (
+            hasattr(self.encoder, 'restore_edge_cache')
+            and self._cached_edge_snapshots is not None
+        )
+
+        # --- Rétropropagation nœuds ---
+        all_node_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
+        d_enriched = np.zeros((n, vecs.shape[1]), dtype=np.float32)
+
+        for i in range(n):
+            if _has_node_snap:
+                self.encoder.restore_node_cache(self._cached_node_snapshots[i])
+            else:
+                self.encoder.forward_node(vecs[i])  # fallback sans snapshot
+            grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
+            d_enriched[i] = dx_i
+            if all_node_grads is None:
+                all_node_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
+            else:
+                for j, (dW_i, db_i) in enumerate(grads_i):
+                    all_node_grads[j] = (
+                        all_node_grads[j][0] + dW_i,
+                        all_node_grads[j][1] + db_i,
+                    )
+
+        if all_node_grads and n > 0:
+            all_node_grads = [(dW / n, db / n) for dW, db in all_node_grads]
+
+        # --- Rétropropagation arêtes ---
+        all_edge_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
+        if (d_edge_logits is not None and len(d_edge_logits) > 0
+                and self._cached_edge_vecs is not None):
+            e = min(len(d_edge_logits), len(self._cached_edge_vecs))
+            for i in range(e):
+                if _has_edge_snap and i < len(self._cached_edge_snapshots):
+                    self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
+                else:
+                    self.encoder.forward_edge(self._cached_edge_vecs[i])
+                grads_i = self.encoder.backward_edge(d_edge_logits[i])
+                if all_edge_grads is None:
+                    all_edge_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
+                else:
+                    for j, (dW_i, db_i) in enumerate(grads_i):
+                        all_edge_grads[j] = (
+                            all_edge_grads[j][0] + dW_i,
+                            all_edge_grads[j][1] + db_i,
+                        )
+            if all_edge_grads and e > 0:
+                all_edge_grads = [(dW / e, db / e) for dW, db in all_edge_grads]
+
+        # --- Mise à jour encodeur (zeros pour les poids sans gradient) ---
+        if all_node_grads is not None:
+            all_params = self.encoder.parameters()
+            flat_grads = [np.zeros_like(p) for p in all_params]
+            node_flat = [g for pair in all_node_grads for g in pair]
+            for i, g in enumerate(node_flat):
+                flat_grads[i] = g
+            if all_edge_grads is not None:
+                edge_flat = [g for pair in all_edge_grads for g in pair]
+                for i, g in enumerate(edge_flat):
+                    flat_grads[len(node_flat) + i] = g
+            self.encoder.update(flat_grads, lr)
+
+        # --- Rétropropagation R-GCN ---
+        if (self._cached_edge_index is not None
+                and self._cached_enriched_vecs is not None
+                and hasattr(self.graph, 'backward_message_pass')):
+            _, graph_grads = self.graph.backward_message_pass(d_enriched)
+            self.graph.update(graph_grads, lr)
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x - x.max(axis=-1, keepdims=True))
     return e / e.sum(axis=-1, keepdims=True)
+
+
+def _cross_entropy(
+    logits: np.ndarray,   # (N, C)
+    labels: np.ndarray,   # (N,) int
+) -> tuple[float, np.ndarray]:
+    """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N."""
+    if len(logits) == 0:
+        return 0.0, np.zeros_like(logits)
+    N = len(logits)
+    n = min(N, len(labels))
+    logits_n = logits[:n]
+    labels_n = labels[:n]
+    probs = _softmax(logits_n)                             # (n, C)
+    loss = float(-np.log(probs[np.arange(n), labels_n] + 1e-9).mean())
+    d_logits = probs.copy()
+    d_logits[np.arange(n), labels_n] -= 1.0
+    d_logits /= n
+    return loss, d_logits

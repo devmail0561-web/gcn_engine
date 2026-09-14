@@ -131,6 +131,105 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
+# Métriques décodeur (CausalIR → texte)
+# ---------------------------------------------------------------------------
+
+def decoder_causal_fidelity(decoded_ir: dict, gold_ir: dict) -> dict[str, float]:
+    """
+    Fidélité causale du décodeur : compare le CausalIR obtenu en re-parsant
+    la sortie du décodeur avec le CausalIR gold d'origine.
+
+    Le data scientist appelle cette fonction après avoir re-parsé la surface
+    générée par le décodeur. Utilise causal_graph_similarity en interne.
+
+    Retourne les mêmes clés que causal_graph_similarity + "causal_fidelity"
+    (alias de "overall" pour clarté sémantique).
+    """
+    sim = causal_graph_similarity(decoded_ir, gold_ir)
+    sim["causal_fidelity"] = sim["overall"]
+    return sim
+
+
+def cross_modal_consistency(ir_a: dict, ir_b: dict) -> dict[str, float]:
+    """
+    Cohérence cross-modale : mesure si deux CausalIR issus de surfaces
+    différentes (ex: fr + python) encodent la même structure causale.
+
+    Les deux IR doivent avoir été produits depuis le même graphe causal.
+    Un score "consistency" proche de 1.0 indique que les deux surfaces
+    encodent fidèlement la même structure.
+
+    Retourne les mêmes clés que causal_graph_similarity + "consistency".
+    """
+    sim = causal_graph_similarity(ir_a, ir_b)
+    sim["consistency"] = sim["overall"]
+    return sim
+
+
+def roundtrip_similarity(source_ir: dict, decoded_ir: dict) -> dict[str, float]:
+    """
+    Similarité round-trip : mesure la fidélité du cycle complet
+    texte → CausalIR → texte → CausalIR.
+
+    source_ir  : CausalIR produit par l'encodeur depuis le texte original
+    decoded_ir : CausalIR produit par l'encodeur depuis le texte généré
+                 par le décodeur
+
+    Un score "roundtrip" proche de 1.0 indique que l'architecture
+    encodeur-décodeur préserve la structure causale.
+    """
+    sim = causal_graph_similarity(decoded_ir, source_ir)
+    sim["roundtrip"] = sim["overall"]
+    return sim
+
+
+def generation_bleu(hypothesis: str, references: list[str], max_n: int = 4) -> float:
+    """
+    BLEU score simplifié — NumPy pur, sans dépendance externe.
+
+    Mesure la qualité de surface de la sortie du décodeur par rapport
+    aux surfaces gold du dataset. Utile pour les surfaces en langage naturel.
+    Pour le code source, préférer decoder_causal_fidelity.
+    """
+    import math
+    from collections import Counter
+
+    hyp = hypothesis.split()
+    refs = [r.split() for r in references]
+
+    if not hyp or not refs:
+        return 0.0
+
+    hyp_len = len(hyp)
+    ref_len = min((len(r) for r in refs), key=lambda rl: (abs(rl - hyp_len), rl))
+    bp = 1.0 if hyp_len >= ref_len else math.exp(1 - ref_len / hyp_len)
+
+    # Note : on itère jusqu'à min(max_n, len(hyp)) — pas jusqu'à max_n.
+    # Comportement intentionnel : BLEU tronqué aux n-grammes disponibles pour
+    # les courtes hypothèses NLP (labels causaux, clauses). Standard BLEU-4
+    # retournerait 0 pour toute hypothèse < 4 tokens ; ce n'est pas utile ici.
+    precisions: list[float] = []
+    for n in range(1, min(max_n, len(hyp)) + 1):
+        hyp_ng = Counter(_ngrams(hyp, n))
+        clipped_total = 0
+        for ng, cnt in hyp_ng.items():
+            max_ref = max(Counter(_ngrams(r, n))[ng] for r in refs)
+            clipped_total += min(cnt, max_ref)
+        total = sum(hyp_ng.values())
+        precisions.append(clipped_total / total if total > 0 else 0.0)
+
+    if not precisions or min(precisions) == 0.0:
+        return 0.0
+
+    log_avg = sum(math.log(p) for p in precisions) / len(precisions)
+    return round(bp * math.exp(log_avg), 4)
+
+
+def _ngrams(tokens: list[str], n: int) -> list[tuple]:
+    return [tuple(tokens[i: i + n]) for i in range(len(tokens) - n + 1)]
+
+
+# ---------------------------------------------------------------------------
 # Helpers internes
 # ---------------------------------------------------------------------------
 

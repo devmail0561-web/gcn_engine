@@ -154,6 +154,16 @@ class RGCNLayerPT(nn.Module):
             self.W_0.detach().cpu().numpy(),
         ]
 
+    def backward_message_pass(
+        self,
+        d_output: np.ndarray,
+    ) -> tuple[np.ndarray, list[np.ndarray]]:
+        """Non utilisé — PyTorch gère la rétropropagation via autograd / loss.backward()."""
+        raise NotImplementedError(
+            "RGCNLayerPT utilise autograd PyTorch. "
+            "Utilisez forward_torch() + loss.backward() + optimizer.step()."
+        )
+
     def update(self, grads: list[np.ndarray], lr: float) -> None:
         """Mise à jour manuelle des poids (gradient descent numpy).
         Les utilisateurs PyTorch préféreront optimizer.step() via torch_parameters().

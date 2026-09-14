@@ -1,0 +1,88 @@
+taxonomy: python_ast
+version: "1.0"
+description: >
+  Mapping des nœuds AST Python (tree-sitter) vers les types causaux GCN.
+  node_type : type causal du nœud (NodeType)
+  edge_type : type de relation vers les nœuds du corps (RelationType)
+  transparent : nœuds grammaticaux sans sémantique propre — on descend dans leur premier
+                enfant nommé (ex: expression_statement enveloppe call et assignment).
+
+transparent:
+  - "expression_statement"
+  - "decorated_definition"
+
+mappings:
+  - node_kind: "if_statement"
+    node_type: "condition"
+    edge_type: "condition"
+    label_strategy: "condition_field"
+
+  - node_kind: "elif_clause"
+    node_type: "condition"
+    edge_type: "condition"
+    label_strategy: "condition_field"
+
+  - node_kind: "assert_statement"
+    node_type: "condition"
+    edge_type: "condition"
+
+  - node_kind: "for_statement"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "while_statement"
+    node_type: "processus"
+    edge_type: "sequence"
+
+  - node_kind: "with_statement"
+    node_type: "processus"
+    edge_type: "enable"
+
+  - node_kind: "function_definition"
+    node_type: "action"
+    edge_type: "cause"
+    label_strategy: "name_field"
+
+  - node_kind: "call"
+    node_type: "action"
+    edge_type: "data_dependency"
+
+  - node_kind: "assignment"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "augmented_assignment"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "named_expression"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "return_statement"
+    node_type: "transition"
+    edge_type: "data_dependency"
+
+  - node_kind: "raise_statement"
+    node_type: "transition"
+    edge_type: "concession"
+
+  - node_kind: "import_statement"
+    node_type: "entite"
+    edge_type: "data_dependency"
+
+  - node_kind: "import_from_statement"
+    node_type: "entite"
+    edge_type: "data_dependency"
+
+  - node_kind: "class_definition"
+    node_type: "entite"
+    edge_type: "cause"
+
+  - node_kind: "try_statement"
+    node_type: "etat"
+    edge_type: "concession"
+
+  - node_kind: "except_clause"
+    node_type: "etat"
+    edge_type: "concession"

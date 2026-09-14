@@ -39,10 +39,11 @@ pub struct FrenchParser {
 }
 
 impl FrenchParser {
-    /// Create a parser by loading linguistic resources from `data_dir`
-    /// (path to the `data/taxonomies/` directory).
-    pub fn new(data_dir: &Path) -> Result<Self, ParserInitError> {
-        let resources = LexicalResources::load(data_dir)?;
+    /// Bootstrap annotation tool: auto-annotates French text → CausalIR to help build gcn-datasets/.
+    /// Not the inference pipeline — replaced by trained ML layers once the model is trained.
+    /// Loads linguistic resources from `taxonomies_root/fr/` (gcn-references/taxonomies/).
+    pub fn new(taxonomies_root: &Path) -> Result<Self, ParserInitError> {
+        let resources = LexicalResources::load(&taxonomies_root.join("fr"))?;
         Ok(FrenchParser { resources })
     }
 

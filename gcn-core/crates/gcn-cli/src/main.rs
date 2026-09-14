@@ -12,8 +12,13 @@ use gcn_middleend::process as middleend_process;
     name = "gcn",
     version = "0.1.0",
     about = "Grammaire Causale Naturelle — Causal reasoning engine",
-    long_about = "GCN-Core: parse natural language or code into causal graphs, \
-                  query them with GCN-QL, and export results."
+    long_about = "GCN-Core CLI\n\
+                  \nBootstrap annotation (symbolic, builds gcn-datasets/):\n\
+                  gcn analyze  — French text → CausalIR via symbolic rules\n\
+                  gcn query    — GCN-QL queries on a CausalIR\n\
+                  gcn export   — Export CausalIR to JSON/DOT\n\
+                  \nML inference (trained model, production):\n\
+                  gcn forward  — text → CausalIR via trained ML pipeline (gcn-python)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -22,7 +27,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Parse text into a CausalIR graph
+    /// [Bootstrap] Auto-annotate French text → CausalIR using symbolic rules (builds gcn-datasets/)
     Analyze {
         /// Text to analyze
         text: String,
