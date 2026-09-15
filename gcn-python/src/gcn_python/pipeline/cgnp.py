@@ -1,11 +1,9 @@
 from __future__ import annotations
-from pathlib import Path
 import numpy as np
 
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
-from ..taxonomy.loader import TaxonomyIndex
 from ..constants import NODE_TYPES, RELATION_TYPES
 from .label_builder import build_label
 from .ir_emitter import emit
@@ -30,7 +28,6 @@ class CGNPipeline:
         self,
         encoder: CausalEncoder,
         graph: CausalGraph,
-        taxonomy_dir: Path,
         lang: str,
         vocabulary: FeatureVocabulary,
     ):
@@ -43,10 +40,8 @@ class CGNPipeline:
             )
         self.encoder = encoder
         self.graph = graph
-        self.taxonomy_dir = taxonomy_dir
         self.lang = lang
         self.vocabulary = vocabulary
-        self._tax = TaxonomyIndex.load(taxonomy_dir, lang)
 
         # Cache rempli par forward() — utilisé par loss() et backward()
         self._cached_clause_vecs: np.ndarray | None = None
@@ -110,7 +105,7 @@ class CGNPipeline:
 
         # Couche 1 — vectorisation
         clause_vecs = np.stack([
-            vectorize_clause(r, self.vocabulary, self._tax) for r in reps
+            vectorize_clause(r, self.vocabulary) for r in reps
         ])  # (N, D_clause)
         self._cached_clause_vecs = clause_vecs
 
@@ -141,7 +136,7 @@ class CGNPipeline:
                 edge_vec = vectorize_edge(
                     reps[src_i], reps[dst_i], connector,
                     real_src, real_dst, real_n,
-                    self.vocabulary, self._tax,
+                    self.vocabulary,
                 )
                 edge_vecs.append(edge_vec)
                 edge_logit = self.encoder.forward_edge(edge_vec)
@@ -188,7 +183,7 @@ class CGNPipeline:
             self._cached_node_snapshots = node_snapshots
 
         node_labels = [
-            build_label(r, nt, self._tax, self.taxonomy_dir)
+            build_label(r, nt)
             for r, nt in zip(reps, node_types)
         ]
         token_spans = [r.token_span for r in reps]

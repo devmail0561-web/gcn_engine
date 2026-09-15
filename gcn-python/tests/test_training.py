@@ -9,21 +9,18 @@ from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
-from gcn_python.taxonomy.loader import TaxonomyIndex
 
 
 # ---------------------------------------------------------------------------
-# Fixture : pipeline minimal sans spaCy (taxonomy requise)
+# Fixture : pipeline minimal sans spaCy
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def pipeline(taxonomy_dir: Path) -> CGNPipeline:
-    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
-    vocab = FeatureVocabulary.build(tax)
+def pipeline() -> CGNPipeline:
+    vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
-    return CGNPipeline(encoder=encoder, graph=graph,
-                       taxonomy_dir=taxonomy_dir, lang="fr", vocabulary=vocab)
+    return CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +63,8 @@ def test_loss_gradient_sums_near_zero():
 # Tests RGCNLayer backward
 # ---------------------------------------------------------------------------
 
-def test_rgcn_backward_shape(taxonomy_dir: Path):
-    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
-    vocab = FeatureVocabulary.build(tax)
+def test_rgcn_backward_shape():
+    vocab = FeatureVocabulary()
     D = vocab.d_clause
     N, E = 4, 3
     rng = np.random.default_rng(42)
@@ -87,9 +83,8 @@ def test_rgcn_backward_shape(taxonomy_dir: Path):
     assert grads[1].shape == graph.W_0.shape   # (D_out, D_in)
 
 
-def test_rgcn_update_changes_weights(taxonomy_dir: Path):
-    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
-    vocab = FeatureVocabulary.build(tax)
+def test_rgcn_update_changes_weights():
+    vocab = FeatureVocabulary()
     D = vocab.d_clause
     rng = np.random.default_rng(1)
 
@@ -200,11 +195,10 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     save_checkpoint(pipeline, ckpt)
 
     # Nouveau pipeline avec seed différent (poids différents)
-    tax = TaxonomyIndex.load(pipeline.taxonomy_dir, pipeline.lang)
-    vocab = FeatureVocabulary.build(tax)
+    vocab = FeatureVocabulary()
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=99)
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
-    p2 = CGNPipeline(enc2, gr2, pipeline.taxonomy_dir, pipeline.lang, vocab)
+    p2 = CGNPipeline(enc2, gr2, pipeline.lang, vocab)
 
     load_checkpoint(p2, ckpt)
     params_loaded = p2.encoder.parameters()
@@ -386,11 +380,11 @@ def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipel
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipeline, ckpt)
 
-    # Pipeline avec des dimensions différentes (d_clause artificiel)
-    vocab2 = FeatureVocabulary(taxonomy_keys=["extra_key_a", "extra_key_b", "extra_key_c"])
+    # Pipeline avec des dimensions différentes (liste UPOS raccourcie pour forcer mismatch)
+    vocab2 = FeatureVocabulary(upos_tags=["NOUN", "VERB", "ADJ"])
     enc2 = MLPEncoder(d_clause=vocab2.d_clause, d_edge=vocab2.d_edge, seed=1)
     gr2 = RGCNLayer(d_in=vocab2.d_clause, d_out=vocab2.d_clause, seed=1)
-    p2 = CGNPipeline(enc2, gr2, pipeline.taxonomy_dir, pipeline.lang, vocab2)
+    p2 = CGNPipeline(enc2, gr2, pipeline.lang, vocab2)
 
     with pytest.raises(ValueError, match="Incompatibilité"):
         load_checkpoint(p2, ckpt)

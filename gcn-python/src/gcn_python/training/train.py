@@ -11,20 +11,14 @@ from ..layer1.features import FeatureVocabulary
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
-from ..taxonomy.loader import TaxonomyIndex
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..constants import NODE_TYPES, RELATION_TYPES
 from .checkpoint import save_checkpoint
 
 
-DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxonomies"
-
-
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers YAML d'entraînement")
-@click.option("--taxonomy-dir", type=click.Path(path_type=Path), default=None,
-              envvar="GCN_TAXONOMY_DIR", help="Répertoire des taxonomies")
 @click.option("--lang", default="fr", show_default=True)
 @click.option("--epochs", default=50, show_default=True, type=int)
 @click.option("--lr", default=0.001, show_default=True, type=float)
@@ -34,7 +28,6 @@ DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxono
               help="CSV des métriques par epoch (optionnel)")
 def train_cmd(
     data_dir: Path,
-    taxonomy_dir: Path | None,
     lang: str,
     epochs: int,
     lr: float,
@@ -42,19 +35,10 @@ def train_cmd(
     log_csv: Path | None,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
-    if taxonomy_dir is None:
-        taxonomy_dir = DEFAULT_TAXONOMY_DIR
-    if not taxonomy_dir.is_dir():
-        raise click.ClickException(f"Répertoire taxonomies introuvable : {taxonomy_dir}")
-
-    tax = TaxonomyIndex.load(taxonomy_dir, lang)
-    vocab = FeatureVocabulary.build(tax)
+    vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(
-        encoder=encoder, graph=graph,
-        taxonomy_dir=taxonomy_dir, lang=lang, vocabulary=vocab,
-    )
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
 
     loader = GCNDataLoader(data_dir, lang=lang)
     if len(loader) == 0:

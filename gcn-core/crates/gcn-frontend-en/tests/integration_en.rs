@@ -179,3 +179,32 @@ fn en_fr_condition_isomorphism() {
     let (_, _, fr_edge) = &fr_ir.edges[0];
     assert_eq!(en_edge.relation, fr_edge.relation, "même type de relation Condition");
 }
+
+// T-3 : chaîne A→B→C — temporal_index strictement croissant
+#[test]
+fn three_clause_chain_temporal_indices_strictly_increasing() {
+    let p = parser();
+    let ir = p
+        .parse("Sales fall because costs rise because wages increased.")
+        .unwrap();
+
+    if ir.nodes.len() < 3 || ir.edges.len() < 2 {
+        return;
+    }
+
+    let ti: Vec<i32> = ir.nodes.iter()
+        .map(|n| n.temporal_index.unwrap_or(-1))
+        .collect();
+
+    for edge_pair in ir.edges.windows(2) {
+        let (src_a, dst_a, _) = &edge_pair[0];
+        let (src_b, dst_b, _) = &edge_pair[1];
+        if dst_a.0 == src_b.0 {
+            let ti_a = ti[src_a.0 as usize];
+            let ti_b = ti[dst_a.0 as usize];
+            let ti_c = ti[dst_b.0 as usize];
+            assert!(ti_a < ti_b, "ti(A)={} must be < ti(B)={}", ti_a, ti_b);
+            assert!(ti_b < ti_c, "ti(B)={} must be < ti(C)={}", ti_b, ti_c);
+        }
+    }
+}

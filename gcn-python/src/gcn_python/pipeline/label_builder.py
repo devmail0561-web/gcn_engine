@@ -3,7 +3,6 @@ from pathlib import Path
 import yaml
 
 from ..layer1.representation import UDRepresentation
-from ..taxonomy.loader import TaxonomyIndex
 
 _nom_cache: dict[tuple[str, str], dict[str, str]] = {}
 
@@ -11,7 +10,6 @@ _nom_cache: dict[tuple[str, str], dict[str, str]] = {}
 def build_label(
     rep: UDRepresentation,
     node_type: str,
-    tax: TaxonomyIndex,
     taxonomies_dir: Path | None = None,
 ) -> str:
     """
@@ -29,7 +27,7 @@ def build_label(
     nom = _nominalize(rep.root_lemma, rep.lang, taxonomies_dir)
 
     if node_type == "condition":
-        return "cause_cachée(?)"
+        return "hidden_cause(?)" if rep.lang == "en" else "cause_cachée(?)"
     if node_type in ("entite", "etat_systemique"):
         return entity or rep.root_lemma
     if node_type == "action":
@@ -75,8 +73,9 @@ def _load_nominalizations(taxonomies_dir: Path, lang: str) -> dict[str, str]:
         if nom_path.exists():
             doc = yaml.safe_load(nom_path.read_text(encoding="utf-8"))
             if isinstance(doc, dict):
+                examples_key = "examples_fr" if lang == "fr" else "examples"
                 for _cls, cls_data in (doc.get("classes") or {}).items():
-                    for entry in (cls_data or {}).get("examples_fr") or []:
+                    for entry in (cls_data or {}).get(examples_key) or []:
                         if isinstance(entry, dict) and "lemma" in entry and "note" in entry:
                             table[entry["lemma"].lower()] = entry["note"]
             break

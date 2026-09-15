@@ -7,7 +7,6 @@ from ..constants import (
     UPOS_TAGS, UD_DEP_RELS, UD_TENSE_VALUES, UD_ASPECT_VALUES,
     UD_MOOD_VALUES, SUBJECT_POS_CATS,
 )
-from ..taxonomy.loader import TaxonomyIndex
 from .representation import UDRepresentation
 
 
@@ -17,6 +16,7 @@ class FeatureVocabulary:
     Schéma ordonné des features de la Couche 1.
     Sérialisable JSON — partagé entre entraînement et inférence.
     Le data scientist sérialise cette instance avec son checkpoint.
+    Features purement syntaxiques : UPOS, DEP_REL, tense/aspect/mood, polarity, flags structurels.
     """
     upos_tags: list[str] = field(default_factory=lambda: list(UPOS_TAGS))
     dep_rels: list[str] = field(default_factory=lambda: list(UD_DEP_RELS))
@@ -24,11 +24,6 @@ class FeatureVocabulary:
     aspect_values: list[str] = field(default_factory=lambda: list(UD_ASPECT_VALUES))
     mood_values: list[str] = field(default_factory=lambda: list(UD_MOOD_VALUES))
     subject_pos_cats: list[str] = field(default_factory=lambda: list(SUBJECT_POS_CATS))
-    taxonomy_keys: list[str] = field(default_factory=list)
-
-    @classmethod
-    def build(cls, tax_index: TaxonomyIndex) -> "FeatureVocabulary":
-        return cls(taxonomy_keys=tax_index.keys())
 
     @property
     def d_clause(self) -> int:
@@ -41,12 +36,11 @@ class FeatureVocabulary:
             + len(self.mood_values)
             + 1   # Polarity
             + 3   # structural flags
-            + len(self.taxonomy_keys)
         )
 
     @property
     def d_conn(self) -> int:
-        return len(self.upos_tags) + len(self.taxonomy_keys) + 2
+        return len(self.upos_tags) + 2
 
     @property
     def d_edge(self) -> int:
@@ -60,7 +54,6 @@ class FeatureVocabulary:
             "aspect_values": self.aspect_values,
             "mood_values": self.mood_values,
             "subject_pos_cats": self.subject_pos_cats,
-            "taxonomy_keys": self.taxonomy_keys,
         }, ensure_ascii=False)
 
     @classmethod
@@ -80,7 +73,6 @@ def _one_hot(value: str, vocab: list[str]) -> np.ndarray:
 def vectorize_clause(
     rep: UDRepresentation,
     vocab: FeatureVocabulary,
-    tax: TaxonomyIndex,
 ) -> np.ndarray:
     """UDRepresentation → np.ndarray[d_clause]"""
     parts = [
@@ -94,17 +86,6 @@ def vectorize_clause(
         np.array([float(rep.has_object), float(rep.has_advcl), float(rep.has_temporal_obl)],
                  dtype=np.float32),
     ]
-
-    # Taxonomy membership — check all lemmas in the clause
-    all_lemmas = {t["lemma"] for t in rep.tokens}
-    all_lemmas.add(rep.root_lemma)
-    tax_vec = np.zeros(len(vocab.taxonomy_keys), dtype=np.float32)
-    for i, key in enumerate(vocab.taxonomy_keys):
-        lemmas_in_class = tax.data.get(key, frozenset())
-        if any(lemma in lemmas_in_class for lemma in all_lemmas):
-            tax_vec[i] = 1.0
-    parts.append(tax_vec)
-
     return np.concatenate(parts)
 
 
@@ -114,25 +95,18 @@ def vectorize_connector(
     dst_idx: int,
     n_clauses: int,
     vocab: FeatureVocabulary,
-    tax: TaxonomyIndex,
 ) -> np.ndarray:
     """Connector features between two clauses → np.ndarray[d_conn]"""
     if marker_rep is not None:
         upos_vec = _one_hot(marker_rep.root_pos, vocab.upos_tags)
-        all_lemmas = {t["lemma"] for t in marker_rep.tokens}
-        tax_vec = np.zeros(len(vocab.taxonomy_keys), dtype=np.float32)
-        for i, key in enumerate(vocab.taxonomy_keys):
-            if any(lemma in tax.data.get(key, frozenset()) for lemma in all_lemmas):
-                tax_vec[i] = 1.0
     else:
         upos_vec = np.zeros(len(vocab.upos_tags), dtype=np.float32)
-        tax_vec = np.zeros(len(vocab.taxonomy_keys), dtype=np.float32)
 
     pos_vec = np.array(
         [float(src_idx < dst_idx), abs(dst_idx - src_idx) / max(n_clauses, 1)],
         dtype=np.float32,
     )
-    return np.concatenate([upos_vec, tax_vec, pos_vec])
+    return np.concatenate([upos_vec, pos_vec])
 
 
 def vectorize_edge(
@@ -143,11 +117,10 @@ def vectorize_edge(
     dst_idx: int,
     n_clauses: int,
     vocab: FeatureVocabulary,
-    tax: TaxonomyIndex,
 ) -> np.ndarray:
     """Two clauses + connector → np.ndarray[d_edge]"""
     return np.concatenate([
-        vectorize_clause(src, vocab, tax),
-        vectorize_clause(dst, vocab, tax),
-        vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab, tax),
+        vectorize_clause(src, vocab),
+        vectorize_clause(dst, vocab),
+        vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
     ])

@@ -9,13 +9,19 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
     let n = ann.clauses.len();
     let mut temporal_indices: Vec<Option<i32>> = vec![None; n];
 
-    // Assign temporal indices from edges (source = earlier in causal order)
+    // Assign temporal indices from edges (source = earlier in causal order).
+    // Propagate max from source so that A→B→C yields 0,1,2 and not 0,1,1.
     for edge in &ann.edges {
         if temporal_indices[edge.src_clause].is_none() {
             temporal_indices[edge.src_clause] = Some(0);
         }
-        if temporal_indices[edge.dst_clause].is_none() {
-            temporal_indices[edge.dst_clause] = Some(1);
+        let src_ti = temporal_indices[edge.src_clause].unwrap_or(0);
+        match temporal_indices[edge.dst_clause] {
+            None => temporal_indices[edge.dst_clause] = Some(src_ti + 1),
+            Some(existing) if existing <= src_ti => {
+                temporal_indices[edge.dst_clause] = Some(src_ti + 1)
+            }
+            _ => {}
         }
     }
     let mut next_ti = 0i32;

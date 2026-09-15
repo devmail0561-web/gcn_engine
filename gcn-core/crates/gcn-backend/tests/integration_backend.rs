@@ -62,6 +62,21 @@ fn parse_why() {
     assert_eq!(Query::parse("WHY ventes?").unwrap(), Query::Why("ventes".into()));
 }
 
+// T-4 : WHY sans label après l'espace (ex: "WHY ") — doit retourner une erreur de parsing.
+// Reason: trim() sur "WHY " produit "WHY" sans le préfixe "WHY " → aucun match → QueryParseError.
+// Cela prévient un match-all silencieux si le label était vide.
+#[test]
+fn parse_why_trailing_space_only_returns_error() {
+    assert!(
+        Query::parse("WHY ").is_err(),
+        "\"WHY \" (espace seul, pas de label) doit retourner une erreur de parsing"
+    );
+    assert!(
+        Query::parse("WHY").is_err(),
+        "\"WHY\" sans label doit retourner une erreur de parsing"
+    );
+}
+
 #[test]
 fn parse_what() {
     assert_eq!(Query::parse("WHAT coûts?").unwrap(), Query::What("coûts".into()));

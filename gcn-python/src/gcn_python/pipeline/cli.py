@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 import click
 
-from ..taxonomy.loader import TaxonomyIndex
 from ..layer1.features import FeatureVocabulary
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
@@ -13,19 +12,11 @@ from ..data.json_reader import load_sentences
 from ..data.loader import reps_from_sentence
 
 
-DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxonomies"
-
-
 @click.command("gcn-forward")
 @click.argument("dataset_path", type=click.Path(path_type=Path, exists=True))
 @click.option("--sentence-id", default=None,
               help="ID de la sentence dans le fichier (défaut : première)")
 @click.option("--lang", default="fr", show_default=True, help="Code langue (fr, en, …)")
-@click.option(
-    "--taxonomy-dir", type=click.Path(path_type=Path),
-    default=None, envvar="GCN_TAXONOMY_DIR",
-    help="Chemin du répertoire de taxonomies",
-)
 @click.option("--pretty/--compact", default=True, help="JSON indenté ou compact")
 @click.option(
     "--model-path", type=click.Path(path_type=Path), default=None,
@@ -35,7 +26,6 @@ def forward_cmd(
     dataset_path: Path,
     sentence_id: str | None,
     lang: str,
-    taxonomy_dir: Path | None,
     pretty: bool,
     model_path: Path | None,
 ) -> None:
@@ -44,14 +34,6 @@ def forward_cmd(
 
     DATASET_PATH doit être un fichier au format dataset GCN-NL (tokens + cir).
     """
-    if taxonomy_dir is None:
-        taxonomy_dir = DEFAULT_TAXONOMY_DIR
-    if not taxonomy_dir.is_dir():
-        raise click.ClickException(
-            f"Répertoire taxonomies introuvable : {taxonomy_dir}\n"
-            f"Définir GCN_TAXONOMY_DIR ou passer --taxonomy-dir"
-        )
-
     records = load_sentences(dataset_path, lang)
     if not records:
         raise click.ClickException(f"Aucune sentence chargée depuis {dataset_path}")
@@ -73,14 +55,10 @@ def forward_cmd(
             f"(format paper_examples non supporté ici — utiliser un fichier dataset avec tokens)."
         )
 
-    tax = TaxonomyIndex.load(taxonomy_dir, lang)
-    vocab = FeatureVocabulary.build(tax)
+    vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(
-        encoder=encoder, graph=graph,
-        taxonomy_dir=taxonomy_dir, lang=lang, vocabulary=vocab,
-    )
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
 
     if model_path is not None:
         from ..training.checkpoint import load_checkpoint
