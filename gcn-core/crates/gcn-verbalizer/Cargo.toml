@@ -7,6 +7,6 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

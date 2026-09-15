@@ -7,8 +7,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir" }
-gcn-middleend = { path = "../gcn-middleend" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-middleend = { path = "../gcn-middleend", version = "1.0.0" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -7,12 +7,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir" }
-gcn-knowledge = { path = "../gcn-knowledge" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.0" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 smallvec = { workspace = true }
 
 [dev-dependencies]
-gcn-ir = { path = "../gcn-ir" }
-gcn-frontend-fr = { path = "../gcn-frontend-fr" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.0" }

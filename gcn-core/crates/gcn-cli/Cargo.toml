@@ -11,11 +11,11 @@ name = "gcn"
 path = "src/main.rs"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir" }
-gcn-knowledge = { path = "../gcn-knowledge" }
-gcn-frontend-fr = { path = "../gcn-frontend-fr" }
-gcn-frontend-code = { path = "../gcn-frontend-code" }
-gcn-middleend = { path = "../gcn-middleend" }
-gcn-backend = { path = "../gcn-backend" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.0" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.0" }
+gcn-frontend-code = { path = "../gcn-frontend-code", version = "1.0.0" }
+gcn-middleend = { path = "../gcn-middleend", version = "1.0.0" }
+gcn-backend = { path = "../gcn-backend", version = "1.0.0" }
 clap = { workspace = true }
 serde_json = { workspace = true }

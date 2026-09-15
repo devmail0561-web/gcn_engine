@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tree-sitter = "0.27.0"
@@ -19,4 +19,4 @@ yaml_serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-gcn-frontend-fr = { path = "../gcn-frontend-fr" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.0" }
