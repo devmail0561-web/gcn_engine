@@ -2,7 +2,6 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 
-from ..layer1.extractor import extract
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
@@ -52,13 +51,8 @@ class CGNPipeline:
         self._cached_node_snapshots: list | None = None
         self._cached_edge_snapshots: list | None = None
 
-    def forward(self, text: str) -> dict:
-        """text → CausalIR dict (JSON-serializable, conforme schéma serde Rust)"""
-        reps = extract(text, self.lang)
-        return self._forward_from_reps(reps, text)
-
-    def forward_from_reps(self, reps: list, text: str = "") -> dict:
-        """Passe avant depuis des UDRepresentation pré-construites (bypass spaCy)."""
+    def forward(self, reps: list, text: str = "") -> dict:
+        """UDRepresentation list → CausalIR dict (JSON-serializable, conforme schéma serde Rust)."""
         return self._forward_from_reps(reps, text)
 
     def _forward_from_reps(self, reps: list, text: str) -> dict:
@@ -191,11 +185,18 @@ class CGNPipeline:
         Retourne (total_loss, d_node_logits, d_edge_logits).
         Gradients normalisés par le nombre d'exemples.
         """
+        if len(node_logits) != len(gold_node):
+            raise ValueError(
+                f"Désalignement node_logits/gold_node : {len(node_logits)} logits vs {len(gold_node)} labels"
+            )
         node_loss, d_node = _cross_entropy(node_logits, gold_node)
 
         if edge_logits is not None and gold_edge is not None and len(edge_logits) > 0:
-            e = min(len(edge_logits), len(gold_edge))
-            edge_loss, d_edge = _cross_entropy(edge_logits[:e], gold_edge[:e])
+            if len(edge_logits) != len(gold_edge):
+                raise ValueError(
+                    f"Désalignement edge_logits/gold_edge : {len(edge_logits)} logits vs {len(gold_edge)} labels"
+                )
+            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge)
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
@@ -322,12 +323,9 @@ def _cross_entropy(
     if len(logits) == 0:
         return 0.0, np.zeros_like(logits)
     N = len(logits)
-    n = min(N, len(labels))
-    logits_n = logits[:n]
-    labels_n = labels[:n]
-    probs = _softmax(logits_n)                             # (n, C)
-    loss = float(-np.log(probs[np.arange(n), labels_n] + 1e-9).mean())
+    probs = _softmax(logits)                               # (N, C)
+    loss = float(-np.log(probs[np.arange(N), labels] + 1e-9).mean())
     d_logits = probs.copy()
-    d_logits[np.arange(n), labels_n] -= 1.0
-    d_logits /= n
+    d_logits[np.arange(N), labels] -= 1.0
+    d_logits /= N
     return loss, d_logits

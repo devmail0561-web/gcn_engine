@@ -24,18 +24,5 @@ UD_POLARITY_VALUES = ["Neg"]                                       # 1 binaire
 # D_clause = 19 + 38 + 5(subject_pos) + 5 + 4 + 5 + 1 + 3(flags) + N_taxonomy
 # D_conn = 19(marker_upos) + N_taxonomy + 2(position)
 
-# spaCy models by language code
-SPACY_MODELS: dict[str, str] = {
-    "fr": "fr_core_news_sm",
-    "en": "en_core_web_sm",
-    "de": "de_core_news_sm",
-    "es": "es_core_news_sm",
-    "it": "it_core_news_sm",
-    "pt": "pt_core_news_sm",
-    "nl": "nl_core_news_sm",
-    "zh": "zh_core_web_sm",
-    "ja": "ja_core_news_sm",
-}
-
 # Subject POS categories
 SUBJECT_POS_CATS = ["PRON", "NOUN", "PROPN", "_other", "_absent"]  # 5

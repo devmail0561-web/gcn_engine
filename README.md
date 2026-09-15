@@ -69,7 +69,7 @@ projet_CNM/
 │
 ├── gcn-python/         ← Couches ML Python (framework-agnostique)
 │   └── src/gcn_python/
-│       ├── layer1/     Extraction UD (spaCy) → vecteurs de clauses
+│       ├── layer1/     UDRepresentation + vectorisation (depuis tokens YAML annotés)
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
 │       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerPT PyTorch)
 │       ├── pipeline/   CGNPipeline.forward() + loss() + backward() + gcn-forward CLI
@@ -102,8 +102,6 @@ projet_CNM/
 ### Python (couches ML)
 - Python **3.10+**
 - `pip install -e gcn-python/`
-- `python -m spacy download fr_core_news_sm` (français)
-- `python -m spacy download en_core_web_sm` (anglais)
 - `pip install torch` (optionnel — pour `RGCNLayerPT` GPU/MPS)
 
 ---
@@ -185,9 +183,23 @@ gcn analyze "..." --data-dir ./gcn-references/taxonomies --format dot | dot -Tpn
 ```
 
 ### Pipeline Python (couches ML)
+
+Le moteur ne dépend pas de spaCy. Il opère sur des `UDRepresentation` construites depuis des fichiers YAML annotés (format GCN-NL). La CLI prend un fichier dataset en entrée.
+
 ```bash
-# Via la CLI Python (référence NumPy — poids aléatoires sans --model-path)
-gcn-forward --lang fr --taxonomy-dir ./gcn-references/taxonomies "Les ventes baissent."
+# Inférence depuis un fichier YAML annoté (poids aléatoires sans --model-path)
+gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+    --lang fr --taxonomy-dir ./gcn-references/taxonomies
+
+# Cibler une sentence spécifique
+gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+    --sentence-id s001 --lang fr
+
+# Inférence avec un modèle entraîné
+gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+    --lang fr \
+    --taxonomy-dir ./gcn-references/taxonomies \
+    --model-path model.npz
 
 # Via gcn-cli (interface Rust↔Python)
 gcn forward "Les ventes baissent." --lang fr --enrich
@@ -196,19 +208,13 @@ gcn forward "Les ventes baissent." --lang fr --enrich
 ### Entraîner un modèle
 
 ```bash
-# Générer des données d'entraînement depuis des textes bruts
+# Générer des données d'entraînement (YAML annoté) depuis des textes bruts
 gcn-bootstrap --input phrases_fr.txt --lang fr --out-dir gcn-datasets/generated/
 
-# Lancer l'entraînement (SGD NumPy référence)
-gcn-train --data-dir gcn-datasets/ \
+# Lancer l'entraînement (SGD NumPy référence) — requiert des YAML avec tokens annotés
+gcn-train --data-dir gcn-datasets/generated/ \
           --taxonomy-dir ./gcn-references/taxonomies \
           --epochs 50 --lr 0.001 --output model.npz
-
-# Inférence avec un modèle entraîné
-gcn-forward --lang fr \
-            --taxonomy-dir ./gcn-references/taxonomies \
-            --model-path model.npz \
-            "Les ventes baissent parce que les coûts augmentent."
 ```
 
 Le data scientist substitue `MLPEncoder` et `RGCNLayer` par ses propres implémentations PyTorch/JAX via les Protocol `CausalEncoder` et `CausalGraph`.

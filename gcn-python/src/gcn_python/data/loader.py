@@ -9,6 +9,24 @@ from ..constants import NODE_TYPES, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
 
 
+def _node_type_idx(node_type: str, sentence_id: str) -> int:
+    if node_type not in NODE_TYPES:
+        raise ValueError(
+            f"[sentence {sentence_id}] node_type inconnu : {node_type!r}. "
+            f"Valeurs autorisées : {NODE_TYPES}"
+        )
+    return NODE_TYPES.index(node_type)
+
+
+def _relation_idx(relation: str, sentence_id: str) -> int:
+    if relation not in RELATION_TYPES:
+        raise ValueError(
+            f"[sentence {sentence_id}] relation inconnue : {relation!r}. "
+            f"Valeurs autorisées : {RELATION_TYPES}"
+        )
+    return RELATION_TYPES.index(relation)
+
+
 @dataclass
 class TrainingSample:
     sentence: SentenceRecord
@@ -39,13 +57,11 @@ class GCNDataLoader:
     def _to_sample(self, rec: SentenceRecord) -> TrainingSample:
         node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
         node_labels = np.array(
-            [NODE_TYPES.index(c.node_type) if c.node_type in NODE_TYPES else 0
-             for c in rec.clauses],
+            [_node_type_idx(c.node_type, rec.id) for c in rec.clauses],
             dtype=np.int64,
         )
         edge_labels = np.array(
-            [RELATION_TYPES.index(e.relation) if e.relation in RELATION_TYPES else 0
-             for e in rec.edges],
+            [_relation_idx(e.relation, rec.id) for e in rec.edges],
             dtype=np.int64,
         )
         edge_map: dict[tuple[int, int], int] = {}
@@ -53,8 +69,7 @@ class GCNDataLoader:
             src_idx = node_id_to_idx.get(e.source)
             tgt_idx = node_id_to_idx.get(e.target)
             if src_idx is not None and tgt_idx is not None:
-                rel_idx = RELATION_TYPES.index(e.relation) if e.relation in RELATION_TYPES else 0
-                edge_map[(src_idx, tgt_idx)] = rel_idx
+                edge_map[(src_idx, tgt_idx)] = _relation_idx(e.relation, rec.id)
         return TrainingSample(rec, node_labels, edge_labels, edge_map)
 
 

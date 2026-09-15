@@ -27,7 +27,7 @@ class TrainingRecorder:
 
         recorder = TrainingRecorder()
         for epoch in range(n_epochs):
-            pipeline.forward(text)
+            pipeline.forward(reps, text)
             node_logits = pipeline._cached_node_logits
             edge_logits = pipeline._cached_edge_logits
             loss_val, d_node, d_edge = pipeline.loss(

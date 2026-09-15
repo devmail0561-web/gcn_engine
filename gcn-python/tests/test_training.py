@@ -115,14 +115,27 @@ def test_rgcn_update_changes_weights(taxonomy_dir: Path):
 # ---------------------------------------------------------------------------
 
 def test_backward_updates_encoder_weights(pipeline: CGNPipeline):
+    from gcn_python.layer1.representation import UDRepresentation
     params_before = [p.copy() for p in pipeline.encoder.parameters()]
-    try:
-        pipeline.forward("Les ventes baissent parce que les coûts augmentent.")
-    except OSError as e:
-        pytest.skip(str(e))
+    reps = [
+        UDRepresentation(
+            tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
+            root_morph={"Tense": "Pres"}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(1, 2), lang="fr",
+        ),
+        UDRepresentation(
+            tokens=[{"lemma": "augmenter", "pos": "VERB", "dep_rel": "advcl", "morph": {}}],
+            root_lemma="augmenter", root_pos="VERB", root_dep_rel="advcl",
+            root_morph={"Tense": "Pres"}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(4, 5), lang="fr",
+        ),
+    ]
+    pipeline.forward(reps, "Les ventes baissent parce que les coûts augmentent.")
     node_logits = pipeline._cached_node_logits
-    if node_logits is None or len(node_logits) == 0:
-        pytest.skip("Aucun nœud détecté par spaCy")
+    assert node_logits is not None and len(node_logits) > 0
 
     edge_logits = pipeline._cached_edge_logits
     gold_node = np.zeros(len(node_logits), dtype=np.int64)
@@ -137,17 +150,29 @@ def test_backward_updates_encoder_weights(pipeline: CGNPipeline):
 
 def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
     """10 epochs sur un seul exemple : la loss doit décroître."""
-    text = "Les ventes baissent parce que les coûts augmentent."
+    from gcn_python.layer1.representation import UDRepresentation
+    reps = [
+        UDRepresentation(
+            tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
+            root_morph={"Tense": "Pres"}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(1, 2), lang="fr",
+        ),
+        UDRepresentation(
+            tokens=[{"lemma": "augmenter", "pos": "VERB", "dep_rel": "advcl", "morph": {}}],
+            root_lemma="augmenter", root_pos="VERB", root_dep_rel="advcl",
+            root_morph={"Tense": "Pres"}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(4, 5), lang="fr",
+        ),
+    ]
     losses = []
 
     for _ in range(10):
-        try:
-            pipeline.forward(text)
-        except OSError as e:
-            pytest.skip(str(e))
+        pipeline.forward(reps, "Les ventes baissent parce que les coûts augmentent.")
         node_logits = pipeline._cached_node_logits
-        if node_logits is None or len(node_logits) == 0:
-            pytest.skip("Aucun nœud détecté par spaCy")
+        assert node_logits is not None and len(node_logits) > 0
         edge_logits = pipeline._cached_edge_logits
         gold_node = np.zeros(len(node_logits), dtype=np.int64)
         gold_edge = (np.zeros(len(edge_logits), dtype=np.int64)

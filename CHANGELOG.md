@@ -9,6 +9,30 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.3] — 2026-09-15
+
+### Supprimé
+- **spaCy retiré du moteur** (`layer1/extractor.py` supprimé, `constants.SPACY_MODELS` retiré) — le moteur ne dépend plus d'un parser externe ; `UDRepresentation` est construite exclusivement depuis les tokens YAML annotés
+- `CGNPipeline.forward(text)` supprimé — remplacé par `forward(reps, text)` qui prend une liste de `UDRepresentation` déjà construites
+- `CGNPipeline.forward_from_reps()` fusionné dans `forward()` (alias supprimé)
+- `train.py` : le fallback `pipeline.forward(sample.sentence.text)` supprimé — les samples sans tokens YAML sont ignorés (`continue`)
+- `ir_emitter.py` : `"spacy-layer1"` retiré de la liste pipeline → `"cgnp-layer1"`
+
+### Modifié
+- `pipeline/cli.py` — `gcn-forward` accepte maintenant un fichier YAML annoté (format dataset) au lieu de texte brut ; option `--sentence-id` pour cibler une sentence spécifique
+- `layer1/representation.py` — docstring épurée (mention spaCy supprimée)
+
+### Corrigé
+- **Indice 0 silencieux** (`data/loader.py`) — un `node_type` ou `relation` inconnu dans le YAML levait silencieusement l'indice 0 (`"etat"` / `"cause"`) ; lève maintenant `ValueError` avec le nom de la sentence et la valeur fautive
+- **Troncature silencieuse** (`pipeline/cgnp.py`) — `loss()` et `_cross_entropy()` utilisaient `min(len(logits), len(gold))` pour absorber les désalignements ; lèvent maintenant `ValueError` si les tailles diffèrent, forçant un alignement explicite en amont
+
+### Tests
+- `test_pipeline.py` réécrit sans dépendance spaCy — tous les tests utilisent `forward(reps, text)` avec des `UDRepresentation` construites directement ; test `test_forward_two_reps` ajouté pour le cas multi-clauses
+- `test_training.py` : `test_backward_updates_encoder_weights` et `test_loss_decreases_over_epochs` utilisent des `UDRepresentation` directes
+- **79 / 79 tests Python passent** (0 skippé)
+
+---
+
 ## [0.9.2] — 2026-09-15
 
 ### Corrigé

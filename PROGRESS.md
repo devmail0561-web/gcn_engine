@@ -19,7 +19,7 @@ Phase 7  ████████████████████  100%  Pea
 ```
 
 **Tests Rust : 126 / 126 passent** (`cargo test --workspace`)
-**Tests Python : 73 / 73 passent** (5 skippés sans spaCy fr) (`pytest gcn-python/tests/`)
+**Tests Python : 79 / 79 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -79,7 +79,6 @@ Phase 7  ████████████████████  100%  Pea
 | Composant | Fichier | Statut |
 |---|---|---|
 | UDRepresentation | `gcn-python/layer1/representation.py` | ✅ |
-| Extracteur spaCy | `gcn-python/layer1/extractor.py` | ✅ |
 | FeatureVocabulary + vectorize | `gcn-python/layer1/features.py` | ✅ |
 | CausalEncoder Protocol | `gcn-python/layer2/interface.py` | ✅ |
 | MLPEncoder référence NumPy | `gcn-python/layer2/reference.py` | ✅ |
@@ -98,7 +97,7 @@ Phase 7  ████████████████████  100%  Pea
 | backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
 | Protocol CausalGraph backward | `gcn-python/layer3/interface.py` | ✅ |
 
-**Tests (7/9) :** cross-entropie, gradient shape, gradient sum, backward R-GCN shape, backward updates weights, checkpoint roundtrip, dataloader batches. (2 skippés : modèle spaCy fr non installé.)
+**Tests (9/9) :** cross-entropie, gradient shape, gradient sum, backward R-GCN shape, backward updates weights, checkpoint roundtrip, dataloader batches, edge_map alignment, reps alignment.
 
 **Corrections audit appliquées :**
 - `recorder.py` : docstring mise à jour avec la nouvelle signature `loss()`
@@ -113,8 +112,10 @@ Phase 7  ████████████████████  100%  Pea
 - `checkpoint.py` : `load_checkpoint` ne restaurait pas `FeatureVocabulary` — corrigé, vocab rechargé depuis `_vocab_json`
 - `cgnp.py` : `backward_message_pass` recevait `d_enriched` de shape `(min(N,M), D)` au lieu de `(N, D)` quand gold labels < clauses spaCy → crash shape mismatch — corrigé par padding à la taille N
 - `cgnp.py` : assemblage `flat_grads` sans garde-fou sur les bornes → potentiel IndexError avec encodeur custom — bornes ajoutées
-- **Alignement entraînement** : `pipeline.forward(text)` re-parsait le texte brut via spaCy au lieu d'utiliser les tokens annotés du YAML — `reps_from_sentence()` construit les `UDRepresentation` depuis les tokens YAML (bypass spaCy, alignement garanti features ↔ gold labels) ; `CGNPipeline.forward_from_reps()` expose ce chemin ; `train.py` l'utilise quand les tokens sont disponibles
+- **Alignement entraînement** : `reps_from_sentence()` construit les `UDRepresentation` depuis les tokens YAML (alignement garanti features ↔ gold labels) ; `CGNPipeline.forward(reps, text)` est la seule entrée publique du forward — spaCy retiré du moteur
 - **Misalignement reps ↔ gold labels** (bug 0.9.1) : `reps_from_sentence` filtrait les clauses à span vide sans retourner les indices valides — `logit[i]` était comparé au label de la clause `i-1`. Corrigé : `reps_from_sentence` retourne `(reps, valid_indices)` ; `train.py` indexe `gold_node_labels[valid_indices]` avant la loss
+- **Indice 0 silencieux** (bug 0.9.3) : `node_type`/`relation` inconnus tombaient silencieusement à l'indice 0 — `ValueError` levée avec sentence ID et valeur fautive
+- **Troncature silencieuse** (bug 0.9.3) : `loss()` absorbait les désalignements taille logits/gold avec `min()` — `ValueError` levée pour forcer un alignement explicite en amont
 
 ---
 

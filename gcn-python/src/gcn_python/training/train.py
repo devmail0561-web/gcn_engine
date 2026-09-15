@@ -78,13 +78,11 @@ def train_cmd(
                 if not sample.sentence.clauses:
                     continue
 
-                # Forward — bypass spaCy si les tokens YAML sont disponibles
                 try:
                     reps, valid_clause_idxs = reps_from_sentence(sample.sentence)
-                    if reps:
-                        pipeline.forward_from_reps(reps, sample.sentence.text)
-                    else:
-                        pipeline.forward(sample.sentence.text)
+                    if not reps:
+                        continue
+                    pipeline.forward(reps, sample.sentence.text)
                 except Exception:
                     continue
 

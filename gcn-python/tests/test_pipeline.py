@@ -1,24 +1,27 @@
-import pytest
 from pathlib import Path
+import numpy as np
 from gcn_python.taxonomy.loader import TaxonomyIndex
 from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer1.representation import UDRepresentation
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 
-# Skip all pipeline tests that require spaCy models if not installed
-def _spacy_model_available(lang: str) -> bool:
-    try:
-        from gcn_python.layer1.extractor import get_nlp
-        get_nlp(lang)
-        return True
-    except OSError:
-        return False
 
-requires_fr_spacy = pytest.mark.skipif(
-    not _spacy_model_available("fr"),
-    reason="fr_core_news_sm not installed — run: python -m spacy download fr_core_news_sm",
-)
+def make_rep(lang: str = "fr") -> UDRepresentation:
+    return UDRepresentation(
+        tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+        root_lemma="baisser",
+        root_pos="VERB",
+        root_dep_rel="root",
+        root_morph={"Tense": "Pres"},
+        subject_pos="NOUN",
+        has_object=False,
+        has_advcl=False,
+        has_temporal_obl=False,
+        token_span=(1, 2),
+        lang=lang,
+    )
 
 
 def make_pipeline(taxonomy_dir: Path, lang: str = "fr") -> CGNPipeline:
@@ -32,35 +35,42 @@ def make_pipeline(taxonomy_dir: Path, lang: str = "fr") -> CGNPipeline:
     )
 
 
-@requires_fr_spacy
 def test_forward_returns_cir(taxonomy_dir):
     pipeline = make_pipeline(taxonomy_dir)
-    result = pipeline.forward("Si les ventes baissent, on réduit les coûts.")
+    rep = make_rep()
+    result = pipeline.forward([rep], "Si les ventes baissent, on réduit les coûts.")
     assert "source_lang" in result
     assert "nodes" in result
     assert "edges" in result
     assert result["source_text"] != ""
 
 
-def test_forward_empty_text(taxonomy_dir):
+def test_forward_empty_reps(taxonomy_dir):
     pipeline = make_pipeline(taxonomy_dir)
-    result = pipeline.forward("")
+    result = pipeline.forward([], "")
     assert result["nodes"] == []
 
 
-@requires_fr_spacy
-def test_forward_single_clause(taxonomy_dir):
+def test_forward_single_rep(taxonomy_dir):
     pipeline = make_pipeline(taxonomy_dir)
-    result = pipeline.forward("Il court.")
+    result = pipeline.forward([make_rep()], "Il court.")
     assert len(result["nodes"]) >= 1
 
 
-@requires_fr_spacy
 def test_metadata_pipeline_field(taxonomy_dir):
     pipeline = make_pipeline(taxonomy_dir)
-    result = pipeline.forward("Il travaille.")
+    result = pipeline.forward([make_rep()], "Il travaille.")
     assert "pipeline" in result["metadata"]
     assert any(
         "layer" in p.lower() or "cgnp" in p.lower()
         for p in result["metadata"]["pipeline"]
     )
+    assert not any("spacy" in p.lower() for p in result["metadata"]["pipeline"])
+
+
+def test_forward_two_reps(taxonomy_dir):
+    pipeline = make_pipeline(taxonomy_dir)
+    rep1, rep2 = make_rep(), make_rep()
+    result = pipeline.forward([rep1, rep2], "Les ventes baissent puis on réduit.")
+    assert len(result["nodes"]) == 2
+    assert len(result["edges"]) >= 1

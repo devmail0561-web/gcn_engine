@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 @dataclass
 class UDRepresentation:
     """
-    Abstraction UD-agnostique d'une clause.
-    Construit depuis spaCy (extractor.py) ou depuis YAML annoté (yaml_reader.py).
+    Abstraction UD-agnostique d'une clause construite depuis des tokens YAML annotés.
     Aucune heuristique linguistique — uniquement des features UD universelles.
     """
     tokens: list[dict]          # [{lemma, pos(UPOS), dep_rel(UD), morph: dict}]
