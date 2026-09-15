@@ -30,9 +30,23 @@ class CausalEncoder(Protocol):
         ...
 
     def parameters(self) -> list[np.ndarray]:
-        """Retourne tous les paramètres apprenables."""
+        """Retourne tous les paramètres apprenables (utilisé par le checkpoint)."""
+        ...
+
+    def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        """
+        Applique les gradients du MLP nœud.
+        grads : liste de (dW, db) par couche, dans l'ordre des couches du node MLP.
+        """
+        ...
+
+    def update_edge(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        """
+        Applique les gradients du MLP arête.
+        grads : liste de (dW, db) par couche, dans l'ordre des couches du edge MLP.
+        """
         ...
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
-        """Applique les gradients. Le DS appelle cette méthode dans sa boucle."""
+        """Applique une liste plate de gradients (conservé pour compatibilité externe)."""
         ...

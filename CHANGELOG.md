@@ -9,6 +9,18 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.9] — 2026-09-15
+
+### Corrigé
+- **Convention d'ordre implicite dans `backward()`** (`pipeline/cgnp.py`, `layer2/interface.py`, `layer2/reference.py`) — `backward()` assemblait une liste plate de gradients et les répartissait sur les paramètres de l'encodeur par position, supposant que `encoder.parameters()` retourne d'abord les paramètres nœud puis les paramètres arête. Une implémentation tierce retournant les paramètres dans un ordre différent aurait appliqué silencieusement les mauvais gradients aux mauvais poids, sans erreur visible.
+
+  Corrigé : deux méthodes nommées `update_node(grads, lr)` et `update_edge(grads, lr)` sont ajoutées au protocole `CausalEncoder` et implémentées dans `MLPEncoder`. Chacune itère sur ses propres couches (`_node_layers` / `_edge_layers`). `backward()` appelle ces deux méthodes directement, sans assemblage plat ni hypothèse sur l'ordre de `parameters()`. `parameters()` et `update()` sont conservés pour le checkpoint et la compatibilité externe.
+
+### Tests
+- **85 / 85 tests Python passent** (inchangé)
+
+---
+
 ## [0.9.8] — 2026-09-15
 
 ### Corrigé

@@ -313,21 +313,11 @@ class CGNPipeline:
                         )
             # _cross_entropy normalise déjà par E — pas de renormalisation ici
 
-        # --- Mise à jour encodeur (zeros pour les poids sans gradient) ---
+        # --- Mise à jour encodeur ---
         if all_node_grads is not None:
-            all_params = self.encoder.parameters()
-            flat_grads = [np.zeros_like(p) for p in all_params]
-            node_flat = [g for pair in all_node_grads for g in pair]
-            for i, g in enumerate(node_flat):
-                if i < len(flat_grads):
-                    flat_grads[i] = g
-            if all_edge_grads is not None:
-                edge_flat = [g for pair in all_edge_grads for g in pair]
-                for i, g in enumerate(edge_flat):
-                    j = len(node_flat) + i
-                    if j < len(flat_grads):
-                        flat_grads[j] = g
-            self.encoder.update(flat_grads, lr)
+            self.encoder.update_node(all_node_grads, lr)
+        if all_edge_grads is not None:
+            self.encoder.update_edge(all_edge_grads, lr)
 
         # --- Rétropropagation R-GCN ---
         if (self._cached_edge_index is not None

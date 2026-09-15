@@ -138,6 +138,16 @@ class MLPEncoder:
             params.extend([layer.W, layer.b])
         return params
 
+    def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        for layer, (dW, db) in zip(self._node_layers, grads):
+            layer.W -= lr * dW
+            layer.b -= lr * db
+
+    def update_edge(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        for layer, (dW, db) in zip(self._edge_layers, grads):
+            layer.W -= lr * dW
+            layer.b -= lr * db
+
     def update(self, grads: list[np.ndarray], lr: float) -> None:
         for p, g in zip(self.parameters(), grads):
             p -= lr * g
