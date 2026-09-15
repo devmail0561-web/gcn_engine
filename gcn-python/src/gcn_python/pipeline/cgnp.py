@@ -1,6 +1,5 @@
 from __future__ import annotations
 from pathlib import Path
-import warnings
 import numpy as np
 
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
@@ -156,26 +155,24 @@ class CGNPipeline:
             self._cached_edge_index = edge_index
             self._cached_edge_type_idxs = edge_type_idxs
             enriched = self.graph.message_pass(clause_vecs, edge_index, edge_type_idxs)
-            # Re-predict from enriched features ; snapshots overridés par ce pass
             if enriched.shape[1] != self.vocabulary.d_clause:
-                warnings.warn(
+                raise ValueError(
                     f"RGCNLayer.d_out={enriched.shape[1]} ≠ vocabulary.d_clause="
-                    f"{self.vocabulary.d_clause} : les logits ne seront pas recalculés "
-                    f"après enrichissement R-GCN. Instanciez RGCNLayer avec d_out=d_clause.",
-                    UserWarning, stacklevel=3,
+                    f"{self.vocabulary.d_clause} : instanciez RGCNLayer avec "
+                    f"d_out=vocabulary.d_clause pour alimenter le MLP nœud "
+                    f"depuis les représentations enrichies."
                 )
-            if enriched.shape[1] == self.vocabulary.d_clause:
-                node_logits2_list: list[np.ndarray] = []
-                node_snapshots = []
-                for v in enriched:
-                    node_logits2_list.append(self.encoder.forward_node(v))
-                    if _snap:
-                        node_snapshots.append(self.encoder.snapshot_node_cache())
-                node_logits2 = np.stack(node_logits2_list)
-                node_type_idxs = np.argmax(node_logits2, axis=1)
-                node_types = [NODE_TYPES[i] for i in node_type_idxs]
-                node_logits = node_logits2
-                self._cached_enriched_vecs = enriched
+            node_logits2_list: list[np.ndarray] = []
+            node_snapshots = []
+            for v in enriched:
+                node_logits2_list.append(self.encoder.forward_node(v))
+                if _snap:
+                    node_snapshots.append(self.encoder.snapshot_node_cache())
+            node_logits2 = np.stack(node_logits2_list)
+            node_type_idxs = np.argmax(node_logits2, axis=1)
+            node_types = [NODE_TYPES[i] for i in node_type_idxs]
+            node_logits = node_logits2
+            self._cached_enriched_vecs = enriched
 
         self._cached_node_logits = node_logits
         if _snap:

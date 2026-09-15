@@ -9,6 +9,17 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.10] — 2026-09-15
+
+### Corrigé
+- **Décalage forward/backward silencieux quand `d_out ≠ d_clause`** (`pipeline/cgnp.py`) — quand `RGCNLayer` était instancié avec `d_out ≠ vocabulary.d_clause`, le forward utilisait les logits pré-R-GCN, le backward opérait sur les snapshots pré-R-GCN (cohérent), mais les poids du R-GCN n'étaient jamais mis à jour : la couche 3 tournait en avant sans jamais apprendre, sans aucune erreur visible. Le `warnings.warn` était insuffisant car il n'empêchait pas l'entraînement de continuer dans cet état incohérent. Corrigé : le warning est remplacé par un `ValueError` levé au premier `forward()`, avant tout update de poids ; le double `if` conditionnel est supprimé. L'import `warnings` devenu orphelin est retiré.
+
+### Tests
+- `test_forward_rgcn_dout_mismatch_raises` ajouté (`tests/test_pipeline.py`) : vérifie que `ValueError` est levé avec le pattern `d_out=.*≠.*d_clause`.
+- **86 / 86 tests Python passent** (`pytest gcn-python/tests/`)
+
+---
+
 ## [0.9.9] — 2026-09-15
 
 ### Corrigé

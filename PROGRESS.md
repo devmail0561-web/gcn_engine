@@ -19,7 +19,7 @@ Phase 7  ████████████████████  100%  Pea
 ```
 
 **Tests Rust : 126 / 126 passent** (`cargo test --workspace`)
-**Tests Python : 85 / 85 passent** (`pytest gcn-python/tests/`)
+**Tests Python : 86 / 86 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -119,7 +119,7 @@ Phase 7  ████████████████████  100%  Pea
 - **Supervision arêtes inverses perdue** (bug 0.9.5) : arêtes gold `(k+1, k)` jamais retrouvées par le lookup `(k, k+1)` du forward — zéro gradient d'arête pour ces samples. Corrigé par lookup bidirectionnel dans `_to_sample` (gap == 1 uniquement) et `train.py`
 - **Champ mort `gold_edge_labels`** (0.9.5) : tableau insertion-order jamais aligné avec les logits, supprimé de `TrainingSample` ; fallback `train.py` → `gold_edge = None`
 - **Warning arêtes longue distance** (0.9.5) : `_to_sample` émet un `UserWarning` pour toute arête gold avec `gap > 1` (aucune supervision possible avec le forward consécutif)
-- **Warning R-GCN dimensionnel** (0.9.5) : `cgnp.py` émet un `UserWarning` si `d_out ≠ d_clause` (enrichissement R-GCN silencieusement ignoré)
+- **Mismatch R-GCN dimensionnel** (0.9.10) : `cgnp.py` lève `ValueError` au premier `forward()` si `d_out ≠ d_clause` — remplace le `UserWarning` qui laissait les poids R-GCN ne jamais apprendre
 - **Double normalisation des gradients** (0.9.8) : `_cross_entropy` normalisait déjà par N ; `backward()` renormalisait à nouveau par `n`/`e`, produisant un gradient `1/N²` au lieu de `1/N`. Les deux renormalisations redondantes supprimées dans `cgnp.py`.
 
 ---

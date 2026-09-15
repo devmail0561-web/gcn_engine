@@ -107,6 +107,22 @@ def test_forward_connector_slot_nonzero(taxonomy_dir):
     assert np.all(upos_without == 0), "Sans connecteur, la UPOS doit être nulle"
 
 
+def test_forward_rgcn_dout_mismatch_raises(taxonomy_dir):
+    """Un RGCNLayer avec d_out ≠ d_clause doit lever ValueError dès le premier forward."""
+    import pytest
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
+    pipeline = CGNPipeline(
+        encoder=encoder, graph=graph,
+        taxonomy_dir=taxonomy_dir, lang="fr", vocabulary=vocab,
+    )
+    rep1, rep2 = make_rep(), make_rep()
+    with pytest.raises(ValueError, match="d_out=.*≠.*d_clause"):
+        pipeline.forward([rep1, rep2], "test")
+
+
 def test_forward_position_features_noncontiguous(taxonomy_dir):
     """M4 : clause_positions corrige les features de distance pour clauses non-contiguës."""
     from gcn_python.layer1.features import vectorize_edge, FeatureVocabulary
