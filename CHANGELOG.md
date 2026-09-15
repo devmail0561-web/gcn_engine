@@ -9,6 +9,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.1] — 2026-09-15
+
+### Corrigé
+- **Misalignement reps ↔ gold labels** (`data/loader.py`, `training/train.py`) — `reps_from_sentence` filtre silencieusement les clauses à span vide, produisant moins de reps que de gold labels ; le décalage d'index corrompait la loss (logit[i] comparé au label de la clause i-1). `reps_from_sentence` retourne maintenant `(reps, valid_indices)` et `train.py` indexe `gold_node_labels[valid_indices]` avant l'appel à `loss()`.
+
+### Tests
+- `test_reps_from_sentence_alignment` — vérifie qu'une clause à span vide en position 0 ne décale pas les labels des clauses suivantes
+
+---
+
 ## [0.9.0] — 2026-09-15
 
 ### Ajouté

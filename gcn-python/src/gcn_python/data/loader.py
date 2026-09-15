@@ -49,20 +49,27 @@ class GCNDataLoader:
         return TrainingSample(rec, node_labels, edge_labels)
 
 
-def reps_from_sentence(rec: SentenceRecord) -> list[UDRepresentation]:
-    """Une UDRepresentation par ClauseRecord, construite depuis les tokens YAML annotés.
+def reps_from_sentence(
+    rec: SentenceRecord,
+) -> tuple[list[UDRepresentation], list[int]]:
+    """Une UDRepresentation par ClauseRecord non-vide, construite depuis les tokens YAML.
 
     Bypass spaCy : garantit l'alignement exact features ↔ gold labels.
-    Retourne [] si le SentenceRecord n'a pas de tokens annotés (format paper_examples).
+    Retourne ([], []) si le SentenceRecord n'a pas de tokens annotés (format paper_examples).
+
+    Le second élément est la liste des indices de clause (dans rec.clauses) effectivement
+    convertis — nécessaire pour aligner les gold labels avec les logits du forward.
     """
     if not rec.tokens or not rec.clauses:
-        return []
-    result = []
-    for clause in rec.clauses:
+        return [], []
+    result: list[UDRepresentation] = []
+    valid_indices: list[int] = []
+    for i, clause in enumerate(rec.clauses):
         rep = _rep_from_clause(clause, rec.tokens, rec.lang)
         if rep is not None:
             result.append(rep)
-    return result
+            valid_indices.append(i)
+    return result, valid_indices
 
 
 def _rep_from_clause(

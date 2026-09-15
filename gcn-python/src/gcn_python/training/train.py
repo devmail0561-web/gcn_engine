@@ -80,7 +80,7 @@ def train_cmd(
 
                 # Forward — bypass spaCy si les tokens YAML sont disponibles
                 try:
-                    reps = reps_from_sentence(sample.sentence)
+                    reps, valid_clause_idxs = reps_from_sentence(sample.sentence)
                     if reps:
                         pipeline.forward_from_reps(reps, sample.sentence.text)
                     else:
@@ -93,8 +93,13 @@ def train_cmd(
                 if node_logits is None or len(node_logits) == 0:
                     continue
 
-                # Loss
-                gold_node = sample.gold_node_labels
+                # Aligner les gold labels sur les seules clauses converties en reps
+                if valid_clause_idxs:
+                    gold_node = sample.gold_node_labels[
+                        np.array(valid_clause_idxs, dtype=np.int64)
+                    ]
+                else:
+                    gold_node = sample.gold_node_labels
                 gold_edge = sample.gold_edge_labels if len(sample.gold_edge_labels) > 0 else None
                 edge_logits_arg = edge_logits if edge_logits is not None and len(edge_logits) > 0 else None
 

@@ -200,3 +200,50 @@ def test_dataloader_yields_batches(paper_examples_yaml: Path):
     for s in samples:
         assert s.gold_node_labels.dtype == np.int64
         assert s.gold_edge_labels.dtype == np.int64
+
+
+def test_reps_from_sentence_alignment():
+    """Les valid_indices doivent aligner reps et gold_node_labels sans décalage."""
+    from gcn_python.data.loader import reps_from_sentence
+    from gcn_python.data.schema import SentenceRecord, ClauseRecord, TokenRecord, EdgeRecord
+
+    tokens = [
+        TokenRecord(id=1, form="Les", lemma="le", pos="DET", dep_rel="det", dep_head=2),
+        TokenRecord(id=2, form="ventes", lemma="vente", pos="NOUN", dep_rel="nsubj", dep_head=3),
+        TokenRecord(id=3, form="baissent", lemma="baisser", pos="VERB", dep_rel="root", dep_head=0),
+        TokenRecord(id=5, form="augmentent", lemma="augmenter", pos="VERB", dep_rel="advcl", dep_head=3),
+    ]
+    clauses = [
+        ClauseRecord(node_id="n001", node_type="action", label="baisser(vente)",
+                     token_span=(99, 100),  # span vide — aucun token id 99/100
+                     scope="specific", temporal_index=0, origin="explicit"),
+        ClauseRecord(node_id="n002", node_type="etat", label="baisser(vente)",
+                     token_span=(1, 3),
+                     scope="specific", temporal_index=1, origin="explicit"),
+        ClauseRecord(node_id="n003", node_type="processus", label="augmenter(?)",
+                     token_span=(5, 5),
+                     scope="specific", temporal_index=2, origin="explicit"),
+    ]
+    rec = SentenceRecord(id="s1", text="test", lang="fr", tokens=tokens,
+                         clauses=clauses, edges=[])
+
+    reps, valid_indices = reps_from_sentence(rec)
+
+    # La clause n001 a un span vide → filtrée
+    assert len(reps) == 2
+    assert valid_indices == [1, 2]
+
+    # Les gold labels indexés par valid_indices correspondent aux bonnes clauses
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.constants import NODE_TYPES
+    gold_all = np.array(
+        [NODE_TYPES.index(c.node_type) if c.node_type in NODE_TYPES else 0
+         for c in clauses],
+        dtype=np.int64,
+    )
+    gold_aligned = gold_all[np.array(valid_indices, dtype=np.int64)]
+
+    # gold_aligned[0] doit correspondre au node_type de n002 ("etat"), pas n001 ("action")
+    assert gold_aligned[0] == NODE_TYPES.index("etat")
+    assert gold_aligned[1] == NODE_TYPES.index("processus")
+    assert len(gold_aligned) == len(reps)
