@@ -1,8 +1,10 @@
 [package]
 name = "gcn-knowledge"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 description = "GCN taxonomies, lexicons, and type inference rules"
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 gcn-ir = { path = "../gcn-ir" }

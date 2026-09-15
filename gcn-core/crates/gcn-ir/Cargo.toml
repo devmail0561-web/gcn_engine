@@ -1,8 +1,10 @@
 [package]
 name = "gcn-ir"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 description = "Causal Intermediate Representation types for GCN-Core"
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 serde = { workspace = true }

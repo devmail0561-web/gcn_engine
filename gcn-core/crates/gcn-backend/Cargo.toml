@@ -1,8 +1,10 @@
 [package]
 name = "gcn-backend"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 description = "Causal reasoning (Pearl), query engine, export"
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 gcn-ir = { path = "../gcn-ir" }

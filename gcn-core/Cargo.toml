@@ -12,6 +12,12 @@ members = [
     "crates/gcn-cli",
 ]
 
+[workspace.package]
+version = "1.0.0"
+authors = ["Michel Tendeng"]
+repository = "https://github.com/Maik-start/projet_CNM"
+license = "MIT"
+
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

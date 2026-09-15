@@ -110,7 +110,7 @@ projet_CNM/
 
 ```bash
 # Cloner le dépôt
-git clone <url> projet_CNM
+git clone https://github.com/Maik-start/projet_CNM.git projet_CNM
 cd projet_CNM
 
 # Compiler le moteur Rust

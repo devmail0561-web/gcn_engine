@@ -8,3 +8,11 @@ install-dev:
 
 build-release:
 	cargo build --release --manifest-path gcn-core/Cargo.toml
+
+test:
+	cd gcn-core && cargo test --workspace
+	python3 -m pytest gcn-python/tests/ -q
+
+release: test
+	cargo build --release --manifest-path gcn-core/Cargo.toml
+	pip install ./gcn-python

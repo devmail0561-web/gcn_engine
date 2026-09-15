@@ -5,7 +5,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [1.0.0] - 2026-09-15
 
 ### Ajouté
 
@@ -486,7 +486,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/Maik-start/projet_CNM/compare/v0.9.0...HEAD
+[1.0.0]: https://github.com/Maik-start/projet_CNM/commits/v1.0.0
 [0.9.0]: https://github.com/Maik-start/projet_CNM/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Maik-start/projet_CNM/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Maik-start/projet_CNM/compare/v0.6.0...v0.7.0
