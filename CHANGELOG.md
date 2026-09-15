@@ -5,6 +5,64 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [1.1.0] - 2026-09-15
+
+### Corrigé — Phase 9 : pipeline ML (14 problèmes d'inférence)
+
+**Audit exhaustif** du pipeline ML (cgnp.py, ir_emitter.py, loader.py) — 14 problèmes dont
+6 critiques rendant le CausalIR structurellement incorrect indépendamment de la qualité
+de l'entraînement.
+
+- **C1 — Warning encodeur custom sans `backward_node_dx`** (`cgnp.py`) — retour silencieux
+  remplacé par `UserWarning` explicite : les poids R-GCN ne sont pas mis à jour.
+- **C2 — Gradient R-GCN tronqué** (`cgnp.py`) — `d_enriched` alloué à la taille N complète
+  dès le départ ; bloc de padding redondant supprimé.
+- **C3/C4 — `negated`/`marker_token` toujours False/None** (`cgnp.py`) — `_detect_negation()`
+  depuis `is_negative` UD ; `marker_token` tracké depuis `connector.token_span[0]`.
+- **C5 — `scope` toujours `"specific"`** (`cgnp.py`) — `_infer_scope()` depuis les
+  déterminants du span (`"tous"` → `universal`, etc.). Support FR uniquement.
+- **C6 — `node_origins` toujours `"explicit"`** (`cgnp.py`) — `_infer_origin()` : nœud
+  `condition` sans connecteur adjacent → `"inferred"`.
+- **C7 — `attributes` toujours null** (`label_builder.py`, `cgnp.py`, `ir_emitter.py`) —
+  `build_label` retourne `(label, attrs)` ; `entity`, `agent`, `patient` peuplés depuis
+  les deps UD (`nsubj`, `obj/iobj/nobj`).
+- **C8 — `build_label` sans nominalisation à l'inférence** (`cgnp.py`) — `taxonomies_dir`
+  ajouté à `CGNPipeline.__init__()`, passé à `build_label`.
+- **C9 — Clause nominale : `root_tok` = déterminant** (`loader.py`) — fallback
+  `NOUN/PROPN` ajouté avant `span_toks[0]`.
+- **P3e — Gradients encodeur ↔ décodeur couplés** (`cgnp.py`, `train.py`) — seul le
+  couplage `d_mean → d_enriched` supprimé ; `decoder.backward_decode + update` conservé.
+  Flags `--decoder-only` et `--encoder-checkpoint` ajoutés à `gcn-train`.
+- **P2d — Décodeur mean-pool → autorégressif** (`trainable.py`) — RNN (context + h_prev),
+  teacher forcing dans `loss()`, greedy decoding, BPTT complet.
+  `<eos>` ajouté à la fin du vocab dans `build()`. `max_decode_len` sérialisé.
+- **P1 — `reps_from_raw_text` via spaCy** (`loader.py`) — parsing texte brut → reps ;
+  `ImportError` / `OSError` explicites si spaCy ou modèle absent.
+
+### Corrigé — 10 findings post-audit (code-review max)
+
+- `backward()` : `decoder.update()` supprimé accidentellement lors du P3e → restauré
+- BPTT : gradient `h_prev` ignoré dans `backward_decode` → propagé via `d_h_next`
+- `loss()` utilise maintenant teacher forcing (`forward_decode(vecs, gold_surface)`)
+  au lieu de réutiliser les logits 1D du `forward()`
+- `_infer_origin` : utilisait `connector_reps[i]` (connecteur après node i) au lieu de
+  vérifier les deux connecteurs adjacents → corrigé
+- `SurfaceVocabulary` : EOS inséré à l'index 2 décalait tous les tokens utilisateur →
+  déplacé à la fin via `build()`
+- `to_json` sans `max_decode_len` → ajouté
+- `reps_from_raw_text` : chargement silencieux du modèle anglais pour langues non-supportées
+  → `UserWarning` émis
+- `decode()` : aucune garde pour `node_embs` vide → retour `""` immédiat
+- `train.py` : validation `--decoder-only` après `load_checkpoint` cachait l'erreur utile →
+  reordonné
+
+### Tests
+- +8 tests phase 9 dans `test_pipeline.py`
+- **120 / 120 tests Python passent** (`pytest gcn-python/tests/`)
+- **137 / 137 tests Rust passent** (`cargo test --workspace`) — inchangé
+
+---
+
 ## [1.0.2] - 2026-09-15
 
 ### Corrigé

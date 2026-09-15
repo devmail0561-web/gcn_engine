@@ -17,10 +17,11 @@ Phase 5  ████████████████████  100%  gcn
 Phase 6  ████████████████████  100%  gcn-frontend-code
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
 Phase 8  ████████████████████  100%  Mise en production + publication
+Phase 9  ████████████████████  100%  Corrections pipeline ML (14+10 findings)
 ```
 
+**Tests Python : 120 / 120 passent** (`pytest gcn-python/tests/`)
 **Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
-**Tests Python : 112 / 112 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -318,6 +319,35 @@ Phase 8  ████████████████████  100%  Mis
 **Limites restantes (non-bloquantes) :**
 - Corpus `gcn-datasets/corpus/` à remplir manuellement (40 phrases, 8 patterns causaux)
 - `GCNDataLoader` charge les `SentenceRecord` bruts en RAM — pré-vectorisation via `FeatureVocabulary` prévue pour une version future
+
+---
+
+## Phase 9 — Corrections pipeline ML ✅
+
+**Objectif :** corriger 14 problèmes d'inférence rendant le CausalIR structurellement incorrect.
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| Warning backward() sans backward_node_dx (C1) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| Gradient R-GCN taille N complète (C2) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| negated/marker_token trackés (C3/C4) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| scope inféré depuis déterminants (C5) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| node_origins depuis connector_rep (C6) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| attributes entity/agent/patient peuplés (C7) | `gcn-python/pipeline/label_builder.py`, `ir_emitter.py` | ✅ |
+| taxonomies_dir dans CGNPipeline (C8) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| Clause nominale : root NOUN avant DET (C9) | `gcn-python/data/loader.py` | ✅ |
+| Découplage gradients encodeur/décodeur (P3e) | `gcn-python/pipeline/cgnp.py`, `training/train.py` | ✅ |
+| Décodeur autorégressif RNN + teacher forcing (P2d) | `gcn-python/verbalizer/trainable.py` | ✅ |
+| reps_from_raw_text via spaCy (P1) | `gcn-python/data/loader.py` | ✅ |
+| 10 corrections post-audit code-review | tous les fichiers ci-dessus | ✅ |
+
+**Limitations documentées (reportées en phase 10) :**
+- R-GCN graphe en chaîne (C10) : nécessite re-annotation avec arêtes gap > 1
+- `temporal_ref` "unresolved" (P6) : nécessite un module de résolution temporelle
+- Confidence non calibrée (C13) : temperature scaling post-entraînement
+- Négation analytique (ne...pas) : couverture partielle via `is_negative` UD
+
+**Tests : 120 / 120 passent** (`pytest gcn-python/tests/`)
 
 ---
 

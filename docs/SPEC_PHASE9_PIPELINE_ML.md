@@ -2,9 +2,9 @@
 
 **Auteur :** Michel Tendeng  
 **Date :** 2026-09-15  
-**Révision :** 3 — audit exhaustif intégré  
-**Statut :** En révision  
-**Branche cible :** `feat/phase9-pipeline-fixes`
+**Révision :** 4 — implémenté + corrections post-audit  
+**Statut :** Implémenté (commits 3bafb75, 12691c6)  
+**Branche cible :** `master`
 
 ---
 
@@ -46,7 +46,27 @@ INFÉRENCE
     └── P3e — gradients couplés → entraînement phasé
 ```
 
-**Ordre d'implémentation :** P7 → P11 → P2 → P1c → P8 → P9 → P3 → P4 → P5 → P10 → P3e → P2d → P1
+**Ordre d'implémentation :** P7 → P11 → P2 → P1c → P8 → P9 → P3 → P4 → P5 → P3e → P2d → P1
+
+> **Note :** P10 (R-GCN graphe en chaîne) est retiré de l'ordre d'implémentation — voir table des limitations en fin de document.
+
+### Correspondance numérotation P-x → C-x
+
+| Problème original | Correction | Description |
+|---|---|---|
+| P7 | C1 | Encodeur custom → R-GCN jamais entraîné |
+| P11 | C2 | Gradient R-GCN tronqué |
+| P2 | C3 | `explicit` toujours False |
+| P1c | C4 | `negated` toujours False |
+| P8 | C8 | Labels sans nominalisation |
+| P9 | C9 | Clause nominale : root = DET |
+| P3 | C5 | `scope` toujours "specific" |
+| P4 | C6 | `node_origins` toujours "explicit" |
+| P5 | C7 | `attributes` toujours null |
+| P10 | — | R-GCN graphe en chaîne (déféré) |
+| P3e | P3e | Gradients couplés encodeur/décodeur |
+| P2d | P2d | Décodeur mean-pool → autorégressif |
+| P1 | P1 | Texte brut → inférence (spaCy) |
 
 ---
 
@@ -66,25 +86,28 @@ if not hasattr(self.encoder, 'backward_node_dx'):
 
 **Problème :** Si l'utilisateur implémente un `CausalEncoder` custom (sans `backward_node_dx`) et utilise `RGCNLayer`, `backward()` retourne sans appeler `graph.update()`. Les poids R-GCN ne sont jamais mis à jour. Aucun warning.
 
-**Correction :** Séparer le backward de l'encodeur du backward du R-GCN :
+**Correction :** Remplacer le retour silencieux par un `warnings.warn` explicite. Le backward R-GCN **n'est pas indépendant de l'encodeur** : `d_enriched` est calculé via `encoder.backward_node_dx()`. Sans ce gradient, passer des zéros au R-GCN ne l'entraînerait pas. La contrainte d'interface est donc documentée explicitement.
 
 ```python
 def backward(self, d_node_logits, d_edge_logits, lr=0.01):
-    vecs = self._cached_enriched_vecs or self._cached_clause_vecs
-    if vecs is None or len(vecs) == 0:
+    if not hasattr(self.encoder, 'backward_node_dx'):
+        # Le R-GCN ne peut être rétropropagé sans backward_node_dx :
+        # d_enriched (gradient vers R-GCN) provient du backward de l'encodeur.
+        # Un encodeur sans cette méthode doit gérer son propre backward + graph.update().
+        import warnings
+        warnings.warn(
+            "CGNPipeline.backward() : encodeur sans backward_node_dx — "
+            "les poids R-GCN ne sont pas mis à jour par ce backward. "
+            "Implémenter backward_node_dx ou appeler graph.update() manuellement.",
+            UserWarning,
+            stacklevel=2,
+        )
         return
 
-    n = min(len(d_node_logits), len(vecs))
-    d_enriched = np.zeros((n, vecs.shape[1]), dtype=np.float32)
-
-    # Backward encodeur — uniquement si disponible
-    if hasattr(self.encoder, 'backward_node_dx'):
-        _backward_encoder_nodes(...)   # inchangé
-        _backward_encoder_edges(...)   # inchangé
-
-    # Backward R-GCN — indépendant de l'encodeur
-    _backward_rgcn(d_enriched, lr)   # appelé TOUJOURS si graph a backward_message_pass
+    # ... suite inchangée (vecs, d_enriched, backward encodeur, backward R-GCN)
 ```
+
+**Contrainte d'interface documentée :** Pour utiliser `CGNPipeline.backward()` avec une implémentation custom de `CausalEncoder`, celle-ci doit exposer `backward_node_dx`. Sans cela, le R-GCN n'est pas entraîné via ce pipeline — le data scientist doit gérer le backward lui-même.
 
 ---
 
@@ -98,7 +121,7 @@ n = min(len(d_node_logits), len(vecs))   # n peut être < N
 d_enriched = np.zeros((n, ...))           # nœuds [n..N] reçoivent gradient 0
 ```
 
-**Problème :** `d_enriched` est de taille `n`, paddé à `N_full` avec des zéros. Les nœuds au-delà de `n` ont participé au message passing mais reçoivent un gradient nul → R-GCN mal entraîné sur ces nœuds.
+**Sévérité reclassée :** amélioration défensive, pas un bug actif. Dans le flow d'entraînement normal, `len(d_node_logits) == len(vecs)` toujours — `d_node_logits` provient de `loss()` qui reçoit les logits du `forward()`, lesquels ont exactement `N` lignes. Le cas n < N ne se produit que si le caller tronque `d_node_logits` manuellement. La correction reste pertinente pour robustesse.
 
 **Correction :** Allouer `d_enriched` à la taille complète `N = len(vecs)` dès le départ :
 
@@ -153,7 +176,7 @@ Ajouter `_detect_negation(src_rep, dst_rep, connector_rep) -> bool` :
 
 **Fichier :** `cgnp.py:160`
 
-La correction C3 adresse le cas où le connecteur est explicitement négatif. Mais si la négation est sur le nœud source ("X n'entraîne pas Y"), elle doit venir de `UDRepresentation.is_negative` (déjà calculé dans `layer1/representation.py`).
+La correction C3 adresse le cas où le connecteur est explicitement négatif. Mais si la négation est sur le nœud source ("X n'entraîne pas Y"), elle doit venir de `UDRepresentation.is_negative` (déjà calculé dans `layer1/representation.py` : `root_morph.get("Polarity", "") == "Neg"`).
 
 **Correction :** Dans `_detect_negation` :
 ```python
@@ -164,6 +187,8 @@ def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
         return True
     return False
 ```
+
+**Limitation documentée :** `is_negative` repose sur le morphème UD `Polarity=Neg`. Les négations analytiques françaises ("ne...pas") dont "pas" n'est pas le root de la clause ne sont pas détectées par cette heuristique. Pour les couvrir, il faudrait chercher un token avec `dep_rel == "advmod"` et `lemma in {"pas", "jamais", "plus", "guère"}` dans le span — hors scope C4, à traiter en phase 10.
 
 ---
 
@@ -181,7 +206,13 @@ scopes = ["specific"] * len(reps)
 **Correction :** Dériver le scope depuis les features de la clause :
 
 ```python
-from ..constants import SCOPE_VALUES
+_SCOPE_HINTS = {
+    "tous": "universal", "toutes": "universal", "chaque": "universal",
+    "tout": "universal", "aucun": "null", "aucune": "null",
+    "certains": "existential", "certaines": "existential",
+    "un": "existential", "une": "existential",
+    "quelques": "partial",
+}
 
 def _infer_scope(rep: UDRepresentation) -> str:
     """Dérive le scope depuis les tokens du span (déterminants, pronoms)."""
@@ -192,15 +223,9 @@ def _infer_scope(rep: UDRepresentation) -> str:
                 return hint
     return "specific"
 
-_SCOPE_HINTS = {
-    "tous": "universal", "toutes": "universal", "chaque": "universal",
-    "tout": "universal", "aucun": "null", "aucune": "null",
-    "certains": "existential", "certaines": "existential",
-    "un": "existential", "une": "existential",
-    "quelques": "partial",
-}
-
 scopes = [_infer_scope(r) for r in reps]   # remplace la ligne 200
+
+# Note : _SCOPE_HINTS couvre uniquement le français. Support multilingue à ajouter en phase 10.
 ```
 
 ---
@@ -211,21 +236,22 @@ scopes = [_infer_scope(r) for r in reps]   # remplace la ligne 200
 
 **Problème :** `forward()` ne passe pas `node_origins`. Nœuds inférés et hypothétiques sortent "explicit".
 
-**Correction :** Dériver l'origine depuis `NodeOrigin` du CausalIR ou depuis la confiance du prédicteur :
+**Correction :** Dériver l'origine depuis la présence d'un connecteur explicite dans le texte source — pas depuis la confiance du modèle (`confidence` ne détermine pas si un marqueur existe dans la phrase).
 
 ```python
-def _infer_origin(rep: UDRepresentation, node_type: str, confidence: float) -> str:
-    if node_type == "condition" and not any(
-        t.get("gcn_causal_type") == "conjonction" for t in rep.tokens
-    ):
-        return "inferred"    # condition sans marqueur explicite = inférée
-    if confidence < 0.5:
+def _infer_origin(
+    node_type: str,
+    connector_rep: UDRepresentation | None,
+) -> str:
+    # Un nœud "condition" sans connecteur dans le texte = relation inférée.
+    # Tous les autres types : explicit par défaut (le nœud correspond à un span annoté).
+    if node_type == "condition" and connector_rep is None:
         return "inferred"
     return "explicit"
 
 node_origins = [
-    _infer_origin(r, nt, float(np.max(_softmax(nl.reshape(1,-1)))))
-    for r, nt, nl in zip(reps, node_types, node_logits)
+    _infer_origin(nt, connector_reps[i] if connector_reps and i < len(connector_reps) else None)
+    for i, nt in enumerate(node_types)
 ]
 # Passer node_origins à emit()
 ```
@@ -242,6 +268,14 @@ node_origins = [
 
 ```python
 # label_builder.py
+
+def _find_patient_lemma(rep: UDRepresentation) -> str | None:
+    """Premier token avec dep_rel obj/iobj/nobj — patient syntaxique de la clause."""
+    for t in rep.tokens:
+        if t.get("dep_rel") in {"obj", "iobj", "nobj"}:
+            return t["lemma"]
+    return None
+
 def build_label(rep, node_type, taxonomies_dir=None) -> tuple[str, dict]:
     subject = _find_subject_lemma(rep)
     entity = _find_entity_lemma(rep)
@@ -274,7 +308,9 @@ node_labels = [build_label(r, nt) for r, nt in zip(reps, node_types)]
 # pas de taxonomies_dir
 ```
 
-**Correction :** Stocker `taxonomies_dir` dans `CGNPipeline.__init__()` et le passer à `build_label` :
+**Précision :** `build_label` accepte déjà `taxonomies_dir: Path | None = None` dans sa signature actuelle (`label_builder.py:13`). Le seul changement nécessaire est d'ajouter `taxonomies_dir` à `CGNPipeline.__init__()` et de le passer à l'appel.
+
+**Correction :**
 
 ```python
 # __init__
@@ -282,7 +318,7 @@ def __init__(self, encoder, graph, lang, vocabulary, *, decoder=None, taxonomies
     ...
     self.taxonomies_dir = taxonomies_dir   # Path | None
 
-# forward
+# forward — ligne 197-200 de cgnp.py
 node_labels_and_attrs = [
     build_label(r, nt, self.taxonomies_dir)
     for r, nt in zip(reps, node_types)
@@ -337,15 +373,57 @@ Pour l'instant : documenter la limitation dans le code, ne pas changer — la fi
 
 ### P3e — Conflit gradients encodeur ↔ décodeur
 
-**Fichier :** `cgnp.py:360-369`  
-**Solution :** Supprimer les lignes 360-369 (propagation `d_mean → d_enriched`). Entraînement phasé via `--decoder-only` + `--encoder-checkpoint`. Détails inchangés depuis rev.2.
+**Fichier :** `cgnp.py` (bloc `d_mean → d_enriched`)
+
+**Solution :** Supprimer uniquement les 5 lignes qui propagent `d_mean` dans `d_enriched`. Conserver `decoder.backward_decode()` et `decoder.update()` — le décodeur doit continuer à se mettre à jour. Entraînement phasé via flag `--decoder-only` + `--encoder-checkpoint` dans `train.py`.
+
+**Implémentation :**
+```python
+# Dans backward() — bloc P3e corrigé
+# Le décodeur est mis à jour indépendamment du R-GCN.
+if (self.decoder is not None
+        and self._cached_decode_gradient is not None
+        and hasattr(self.decoder, 'backward_decode')):
+    _, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
+    self.decoder.update(dec_grads, lr)
+    # NOTE : d_mean n'est PAS propagé vers d_enriched
+```
+
+**`train.py` — flags ajoutés :**
+```bash
+gcn-train --decoder-only --encoder-checkpoint enc.npz \
+  --verbalize-dir gcn-datasets/examples/ --epochs 20 --output model.npz
+```
 
 ---
 
 ### P2d — Décodeur mean-pool → autorégressif
 
-**Fichier :** `trainable.py`  
-**Solution :** Décodeur autorégressif (état caché récurrent, teacher forcing, greedy decoding). Détails inchangés depuis rev.2.
+**Fichier :** `trainable.py`
+
+**Architecture implémentée :** RNN à un pas avec contexte mean-pool.
+
+```python
+# Étape RNN : h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
+# Sortie   : logit_t = W_out @ h_t + b_out
+# context  = mean_pool(node_embeddings)  — (D_in,)
+# h_0      = zeros(d_hidden)
+
+def _rnn_step(context, h_prev):
+    rnn_in = np.concatenate([context, h_prev])  # (D_in + D_hidden,)
+    z1 = W_rnn @ rnn_in + b_rnn
+    h_new = np.tanh(z1)
+    logits = W_out @ h_new + b_out
+    return h_new, logits
+```
+
+**Teacher forcing (entraînement) :** `loss()` appelle `forward_decode(vecs, gold_surface)` — T pas, retourne `(T, |V|)` logits.
+
+**Greedy decoding (inférence) :** boucle jusqu'à `<eos>` ou `max_decode_len` (défaut : 20).
+
+**BPTT :** gradient `dx_rnn[d_in:]` (w.r.t. `h_prev`) propagé à l'étape précédente via `d_h_next`.
+
+**SurfaceVocabulary :** `<eos>` ajouté en fin de vocabulaire dans `build()` (pas dans `__init__`) pour éviter de décaler les indices des tokens utilisateur existants. `to_json`/`from_json` inclut `max_decode_len`.
 
 ---
 
@@ -356,23 +434,32 @@ Pour l'instant : documenter la limitation dans le code, ne pas changer — la fi
 
 ---
 
-## Ordre d'implémentation et commits atomiques
+## Ordre d'implémentation — commits réels
 
-| Commit | Correction | Fichiers | Test requis |
-|---|---|---|---|
-| **fix/C1-rgcn-always-trained** | Séparer backward encodeur / backward R-GCN | `cgnp.py:290` | `test_rgcn_updates_with_custom_encoder` |
-| **fix/C2-gradient-no-truncation** | `d_enriched` taille N complète dès init | `cgnp.py:299,375` | `test_backward_full_gradient` |
-| **fix/C3-C4-negated-explicit** | Tracker marker_token, détecter négation | `cgnp.py:160`, `loader.py` | `test_negated_edge_detected` |
-| **fix/C5-scope-inferred** | `_infer_scope()` depuis déterminants | `cgnp.py:200` | `test_scope_universal_tous` |
-| **fix/C6-origin-inferred** | `_infer_origin()` depuis confiance | `cgnp.py:210` | `test_origin_inferred_low_confidence` |
-| **fix/C7-attributes-populated** | `build_label` retourne (label, attrs) | `label_builder.py`, `cgnp.py`, `ir_emitter.py` | `test_attributes_entity_not_null` |
-| **fix/C8-nominalization** | `taxonomies_dir` dans `CGNPipeline` | `cgnp.py:31,195` | `test_label_nominalized` |
-| **fix/C9-nominal-clause-root** | Fallback NOUN avant DET | `loader.py:192` | `test_rep_nominal_clause_root_pos` |
-| **fix/P3e-phased-training** | Supprimer couplage gradients, `--decoder-only` | `cgnp.py:360`, `train.py` | `test_encoder_weights_frozen` |
-| **fix/P2d-autoregressive-decoder** | Décodeur autorégressif complet | `trainable.py` | `test_decode_produces_sequence` |
-| **fix/P1-spacy-raw-text** | `reps_from_raw_text` + `reps_from_sentence` via spaCy | `loader.py`, `cli.py`, `main.rs` | `test_reps_from_raw_text` |
+| Commit | Corrections | Tests ajoutés |
+|---|---|---|
+| **3bafb75** | C1 C2 C3/C4 C5 C6 C7 C8 C9 P3e P2d P1 | +8 tests phase 9 (120 total) |
+| **12691c6** | 10 corrections post-audit code-review (max) | — (120 tests maintiennent) |
 
-**Règle absolue :** `pytest gcn-python/tests/ -q` (112+ tests) et `cargo test --workspace` (137 tests) doivent passer après **chaque commit**.
+**Couverture tests Python :** 120 / 120 passent (`pytest gcn-python/tests/`)  
+**Couverture tests Rust :** 137 / 137 passent (`cargo test --workspace`)
+
+---
+
+## Corrections post-audit (10 findings — code-review max)
+
+| Finding | Correction | Commit |
+|---|---|---|
+| P3e supprimait decoder.update() | Restauré — seul d_mean→d_enriched supprimé | 12691c6 |
+| BPTT : gradient h_prev ignoré | dx_rnn[d_in:] propagé via d_h_next | 12691c6 |
+| forward_decode sans gold_tokens | loss() appelle forward_decode(vecs, gold_surface) | 12691c6 |
+| _infer_origin mauvais index | connector_reps[i] OR connector_reps[i-1] | 12691c6 |
+| EOS à l'index 2 décalait les tokens | EOS ajouté à la fin dans build(), pas __init__ | 12691c6 |
+| to_json sans max_decode_len | Ajouté dans to_json/from_json | 12691c6 |
+| reps_from_raw_text : lang silencieuse | UserWarning pour lang hors fr/en | 12691c6 |
+| decode() sans garde node_embs vide | Retour "" immédiat si vide | 12691c6 |
+| train.py : validation ordre | --decoder-only validé avant load_checkpoint | 12691c6 |
+| Cause racine des #1/#8 | Même fix que #1 | 12691c6 |
 
 ---
 
@@ -381,7 +468,7 @@ Pour l'instant : documenter la limitation dans le code, ne pas changer — la fi
 | Limitation | Raison du report |
 |---|---|
 | R-GCN graphe en chaîne (C10) | Nécessite re-annotation des datasets avec arêtes gap>1 — hors scope phase 9 |
-| `temporal_ref` "unresolved" (C6) | Nécessite un module de résolution temporelle dédié — phase 10 |
+| `temporal_ref` "unresolved" (P6) | Nécessite un module de résolution temporelle dédié — phase 10 |
 | Confidence non calibrée (C13) | Nécessite temperature scaling post-entraînement — phase 10 |
 | Snapshots pre-R-GCN écrasés (C12) | Cosmétique — backward reste cohérent |
 | Entrée vide silencieuse (C14) | Ajouter un `warnings.warn` — fix triviale incluse dans C3 |
@@ -408,13 +495,15 @@ enc = MLPEncoder(vocab.d_clause, vocab.d_edge)
 graph = RGCNLayer(vocab.d_clause, vocab.d_clause)
 pipeline = CGNPipeline(enc, graph, 'fr', vocab)
 
-reps, idxs, conns = reps_from_raw_text('Si les ventes baissent, on réduit les coûts.')
-cir = pipeline.forward(reps, text='Si les ventes baissent, on réduit les coûts.', connector_reps=conns)
+text = 'Si les ventes baissent, tous les coûts augmentent.'
+reps, idxs, conns = reps_from_raw_text(text)
+cir = pipeline.forward(reps, text=text, connector_reps=conns)
 
 # Vérifications post-fix
 assert any(n['attributes']['entity'] is not None for n in cir['nodes']), 'attributes vides'
 assert any(e[2]['explicit'] for e in cir['edges']), 'explicit toujours False'
-assert len(set(n['scope'] for n in cir['nodes'])) >= 1, 'scope non prédit'
+# "tous" → scope=universal attendu sur au moins un nœud
+assert any(n['scope'] != 'specific' for n in cir['nodes']), 'scope non prédit (tous restent specific)'
 print('OK — CausalIR structurellement correct')
 "
 
