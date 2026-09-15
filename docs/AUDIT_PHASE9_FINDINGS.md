@@ -6,10 +6,11 @@
 
 ---
 
-## Statut : RÉSOLU
+## Statut : PARTIELLEMENT RÉSOLU
 
-Tous les findings ont été intégrés dans la spec rev.3 (F1-F10) et la spec rev.4 (F11).
-L'implémentation code est complète (commits 3bafb75 + 12691c6).
+Findings F1-F11 intégrés dans la spec rev.3-4 et implémentés (commits 3bafb75 + 12691c6).
+P1 (inférence texte non-annoté) reclassé en rev.5 comme problème architectural non résolu —
+la solution proposée (spaCy) contredit la décision v0.9.3 de retirer spaCy du moteur.
 
 ---
 

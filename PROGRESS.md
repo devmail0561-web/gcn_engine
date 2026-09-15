@@ -17,7 +17,7 @@ Phase 5  ████████████████████  100%  gcn
 Phase 6  ████████████████████  100%  gcn-frontend-code
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
 Phase 8  ████████████████████  100%  Mise en production + publication
-Phase 9  ████████████████████  100%  Corrections pipeline ML (14+10 findings)
+Phase 9  ██████████████████░░   90%  Corrections pipeline ML — P1 (inférence texte brut) non résolu
 ```
 
 **Tests Python : 120 / 120 passent** (`pytest gcn-python/tests/`)
@@ -322,7 +322,7 @@ Phase 9  ████████████████████  100%  Cor
 
 ---
 
-## Phase 9 — Corrections pipeline ML ✅
+## Phase 9 — Corrections pipeline ML ⚠️ (P1 non résolu)
 
 **Objectif :** corriger 14 problèmes d'inférence rendant le CausalIR structurellement incorrect.
 
@@ -338,8 +338,15 @@ Phase 9  ████████████████████  100%  Cor
 | Clause nominale : root NOUN avant DET (C9) | `gcn-python/data/loader.py` | ✅ |
 | Découplage gradients encodeur/décodeur (P3e) | `gcn-python/pipeline/cgnp.py`, `training/train.py` | ✅ |
 | Décodeur autorégressif RNN + teacher forcing (P2d) | `gcn-python/verbalizer/trainable.py` | ✅ |
-| reps_from_raw_text via spaCy (P1) | `gcn-python/data/loader.py` | ✅ |
+| **Inférence sur texte non-annoté (P1)** | — | **❌ Non résolu** |
 | 10 corrections post-audit code-review | tous les fichiers ci-dessus | ✅ |
+
+**P1 — Problème non résolu :** Le modèle entraîné ne peut pas faire de prédictions sur
+texte non-annoté. Le pipeline exige des `UDRepresentation` pré-annotées (lemma, pos,
+dep_rel, morph) même à l'inférence — il n'existe aucun chemin `texte brut →
+pipeline.forward()` dans le moteur. C'est un problème architectural : la solution ne peut
+pas être une dépendance externe (spaCy, retirée en v0.9.3). À traiter dans une phase
+ultérieure.
 
 **Limitations documentées (reportées en phase 10) :**
 - R-GCN graphe en chaîne (C10) : nécessite re-annotation avec arêtes gap > 1

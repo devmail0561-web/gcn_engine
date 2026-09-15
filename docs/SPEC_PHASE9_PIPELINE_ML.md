@@ -2,8 +2,8 @@
 
 **Auteur :** Michel Tendeng  
 **Date :** 2026-09-15  
-**Révision :** 4 — implémenté + corrections post-audit  
-**Statut :** Implémenté (commits 3bafb75, 12691c6)  
+**Révision :** 5 — descriptions de problèmes clarifiées, P1 reclassé  
+**Statut :** Partiellement implémenté — C1-C9 + P2d + P3e résolus, P1 non résolu (commits 3bafb75, 12691c6)  
 **Branche cible :** `master`
 
 ---
@@ -12,7 +12,7 @@
 
 Un audit exhaustif du code d'inférence (`cgnp.py`, `ir_emitter.py`, `loader.py`) a révélé **14 problèmes**, dont 6 critiques qui rendent le CausalIR produit par le pipeline ML structurellement incorrect — indépendamment de la qualité de l'entraînement.
 
-Les 3 problèmes originaux (spaCy, décodeur autorégressif, entraînement phasé) restent valides mais sont **secondaires** par rapport aux critiques de fond.
+Les 3 problèmes originaux (inférence sur texte non-annoté, décodeur non-séquentiel, gradients couplés) restent valides mais sont **secondaires** par rapport aux critiques de fond.
 
 ---
 
@@ -22,7 +22,7 @@ Les 3 problèmes originaux (spaCy, décodeur autorégressif, entraînement phas�
 INFÉRENCE
 │
 ├── ENTRÉE
-│   └── P1 — Texte brut impossible (spaCy manquant)
+│   └── P1 — Modèle inutilisable sur texte non-annoté (pas de chemin texte brut → UDRepresentation)
 │   └── P9 — Clause nominale : root = déterminant (loader.py:192)
 │
 ├── PIPELINE FORWARD
@@ -40,13 +40,14 @@ INFÉRENCE
 │   └── P8  — labels sans nominalisation (taxonomies_dir absent)
 │
 ├── DÉCODEUR
-│   └── P2d — mean-pool → décodeur autorégressif
+│   └── P2d — Décodeur produit 1 distribution, pas une séquence (mean-pool → classifieur sac-de-mots)
 │
 └── ENTRAÎNEMENT
-    └── P3e — gradients couplés → entraînement phasé
+    └── P3e — R-GCN reçoit un gradient mélangé de deux objectifs incompatibles (classification + génération)
 ```
 
-**Ordre d'implémentation :** P7 → P11 → P2 → P1c → P8 → P9 → P3 → P4 → P5 → P3e → P2d → P1
+**Ordre d'implémentation :** P7 → P11 → P2 → P1c → P8 → P9 → P3 → P4 → P5 → P3e → P2d
+> **P1 (inférence texte non-annoté) :** problème architectural non résolu dans cette phase — voir section P1.
 
 > **Note :** P10 (R-GCN graphe en chaîne) est retiré de l'ordre d'implémentation — voir table des limitations en fin de document.
 
@@ -64,9 +65,9 @@ INFÉRENCE
 | P4 | C6 | `node_origins` toujours "explicit" |
 | P5 | C7 | `attributes` toujours null |
 | P10 | — | R-GCN graphe en chaîne (déféré) |
-| P3e | P3e | Gradients couplés encodeur/décodeur |
-| P2d | P2d | Décodeur mean-pool → autorégressif |
-| P1 | P1 | Texte brut → inférence (spaCy) |
+| P3e | P3e | R-GCN reçoit gradient mélangé classification + génération |
+| P2d | P2d | Décodeur produit 1 distribution, pas une séquence |
+| P1 | — | Modèle inutilisable sur texte non-annoté (**non résolu** — problème architectural) |
 
 ---
 
@@ -371,11 +372,27 @@ Pour l'instant : documenter la limitation dans le code, ne pas changer — la fi
 
 ---
 
-### P3e — Conflit gradients encodeur ↔ décodeur
+### P3e — Le R-GCN reçoit un gradient mélangé de deux objectifs incompatibles
 
 **Fichier :** `cgnp.py` (bloc `d_mean → d_enriched`)
 
-**Solution :** Supprimer uniquement les 5 lignes qui propagent `d_mean` dans `d_enriched`. Conserver `decoder.backward_decode()` et `decoder.update()` — le décodeur doit continuer à se mettre à jour. Entraînement phasé via flag `--decoder-only` + `--encoder-checkpoint` dans `train.py`.
+**Problème détaillé :**
+
+Dans `backward()`, le gradient `d_mean` issu de `decoder.backward_decode()` est ajouté à
+`d_enriched` avant d'être passé au R-GCN. Les poids du R-GCN sont donc mis à jour par la
+somme du gradient de classification causale (prédiction node_type et relation) et du
+gradient de génération de surface (prédiction de la séquence de tokens).
+
+Ces deux objectifs tirent les embeddings R-GCN dans des directions opposées. Un embedding
+utile pour classer un nœud en "processus" n'est pas forcément utile pour générer le mot
+"augmentation". Le couplage empêche les deux de converger correctement. Le résultat
+observé est une loss totale qui descend (le terme dominant prend le dessus) mais un
+encodeur ou un décodeur qui n'apprend pas ce qu'il devrait.
+
+**Solution :** Supprimer uniquement les 5 lignes qui propagent `d_mean` dans `d_enriched`.
+Conserver `decoder.backward_decode()` et `decoder.update()` — le décodeur doit continuer
+à se mettre à jour, mais ses gradients ne doivent pas polluer les poids du R-GCN.
+Entraînement phasé via flag `--decoder-only` + `--encoder-checkpoint` dans `train.py`.
 
 **Implémentation :**
 ```python
@@ -397,11 +414,26 @@ gcn-train --decoder-only --encoder-checkpoint enc.npz \
 
 ---
 
-### P2d — Décodeur mean-pool → autorégressif
+### P2d — Le décodeur produit une distribution unique, pas une séquence
 
 **Fichier :** `trainable.py`
 
-**Architecture implémentée :** RNN à un pas avec contexte mean-pool.
+**Problème détaillé :**
+
+`forward_decode(node_embeddings)` calcule `mean_pool(node_embeddings)` puis passe le
+résultat par un MLP 2 couches et retourne `(|V|,)` — une seule distribution sur le
+vocabulaire. Ce n'est pas une génération de séquence.
+
+`loss_decode(logits, gold_tokens)` reçoit ces logits 1D `(|V|,)` et des gold tokens
+`(T,)`. Elle évalue chaque token gold (position 0, 1, ..., T-1) contre la même et unique
+distribution de probabilité. Autrement dit, "les" et "ventes" et "baissent" sont tous
+comparés au même vecteur de logits. Le modèle ne peut pas apprendre l'ordre ni les
+dépendances entre tokens. Ce n'est pas une génération de surface, c'est un classifieur
+de sac de mots.
+
+**Solution :** Décodeur autorégressif — RNN à contexte mean-pool.
+
+**Architecture implémentée :**
 
 ```python
 # Étape RNN : h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
@@ -417,7 +449,7 @@ def _rnn_step(context, h_prev):
     return h_new, logits
 ```
 
-**Teacher forcing (entraînement) :** `loss()` appelle `forward_decode(vecs, gold_surface)` — T pas, retourne `(T, |V|)` logits.
+**Teacher forcing (entraînement) :** `loss()` appelle `forward_decode(vecs, gold_surface)` — T pas, retourne `(T, |V|)` logits. Chaque position t produit sa propre distribution.
 
 **Greedy decoding (inférence) :** boucle jusqu'à `<eos>` ou `max_decode_len` (défaut : 20).
 
@@ -427,10 +459,37 @@ def _rnn_step(context, h_prev):
 
 ---
 
-### P1 — Texte brut → inférence
+### P1 — Le modèle entraîné ne peut pas faire de prédictions sur texte non-annoté
 
-**Fichier :** `loader.py`  
-**Solution :** `reps_from_raw_text(text, lang)` via spaCy. `reps_from_sentence` mis à jour pour utiliser spaCy comme source de features. Détails inchangés depuis rev.2.
+**Fichier :** `data/loader.py`, `pipeline/cgnp.py`
+
+**Problème détaillé :**
+
+À l'entraînement, `reps_from_sentence()` construit les `UDRepresentation` depuis les
+tokens annotés manuellement dans les JSON (lemma, pos, dep_rel, morph, spans). Ces
+annotations sont aussi les gold labels (node_type, relation) qui servent à calculer la
+loss.
+
+Après entraînement, pour prédire le CausalIR d'un nouveau texte, le pipeline attend en
+entrée des `UDRepresentation` avec exactement les mêmes champs (lemma, pos, dep_rel,
+morph, token_span). Mais ces champs n'existent pas sur du texte brut — ils doivent être
+produits par un parser UD (lemmatisation, POS-tagging, analyse syntaxique).
+
+**Le problème concret :** il n'existe aucun chemin `texte brut → UDRepresentation →
+pipeline.forward()` dans le moteur. Un texte non-annoté est une entrée invalide, ce qui
+rend le modèle inutilisable en production. C'est l'équivalent d'entraîner un LLM puis
+d'exiger qu'on étiquette manuellement chaque prompt avant de le soumettre.
+
+**Contrainte architecturale :** la décision v0.9.3 a explicitement retiré spaCy du moteur.
+Le moteur ne doit pas dépendre d'un parser UD externe. Le chemin de production actuel
+(annotation JSON → `GCNDataLoader` → pipeline) est valide pour l'entraînement, mais il
+ne peut pas être le chemin d'inférence.
+
+**Statut : NON RÉSOLU.** Ce problème est architectural et ne peut pas être résolu par
+l'ajout d'une dépendance externe dans `loader.py`. La solution doit intégrer la production
+des features UD dans l'architecture du moteur lui-même, ou s'appuyer sur le pipeline
+symbolique existant (gcn-frontend-fr/en) comme première passe. À traiter dans une phase
+ultérieure.
 
 ---
 
@@ -438,7 +497,7 @@ def _rnn_step(context, h_prev):
 
 | Commit | Corrections | Tests ajoutés |
 |---|---|---|
-| **3bafb75** | C1 C2 C3/C4 C5 C6 C7 C8 C9 P3e P2d P1 | +8 tests phase 9 (120 total) |
+| **3bafb75** | C1 C2 C3/C4 C5 C6 C7 C8 C9 P3e P2d | +8 tests phase 9 (120 total) |
 | **12691c6** | 10 corrections post-audit code-review (max) | — (120 tests maintiennent) |
 
 **Couverture tests Python :** 120 / 120 passent (`pytest gcn-python/tests/`)  
@@ -456,7 +515,7 @@ def _rnn_step(context, h_prev):
 | _infer_origin mauvais index | connector_reps[i] OR connector_reps[i-1] | 12691c6 |
 | EOS à l'index 2 décalait les tokens | EOS ajouté à la fin dans build(), pas __init__ | 12691c6 |
 | to_json sans max_decode_len | Ajouté dans to_json/from_json | 12691c6 |
-| reps_from_raw_text : lang silencieuse | UserWarning pour lang hors fr/en | 12691c6 |
+| ~~reps_from_raw_text : lang silencieuse~~ | ~~Invalidé — P1 reclassé, fonction retirée~~ | — |
 | decode() sans garde node_embs vide | Retour "" immédiat si vide | 12691c6 |
 | train.py : validation ordre | --decoder-only validé avant load_checkpoint | 12691c6 |
 | Cause racine des #1/#8 | Même fix que #1 | 12691c6 |
@@ -467,6 +526,7 @@ def _rnn_step(context, h_prev):
 
 | Limitation | Raison du report |
 |---|---|
+| **Inférence texte non-annoté (P1)** | **Problème architectural : le moteur n'a aucun chemin texte brut → UDRepresentation. La solution ne peut pas être une dépendance externe (spaCy) — elle doit s'intégrer dans l'architecture du moteur ou s'appuyer sur les frontends symboliques existants.** |
 | R-GCN graphe en chaîne (C10) | Nécessite re-annotation des datasets avec arêtes gap>1 — hors scope phase 9 |
 | `temporal_ref` "unresolved" (P6) | Nécessite un module de résolution temporelle dédié — phase 10 |
 | Confidence non calibrée (C13) | Nécessite temperature scaling post-entraînement — phase 10 |
@@ -482,27 +542,47 @@ def _rnn_step(context, h_prev):
 cd gcn-core && cargo test --workspace && cd ..
 python3 -m pytest gcn-python/tests/ -q
 
-# 2. Vérifier que les attributs sont peuplés
+# 2. Vérifier que les attributs sont peuplés (via dataset annoté)
 python3 -c "
 from gcn_python.pipeline.cgnp import CGNPipeline
 from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer1.representation import UDRepresentation
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
-from gcn_python.data.loader import reps_from_raw_text
 
 vocab = FeatureVocabulary()
 enc = MLPEncoder(vocab.d_clause, vocab.d_edge)
 graph = RGCNLayer(vocab.d_clause, vocab.d_clause)
 pipeline = CGNPipeline(enc, graph, 'fr', vocab)
 
-text = 'Si les ventes baissent, tous les coûts augmentent.'
-reps, idxs, conns = reps_from_raw_text(text)
-cir = pipeline.forward(reps, text=text, connector_reps=conns)
+# Reps construites manuellement (comme un dataset annoté)
+rep1 = UDRepresentation(
+    tokens=[
+        {'lemma': 'tous', 'pos': 'DET', 'dep_rel': 'det', 'morph': {}},
+        {'lemma': 'coût', 'pos': 'NOUN', 'dep_rel': 'nsubj', 'morph': {}},
+        {'lemma': 'augmenter', 'pos': 'VERB', 'dep_rel': 'root', 'morph': {}},
+    ],
+    root_lemma='augmenter', root_pos='VERB', root_dep_rel='root',
+    root_morph={}, subject_pos='NOUN',
+    has_object=False, has_advcl=False, has_temporal_obl=False,
+    token_span=(5, 8), lang='fr',
+)
+rep2 = UDRepresentation(
+    tokens=[
+        {'lemma': 'vente', 'pos': 'NOUN', 'dep_rel': 'nsubj', 'morph': {}},
+        {'lemma': 'baisser', 'pos': 'VERB', 'dep_rel': 'root', 'morph': {}},
+    ],
+    root_lemma='baisser', root_pos='VERB', root_dep_rel='root',
+    root_morph={}, subject_pos='NOUN',
+    has_object=False, has_advcl=False, has_temporal_obl=False,
+    token_span=(1, 3), lang='fr',
+)
+
+cir = pipeline.forward([rep1, rep2], 'Si les ventes baissent, tous les coûts augmentent.')
 
 # Vérifications post-fix
 assert any(n['attributes']['entity'] is not None for n in cir['nodes']), 'attributes vides'
-assert any(e[2]['explicit'] for e in cir['edges']), 'explicit toujours False'
-# "tous" → scope=universal attendu sur au moins un nœud
+# 'tous' → scope=universal attendu sur au moins un nœud
 assert any(n['scope'] != 'specific' for n in cir['nodes']), 'scope non prédit (tous restent specific)'
 print('OK — CausalIR structurellement correct')
 "
@@ -512,7 +592,7 @@ gcn-train --data-dir gcn-datasets/examples/ --epochs 20 --output enc.npz
 gcn-train --decoder-only --encoder-checkpoint enc.npz \
   --verbalize-dir gcn-datasets/examples/ --epochs 20 --output model.npz
 
-# 4. Inférence texte brut
-gcn-forward --raw-text "Si les ventes baissent, on réduit les coûts." \
+# 4. Inférence via dataset annoté (pas de texte brut — voir P1)
+gcn-forward --dataset-path gcn-datasets/examples/paper_001.json \
   --lang fr --model-path model.npz
 ```

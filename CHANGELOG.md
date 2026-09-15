@@ -30,14 +30,27 @@ de l'entraînement.
   ajouté à `CGNPipeline.__init__()`, passé à `build_label`.
 - **C9 — Clause nominale : `root_tok` = déterminant** (`loader.py`) — fallback
   `NOUN/PROPN` ajouté avant `span_toks[0]`.
-- **P3e — Gradients encodeur ↔ décodeur couplés** (`cgnp.py`, `train.py`) — seul le
-  couplage `d_mean → d_enriched` supprimé ; `decoder.backward_decode + update` conservé.
-  Flags `--decoder-only` et `--encoder-checkpoint` ajoutés à `gcn-train`.
-- **P2d — Décodeur mean-pool → autorégressif** (`trainable.py`) — RNN (context + h_prev),
-  teacher forcing dans `loss()`, greedy decoding, BPTT complet.
-  `<eos>` ajouté à la fin du vocab dans `build()`. `max_decode_len` sérialisé.
-- **P1 — `reps_from_raw_text` via spaCy** (`loader.py`) — parsing texte brut → reps ;
-  `ImportError` / `OSError` explicites si spaCy ou modèle absent.
+- **P3e — R-GCN recevait un gradient mélangé classification + génération** (`cgnp.py`,
+  `train.py`) — les poids du R-GCN étaient mis à jour par la somme des gradients de
+  classification causale (node_type, relation) et de génération de surface (tokens), tirant
+  les embeddings dans des directions opposées. Seul le couplage `d_mean → d_enriched`
+  supprimé ; `decoder.backward_decode + update` conservé. Flags `--decoder-only` et
+  `--encoder-checkpoint` ajoutés à `gcn-train`.
+- **P2d — Le décodeur produisait une distribution unique, pas une séquence**
+  (`trainable.py`) — `forward_decode` retournait `(|V|,)` : une seule distribution contre
+  laquelle tous les gold tokens étaient comparés indistinctement (classifieur sac-de-mots).
+  Remplacé par RNN autorégressif (context + h_prev), teacher forcing dans `loss()`, greedy
+  decoding, BPTT complet. `<eos>` ajouté à la fin du vocab dans `build()`.
+  `max_decode_len` sérialisé.
+
+### Non résolu
+
+- **P1 — Le modèle entraîné ne peut pas faire de prédictions sur texte non-annoté** —
+  le pipeline exige des `UDRepresentation` pré-annotées (lemma, pos, dep_rel, morph) même
+  à l'inférence. Il n'existe aucun chemin `texte brut → pipeline.forward()` dans le moteur.
+  Problème architectural : la solution ne peut pas être une dépendance externe (spaCy) car
+  l'architecture v0.9.3 l'a explicitement retirée du moteur. À traiter dans une phase
+  ultérieure.
 
 ### Corrigé — 10 findings post-audit (code-review max)
 
@@ -50,8 +63,6 @@ de l'entraînement.
 - `SurfaceVocabulary` : EOS inséré à l'index 2 décalait tous les tokens utilisateur →
   déplacé à la fin via `build()`
 - `to_json` sans `max_decode_len` → ajouté
-- `reps_from_raw_text` : chargement silencieux du modèle anglais pour langues non-supportées
-  → `UserWarning` émis
 - `decode()` : aucune garde pour `node_embs` vide → retour `""` immédiat
 - `train.py` : validation `--decoder-only` après `load_checkpoint` cachait l'erreur utile →
   reordonné
