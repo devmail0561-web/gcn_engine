@@ -16,10 +16,11 @@ Phase 4  ████████████████████  100%  gcn
 Phase 5  ████████████████████  100%  gcn-verbalizer
 Phase 6  ████████████████████  100%  gcn-frontend-code
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
+Phase 8  ████████████████████   95%  Mise en production (corpus manquant)
 ```
 
-**Tests Rust : 126 / 126 passent** (`cargo test --workspace`)
-**Tests Python : 86 / 86 passent** (`pytest gcn-python/tests/`)
+**Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
+**Tests Python : 89 / 89 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -63,7 +64,7 @@ Phase 7  ████████████████████  100%  Pea
 | Émetteur CausalIR | `gcn-frontend-fr/src/emitter.rs` | ✅ |
 | API publique `FrenchParser` | `gcn-frontend-fr/src/lib.rs` | ✅ |
 
-**Tests (16/16) :** condition, cause backward/forward, séquence, depuis-compositionnel, concession, motivation, verbe causal, scope universel, causalité implicite, négation sur nœud, négation sur arête, hypothétique, enable, input vide.
+**Tests (21/21) :** condition, cause backward/forward, séquence, depuis-compositionnel, concession, motivation, verbe causal, scope universel, causalité implicite, négation sur nœud, négation sur arête, hypothétique, enable, input vide, + 5 tests post-audit (BUG-1, BUG-3/4, paper-013, C-1, C-4).
 
 **Limites connues :**
 - Parser symbolique : couverture limitée aux marqueurs du lexique YAML
@@ -101,7 +102,7 @@ Phase 7  ████████████████████  100%  Pea
 | backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
 | Protocol CausalGraph backward | `gcn-python/layer3/interface.py` | ✅ |
 
-**Tests (9/9) :** cross-entropie, gradient shape, gradient sum, backward R-GCN shape, backward updates weights, checkpoint roundtrip, dataloader batches, edge_map alignment, reps alignment.
+**Tests (9/9 + 11 post-audit) :** cross-entropie, gradient shape, gradient sum, backward R-GCN shape, backward updates weights, checkpoint roundtrip, dataloader batches, edge_map alignment, reps alignment. **89 / 89 passent au total.**
 
 **Corrections audit appliquées :**
 - `recorder.py` : docstring mise à jour avec la nouvelle signature `loss()`
@@ -125,6 +126,9 @@ Phase 7  ████████████████████  100%  Pea
 - **Warning arêtes longue distance** (0.9.5) : `_to_sample` émet un `UserWarning` pour toute arête gold avec `gap > 1` (aucune supervision possible avec le forward consécutif)
 - **Mismatch R-GCN dimensionnel** (0.9.10) : `cgnp.py` lève `ValueError` au premier `forward()` si `d_out ≠ d_clause` — remplace le `UserWarning` qui laissait les poids R-GCN ne jamais apprendre
 - **Double normalisation des gradients** (0.9.8) : `_cross_entropy` normalisait déjà par N ; `backward()` renormalisait à nouveau par `n`/`e`, produisant un gradient `1/N²` au lieu de `1/N`. Les deux renormalisations redondantes supprimées dans `cgnp.py`.
+- **TaxonomyIndex retiré du pipeline ML** (C1) : `FeatureVocabulary` devient purement syntaxique (UPOS + DEP_REL + tense/aspect/mood + polarity + flags structurels). Les taxonomies restent des guides pour les annotateurs, jamais des dépendances runtime du moteur.
+- **`backward_message_pass` retiré du Protocol `CausalGraph`** (C2) : levait `NotImplementedError` dans `RGCNLayerPT` ; la garde `hasattr` dans `cgnp.py:backward()` retourne `False` pour les impls PyTorch.
+- **`d_out: int` ajouté au Protocol `CausalGraph`** (C5) : dimension de sortie vérifiable sans instanciation.
 
 ---
 
@@ -262,7 +266,36 @@ Phase 7  ████████████████████  100%  Pea
 - `lemmatize_verb` anglais : strip `'s'` avant strip `"es"` pour "causes" → "cause", "enables" → "enable".
 - Annotateur anglais : marqueurs multi-mots avant verbes causaux (priorité plus haute) pour éviter que "prevent" vole le cas `in order to prevent`.
 
+**Corrections post-audit (pearl.rs) :**
+- `CausalLink` gagne `to_id: NodeId` ; `counterfactual()` fait le lookup par id au lieu de label — corrige la perte de cardinalité quand deux nœuds distincts partagent le même label (C-4 / BUG-2).
+- Emitters FR et EN : propagation `temporal_index` max cumulé depuis la source — A→B→C produit `0, 1, 2` au lieu de `0, 1, 1` (C3).
+
 **Décision : Wolof et Arabe exclus de la phase 7** (focalisé fr + en).
+
+---
+
+## Phase 8 — Mise en production ✅
+
+**Objectif :** rendre le projet déployable et évaluable sur données réelles.
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `Makefile` (install / install-dev / build-release) | `Makefile` | ✅ |
+| `GCN_PYTHON_BIN` env var override | `gcn-cli/src/main.rs` | ✅ |
+| `gcn-eval` CLI | `gcn-python/evaluation/eval_runner.py` | ✅ |
+| Métriques dans `gcn-train` (node_accuracy, edge_macro_f1) | `gcn-python/training/train.py` | ✅ |
+| `TrainingRecorder` câblé + export JSON | `gcn-python/training/train.py` | ✅ |
+| Corpus réel — structure + workflow | `gcn-datasets/corpus/phrases_fr.txt` | 🔲 (annotation manuelle) |
+| `gcn-bootstrap` — 2 bugs corrigés | `gcn-python/training/bootstrap.py` | ✅ |
+
+**Vérification :**
+- `make install-dev` depuis la racine installe Rust + Python d'un coup
+- `gcn-eval --data-dir gcn-datasets/examples/ --model-path model.npz` sort un rapport JSON à 5 métriques
+- `gcn-train --log-csv loss.csv` produit `loss.json` avec `node_accuracy` et `edge_macro_f1` par époque
+
+**Limites restantes (non-bloquantes) :**
+- Corpus `gcn-datasets/corpus/` à remplir manuellement (40 phrases, 8 patterns causaux)
+- `GCNDataLoader` charge les `SentenceRecord` bruts en RAM — pré-vectorisation via `FeatureVocabulary` prévue pour une version future
 
 ---
 

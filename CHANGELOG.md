@@ -7,6 +7,48 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Corrigé
+
+**Correctifs architecturaux (43a20f1)**
+- **C1 — TaxonomyIndex retiré du pipeline ML** (`layer1/features.py`, `pipeline/cgnp.py`, `pipeline/label_builder.py`, `pipeline/cli.py`, `training/train.py`) — `FeatureVocabulary` devient purement syntaxique (UPOS + DEP_REL + tense/aspect/mood + polarity + flags structurels). Les taxonomies restent des guides pour les annotateurs, jamais des dépendances runtime du moteur.
+- **C2 — `backward_message_pass` retiré de `RGCNLayerPT` et du Protocol `CausalGraph`** (`layer3/interface.py`, `layer3/pytorch_rgcn.py`) — levait `NotImplementedError` ; la garde `hasattr` dans `cgnp.py:backward()` retourne `False` pour les impls PyTorch, `autograd` gère le backward nativement.
+- **C3 — Propagation du `temporal_index` corrigée dans les emitters FR et EN** (`gcn-frontend-fr/src/emitter.rs`, `gcn-frontend-en/src/emitter.rs`) — la chaîne `A→B→C` produisait `0, 1, 1` (index de la source répété) au lieu de `0, 1, 2`. Corrigé : propagation du max cumulé depuis la source.
+- **C4 — Label condition langue-dépendant** (`gcn-frontend-fr`, `gcn-frontend-en`) — `hidden_cause` (EN) vs `cause_cachée` (FR) ; clé `examples_fr` → `examples` pour EN dans `_load_nominalizations`.
+- **C5 — `d_out: int` ajouté au Protocol `CausalGraph`** (`layer3/interface.py`) — rend la dimension de sortie vérifiable sans instanciation.
+
+**Correctifs post-audit frontend/backend (2f0d7f4)**
+- **`pearl.rs` — Déduplication contrefactuelle par `NodeId`** — `CausalLink` gagne `to_id: NodeId` ; `counterfactual()` fait le lookup par id au lieu de label — corrige la perte de cardinalité quand deux nœuds distincts partagent le même label (C-4 / BUG-2).
+- **`annotator.rs` — Arêtes implicites inter-phrases étendues à N phrases** — la src cherche la dernière clause non-`Hypothetical` via `.rev().find()` — corrige la limite aux 2 premières phrases et le double appel `annotate_sentence` (C-1, BUG-1).
+- **`rules.rs` — `concession` → `MarkerDir::Backward`** (était `Forward`) ; `GoalToAction` initial : `(src_idx, dst_idx) = (0, 1)` fixe dans tous les cas (BUG-3/4, paper-013).
+- **Lemmatiseur FR** — exclure `merci/aussi/demi/semi` du strip `-i` passé composé (faux positifs).
+
+**`gcn-bootstrap` — Deux bugs corrigés (841ce9a)**
+- Flag `--compact` inexistant dans `gcn analyze` supprimé (crash silencieux).
+- `--taxonomy-dir` ajouté (`envvar GCN_TAXONOMY_DIR`) et transmis à `gcn analyze --data-dir` (was absent — le binaire Rust échouait toujours).
+
+### Ajouté
+
+- **`Makefile`** (racine) — cibles `install` / `install-dev` / `build-release` coordonnent `cargo build` + `pip install` depuis la racine.
+- **`GCN_PYTHON_BIN`** (`gcn-cli/src/main.rs`) — variable d'environnement pour override du chemin `gcn-forward` ; fallback sur le nom nu si absente.
+- **`gcn-eval` CLI** (`evaluation/eval_runner.py`) — `run_eval(data_dir, model_path)` agrège `node_accuracy`, `node_macro_f1`, `edge_accuracy`, `edge_macro_f1` sur un répertoire de données ; entry point `gcn-eval` dans `pyproject.toml`.
+- **Métriques dans `gcn-train`** (`training/train.py`) — `TrainingRecorder` câblé : `node_accuracy` et `edge_macro_f1` loguées par époque dans le CSV et exportées en JSON (`.json` aux côtés du `.csv`) si `--log-csv` fourni.
+- **`gcn-datasets/corpus/`** — sous-dossier pour le corpus réel ; `phrases_fr.txt` documente le workflow bootstrap (40 phrases cibles, 8 patterns causaux).
+
+### Documentation
+
+- **`PROGRESS.md`** — limite coréférentielle de `FrenchParser` qualifiée explicitement "bootstrap only, non-bloquante en production" pour neutraliser les faux positifs d'audit.
+
+### Tests
+- `fix_c4_unique_effects_two_same_label_nodes_both_unique` — deux nœuds distincts à label identique → 2 `unique_effects`
+- `fix_bug2_counterfactual_duplicate_labels` — seul le nœud non-atteignable sans X apparaît dans `unique_effects`
+- `fix_bug1_three_sentence_juxtaposition` — 3 phrases juxtaposées → 2 arêtes implicites
+- `fix_bug3_hypothetical_targets_main_clause` — nœud hypothétique pointe vers l'événement surprenant
+- `paper_013_goal_to_action_initial` — `Pour réussir, il travaille.` → Motivation(réussir→travaille)
+- `fix_c1_concession_sentence_implicit_edge_src_not_hypothetical` — src arête implicite ≠ Hypothetical
+- `lemmatize_non_verb_i_words_unchanged` / `lemmatize_real_participes_ir` (2 tests `rules.rs`)
+- **89 / 89 tests Python passent** (`pytest gcn-python/tests/`)
+- **137 / 137 tests Rust passent** (`cargo test --workspace`)
+
 ---
 
 ## [0.9.11] — 2026-09-15
