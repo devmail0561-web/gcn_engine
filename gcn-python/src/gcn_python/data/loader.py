@@ -84,9 +84,10 @@ class GCNDataLoader:
                     UserWarning, stacklevel=2,
                 )
                 continue  # arête non-supervisable, ne pas insérer dans edge_map
-            edge_map[(src_idx, tgt_idx)] = rel_idx
             if src_idx > tgt_idx:
                 n_backward += 1
+                continue  # arête backward non-supervisable, ne pas insérer dans edge_map
+            edge_map[(src_idx, tgt_idx)] = rel_idx
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse "

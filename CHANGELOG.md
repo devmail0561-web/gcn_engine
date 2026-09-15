@@ -9,6 +9,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.7] — 2026-09-15
+
+### Corrigé
+- **Arêtes backward mortes dans `edge_map`** (`data/loader.py`) — les arêtes gold en direction inverse (`src > tgt`) étaient stockées dans `edge_map` malgré le warning indiquant qu'elles ne sont jamais supervisées (le forward produit uniquement des paires croissantes). Ces entrées mortes consommaient de la mémoire inutilement. Corrigé : `continue` ajouté avant l'insertion, les arêtes backward sont désormais comptées pour le warning mais exclues de `edge_map`.
+
+### Tests
+- `test_backward_edge_not_supervised` mis à jour : vérifie désormais que `(1, 0)` **n'est pas** dans `edge_map` (comportement attendu après correction).
+
+---
+
 ## [0.9.6] — 2026-09-15
 
 ### Corrigé

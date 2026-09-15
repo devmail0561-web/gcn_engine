@@ -368,16 +368,11 @@ def test_backward_edge_not_supervised():
         warnings.simplefilter("always")
         sample = loader._to_sample(rec)
 
-    # L'arête est stockée dans sa direction naturelle (1, 0)
-    assert (1, 0) in sample.edge_map
-    assert sample.edge_map[(1, 0)] == RELATION_TYPES.index("cause")
-    # Pas de direction inverse injectée
+    # L'arête backward (1, 0) n'est pas insérée dans edge_map
+    assert (1, 0) not in sample.edge_map
     assert (0, 1) not in sample.edge_map
     # Un warning signale l'arête non-supervisable
     assert any(issubclass(x.category, UserWarning) and "direction inverse" in str(x.message) for x in w)
-
-    # Lookup strict : la paire forward (0, 1) donne -1
-    assert sample.edge_map.get((0, 1), -1) == -1
 
 
 def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipeline):
