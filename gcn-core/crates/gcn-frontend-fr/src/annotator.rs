@@ -53,10 +53,12 @@ pub fn annotate(tagged: &[TaggedToken], res: &LexicalResources) -> SentenceAnnot
     } else {
         let mut all_clauses: Vec<ClauseAnnotation> = Vec::new();
         let mut all_edges: Vec<EdgeAnnotation> = Vec::new();
+        let mut sentence_clause_counts: Vec<usize> = Vec::with_capacity(sentences.len());
 
         for sent_tokens in &sentences {
-            let mut ann = annotate_sentence(sent_tokens, res);
             let offset = all_clauses.len();
+            let mut ann = annotate_sentence(sent_tokens, res);
+            sentence_clause_counts.push(ann.clauses.len());
             for e in &mut ann.edges {
                 e.src_clause += offset;
                 e.dst_clause += offset;
@@ -65,13 +67,19 @@ pub fn annotate(tagged: &[TaggedToken], res: &LexicalResources) -> SentenceAnnot
             all_edges.extend(ann.edges);
         }
 
-        // Implicit cause between last node of sentence 0 and first node of sentence 1
-        if sentences.len() >= 2 {
-            let s0_count = annotate_sentence(sentences[0], res).clauses.len();
-            if s0_count > 0 {
+        // Implicit cause between last clause of sentence N and first clause of sentence N+1.
+        // Skip hypothetical nodes (cause_cachée) — they are not real sentence subjects.
+        let mut offset = 0usize;
+        for i in 0..sentences.len().saturating_sub(1) {
+            offset += sentence_clause_counts[i];
+            if sentence_clause_counts[i] > 0 && sentence_clause_counts[i + 1] > 0 {
+                let start = offset - sentence_clause_counts[i];
+                let src_clause = (start..offset).rev()
+                    .find(|&idx| all_clauses[idx].origin != NodeOrigin::Hypothetical)
+                    .unwrap_or(offset - 1);
                 all_edges.push(EdgeAnnotation {
-                    src_clause: s0_count - 1,
-                    dst_clause: s0_count,
+                    src_clause,
+                    dst_clause: offset,
                     relation: RelationType::Cause,
                     confidence: 0.5,
                     explicit: false,
@@ -292,10 +300,9 @@ fn handle_initial_marker(
         (sub_clause, main_clause)
     };
 
-    let (src_idx, dst_idx) = match marker.direction {
-        MarkerDir::Forward | MarkerDir::Backward => (0, 1),
-        MarkerDir::GoalToAction => (1, 0),
-    };
+    // En position initiale, sub-clause (idx 0) précède toujours main-clause (idx 1)
+    // quelle que soit la direction du marqueur.
+    let (src_idx, dst_idx) = (0usize, 1usize);
 
     let mut clauses = vec![sub_clause_scoped, main_scoped];
     let mut edges = vec![EdgeAnnotation {
@@ -311,10 +318,9 @@ fn handle_initial_marker(
     // Hypothetical node for concession
     if marker.signals_gap && marker.relation == RelationType::Concession {
         clauses.push(hypothetical_clause());
-        // hidden → effect (main clause = index 1 for Forward)
         edges.push(EdgeAnnotation {
             src_clause: 2,
-            dst_clause: 1,
+            dst_clause: dst_idx,
             relation: RelationType::Cause,
             confidence: 0.3,
             explicit: false,
@@ -367,7 +373,7 @@ fn build_marker_annotation(
         clauses.push(hypothetical_clause());
         edges.push(EdgeAnnotation {
             src_clause: 2,
-            dst_clause: 1,
+            dst_clause: dst_idx,
             relation: RelationType::Cause,
             confidence: 0.3,
             explicit: false,

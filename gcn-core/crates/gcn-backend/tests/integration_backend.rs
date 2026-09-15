@@ -433,3 +433,55 @@ fn counterfactual_node_not_found() {
         Err(BackendError::NodeNotFound(_))
     ));
 }
+
+
+// fix C-4: unique_effects préserve la cardinalité quand deux nœuds distincts partagent le même label
+#[test]
+fn fix_c4_unique_effects_two_same_label_nodes_both_unique() {
+    // trigger(1) → doublon(0) et trigger(1) → doublon(2)
+    // Les deux doublons n'ont aucune autre source → tous deux uniques à trigger
+    let ir = make_ir(
+        vec![
+            node(0, "doublon", NodeType::Etat),
+            node(1, "trigger", NodeType::Action),
+            node(2, "doublon", NodeType::Etat),
+        ],
+        vec![
+            edge(1, 0, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::Counterfactual("trigger".into()), &ir).unwrap();
+    if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
+        assert_eq!(unique_effects.len(), 2,
+            "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {:?}",
+            unique_effects);
+        assert_eq!(unique_effects.iter().filter(|s| s.as_str() == "doublon").count(), 2);
+    } else {
+        panic!("résultat inattendu");
+    }
+}
+
+// fix BUG-2: counterfactual avec labels dupliqués (un unique, un non-unique)
+#[test]
+fn fix_bug2_counterfactual_duplicate_labels() {
+    // doublon(id=0) racine standalone, trigger(id=1) → doublon(id=2)
+    // doublon(id=2) est uniquement atteignable via trigger
+    let ir = make_ir(
+        vec![
+            node(0, "doublon", NodeType::Etat),
+            node(1, "trigger", NodeType::Action),
+            node(2, "doublon", NodeType::Etat),
+        ],
+        vec![edge(1, 2, RelationType::Cause)],
+    );
+    let result = execute(&Query::Counterfactual("trigger".into()), &ir).unwrap();
+    if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
+        assert!(
+            unique_effects.contains(&"doublon".to_string()),
+            "doublon(id=2) est unique à trigger : {:?}", unique_effects
+        );
+    } else {
+        panic!("résultat inattendu");
+    }
+}

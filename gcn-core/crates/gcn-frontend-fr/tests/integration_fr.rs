@@ -221,3 +221,70 @@ fn three_clause_chain_temporal_indices_strictly_increasing() {
         }
     }
 }
+// Verify BUG-1 fix: 3 phrases juxtaposées → 2 arêtes implicites
+#[test]
+fn fix_bug1_three_sentence_juxtaposition() {
+    let ir = parser().parse("Les ventes baissent. On réduit les coûts. On licencie.").unwrap();
+    assert_eq!(ir.nodes.len(), 3);
+    assert_eq!(ir.edges.len(), 2, "attendu 2 arêtes implicites, got {}", ir.edges.len());
+    for (_, _, e) in &ir.edges {
+        assert!(!e.explicit);
+        assert!((e.confidence - 0.5).abs() < 0.01);
+    }
+    assert_eq!(ir.edges[0].0.0, 0); assert_eq!(ir.edges[0].1.0, 1);
+    assert_eq!(ir.edges[1].0.0, 1); assert_eq!(ir.edges[1].1.0, 2);
+}
+
+// Verify BUG-3+4 fix: concession non-initiale → nœud hypothétique pointe vers l'effet surprenant
+#[test]
+fn fix_bug3_hypothetical_targets_main_clause() {
+    let ir = parser().parse("Il a échoué bien qu'il ait travaillé.").unwrap();
+    assert_eq!(ir.nodes.len(), 3);
+    let hyp_idx = ir.nodes.iter().position(|n| n.origin == NodeOrigin::Hypothetical).unwrap() as u32;
+    let hyp_edge = ir.edges.iter().find(|(s, _, _)| s.0 == hyp_idx).unwrap();
+    let dst_node = ir.nodes.iter().find(|n| n.id == hyp_edge.1).unwrap();
+    // le nœud hypothétique doit pointer vers l'événement surprenant (l'échec)
+    assert!(
+        dst_node.label.contains("échouer") || dst_node.label.contains("échec") || dst_node.label.contains("échoué"),
+        "hyp → '{}' — attendu l'événement surprenant", dst_node.label
+    );
+}
+
+// paper-013: "Pour réussir, il travaille." — GoalToAction en position initiale
+// BUT(réussir) → ACTION(travaille), pas l'inverse.
+#[test]
+fn paper_013_goal_to_action_initial() {
+    let ir = parser().parse("Pour réussir, il travaille.").unwrap();
+    assert_eq!(ir.nodes.len(), 2);
+    assert_eq!(ir.edges.len(), 1);
+    let (src, dst, edge) = &ir.edges[0];
+    assert_eq!(edge.relation, RelationType::Motivation);
+    let src_label = &ir.nodes[src.0 as usize].label;
+    let dst_label = &ir.nodes[dst.0 as usize].label;
+    assert!(
+        src_label.contains("réussir") || src_label.contains("réussite"),
+        "src doit être le BUT, obtenu src='{}' dst='{}'", src_label, dst_label
+    );
+}
+
+// fix C-1: concession suivie d'une phrase → arête implicite depuis clause principale, pas nœud hypothétique
+#[test]
+fn fix_c1_concession_sentence_implicit_edge_src_not_hypothetical() {
+    // Phrase 0 = concession → 3 clauses : effet(0), concessif(1), cause_cachée(2 = Hypothetical)
+    // L'arête implicite doit partir de la clause principale (0 ou 1), pas de cause_cachée(2)
+    let ir = parser()
+        .parse("Il a échoué bien qu'il ait travaillé. On continue.")
+        .unwrap();
+
+    let implicit = ir.edges.iter()
+        .find(|(_, _, e)| !e.explicit && (e.confidence - 0.5).abs() < 0.01);
+
+    assert!(implicit.is_some(), "Doit avoir une arête implicite inter-phrase");
+    let (src_id, _, _) = implicit.unwrap();
+    let src_node = ir.nodes.iter().find(|n| n.id == *src_id).unwrap();
+    assert_ne!(
+        src_node.origin, NodeOrigin::Hypothetical,
+        "C-1: src arête implicite = '{}' (Hypothetical) — doit être un nœud réel",
+        src_node.label
+    );
+}

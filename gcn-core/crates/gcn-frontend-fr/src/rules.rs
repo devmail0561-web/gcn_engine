@@ -70,8 +70,10 @@ pub fn direction_str_to_enum(s: &str) -> MarkerDir {
 /// This is a type-level mapping: class name → causal direction.
 pub fn conjunction_class_to_direction(class_name: &str) -> MarkerDir {
     match class_name {
-        // "parce que" etc: right clause is the cause
+        // "parce que" etc: right clause is the cause → left is the effect
         "cause" => MarkerDir::Backward,
+        // "bien que" etc: right clause is the concession → left is the surprising result
+        "concession" => MarkerDir::Backward,
         _ => MarkerDir::Forward,
     }
 }
@@ -135,7 +137,9 @@ pub fn lemmatize_verb(form: &str) -> String {
     }
 
     // Passé composé 2nd group: -i → stem + ir
-    if f.ends_with('i') && f.len() > 3 && !["qui", "si"].contains(&f) {
+    if f.ends_with('i') && f.len() > 3
+        && !["qui", "si", "merci", "aussi", "demi", "semi"].contains(&f)
+    {
         let stem = &f[..f.len()-1];
         // Disambiguate: if already ends in -rir/-fir etc, just return
         if !stem.ends_with('r') {
@@ -194,4 +198,23 @@ pub fn looks_like_verb_morphologically(form: &str) -> bool {
         || f.ends_with("ent")   // 3rd plural present
         || f.ends_with("é")     // past participle -er verbs
         || is_infinitive(&f)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lemmatize_verb;
+
+    #[test]
+    fn lemmatize_non_verb_i_words_unchanged() {
+        for w in ["merci", "aussi", "demi", "semi"] {
+            assert_eq!(lemmatize_verb(w), w, "'{}' ne doit pas être lemmatisé", w);
+        }
+    }
+
+    #[test]
+    fn lemmatize_real_participes_ir() {
+        assert_eq!(lemmatize_verb("fini"), "finir");
+        assert_eq!(lemmatize_verb("parti"), "partir");
+        assert_eq!(lemmatize_verb("choisi"), "choisir");
+    }
 }

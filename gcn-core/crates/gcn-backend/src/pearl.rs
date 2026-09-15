@@ -9,6 +9,7 @@ use petgraph::Direction;
 pub struct CausalLink {
     pub from_label: String,
     pub to_label: String,
+    pub to_id: NodeId,
     pub relation: RelationType,
     pub confidence: f32,
     pub negated: bool,
@@ -166,6 +167,7 @@ fn edge_link(ir: &CausalIR, src: NodeId, dst: NodeId) -> Option<CausalLink> {
         .map(|(s, d, e)| CausalLink {
             from_label: node_label(ir, *s),
             to_label: node_label(ir, *d),
+            to_id: *d,
             relation: e.relation,
             confidence: e.confidence,
             negated: e.negated,
@@ -228,24 +230,15 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
     // Nœuds atteignables depuis les racines SANS X
     let reachable_without_x = reachable_from_roots_without(&g, target.id);
 
-    // Effets uniques = atteignables depuis X mais pas depuis les racines sans X
+    // Effets uniques = atteignables depuis X mais pas depuis les racines sans X.
+    // Dédup par NodeId (pas par label) pour préserver la cardinalité quand deux nœuds
+    // distincts partagent le même label.
+    let mut seen_ids: HashSet<NodeId> = HashSet::new();
     let unique_effects: Vec<String> = actual_effects
         .iter()
-        .filter(|link| {
-            // Cherche le nœud cible du lien parmi les IR nodes
-            let to_id = ir
-                .nodes
-                .iter()
-                .find(|n| n.label == link.to_label)
-                .map(|n| n.id);
-            match to_id {
-                Some(id) => !reachable_without_x.contains(&id),
-                None => false,
-            }
-        })
+        .filter(|link| !reachable_without_x.contains(&link.to_id))
+        .filter(|link| seen_ids.insert(link.to_id))
         .map(|link| link.to_label.clone())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
         .collect();
 
     Some((target.label.clone(), CounterfactualResult { actual_effects, unique_effects }))
