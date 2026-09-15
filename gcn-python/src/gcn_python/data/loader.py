@@ -58,6 +58,9 @@ class GCNDataLoader:
                 break
 
     def _to_sample(self, rec: SentenceRecord) -> TrainingSample:
+        # _relation_idx est appelé après les guards gap>1 et backward (src>tgt)
+        # pour éviter de rejeter toute la phrase sur une arête non-supervisable
+        # dont la relation serait inconnue.
         node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
         node_labels = np.array(
             [_node_type_idx(c.node_type, rec.id) for c in rec.clauses],
@@ -74,7 +77,6 @@ class GCNDataLoader:
                     UserWarning, stacklevel=2,
                 )
                 continue
-            rel_idx = _relation_idx(e.relation, rec.id)
             gap = abs(tgt_idx - src_idx)
             if gap > 1:
                 warnings.warn(
@@ -87,6 +89,7 @@ class GCNDataLoader:
             if src_idx > tgt_idx:
                 n_backward += 1
                 continue  # arête backward non-supervisable, ne pas insérer dans edge_map
+            rel_idx = _relation_idx(e.relation, rec.id)
             edge_map[(src_idx, tgt_idx)] = rel_idx
         if n_backward:
             warnings.warn(

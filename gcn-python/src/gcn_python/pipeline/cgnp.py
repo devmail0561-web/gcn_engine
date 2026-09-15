@@ -18,9 +18,12 @@ class CGNPipeline:
     Le data scientist instancie ce pipeline avec ses implémentations de
     CausalEncoder (Couche 2) et CausalGraph (Couche 3).
 
-    - forward(text)                           → CausalIR dict (prêt pour serde_json Rust)
+    - forward(reps, text, ...)                → CausalIR dict (prêt pour serde_json Rust)
     - loss(node_logits, edge_logits, ...)     → (float, d_node, d_edge)
     - backward(d_node, d_edge, lr)            → rétropropagation + mise à jour SGD
+
+    Précondition à la construction : si graph expose d_out, il doit être égal à
+    vocabulary.d_clause — vérifié immédiatement, ValueError sinon.
     """
 
     def __init__(
@@ -31,6 +34,13 @@ class CGNPipeline:
         lang: str,
         vocabulary: FeatureVocabulary,
     ):
+        if hasattr(graph, 'd_out') and graph.d_out != vocabulary.d_clause:
+            raise ValueError(
+                f"RGCNLayer.d_out={graph.d_out} ≠ vocabulary.d_clause="
+                f"{vocabulary.d_clause} : instanciez RGCNLayer avec "
+                f"d_out=vocabulary.d_clause pour alimenter le MLP nœud "
+                f"depuis les représentations enrichies."
+            )
         self.encoder = encoder
         self.graph = graph
         self.taxonomy_dir = taxonomy_dir
@@ -63,7 +73,9 @@ class CGNPipeline:
 
         clause_positions : indices originaux des reps dans la phrase complète — utilisés
           pour calculer les features de position dans vectorize_edge.
+          Doit avoir exactement len(reps) éléments si fourni, ValueError sinon.
         n_total_clauses : nombre total de clauses dans la phrase (dénominateur de la distance).
+          Comparé via `is not None` — la valeur 0 est traitée comme zéro clause, pas comme absent.
         connector_reps : UDRepresentation|None par paire consécutive (len = len(reps)-1).
         """
         return self._forward_from_reps(reps, text, clause_positions, n_total_clauses, connector_reps)
@@ -76,6 +88,10 @@ class CGNPipeline:
         n_total_clauses: int | None = None,
         connector_reps: list | None = None,
     ) -> dict:
+        if clause_positions is not None and len(clause_positions) != len(reps):
+            raise ValueError(
+                f"clause_positions a {len(clause_positions)} éléments pour {len(reps)} reps."
+            )
 
         # Réinitialiser le cache
         self._cached_clause_vecs = None
@@ -115,7 +131,7 @@ class CGNPipeline:
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
         if len(reps) >= 2:
-            real_n = n_total_clauses if n_total_clauses else len(reps)
+            real_n = n_total_clauses if n_total_clauses is not None else len(reps)
             for src_i in range(len(reps) - 1):
                 dst_i = src_i + 1
                 real_src = clause_positions[src_i] if clause_positions else src_i
@@ -155,13 +171,6 @@ class CGNPipeline:
             self._cached_edge_index = edge_index
             self._cached_edge_type_idxs = edge_type_idxs
             enriched = self.graph.message_pass(clause_vecs, edge_index, edge_type_idxs)
-            if enriched.shape[1] != self.vocabulary.d_clause:
-                raise ValueError(
-                    f"RGCNLayer.d_out={enriched.shape[1]} ≠ vocabulary.d_clause="
-                    f"{self.vocabulary.d_clause} : instanciez RGCNLayer avec "
-                    f"d_out=vocabulary.d_clause pour alimenter le MLP nœud "
-                    f"depuis les représentations enrichies."
-                )
             node_logits2_list: list[np.ndarray] = []
             node_snapshots = []
             for v in enriched:
@@ -246,6 +255,9 @@ class CGNPipeline:
 
         Opère sur MLPEncoder (backward_node_dx / backward_edge) et
         RGCNLayer (backward_message_pass). Le DS PyTorch override cette méthode.
+        Les appels à update_node/update_edge sont gardés par hasattr — un encodeur
+        tiers sans ces méthodes est silencieusement ignoré (ses poids ne sont pas
+        mis à jour par ce backward).
         """
         if not hasattr(self.encoder, 'backward_node_dx'):
             return  # implémentation non-référence, le DS gère son propre backward
@@ -311,9 +323,9 @@ class CGNPipeline:
             # _cross_entropy normalise déjà par E — pas de renormalisation ici
 
         # --- Mise à jour encodeur ---
-        if all_node_grads is not None:
+        if all_node_grads is not None and hasattr(self.encoder, 'update_node'):
             self.encoder.update_node(all_node_grads, lr)
-        if all_edge_grads is not None:
+        if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
             self.encoder.update_edge(all_edge_grads, lr)
 
         # --- Rétropropagation R-GCN ---
@@ -339,9 +351,18 @@ def _cross_entropy(
     logits: np.ndarray,   # (N, C)
     labels: np.ndarray,   # (N,) int
 ) -> tuple[float, np.ndarray]:
-    """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N."""
+    """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
+
+    Lève ValueError si labels contient des valeurs négatives (sentinelle -1 non filtrée)
+    ou hors-bornes (>= n_classes).
+    """
     if len(logits) == 0:
         return 0.0, np.zeros_like(logits)
+    if len(labels) > 0 and int(labels.min()) < 0:
+        raise ValueError(
+            f"Label négatif dans _cross_entropy : min={labels.min()} "
+            f"(sentinelle -1 non filtrée ?)"
+        )
     if len(labels) > 0 and int(labels.max()) >= logits.shape[1]:
         raise ValueError(
             f"Label hors-bornes dans _cross_entropy : "

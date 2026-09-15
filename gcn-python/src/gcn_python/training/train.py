@@ -89,6 +89,8 @@ def train_cmd(
                         n_total_clauses=len(sample.sentence.clauses),
                         connector_reps=connector_reps,
                     )
+                except ValueError:
+                    raise  # misconfiguration (d_out, clause_positions…) — non ignorable
                 except Exception as exc:
                     warnings.warn(
                         f"[{sample.sentence.id}] forward ignoré : "

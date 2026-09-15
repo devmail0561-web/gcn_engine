@@ -37,6 +37,8 @@ class MLPEncoder:
 
     Le data scientist substitue par son propre CausalEncoder
     (PyTorch, JAX, etc.) sans modifier le pipeline.
+    update_node / update_edge délèguent à _apply_grads — toute modification
+    de la règle de mise à jour (clipping, weight decay…) se fait une seule fois.
     """
 
     def __init__(self, d_clause: int, d_edge: int, seed: int = 42):
@@ -138,15 +140,19 @@ class MLPEncoder:
             params.extend([layer.W, layer.b])
         return params
 
-    def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
-        for layer, (dW, db) in zip(self._node_layers, grads):
+    def _apply_grads(
+        self, layers: list[_LinearLayer],
+        grads: list[tuple[np.ndarray, np.ndarray]], lr: float,
+    ) -> None:
+        for layer, (dW, db) in zip(layers, grads):
             layer.W -= lr * dW
             layer.b -= lr * db
 
+    def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        self._apply_grads(self._node_layers, grads, lr)
+
     def update_edge(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
-        for layer, (dW, db) in zip(self._edge_layers, grads):
-            layer.W -= lr * dW
-            layer.b -= lr * db
+        self._apply_grads(self._edge_layers, grads, lr)
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
         for p, g in zip(self.parameters(), grads):

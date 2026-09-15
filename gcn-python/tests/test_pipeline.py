@@ -108,19 +108,17 @@ def test_forward_connector_slot_nonzero(taxonomy_dir):
 
 
 def test_forward_rgcn_dout_mismatch_raises(taxonomy_dir):
-    """Un RGCNLayer avec d_out ≠ d_clause doit lever ValueError dès le premier forward."""
+    """Un RGCNLayer avec d_out ≠ d_clause doit lever ValueError dès la construction."""
     import pytest
     tax = TaxonomyIndex.load(taxonomy_dir, "fr")
     vocab = FeatureVocabulary.build(tax)
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
-    pipeline = CGNPipeline(
-        encoder=encoder, graph=graph,
-        taxonomy_dir=taxonomy_dir, lang="fr", vocabulary=vocab,
-    )
-    rep1, rep2 = make_rep(), make_rep()
     with pytest.raises(ValueError, match="d_out=.*≠.*d_clause"):
-        pipeline.forward([rep1, rep2], "test")
+        CGNPipeline(
+            encoder=encoder, graph=graph,
+            taxonomy_dir=taxonomy_dir, lang="fr", vocabulary=vocab,
+        )
 
 
 def test_forward_position_features_noncontiguous(taxonomy_dir):

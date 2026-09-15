@@ -9,6 +9,28 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.11] — 2026-09-15
+
+### Corrigé
+- **CLI `gcn-forward` cassée — unpack 2-tuple** (`pipeline/cli.py:69`) — `reps_from_sentence` retourne un triplet depuis 0.9.6 mais `cli.py` l'unpackait encore comme une paire, levant `ValueError: too many values to unpack` sur toute invocation. Corrigé : unpack complet `(reps, valid_clause_idxs, connector_reps)` ; `clause_positions`, `n_total_clauses` et `connector_reps` sont maintenant transmis à `pipeline.forward()`.
+- **`except Exception` étouffait les `ValueError` de misconfiguration** (`training/train.py:92`) — le handler de samples malformés interceptait aussi les `ValueError` légitimes (d_out ≠ d_clause, clause_positions mal dimensionné), laissant un pipeline mal configuré entraîner 50 epochs sans gradient utile. Corrigé : `except ValueError: raise` avant le handler large.
+- **`_relation_idx` appelé avant les guards skip-edge** (`data/loader.py:77`) — une arête non-supervisable (backward ou longue distance) avec une relation inconnue levait `ValueError` avant le `continue`, rejetant toute la phrase y compris ses labels de nœuds valides. Corrigé : `_relation_idx` déplacé après les guards.
+- **`load_checkpoint` mutait `vocabulary` avant validation des shapes** (`training/checkpoint.py:33`) — un `ValueError` de mismatch laissait le pipeline dans un état incohérent (nouveau vocab, anciens poids). Corrigé : toutes les shapes sont validées avant toute mutation (opération atomique).
+- **Check `d_out ≠ d_clause` trop tardif** (`pipeline/cgnp.py`) — la vérification avait lieu après le calcul complet `message_pass` (O(E·D²)) au lieu d'échouer à la construction. Déplacée dans `__init__` ; supprimée de `_forward_from_reps`.
+- **Guard falsy sur `n_total_clauses=0`** (`pipeline/cgnp.py:129`) — `n_total_clauses if n_total_clauses else len(reps)` traitait `0` comme absent. Corrigé : `is not None`.
+- **Aucun guard sur la longueur de `clause_positions`** (`pipeline/cgnp.py`) — une liste trop courte causait `IndexError`. Corrigé : `ValueError` explicite si `len(clause_positions) != len(reps)`.
+- **Labels négatifs non détectés dans `_cross_entropy`** (`pipeline/cgnp.py:345`) — la sentinelle `-1` (arête non supervisée) passait silencieusement, interprétée comme index `-1` (dernière classe). Corrigé : `ValueError` si `labels.min() < 0`.
+- **`AttributeError` sur `update_node`/`update_edge` pour encodeurs tiers** (`pipeline/cgnp.py:315`) — `backward()` vérifiait uniquement `backward_node_dx` mais appelait `update_node`/`update_edge` sans guard. Corrigé : appels conditionnels `hasattr`.
+
+### Simplifié
+- **Duplication `update_node`/`update_edge`** (`layer2/reference.py`) — corps identiques extraits dans `_apply_grads(layers, grads, lr)`.
+
+### Tests
+- `test_forward_rgcn_dout_mismatch_raises` mis à jour : le `ValueError` est maintenant attendu à la construction (`CGNPipeline.__init__`), plus au `forward()`.
+- **86 / 86 tests Python passent** (`pytest gcn-python/tests/`)
+
+---
+
 ## [0.9.10] — 2026-09-15
 
 ### Corrigé

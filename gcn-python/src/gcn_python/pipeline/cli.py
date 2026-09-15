@@ -66,7 +66,7 @@ def forward_cmd(
     else:
         rec = records[0]
 
-    reps, _ = reps_from_sentence(rec)
+    reps, valid_clause_idxs, connector_reps = reps_from_sentence(rec)
     if not reps:
         raise click.ClickException(
             f"La sentence {rec.id!r} ne contient pas de tokens annotés "
@@ -90,5 +90,10 @@ def forward_cmd(
     else:
         click.echo("Avertissement : poids aléatoires (pas de --model-path)", file=sys.stderr)
 
-    result = pipeline.forward(reps, rec.text)
+    result = pipeline.forward(
+        reps, rec.text,
+        clause_positions=valid_clause_idxs,
+        n_total_clauses=len(rec.clauses),
+        connector_reps=connector_reps,
+    )
     click.echo(json.dumps(result, ensure_ascii=False, indent=2 if pretty else None))
