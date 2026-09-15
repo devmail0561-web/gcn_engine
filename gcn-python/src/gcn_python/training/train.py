@@ -64,6 +64,9 @@ def train_cmd(
         verb_source_map = verb_loader.source_text_map()
         click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
 
+    if decoder_only and decoder is None:
+        raise click.ClickException("--decoder-only requiert --verbalize-dir")
+
     pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
                            decoder=decoder)
 
@@ -71,9 +74,6 @@ def train_cmd(
         from .checkpoint import load_checkpoint
         load_checkpoint(pipeline, encoder_checkpoint)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
-
-    if decoder_only and decoder is None:
-        raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
     loader = GCNDataLoader(data_dir, lang=lang)
     if len(loader) == 0:

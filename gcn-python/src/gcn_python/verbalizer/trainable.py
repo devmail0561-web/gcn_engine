@@ -14,8 +14,8 @@ class SurfaceVocabulary:
     EOS = "<eos>"
 
     def __init__(self) -> None:
-        self._t2i: dict[str, int] = {self.PAD: 0, self.UNK: 1, self.EOS: 2}
-        self._i2t: list[str] = [self.PAD, self.UNK, self.EOS]
+        self._t2i: dict[str, int] = {self.PAD: 0, self.UNK: 1}
+        self._i2t: list[str] = [self.PAD, self.UNK]
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
@@ -27,6 +27,10 @@ class SurfaceVocabulary:
                 if tok not in self._t2i:
                     self._t2i[tok] = len(self._i2t)
                     self._i2t.append(tok)
+        # EOS appended at end after all user tokens, to avoid shifting indices
+        if self.EOS not in self._t2i:
+            self._t2i[self.EOS] = len(self._i2t)
+            self._i2t.append(self.EOS)
 
     def encode(self, text: str) -> list[int]:
         return [self._t2i.get(tok, 1) for tok in self._tokenize(text)]
@@ -233,19 +237,22 @@ class TrainableDecoder:
             d_mean_total += dx_rnn[:self._last_d_in]
             n_steps = 1
         else:
-            # Multi-step BPTT
+            # Multi-step BPTT — propagate h_prev gradient through time
             T = d_logits.shape[0]
             n_steps = max(T, 1)
+            d_h_next = np.zeros(self.d_hidden, dtype=np.float32)
             for t in range(T - 1, -1, -1):
                 step = steps[t]
                 self._layers[0]._cache["x"] = step["rnn_in"]
                 self._layers[1]._cache["x"] = step["h1"]
                 dx_h1, dW1, db1 = self._layers[1].backward(d_logits[t])
+                dx_h1 += d_h_next  # gradient from future step's h_prev
                 dW1_total += dW1; db1_total += db1
                 d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
                 dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
                 dW0_total += dW0; db0_total += db0
                 d_mean_total += dx_rnn[:self._last_d_in]
+                d_h_next = dx_rnn[self._last_d_in:]  # gradient w.r.t. h_prev → previous step
 
         grads = [
             (dW0_total / n_steps, db0_total / n_steps),
@@ -272,39 +279,42 @@ class TrainableDecoder:
     def decode(self, ir_json: str) -> str:
         """CausalIR JSON → surface string (greedy decode)."""
         node_embs = self._node_type_embeddings_from_ir(ir_json)
+        if len(node_embs) == 0:
+            return ""
+        eos_idx = self.vocab._t2i.get(SurfaceVocabulary.EOS, -1)
+        _skip = {0, 1, eos_idx}
         if self._layers is None:
             logits = self.forward_decode(node_embs)
-        else:
-            # Greedy multi-step decode
-            context = node_embs.mean(axis=0).astype(np.float32)
-            h = np.zeros(self.d_hidden, dtype=np.float32)
-            eos_idx = self.vocab._t2i.get(SurfaceVocabulary.EOS, -1)
-            tokens: list[int] = []
-            for _ in range(self.max_decode_len):
-                h_new, _, _, logits = self._rnn_step(context, h)
-                token = int(np.argmax(logits))
-                if token == eos_idx:
-                    break
-                tokens.append(token)
-                h = h_new
-            filtered = [i for i in tokens if i >= 3][:5]  # skip PAD/UNK/EOS
+            top_indices = np.argsort(logits)[-10:][::-1]
+            filtered = [int(i) for i in top_indices if int(i) not in _skip][:5]
             return self.vocab.decode(filtered)
-        top_indices = np.argsort(logits)[-10:][::-1]
-        filtered = [int(i) for i in top_indices if int(i) >= 3][:5]
+        # Greedy multi-step decode
+        context = node_embs.mean(axis=0).astype(np.float32)
+        h = np.zeros(self.d_hidden, dtype=np.float32)
+        tokens: list[int] = []
+        for _ in range(self.max_decode_len):
+            h_new, _, _, logits = self._rnn_step(context, h)
+            token = int(np.argmax(logits))
+            if token == eos_idx:
+                break
+            tokens.append(token)
+            h = h_new
+        filtered = [i for i in tokens if i not in _skip][:5]
         return self.vocab.decode(filtered)
 
     # ── Checkpoint serialization ──────────────────────────────────────────────
 
     def to_json(self) -> str:
-        d_in = self._last_d_in
         return json.dumps({
             "vocab": self.vocab.to_json(),
             "d_hidden": self.d_hidden,
-            "d_in": d_in,
+            "d_in": self._last_d_in,
+            "max_decode_len": self.max_decode_len,
         })
 
     @classmethod
     def from_json(cls, s: str) -> "TrainableDecoder":
         data = json.loads(s)
         vocab = SurfaceVocabulary.from_json(data["vocab"])
-        return cls(vocab, d_hidden=data["d_hidden"], d_in=data.get("d_in"))
+        return cls(vocab, d_hidden=data["d_hidden"], d_in=data.get("d_in"),
+                   max_decode_len=data.get("max_decode_len", 20))

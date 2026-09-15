@@ -228,7 +228,16 @@ def reps_from_raw_text(text: str, lang: str = "fr") -> tuple[list, list[int], li
             "Installer avec : pip install spacy && python -m spacy download fr_core_news_sm"
         ) from exc
 
-    model_name = "fr_core_news_sm" if lang == "fr" else "en_core_web_sm"
+    _SPACY_MODELS = {"fr": "fr_core_news_sm", "en": "en_core_web_sm"}
+    if lang not in _SPACY_MODELS:
+        import warnings
+        warnings.warn(
+            f"reps_from_raw_text : langue '{lang}' non supportée (fr/en uniquement) — "
+            f"utilisation du modèle anglais par défaut.",
+            UserWarning,
+            stacklevel=2,
+        )
+    model_name = _SPACY_MODELS.get(lang, "en_core_web_sm")
     try:
         nlp = spacy.load(model_name)
     except OSError:

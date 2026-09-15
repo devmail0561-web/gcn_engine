@@ -211,7 +211,11 @@ class CGNPipeline:
         token_spans = [r.token_span for r in reps]
         scopes = [_infer_scope(r) for r in reps]
         node_origins = [
-            _infer_origin(nt, connector_reps[i] if connector_reps and i < len(connector_reps) else None)
+            _infer_origin(
+                nt,
+                (connector_reps[i] if connector_reps and i < len(connector_reps) else None)
+                or (connector_reps[i - 1] if connector_reps and i > 0 else None),
+            )
             for i, nt in enumerate(node_types)
         ]
 
@@ -277,15 +281,19 @@ class CGNPipeline:
 
         total_loss = node_loss + edge_loss_weight * edge_loss
 
-        # Decoder loss (optionnel — uniquement si gold_surface fourni et decoder actif)
+        # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
         if (self.decoder is not None
                 and gold_surface is not None
-                and self._cached_decode_logits is not None
                 and len(gold_surface) > 0):
-            dec_loss, d_dec = self.decoder.loss_decode(self._cached_decode_logits, gold_surface)
-            total_loss += dec_loss
-            self._cached_decode_gradient = d_dec
+            _vecs = (self._cached_enriched_vecs
+                     if self._cached_enriched_vecs is not None
+                     else self._cached_clause_vecs)
+            if _vecs is not None and len(_vecs) > 0:
+                dec_logits = self.decoder.forward_decode(_vecs, gold_surface)
+                dec_loss, d_dec = self.decoder.loss_decode(dec_logits, gold_surface)
+                total_loss += dec_loss
+                self._cached_decode_gradient = d_dec
 
         return total_loss, d_node, d_edge
 
@@ -386,9 +394,14 @@ class CGNPipeline:
         if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
             self.encoder.update_edge(all_edge_grads, lr)
 
+        # --- Décodeur backward + update (sans couplage vers d_enriched — P3e) ---
+        if (self.decoder is not None
+                and self._cached_decode_gradient is not None
+                and hasattr(self.decoder, 'backward_decode')):
+            _, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
+            self.decoder.update(dec_grads, lr)
+
         # --- Rétropropagation R-GCN ---
-        # Le décodeur est entraîné de façon séparée (--decoder-only dans train.py).
-        # Le couplage gradient décodeur → R-GCN est supprimé (P3e).
         if (self._cached_edge_index is not None
                 and self._cached_enriched_vecs is not None
                 and hasattr(self.graph, 'backward_message_pass')):
