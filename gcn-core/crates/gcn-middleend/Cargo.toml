@@ -5,10 +5,11 @@ edition = "2024"
 description = "Causal graph construction, constraint propagation, validation"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
-gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.1" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

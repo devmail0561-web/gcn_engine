@@ -5,10 +5,11 @@ edition = "2024"
 description = "Causal reasoning (Pearl), query engine, export"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
-gcn-middleend = { path = "../gcn-middleend", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-middleend = { path = "../gcn-middleend", version = "1.0.1" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

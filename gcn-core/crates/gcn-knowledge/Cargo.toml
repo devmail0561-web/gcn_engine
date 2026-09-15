@@ -5,9 +5,10 @@ edition = "2024"
 description = "GCN taxonomies, lexicons, and type inference rules"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 yaml_serde = { workspace = true }

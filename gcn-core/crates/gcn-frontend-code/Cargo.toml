@@ -5,9 +5,10 @@ edition = "2024"
 description = "Programming language frontend for GCN-Core (tree-sitter)"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tree-sitter = "0.27.0"
@@ -19,4 +20,4 @@ yaml_serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.0" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.1" }

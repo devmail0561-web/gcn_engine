@@ -5,17 +5,18 @@ edition = "2024"
 description = "Command-line interface for GCN-Core"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [[bin]]
 name = "gcn"
 path = "src/main.rs"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
-gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.0" }
-gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.0" }
-gcn-frontend-code = { path = "../gcn-frontend-code", version = "1.0.0" }
-gcn-middleend = { path = "../gcn-middleend", version = "1.0.0" }
-gcn-backend = { path = "../gcn-backend", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.1" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "1.0.1" }
+gcn-frontend-code = { path = "../gcn-frontend-code", version = "1.0.1" }
+gcn-middleend = { path = "../gcn-middleend", version = "1.0.1" }
+gcn-backend = { path = "../gcn-backend", version = "1.0.1" }
 clap = { workspace = true }
 serde_json = { workspace = true }

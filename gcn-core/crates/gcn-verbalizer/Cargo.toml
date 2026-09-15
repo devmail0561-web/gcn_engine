@@ -5,8 +5,9 @@ edition = "2024"
 description = "Bridge to the GCN verbalizer decoder (CausalIR → text)"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

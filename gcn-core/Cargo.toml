@@ -13,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Michel Tendeng"]
 repository = "https://github.com/devmail0561-web/gcn_engine"
 license = "MIT"

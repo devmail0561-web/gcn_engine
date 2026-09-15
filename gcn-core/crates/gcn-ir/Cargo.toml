@@ -5,6 +5,7 @@ edition = "2024"
 description = "Causal Intermediate Representation types for GCN-Core"
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 
 [dependencies]
 serde = { workspace = true }
