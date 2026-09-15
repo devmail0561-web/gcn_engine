@@ -11,9 +11,9 @@ def build_label(
     rep: UDRepresentation,
     node_type: str,
     taxonomies_dir: Path | None = None,
-) -> str:
+) -> tuple[str, dict]:
     """
-    (UDRepresentation, node_type, TaxonomyIndex) → str label CIR.
+    (UDRepresentation, node_type, TaxonomyIndex) → (str label CIR, dict attributes).
 
     Format selon node_type :
       action               → "{verb_lemma}({subject_lemma})"
@@ -27,17 +27,37 @@ def build_label(
     nom = _nominalize(rep.root_lemma, rep.lang, taxonomies_dir)
 
     if node_type == "condition":
-        return "hidden_cause(?)" if rep.lang == "en" else "cause_cachée(?)"
-    if node_type in ("entite", "etat_systemique"):
-        return entity or rep.root_lemma
-    if node_type == "action":
-        return f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
-    # etat, transition, processus
-    if entity:
-        return f"{nom}({entity})"
-    if subject:
-        return f"{rep.root_lemma}({subject})"
-    return nom
+        label = "hidden_cause(?)" if rep.lang == "en" else "cause_cachée(?)"
+    elif node_type in ("entite", "etat_systemique"):
+        label = entity or rep.root_lemma
+    elif node_type == "action":
+        label = f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
+    else:
+        # etat, transition, processus
+        if entity:
+            label = f"{nom}({entity})"
+        elif subject:
+            label = f"{rep.root_lemma}({subject})"
+        else:
+            label = nom
+
+    attributes = {
+        "entity": entity,
+        "agent": subject if node_type in ("action", "transition") else None,
+        "patient": _find_patient_lemma(rep),
+        "quality": None,
+        "agent_type": None,
+        "reversible": None,
+    }
+    return label, attributes
+
+
+def _find_patient_lemma(rep: UDRepresentation) -> str | None:
+    """Premier token avec dep_rel obj/iobj/nobj — patient syntaxique de la clause."""
+    for t in rep.tokens:
+        if t.get("dep_rel") in {"obj", "iobj", "nobj"}:
+            return t["lemma"]
+    return None
 
 
 def _find_subject_lemma(rep: UDRepresentation) -> str | None:

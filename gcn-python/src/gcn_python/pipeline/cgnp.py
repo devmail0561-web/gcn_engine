@@ -26,6 +26,9 @@ class CGNPipeline:
     decoder (optionnel) : TrainableDecoder ou tout objet implémentant
     forward_decode / loss_decode / backward_decode / update. Si None, le pipeline
     se comporte exactement comme avant (rétro-compatible).
+
+    taxonomies_dir (optionnel) : Path vers le répertoire des taxonomies pour
+    la nominalisation des labels de nœuds.
     """
 
     def __init__(
@@ -36,6 +39,7 @@ class CGNPipeline:
         vocabulary: FeatureVocabulary,
         *,
         decoder=None,
+        taxonomies_dir=None,
     ):
         if hasattr(graph, 'd_out') and graph.d_out != vocabulary.d_clause:
             raise ValueError(
@@ -49,6 +53,7 @@ class CGNPipeline:
         self.lang = lang
         self.vocabulary = vocabulary
         self.decoder = decoder
+        self.taxonomies_dir = taxonomies_dir
 
         # Cache rempli par forward() — utilisé par loss() et backward()
         self._cached_clause_vecs: np.ndarray | None = None
@@ -157,7 +162,9 @@ class CGNPipeline:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
                 rel_idx = int(np.argmax(edge_logit))
                 rel_conf = float(_softmax(edge_logit.reshape(1, -1))[0, rel_idx])
-                edge_triples.append((src_i, dst_i, RELATION_TYPES[rel_idx], rel_conf, False, None))
+                marker_tok_id = connector.token_span[0] if connector is not None else None
+                negated = _detect_negation(reps[src_i], reps[dst_i], connector)
+                edge_triples.append((src_i, dst_i, RELATION_TYPES[rel_idx], rel_conf, negated, marker_tok_id))
 
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)
@@ -194,12 +201,19 @@ class CGNPipeline:
         if _snap:
             self._cached_node_snapshots = node_snapshots
 
-        node_labels = [
-            build_label(r, nt)
+        node_labels_attrs = [
+            build_label(r, nt, self.taxonomies_dir)
             for r, nt in zip(reps, node_types)
         ]
+        node_labels = [la[0] for la in node_labels_attrs]
+        node_attributes = [la[1] for la in node_labels_attrs]
+
         token_spans = [r.token_span for r in reps]
-        scopes = ["specific"] * len(reps)
+        scopes = [_infer_scope(r) for r in reps]
+        node_origins = [
+            _infer_origin(nt, connector_reps[i] if connector_reps and i < len(connector_reps) else None)
+            for i, nt in enumerate(node_types)
+        ]
 
         # Décodeur (optionnel) — utilise les embeddings R-GCN enrichis si disponibles
         if self.decoder is not None:
@@ -210,7 +224,8 @@ class CGNPipeline:
                 self._cached_decode_logits = self.decoder.forward_decode(_vecs)
 
         return emit(text, self.lang, node_types, node_labels, token_spans,
-                    scopes, edge_triples)
+                    scopes, edge_triples, node_origins=node_origins,
+                    node_attributes=node_attributes)
 
     def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
         """Filtre les caches MLP d'arêtes aux seuls indices valides.
@@ -288,9 +303,21 @@ class CGNPipeline:
         Les appels à update_node/update_edge sont gardés par hasattr — un encodeur
         tiers sans ces méthodes est silencieusement ignoré (ses poids ne sont pas
         mis à jour par ce backward).
+
+        Contrainte d'interface : si l'encodeur n'implémente pas backward_node_dx,
+        les poids R-GCN ne peuvent pas être mis à jour (d_enriched provient du
+        backward de l'encodeur). Un UserWarning est émis dans ce cas.
         """
         if not hasattr(self.encoder, 'backward_node_dx'):
-            return  # implémentation non-référence, le DS gère son propre backward
+            import warnings
+            warnings.warn(
+                "CGNPipeline.backward() : encodeur sans backward_node_dx — "
+                "les poids R-GCN ne sont pas mis à jour par ce backward. "
+                "Implémenter backward_node_dx ou appeler graph.update() manuellement.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return
 
         vecs = (self._cached_enriched_vecs
                 if self._cached_enriched_vecs is not None
@@ -298,7 +325,8 @@ class CGNPipeline:
         if vecs is None or len(vecs) == 0:
             return
 
-        n = min(len(d_node_logits), len(vecs))
+        N = len(vecs)
+        n = min(len(d_node_logits), N)
         _has_node_snap = (
             hasattr(self.encoder, 'restore_node_cache')
             and self._cached_node_snapshots is not None
@@ -311,7 +339,7 @@ class CGNPipeline:
 
         # --- Rétropropagation nœuds ---
         all_node_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
-        d_enriched = np.zeros((n, vecs.shape[1]), dtype=np.float32)
+        d_enriched = np.zeros((N, vecs.shape[1]), dtype=np.float32)
 
         for i in range(n):
             if _has_node_snap:
@@ -358,29 +386,13 @@ class CGNPipeline:
         if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
             self.encoder.update_edge(all_edge_grads, lr)
 
-        # --- Gradient décodeur → R-GCN (joint training) ---
-        if (self.decoder is not None
-                and self._cached_decode_gradient is not None
-                and hasattr(self.decoder, 'backward_decode')):
-            d_mean, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
-            self.decoder.update(dec_grads, lr)
-            # Propager d_mean vers d_enriched si les dimensions correspondent
-            if (d_mean.shape[0] == d_enriched.shape[1]
-                    and self._cached_enriched_vecs is not None):
-                N_dec = len(self._cached_enriched_vecs)
-                d_enriched[:min(n, N_dec)] += d_mean[np.newaxis, :] / max(N_dec, 1)
-
         # --- Rétropropagation R-GCN ---
+        # Le décodeur est entraîné de façon séparée (--decoder-only dans train.py).
+        # Le couplage gradient décodeur → R-GCN est supprimé (P3e).
         if (self._cached_edge_index is not None
                 and self._cached_enriched_vecs is not None
                 and hasattr(self.graph, 'backward_message_pass')):
-            N_full = len(self._cached_enriched_vecs)
-            if d_enriched.shape[0] < N_full:
-                pad = np.zeros((N_full - d_enriched.shape[0], d_enriched.shape[1]), dtype=np.float32)
-                d_enriched_full = np.concatenate([d_enriched, pad], axis=0)
-            else:
-                d_enriched_full = d_enriched
-            _, graph_grads = self.graph.backward_message_pass(d_enriched_full)
+            _, graph_grads = self.graph.backward_message_pass(d_enriched)
             self.graph.update(graph_grads, lr)
 
 
@@ -417,3 +429,48 @@ def _cross_entropy(
     d_logits[np.arange(N), labels] -= 1.0
     d_logits /= N
     return loss, d_logits
+
+
+def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
+    """Détecte la négation depuis is_negative des représentations UD.
+
+    is_negative repose sur Polarity=Neg (morphologie UD). Les négations
+    analytiques (ne...pas) dont 'pas' n'est pas le root ne sont pas
+    détectées. Voir phase 10 pour la couverture complète.
+    """
+    if getattr(src_rep, 'is_negative', False):
+        return True
+    if getattr(dst_rep, 'is_negative', False):
+        return True
+    if connector_rep is not None and getattr(connector_rep, 'is_negative', False):
+        return True
+    return False
+
+
+_SCOPE_HINTS: dict[str, str] = {
+    "tous": "universal", "toutes": "universal", "chaque": "universal",
+    "tout": "universal", "aucun": "null", "aucune": "null",
+    "certains": "existential", "certaines": "existential",
+    "un": "existential", "une": "existential",
+    "quelques": "partial",
+}
+
+
+def _infer_scope(rep) -> str:
+    """Dérive le scope depuis les déterminants/pronoms du span (français uniquement).
+
+    Support multilingue à ajouter en phase 10.
+    """
+    for tok in rep.tokens:
+        if tok.get("dep_rel") in {"det", "nsubj"} and tok.get("pos") in {"DET", "PRON"}:
+            hint = _SCOPE_HINTS.get(tok["lemma"].lower())
+            if hint:
+                return hint
+    return "specific"
+
+
+def _infer_origin(node_type: str, connector_rep) -> str:
+    """Un nœud condition sans connecteur explicite dans le texte est inféré."""
+    if node_type == "condition" and connector_rep is None:
+        return "inferred"
+    return "explicit"

@@ -3,7 +3,7 @@ import json
 import re
 import numpy as np
 
-from ..layer2.reference import _LinearLayer, _relu, _relu_grad
+from ..layer2.reference import _LinearLayer
 
 
 class SurfaceVocabulary:
@@ -11,10 +11,11 @@ class SurfaceVocabulary:
 
     PAD = "<pad>"
     UNK = "<unk>"
+    EOS = "<eos>"
 
     def __init__(self) -> None:
-        self._t2i: dict[str, int] = {self.PAD: 0, self.UNK: 1}
-        self._i2t: list[str] = [self.PAD, self.UNK]
+        self._t2i: dict[str, int] = {self.PAD: 0, self.UNK: 1, self.EOS: 2}
+        self._i2t: list[str] = [self.PAD, self.UNK, self.EOS]
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
@@ -50,9 +51,15 @@ class SurfaceVocabulary:
 
 class TrainableDecoder:
     """
-    Reference NumPy decoder — node embeddings (N, D_in) → surface token logits (|V|,).
+    Reference NumPy autoregressive decoder.
 
-    Architecture: mean-pool → fc(D_in → d_hidden) + ReLU → fc(d_hidden → |V|)
+    Architecture: h_0 = zeros(d_hidden); context = mean_pool(node_embs)
+    RNN step: h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
+    Output:   logit_t = W_out @ h_t + b_out
+
+    Stored as 2 _LinearLayer objects (4 params total):
+      layer0 : _LinearLayer(d_in + d_hidden, d_hidden)  — RNN cell
+      layer1 : _LinearLayer(d_hidden, |V|)               — output
 
     Implements VerbalizerDecoder (inference via decode()) AND the training interface:
     forward_decode / loss_decode / backward_decode / parameters / update.
@@ -67,12 +74,14 @@ class TrainableDecoder:
         d_hidden: int = 64,
         d_in: int | None = None,
         seed: int = 0,
+        max_decode_len: int = 20,
     ) -> None:
         self.vocab = vocab
         self.d_hidden = d_hidden
+        self.max_decode_len = max_decode_len
         self._rng = np.random.default_rng(seed)
         self._layers: list[_LinearLayer] | None = None
-        self._cache: list[tuple[np.ndarray, np.ndarray]] = []
+        self._rnn_step_cache: list[dict] = []  # per-step cache for BPTT
         self._last_d_in: int | None = None
         if d_in is not None:
             self._init_layers(d_in)
@@ -80,10 +89,21 @@ class TrainableDecoder:
     def _init_layers(self, d_in: int) -> None:
         if self._layers is None:
             self._layers = [
-                _LinearLayer(d_in, self.d_hidden, self._rng),
-                _LinearLayer(self.d_hidden, len(self.vocab), self._rng),
+                _LinearLayer(d_in + self.d_hidden, self.d_hidden, self._rng),  # RNN cell
+                _LinearLayer(self.d_hidden, len(self.vocab), self._rng),        # output
             ]
             self._last_d_in = d_in
+
+    def _rnn_step(
+        self, context: np.ndarray, h_prev: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """One RNN step. Returns (h_new, rnn_in, z1, logits)."""
+        assert self._layers is not None
+        rnn_in = np.concatenate([context, h_prev])          # (d_in + d_hidden,)
+        z1 = self._layers[0].forward(rnn_in)                 # (d_hidden,)
+        h_new = np.tanh(z1)
+        logits = self._layers[1].forward(h_new)              # (|V|,)
+        return h_new, rnn_in, z1, logits
 
     @staticmethod
     def _node_type_embeddings_from_ir(ir_json: str) -> np.ndarray:
@@ -101,67 +121,137 @@ class TrainableDecoder:
             embs.append(onehot)
         return np.stack(embs)  # (N, 7)
 
-    def forward_decode(self, node_embeddings: np.ndarray) -> np.ndarray:
-        """(N, D_in) → (|V|,) logits."""
+    def forward_decode(
+        self,
+        node_embeddings: np.ndarray,
+        gold_tokens: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """
+        (N, D_in) → (|V|,) logits in inference mode, or (T, |V|) in teacher-forcing mode.
+
+        Inference (gold_tokens=None): runs one RNN step, returns first-step logits (|V|,).
+        Training (gold_tokens provided): runs T steps with teacher forcing, returns (T, |V|).
+        """
         if len(node_embeddings) == 0:
             return np.zeros(len(self.vocab), dtype=np.float32)
         d_in = node_embeddings.shape[1]
         self._init_layers(d_in)
-        assert self._layers is not None
-        mean = node_embeddings.mean(axis=0)  # (D_in,)
-        self._cache = []
-        h = mean
-        for i, layer in enumerate(self._layers):
-            z = layer.forward(h)
-            if i < len(self._layers) - 1:
-                h = _relu(z)
-                self._cache.append((z, h))
-            else:
-                h = z
-                self._cache.append((z, z))
-        return h  # (|V|,)
+        context = node_embeddings.mean(axis=0).astype(np.float32)  # (d_in,)
+        h = np.zeros(self.d_hidden, dtype=np.float32)
+
+        if gold_tokens is None:
+            # Inference: single step
+            h_new, rnn_in, z1, logits = self._rnn_step(context, h)
+            self._rnn_step_cache = [{"rnn_in": rnn_in, "h1": h_new, "z1": z1}]
+            return logits  # (|V|,)
+        else:
+            # Teacher forcing: T steps
+            T = len(gold_tokens)
+            all_logits = np.zeros((T, len(self.vocab)), dtype=np.float32)
+            self._rnn_step_cache = []
+            for t in range(T):
+                h_new, rnn_in, z1, logits = self._rnn_step(context, h)
+                all_logits[t] = logits
+                self._rnn_step_cache.append({"rnn_in": rnn_in, "h1": h_new, "z1": z1})
+                h = h_new
+            return all_logits  # (T, |V|)
 
     def loss_decode(
         self, logits: np.ndarray, gold_tokens: np.ndarray
     ) -> tuple[float, np.ndarray]:
-        """Average cross-entropy over gold tokens. Returns (loss, d_logits)."""
+        """Cross-entropy loss. Handles 1D logits (|V|,) or 2D (T, |V|)."""
         if len(gold_tokens) == 0 or len(logits) == 0:
             return 0.0, np.zeros_like(logits)
-        V = len(logits)
-        e = np.exp(logits - logits.max())
-        probs = e / (e.sum() + 1e-9)
-        total_loss = 0.0
-        d_logits = np.zeros(V, dtype=np.float32)
-        valid = [int(t) for t in gold_tokens if 0 <= int(t) < V]
-        if not valid:
-            return 0.0, d_logits
-        for t in valid:
-            total_loss -= float(np.log(probs[t] + 1e-9))
-            d_t = probs.copy()
-            d_t[t] -= 1.0
-            d_logits += d_t
-        N = len(valid)
-        return total_loss / N, d_logits / N
+
+        if logits.ndim == 1:
+            # Single-step: average cross-entropy over gold tokens (backward compat)
+            V = len(logits)
+            e = np.exp(logits - logits.max())
+            probs = e / (e.sum() + 1e-9)
+            total_loss = 0.0
+            d_logits = np.zeros(V, dtype=np.float32)
+            valid = [int(t) for t in gold_tokens if 0 <= int(t) < V]
+            if not valid:
+                return 0.0, d_logits
+            for t in valid:
+                total_loss -= float(np.log(probs[t] + 1e-9))
+                d_t = probs.copy()
+                d_t[t] -= 1.0
+                d_logits += d_t
+            N = len(valid)
+            return total_loss / N, d_logits / N
+        else:
+            # Multi-step (T, |V|): per-step cross-entropy
+            T, V = logits.shape
+            total_loss = 0.0
+            d_logits = np.zeros_like(logits)
+            valid_steps = 0
+            for t in range(T):
+                tok = int(gold_tokens[t]) if t < len(gold_tokens) else -1
+                if tok < 0 or tok >= V:
+                    continue
+                e = np.exp(logits[t] - logits[t].max())
+                probs = e / (e.sum() + 1e-9)
+                total_loss -= float(np.log(probs[tok] + 1e-9))
+                d_t = probs.copy()
+                d_t[tok] -= 1.0
+                d_logits[t] = d_t
+                valid_steps += 1
+            if valid_steps == 0:
+                return 0.0, d_logits
+            return total_loss / valid_steps, d_logits / valid_steps
 
     def backward_decode(
         self, d_logits: np.ndarray
     ) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]]]:
-        """Backward through MLP. Returns (d_mean, param_grads).
+        """
+        Backward through RNN. Returns (d_mean, param_grads).
 
         d_mean has shape (D_in,) — gradient w.r.t. the mean-pooled node embedding.
-        Caller must divide by N and broadcast to each node when propagating upstream.
+        Handles 1D d_logits (|V|,) for single-step or 2D (T, |V|) for multi-step.
         """
         assert self._layers is not None, "backward_decode called before forward_decode"
-        grads: list[tuple[np.ndarray, np.ndarray]] = []
-        d = d_logits.copy()
-        for i in reversed(range(len(self._layers))):
-            z, _ = self._cache[i]
-            if i < len(self._layers) - 1:
-                d = d * _relu_grad(z)
-            dx, dW, db = self._layers[i].backward(d)
-            grads.insert(0, (dW, db))
-            d = dx
-        return d, grads  # d: (D_in,)
+        assert self._last_d_in is not None
+
+        dW0_total = np.zeros_like(self._layers[0].W)
+        db0_total = np.zeros_like(self._layers[0].b)
+        dW1_total = np.zeros_like(self._layers[1].W)
+        db1_total = np.zeros_like(self._layers[1].b)
+        d_mean_total = np.zeros(self._last_d_in, dtype=np.float32)
+
+        steps = self._rnn_step_cache
+        if d_logits.ndim == 1:
+            # Single step
+            step = steps[0]
+            self._layers[0]._cache["x"] = step["rnn_in"]
+            self._layers[1]._cache["x"] = step["h1"]
+            dx_h1, dW1, db1 = self._layers[1].backward(d_logits)
+            dW1_total += dW1; db1_total += db1
+            d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
+            dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
+            dW0_total += dW0; db0_total += db0
+            d_mean_total += dx_rnn[:self._last_d_in]
+            n_steps = 1
+        else:
+            # Multi-step BPTT
+            T = d_logits.shape[0]
+            n_steps = max(T, 1)
+            for t in range(T - 1, -1, -1):
+                step = steps[t]
+                self._layers[0]._cache["x"] = step["rnn_in"]
+                self._layers[1]._cache["x"] = step["h1"]
+                dx_h1, dW1, db1 = self._layers[1].backward(d_logits[t])
+                dW1_total += dW1; db1_total += db1
+                d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
+                dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
+                dW0_total += dW0; db0_total += db0
+                d_mean_total += dx_rnn[:self._last_d_in]
+
+        grads = [
+            (dW0_total / n_steps, db0_total / n_steps),
+            (dW1_total / n_steps, db1_total / n_steps),
+        ]
+        return d_mean_total / n_steps, grads
 
     def parameters(self) -> list[np.ndarray]:
         if self._layers is None:
@@ -180,17 +270,33 @@ class TrainableDecoder:
     # ── VerbalizerDecoder inference interface ─────────────────────────────────
 
     def decode(self, ir_json: str) -> str:
-        """CausalIR JSON → surface string (inference)."""
+        """CausalIR JSON → surface string (greedy decode)."""
         node_embs = self._node_type_embeddings_from_ir(ir_json)
-        logits = self.forward_decode(node_embs)
+        if self._layers is None:
+            logits = self.forward_decode(node_embs)
+        else:
+            # Greedy multi-step decode
+            context = node_embs.mean(axis=0).astype(np.float32)
+            h = np.zeros(self.d_hidden, dtype=np.float32)
+            eos_idx = self.vocab._t2i.get(SurfaceVocabulary.EOS, -1)
+            tokens: list[int] = []
+            for _ in range(self.max_decode_len):
+                h_new, _, _, logits = self._rnn_step(context, h)
+                token = int(np.argmax(logits))
+                if token == eos_idx:
+                    break
+                tokens.append(token)
+                h = h_new
+            filtered = [i for i in tokens if i >= 3][:5]  # skip PAD/UNK/EOS
+            return self.vocab.decode(filtered)
         top_indices = np.argsort(logits)[-10:][::-1]
-        filtered = [int(i) for i in top_indices if int(i) >= 2][:5]
+        filtered = [int(i) for i in top_indices if int(i) >= 3][:5]
         return self.vocab.decode(filtered)
 
     # ── Checkpoint serialization ──────────────────────────────────────────────
 
     def to_json(self) -> str:
-        d_in = self._layers[0].W.shape[1] if self._layers else None
+        d_in = self._last_d_in
         return json.dumps({
             "vocab": self.vocab.to_json(),
             "d_hidden": self.d_hidden,

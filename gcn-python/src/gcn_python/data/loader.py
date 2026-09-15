@@ -189,7 +189,9 @@ def _rep_from_clause(
     root_tok = (
         next((t for t in span_toks
               if t.gcn_causal_type == "verbe" and t.pos in {"VERB", "AUX"}), None)
-        or next((t for t in span_toks if t.pos in {"VERB", "AUX"}), span_toks[0])
+        or next((t for t in span_toks if t.pos in {"VERB", "AUX"}), None)
+        or next((t for t in span_toks if t.pos in {"NOUN", "PROPN"}), None)
+        or span_toks[0]
     )
 
     subject = next((t for t in span_toks if t.dep_rel in {"nsubj", "nsubj:pass"}), None)
@@ -210,3 +212,73 @@ def _rep_from_clause(
         token_span=clause.token_span,
         lang=lang,
     )
+
+
+def reps_from_raw_text(text: str, lang: str = "fr") -> tuple[list, list[int], list]:
+    """Texte brut → (reps, clause_positions, connector_reps) via spaCy.
+
+    Nécessite spaCy installé et le modèle approprié (fr_core_news_sm pour fr,
+    en_core_web_sm pour en). Lève ImportError si spaCy absent.
+    """
+    try:
+        import spacy
+    except ImportError as exc:
+        raise ImportError(
+            "spaCy requis pour reps_from_raw_text. "
+            "Installer avec : pip install spacy && python -m spacy download fr_core_news_sm"
+        ) from exc
+
+    model_name = "fr_core_news_sm" if lang == "fr" else "en_core_web_sm"
+    try:
+        nlp = spacy.load(model_name)
+    except OSError:
+        raise OSError(
+            f"Modèle spaCy '{model_name}' manquant. "
+            f"Installer avec : python -m spacy download {model_name}"
+        )
+
+    doc = nlp(text)
+    reps = []
+    clause_positions = []
+
+    for i, sent in enumerate(doc.sents):
+        tokens_data = []
+        root_tok_data = None
+        for token in sent:
+            tok_data = {
+                "lemma": token.lemma_,
+                "pos": token.pos_,
+                "dep_rel": token.dep_,
+                "morph": {str(k): str(v) for k, v in token.morph.to_dict().items()},
+            }
+            tokens_data.append(tok_data)
+            if token.dep_ == "ROOT":
+                root_tok_data = tok_data
+
+        if not tokens_data:
+            continue
+
+        if root_tok_data is None:
+            root_tok_data = tokens_data[0]
+
+        rep = UDRepresentation(
+            tokens=tokens_data,
+            root_lemma=root_tok_data["lemma"],
+            root_pos=root_tok_data["pos"],
+            root_dep_rel=root_tok_data["dep_rel"],
+            root_morph=root_tok_data["morph"],
+            subject_pos=next(
+                (t["pos"] for t in tokens_data if t["dep_rel"] in {"nsubj", "nsubj:pass"}),
+                None
+            ),
+            has_object=any(t["dep_rel"] in {"obj", "iobj", "nobj"} for t in tokens_data),
+            has_advcl=any(t["dep_rel"] == "advcl" for t in tokens_data),
+            has_temporal_obl=any(t["dep_rel"] in {"obl", "obl:tmod"} for t in tokens_data),
+            token_span=(sent.start, sent.end - 1),
+            lang=lang,
+        )
+        reps.append(rep)
+        clause_positions.append(i)
+
+    connector_reps = [None] * (len(reps) - 1)
+    return reps, clause_positions, connector_reps

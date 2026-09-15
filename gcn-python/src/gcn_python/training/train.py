@@ -30,6 +30,10 @@ from .checkpoint import save_checkpoint
               help="CSV des métriques par epoch (optionnel)")
 @click.option("--verbalize-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire contenant les paires verbalize JSON (optionnel, active l'entraînement conjoint)")
+@click.option("--decoder-only", is_flag=True, default=False,
+              help="Entraîne uniquement le décodeur (l'encodeur et le R-GCN sont gelés)")
+@click.option("--encoder-checkpoint", default=None, type=click.Path(path_type=Path),
+              help="Checkpoint à charger pour initialiser l'encodeur (utilisé avec --decoder-only)")
 def train_cmd(
     data_dir: Path,
     lang: str,
@@ -38,6 +42,8 @@ def train_cmd(
     output: Path,
     log_csv: Path | None,
     verbalize_dir: Path | None,
+    decoder_only: bool,
+    encoder_checkpoint: Path | None,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -60,6 +66,14 @@ def train_cmd(
 
     pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
                            decoder=decoder)
+
+    if encoder_checkpoint is not None:
+        from .checkpoint import load_checkpoint
+        load_checkpoint(pipeline, encoder_checkpoint)
+        click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
+
+    if decoder_only and decoder is None:
+        raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
     loader = GCNDataLoader(data_dir, lang=lang)
     if len(loader) == 0:
@@ -161,8 +175,9 @@ def train_cmd(
                     gold_surface=_gold_surface,
                 )
 
-                # Backward
-                pipeline.backward(d_node, d_edge, lr=lr)
+                # Backward (gelé si --decoder-only)
+                if not decoder_only:
+                    pipeline.backward(d_node, d_edge, lr=lr)
 
                 # Accumuler les prédictions pour les métriques de l'époque
                 node_pred_idxs = np.argmax(node_logits, axis=1)

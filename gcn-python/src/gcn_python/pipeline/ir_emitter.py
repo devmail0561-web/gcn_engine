@@ -10,12 +10,14 @@ def emit(
     scopes: list[str],
     edge_triples: list[tuple[int, int, str, float, bool, int | None]],
     node_origins: list[str] | None = None,
+    node_attributes: list[dict] | None = None,
 ) -> dict:
     """
     Produit un dict CausalIR conforme au schéma serde Rust de gcn-ir.
     JSON-serializable. Tous les noms en snake_case.
 
     edge_triples : (src_idx, dst_idx, relation, confidence, negated, marker_token)
+    node_attributes : list de dicts {entity, agent, patient, quality, agent_type, reversible}
     """
     if node_origins is None:
         node_origins = ["explicit"] * len(node_types)
@@ -24,6 +26,14 @@ def emit(
     for i, (nt, label, span, scope, origin) in enumerate(
         zip(node_types, node_labels, token_spans, scopes, node_origins)
     ):
+        attrs = node_attributes[i] if node_attributes and i < len(node_attributes) else {
+            "entity": None,
+            "quality": None,
+            "agent": None,
+            "patient": None,
+            "agent_type": None,
+            "reversible": None,
+        }
         nodes.append({
             "id": i,
             "node_type": nt,
@@ -34,14 +44,7 @@ def emit(
             "temporal_ref": "unresolved",
             "temporal_index": i,
             "origin": origin,
-            "attributes": {
-                "entity": None,
-                "quality": None,
-                "agent": None,
-                "patient": None,
-                "agent_type": None,
-                "reversible": None,
-            },
+            "attributes": attrs,
         })
 
     edges = []
