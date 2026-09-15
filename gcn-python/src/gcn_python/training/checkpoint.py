@@ -21,6 +21,13 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     vocab_json = pipeline.vocabulary.to_json()
     arrays["_vocab_json"] = np.array([vocab_json], dtype=object)
 
+    if pipeline.decoder is not None and hasattr(pipeline.decoder, 'parameters'):
+        decoder_params = pipeline.decoder.parameters()
+        for i, p in enumerate(decoder_params):
+            arrays[f"decoder_{i}"] = p
+        if hasattr(pipeline.decoder, 'to_json'):
+            arrays["_decoder_meta_json"] = np.array([pipeline.decoder.to_json()], dtype=object)
+
     np.savez(path, **arrays)
 
 
@@ -69,3 +76,18 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         key = f"graph_{i}"
         if key in data:
             p[:] = data[key]
+
+    if "_decoder_meta_json" in data:
+        from ..verbalizer.trainable import TrainableDecoder
+        decoder = TrainableDecoder.from_json(str(data["_decoder_meta_json"][0]))
+        decoder_params = decoder.parameters()
+        for i, p in enumerate(decoder_params):
+            key = f"decoder_{i}"
+            if key in data:
+                if data[key].shape != p.shape:
+                    raise ValueError(
+                        f"Incompatibilité de dimension pour decoder_{i} : "
+                        f"checkpoint={data[key].shape} ≠ decoder={p.shape}."
+                    )
+                p[:] = data[key]
+        pipeline.decoder = decoder

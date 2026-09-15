@@ -7,6 +7,43 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Ajouté
+
+**Intégration du verbalizer dans la boucle d'entraînement conjointe**
+
+- **`verbalizer/trainable.py`** — `SurfaceVocabulary` + `TrainableDecoder` (NumPy référence, remplaçable via Protocol)
+  - `SurfaceVocabulary` : vocabulaire word-level build/encode/decode/to_json/from_json
+  - `TrainableDecoder.forward_decode(node_embeddings)` : mean-pool R-GCN `(N, D_in)` → MLP 2 couches → `(|V|,)` logits
+  - `TrainableDecoder.loss_decode(logits, gold_tokens)` : cross-entropie sur les tokens gold
+  - `TrainableDecoder.backward_decode(d_logits)` : gradient vers embeddings nœuds + poids MLP
+  - `TrainableDecoder.decode(ir_json)` : interface inférence `VerbalizerDecoder` (node_type one-hot → surface)
+  - Sérialisation `to_json / from_json` avec `d_in` pour restauration depuis checkpoint
+
+- **`data/verbalize_loader.py`** — `VerbalizerDataLoader` + `VerbalizeSample`
+  - Lit les fichiers `verbalize_*.json` uniquement — `gcn-verbalize.schema.yaml` est documentation annotateurs, jamais lu par le moteur
+  - Construit le `SurfaceVocabulary` depuis les surfaces gold/silver en une passe
+  - Supporte les exemples cross-modal : un CausalIR → N surfaces = N `VerbalizeSample`
+  - `source_text_map()` pour l'appariement avec le dataset encodeur (joint training)
+
+- **`pipeline/cgnp.py`** — `CGNPipeline` étendu avec `decoder` optionnel
+  - `decoder=None` keyword-only — rétro-compatible, comportement encodeur inchangé sans decoder
+  - `forward()` : appelle `decoder.forward_decode(enriched_vecs)` après le R-GCN si decoder présent
+  - `loss(gold_surface=None)` : ajoute la loss décodeur au total si `gold_surface` fourni ; cache `_cached_decode_gradient`
+  - `backward()` : propage `d_mean` du décodeur vers `d_enriched` (mean-pool backward) avant le R-GCN backward ; met à jour les poids du décodeur
+
+- **`training/checkpoint.py`** — persistence des poids décodeur
+  - `save_checkpoint` : sérialise `decoder_<i>` + `_decoder_meta_json` si decoder présent
+  - `load_checkpoint` : restaure le `TrainableDecoder` depuis le checkpoint si clés `decoder_*` présentes ; anciens checkpoints sans décodeur chargent sans erreur
+
+- **`training/train.py`** — `--verbalize-dir` optionnel
+  - Joint training : lookup `verb_source_map` par `source_text` → passe `gold_surface` à `pipeline.loss()`
+  - Entraînement standalone décodeur : boucle sur les paires verbalize après la boucle encodeur
+
+### Tests
+- `tests/test_trainable_decoder.py` — 13 nouveaux tests : vocab build/encode/decode/roundtrip, forward shape, loss finie, backward gradient non-nul, update change poids, checkpoint roundtrip, intégration `CGNPipeline` avec decoder, pipeline sans decoder inchangé
+- `tests/test_verbalize_loader.py` — 8 nouveaux tests : 10 samples depuis 5 exemples cross-modal, one-hot correct, source_text_map, vocab externe respecté, zéro YAML ouvert (test explicite)
+- **112 / 112 tests Python passent** (`pytest gcn-python/tests/`)
+
 ### Corrigé
 
 **Correctifs architecturaux (43a20f1)**

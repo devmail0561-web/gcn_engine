@@ -20,7 +20,7 @@ Phase 8  ████████████████████   95%  Mis
 ```
 
 **Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
-**Tests Python : 89 / 89 passent** (`pytest gcn-python/tests/`)
+**Tests Python : 112 / 112 passent** (`pytest gcn-python/tests/`)
 
 ---
 
@@ -194,24 +194,39 @@ Phase 8  ████████████████████   95%  Mis
 
 ## Phase 5 — Décodeur ✅
 
-**Objectif :** décodeur de l'architecture encodeur-décodeur GCN. Entraîné sur les mêmes données que l'encodeur. Évalué symétriquement.
+**Objectif :** décodeur de l'architecture encodeur-décodeur GCN. Entraîné conjointement avec l'encodeur sur les mêmes paires `(texte, CausalIR)`. Évalué symétriquement.
 
 | Composant | Fichier | Statut |
 |---|---|---|
 | Crate `gcn-verbalizer` (pont Rust) | `gcn-verbalizer/src/lib.rs` | ✅ |
-| Décodeur référence NumPy | `gcn-python/verbalizer/decoder.py` | ✅ |
-| Interface Protocol | `gcn-python/verbalizer/interface.py` | ✅ |
+| `ReferenceDecoder` (linéarisation structurelle, CLI) | `gcn-python/verbalizer/decoder.py` | ✅ |
+| `TrainableDecoder` (NumPy, entraînable, remplaçable) | `gcn-python/verbalizer/trainable.py` | ✅ |
+| `SurfaceVocabulary` | `gcn-python/verbalizer/trainable.py` | ✅ |
+| Interface Protocol `VerbalizerDecoder` | `gcn-python/verbalizer/interface.py` | ✅ |
 | CLI `gcn-verbalize` (Python, comme gcn-forward) | `gcn-python/verbalizer/cli.py` | ✅ |
+| `VerbalizerDataLoader` + `VerbalizeSample` | `gcn-python/data/verbalize_loader.py` | ✅ |
+| `CGNPipeline` étendu (decoder optionnel) | `gcn-python/pipeline/cgnp.py` | ✅ |
+| Checkpoint decoder (save/load) | `gcn-python/training/checkpoint.py` | ✅ |
+| `gcn-train --verbalize-dir` (entraînement conjoint) | `gcn-python/training/train.py` | ✅ |
 | Schéma dataset verbalization | `gcn-datasets/schemas/gcn-verbalize.schema.yaml` | ✅ |
-| Exemples cross-modal (fr+python même CausalIR) | `gcn-datasets/examples/verbalize_cross_modal.yaml` | ✅ |
+| Exemples cross-modal (fr+python même CausalIR) | `gcn-datasets/examples/verbalize_cross_modal.json` | ✅ |
 | Métriques décodeur (fidelity, consistency, roundtrip, bleu) | `gcn-python/evaluation/metrics.py` | ✅ |
+
+**Architecture d'entraînement conjoint :**
+- `forward()` appelle `decoder.forward_decode(enriched_vecs)` après le R-GCN → `_cached_decode_logits`
+- `loss(gold_surface=...)` ajoute la loss décodeur au total → `_cached_decode_gradient`
+- `backward()` propage `d_mean` du décodeur vers `d_enriched` avant le R-GCN backward (gradient couplé)
+- `gcn-train --verbalize-dir` : joint training via `source_text_map` + boucle standalone sur paires verbalize
 
 **Critère de vérification :**
 - `Verbalizer::decode(ir)` retourne une surface non vide pour tout CausalIR valide
 - La sortie dépend de l'entraînement, aucun type de sortie présupposé par l'architecture
+- `gcn-train --verbalize-dir gcn-datasets/examples/ --data-dir gcn-datasets/examples/ --epochs 2` — sans erreur, checkpoint contient `decoder_*`
 - `roundtrip_similarity` ≥ 0.7 sur exemples gold du dataset
 - `cross_modal_consistency` ≥ 0.7 entre surfaces fr et python du même CausalIR
 - `cargo test --workspace` passe, `cargo clippy -- -D warnings` propre
+
+**Tests (21/21) :** 13 tests `test_trainable_decoder.py` + 8 tests `test_verbalize_loader.py`
 
 ---
 

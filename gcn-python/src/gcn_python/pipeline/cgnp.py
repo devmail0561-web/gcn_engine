@@ -22,6 +22,10 @@ class CGNPipeline:
 
     Précondition à la construction : si graph expose d_out, il doit être égal à
     vocabulary.d_clause — vérifié immédiatement, ValueError sinon.
+
+    decoder (optionnel) : TrainableDecoder ou tout objet implémentant
+    forward_decode / loss_decode / backward_decode / update. Si None, le pipeline
+    se comporte exactement comme avant (rétro-compatible).
     """
 
     def __init__(
@@ -30,6 +34,8 @@ class CGNPipeline:
         graph: CausalGraph,
         lang: str,
         vocabulary: FeatureVocabulary,
+        *,
+        decoder=None,
     ):
         if hasattr(graph, 'd_out') and graph.d_out != vocabulary.d_clause:
             raise ValueError(
@@ -42,6 +48,7 @@ class CGNPipeline:
         self.graph = graph
         self.lang = lang
         self.vocabulary = vocabulary
+        self.decoder = decoder
 
         # Cache rempli par forward() — utilisé par loss() et backward()
         self._cached_clause_vecs: np.ndarray | None = None
@@ -55,6 +62,9 @@ class CGNPipeline:
         # forward_node au backward (pas de re-run, pas de fragilitié de cache)
         self._cached_node_snapshots: list | None = None
         self._cached_edge_snapshots: list | None = None
+        # Cache décodeur — rempli par forward() si decoder présent
+        self._cached_decode_logits: np.ndarray | None = None
+        self._cached_decode_gradient: np.ndarray | None = None
 
     def forward(
         self,
@@ -98,6 +108,8 @@ class CGNPipeline:
         self._cached_edge_type_idxs = None
         self._cached_node_snapshots = None
         self._cached_edge_snapshots = None
+        self._cached_decode_logits = None
+        self._cached_decode_gradient = None
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
         if not reps:
@@ -189,6 +201,14 @@ class CGNPipeline:
         token_spans = [r.token_span for r in reps]
         scopes = ["specific"] * len(reps)
 
+        # Décodeur (optionnel) — utilise les embeddings R-GCN enrichis si disponibles
+        if self.decoder is not None:
+            _vecs = (self._cached_enriched_vecs
+                     if self._cached_enriched_vecs is not None
+                     else self._cached_clause_vecs)
+            if _vecs is not None and len(_vecs) > 0:
+                self._cached_decode_logits = self.decoder.forward_decode(_vecs)
+
         return emit(text, self.lang, node_types, node_labels, token_spans,
                     scopes, edge_triples)
 
@@ -213,13 +233,16 @@ class CGNPipeline:
         gold_node: np.ndarray,      # (N,) int — indices dans NODE_TYPES
         gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
         edge_loss_weight: float = 1.0,  # pondération relative edge_loss / node_loss
+        gold_surface: np.ndarray | None = None,  # (T,) int — tokens gold pour le décodeur
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
-        Cross-entropie NumPy sur nœuds + arêtes.
+        Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
 
         Retourne (total_loss, d_node_logits, d_edge_logits).
         Gradients normalisés par le nombre d'exemples.
         edge_loss_weight permet d'équilibrer la contribution des arêtes dans la loss totale.
+        Si gold_surface est fourni et que le décodeur a produit des logits (forward()),
+        la loss décodeur est ajoutée au total et son gradient est caché pour backward().
         """
         if len(node_logits) != len(gold_node):
             raise ValueError(
@@ -237,7 +260,19 @@ class CGNPipeline:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
 
-        return node_loss + edge_loss_weight * edge_loss, d_node, d_edge
+        total_loss = node_loss + edge_loss_weight * edge_loss
+
+        # Decoder loss (optionnel — uniquement si gold_surface fourni et decoder actif)
+        self._cached_decode_gradient = None
+        if (self.decoder is not None
+                and gold_surface is not None
+                and self._cached_decode_logits is not None
+                and len(gold_surface) > 0):
+            dec_loss, d_dec = self.decoder.loss_decode(self._cached_decode_logits, gold_surface)
+            total_loss += dec_loss
+            self._cached_decode_gradient = d_dec
+
+        return total_loss, d_node, d_edge
 
     def backward(
         self,
@@ -322,6 +357,18 @@ class CGNPipeline:
             self.encoder.update_node(all_node_grads, lr)
         if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
             self.encoder.update_edge(all_edge_grads, lr)
+
+        # --- Gradient décodeur → R-GCN (joint training) ---
+        if (self.decoder is not None
+                and self._cached_decode_gradient is not None
+                and hasattr(self.decoder, 'backward_decode')):
+            d_mean, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
+            self.decoder.update(dec_grads, lr)
+            # Propager d_mean vers d_enriched si les dimensions correspondent
+            if (d_mean.shape[0] == d_enriched.shape[1]
+                    and self._cached_enriched_vecs is not None):
+                N_dec = len(self._cached_enriched_vecs)
+                d_enriched[:min(n, N_dec)] += d_mean[np.newaxis, :] / max(N_dec, 1)
 
         # --- Rétropropagation R-GCN ---
         if (self._cached_edge_index is not None

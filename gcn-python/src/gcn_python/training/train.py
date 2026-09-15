@@ -20,7 +20,7 @@ from .checkpoint import save_checkpoint
 
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
-              help="Répertoire contenant les fichiers YAML d'entraînement")
+              help="Répertoire contenant les fichiers JSON d'entraînement")
 @click.option("--lang", default="fr", show_default=True)
 @click.option("--epochs", default=50, show_default=True, type=int)
 @click.option("--lr", default=0.001, show_default=True, type=float)
@@ -28,6 +28,8 @@ from .checkpoint import save_checkpoint
               type=click.Path(path_type=Path), help="Chemin du checkpoint de sortie")
 @click.option("--log-csv", default=None, type=click.Path(path_type=Path),
               help="CSV des métriques par epoch (optionnel)")
+@click.option("--verbalize-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire contenant les paires verbalize JSON (optionnel, active l'entraînement conjoint)")
 def train_cmd(
     data_dir: Path,
     lang: str,
@@ -35,12 +37,29 @@ def train_cmd(
     lr: float,
     output: Path,
     log_csv: Path | None,
+    verbalize_dir: Path | None,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
+    from ..data.verbalize_loader import VerbalizerDataLoader
+    from ..verbalizer.trainable import TrainableDecoder
+
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
+
+    verb_loader: VerbalizerDataLoader | None = None
+    verb_source_map: dict[str, list] = {}
+    decoder: TrainableDecoder | None = None
+    if verbalize_dir is not None:
+        verb_loader = VerbalizerDataLoader(verbalize_dir)
+        if len(verb_loader) == 0:
+            raise click.ClickException(f"Aucune paire verbalize dans {verbalize_dir}")
+        decoder = TrainableDecoder(verb_loader.vocab)
+        verb_source_map = verb_loader.source_text_map()
+        click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
+
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
+                           decoder=decoder)
 
     loader = GCNDataLoader(data_dir, lang=lang)
     if len(loader) == 0:
@@ -130,8 +149,16 @@ def train_cmd(
                     gold_edge = None
                     edge_logits_arg = None
 
+                # Joint training : chercher une surface gold pour ce sample
+                _gold_surface = None
+                if verb_source_map:
+                    _surfaces = verb_source_map.get(sample.sentence.text, [])
+                    if _surfaces:
+                        _gold_surface = _surfaces[0]
+
                 loss_val, d_node, d_edge = pipeline.loss(
-                    node_logits, edge_logits_arg, gold_node, gold_edge
+                    node_logits, edge_logits_arg, gold_node, gold_edge,
+                    gold_surface=_gold_surface,
                 )
 
                 # Backward
@@ -155,6 +182,20 @@ def train_cmd(
 
                 epoch_loss += loss_val
                 n_samples += 1
+
+            # Entraînement standalone du décodeur sur les paires verbalize
+            if verb_loader is not None and pipeline.decoder is not None:
+                for vsample in verb_loader:
+                    if len(vsample.gold_tokens) == 0:
+                        continue
+                    dec_logits = pipeline.decoder.forward_decode(vsample.node_type_embeddings)
+                    dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, vsample.gold_tokens)
+                    if not np.isfinite(dec_loss):
+                        continue
+                    _, dec_grads = pipeline.decoder.backward_decode(d_dec)
+                    pipeline.decoder.update(dec_grads, lr)
+                    epoch_loss += dec_loss
+                    n_samples += 1
 
             avg_loss = epoch_loss / max(n_samples, 1)
             metrics = {
