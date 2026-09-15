@@ -9,6 +9,37 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.6] — 2026-09-15
+
+### Corrigé
+- **C1 — Crash sur node_type/relation inconnu** (`data/loader.py`) — `_to_sample()` appelée depuis `__iter__()` levait `ValueError` hors du `try/except` de `train.py`, tuant l'intégralité de la boucle d'entraînement. Corrigé : `__iter__` enveloppe chaque `yield` dans un `try/except ValueError` et émet un `UserWarning`.
+- **M1 — Arêtes backward inversent la sémantique** (`data/loader.py`, `training/train.py`) — l'injection de la direction inverse `edge_map[(tgt, src)] = rel_idx` supervisait le modèle à prédire `cause(A→B)` quand le gold disait `cause(B→A)`. Corrigé : injection supprimée ; `train.py` utilise désormais un lookup strict `edge_map.get(p, -1)` ; les arêtes backward émettent un `UserWarning`.
+- **M3 — Poids chargés avant vocabulaire** (`training/checkpoint.py`) — `load_checkpoint` restaurait les poids encoder/graph avant le vocabulaire ; si la taxonomie avait changé, `p[:] = data[key]` crashait ou corrompait silencieusement. Corrigé : vocabulaire rechargé en premier, puis validation des formes avant chaque `p[:] = data[key]`.
+- **M4 — Features de position erronées pour clauses non-contiguës** (`pipeline/cgnp.py`, `training/train.py`) — quand des clauses étaient exclues (span vide), `vectorize_edge` recevait des indices dans la liste filtrée au lieu des positions originales. Corrigé : `forward()` accepte `clause_positions` et `n_total_clauses` ; `train.py` passe `valid_clause_idxs` et `len(sentence.clauses)`.
+- **m2 — node_id manquant dans une arête silencieusement ignoré** (`data/loader.py`) — arête ignorée sans aucune trace. Corrigé : `UserWarning` émis.
+- **m3 — Arêtes longue distance insérées dans `edge_map`** (`data/loader.py`) — entrées jamais consommées. Corrigé : `continue` après le warning, pas d'insertion.
+- **m4 — Span inversée produit une clause vide silencieuse** (`data/loader.py`) — span `(start > end)` retournait silencieusement `None`. Corrigé : `UserWarning` émis.
+- **m6 — `except Exception: continue` muet** (`training/train.py`) — les erreurs de forward étaient absorbées sans log. Corrigé : `warnings.warn` avec type et message de l'exception.
+
+### Ajouté
+- **M2 — Connecteur causal extrait et vectorisé** (`data/loader.py`, `pipeline/cgnp.py`) — `reps_from_sentence()` retourne maintenant un triplet `(reps, valid_indices, connector_reps)` ; le token connecteur (SCONJ/CCONJ/ADP ou `gcn_causal_type: "conjonction"`) entre deux spans consécutives est extrait via `_connector_between()` et passé à `vectorize_edge`. Le slot `d_conn` du vecteur d'arête est désormais actif.
+- **m1 — Warnings sur champs JSON absents** (`data/json_reader.py`) — `UserWarning` si `type` ou `relation` absents d'un nœud/arête (défauts `"action"`/`"cause"` conservés).
+- **m5 — Garde label hors-bornes dans `_cross_entropy`** (`pipeline/cgnp.py`) — lève `ValueError` explicite si `labels.max() >= n_classes`.
+- **m7 — Pondération configurable `edge_loss_weight`** (`pipeline/cgnp.py`) — paramètre `edge_loss_weight: float = 1.0` dans `loss()` pour équilibrer la contribution des arêtes.
+
+### Tests
+- `test_invalid_node_type_warns_not_crashes` : C1 — node_type invalide → warning, pas crash
+- `test_backward_edge_not_supervised` : M1 — arête backward → `edge_map` direction naturelle, lookup strict retourne -1
+- `test_checkpoint_dimension_mismatch_raises` : M3 — `ValueError` sur dimensions incompatibles
+- `test_forward_connector_slot_nonzero` : M2 — slot UPOS du connecteur non-nul quand connecteur fourni
+- `test_forward_position_features_noncontiguous` : M4 — features de distance corrigées pour clauses exclues
+- `test_rgcn_gradient_finite_differences` : vérification numérique `dW_r` / `dW_0` par différences finies (`eps=1e-4`)
+- `test_edge_map_alignment` mis à jour : arêtes longue distance absentes de `edge_map`
+- `test_reps_from_sentence_alignment` mis à jour : dépaquetage triplet `(reps, indices, connectors)`
+- **85 / 85 tests Python passent**
+
+---
+
 ## [0.9.5] — 2026-09-15
 
 ### Corrigé

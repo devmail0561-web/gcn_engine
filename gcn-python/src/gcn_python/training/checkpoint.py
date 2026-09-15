@@ -28,17 +28,31 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     """Restaure les poids depuis un fichier .npz produit par save_checkpoint."""
     data = np.load(path, allow_pickle=True)
 
+    # 1. Vocabulaire d'abord — les dimensions des poids en dépendent
+    if "_vocab_json" in data:
+        pipeline.vocabulary = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
+
+    # 2. Validation des formes + chargement poids encodeur
     encoder_params = pipeline.encoder.parameters()
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"
         if key in data:
+            if data[key].shape != p.shape:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour encoder_{i} : "
+                    f"checkpoint={data[key].shape} ≠ pipeline={p.shape}. "
+                    f"Reconstruisez le pipeline avec la même taxonomie que le checkpoint."
+                )
             p[:] = data[key]
 
+    # 3. Validation des formes + chargement poids graph
     graph_params = pipeline.graph.parameters()
     for i, p in enumerate(graph_params):
         key = f"graph_{i}"
         if key in data:
+            if data[key].shape != p.shape:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour graph_{i} : "
+                    f"checkpoint={data[key].shape} ≠ pipeline={p.shape}."
+                )
             p[:] = data[key]
-
-    if "_vocab_json" in data:
-        pipeline.vocabulary = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))

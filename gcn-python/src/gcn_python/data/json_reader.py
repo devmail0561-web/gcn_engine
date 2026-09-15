@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import json
+import warnings
 from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
 
 
@@ -82,9 +83,16 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
     for f in ("entity", "quality", "agent", "patient", "agent_type", "temporal_index", "scope"):
         if f in n and f not in attrs:
             attrs[f] = n[f]
+    node_type = n.get("type") or ""
+    if not node_type:
+        warnings.warn(
+            f"Nœud {n.get('id', '?')} sans champ 'type' — défaut 'action' appliqué.",
+            UserWarning, stacklevel=3,
+        )
+        node_type = "action"
     return ClauseRecord(
         node_id=n.get("id", ""),
-        node_type=n.get("type", "action"),
+        node_type=node_type,
         label=n.get("label", ""),
         token_span=(span[0], span[1]) if len(span) >= 2 else (0, 0),
         scope=n.get("scope", attrs.get("scope", "specific")),
@@ -97,10 +105,18 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
 
 def _parse_edge(e: dict) -> EdgeRecord:
     attrs = e.get("attributes") or {}
+    relation = e.get("relation") or ""
+    if not relation:
+        warnings.warn(
+            f"Arête {e.get('source', '?')}→{e.get('target', '?')} sans champ 'relation' "
+            f"— défaut 'cause' appliqué.",
+            UserWarning, stacklevel=3,
+        )
+        relation = "cause"
     return EdgeRecord(
         source=e.get("source", ""),
         target=e.get("target", ""),
-        relation=e.get("relation", "cause"),
+        relation=relation,
         confidence=float(attrs.get("confidence", e.get("confidence", 1.0))),
         explicit=bool(attrs.get("explicit", e.get("explicit", True))),
         negated=bool(attrs.get("negated", e.get("negated", False))),

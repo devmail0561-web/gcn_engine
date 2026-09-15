@@ -260,10 +260,8 @@ def test_edge_map_alignment():
         sample = loader._to_sample(rec)
     assert any(issubclass(x.category, UserWarning) and "longue distance" in str(x.message) for x in w)
 
-    # n001=idx 0, n003=idx 2 → (0, 2) enregistré tel quel
-    assert (0, 2) in sample.edge_map
-    assert sample.edge_map[(0, 2)] == RELATION_TYPES.index("cause")
-    # Pas de reverse pour une arête longue distance (gap > 1)
+    # Arête longue distance non insérée dans edge_map (m3)
+    assert (0, 2) not in sample.edge_map
     assert (2, 0) not in sample.edge_map
     # Les paires consécutives (0,1) et (1,2) restent sans gold label
     assert (0, 1) not in sample.edge_map
@@ -295,7 +293,7 @@ def test_reps_from_sentence_alignment():
     rec = SentenceRecord(id="s1", text="test", lang="fr", tokens=tokens,
                          clauses=clauses, edges=[])
 
-    reps, valid_indices = reps_from_sentence(rec)
+    reps, valid_indices, _ = reps_from_sentence(rec)
 
     # La clause n001 a un span vide → filtrée
     assert len(reps) == 2
@@ -315,3 +313,89 @@ def test_reps_from_sentence_alignment():
     assert gold_aligned[0] == NODE_TYPES.index("etat")
     assert gold_aligned[1] == NODE_TYPES.index("processus")
     assert len(gold_aligned) == len(reps)
+
+
+# ---------------------------------------------------------------------------
+# Nouveaux tests — audit corrections
+# ---------------------------------------------------------------------------
+
+def test_invalid_node_type_warns_not_crashes():
+    """C1 : node_type invalide émet un warning et ne crashe pas l'itération."""
+    import warnings
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
+
+    clauses = [
+        ClauseRecord(node_id="n001", node_type="evenement", label="A",
+                     token_span=(1, 1), scope="specific", temporal_index=0, origin="explicit"),
+    ]
+    rec = SentenceRecord(id="s_bad", text="test", lang="fr", tokens=[], clauses=clauses, edges=[])
+
+    loader = GCNDataLoader.__new__(GCNDataLoader)
+    loader._records = [rec]
+    loader.repeat = False
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        samples = list(loader)
+
+    assert len(samples) == 0
+    assert any(issubclass(x.category, UserWarning) and "s_bad" in str(x.message) for x in w)
+
+
+def test_backward_edge_not_supervised():
+    """M1 : arête gold backward (src > tgt) non supervisée — lookup strict retourne -1."""
+    import warnings
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
+    from gcn_python.constants import RELATION_TYPES
+
+    clauses = [
+        ClauseRecord(node_id="n001", node_type="etat", label="A",
+                     token_span=(1, 2), scope="specific", temporal_index=0, origin="explicit"),
+        ClauseRecord(node_id="n002", node_type="action", label="B",
+                     token_span=(4, 5), scope="specific", temporal_index=1, origin="explicit"),
+    ]
+    # Gold : n002 → n001 (direction inverse, src_idx=1 > tgt_idx=0)
+    edges = [
+        EdgeRecord(source="n002", target="n001", relation="cause",
+                   confidence=1.0, explicit=True, negated=False, marker_token=None),
+    ]
+    rec = SentenceRecord(id="s_bwd", text="test", lang="fr", tokens=[], clauses=clauses, edges=edges)
+    loader = GCNDataLoader.__new__(GCNDataLoader)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        sample = loader._to_sample(rec)
+
+    # L'arête est stockée dans sa direction naturelle (1, 0)
+    assert (1, 0) in sample.edge_map
+    assert sample.edge_map[(1, 0)] == RELATION_TYPES.index("cause")
+    # Pas de direction inverse injectée
+    assert (0, 1) not in sample.edge_map
+    # Un warning signale l'arête non-supervisable
+    assert any(issubclass(x.category, UserWarning) and "direction inverse" in str(x.message) for x in w)
+
+    # Lookup strict : la paire forward (0, 1) donne -1
+    assert sample.edge_map.get((0, 1), -1) == -1
+
+
+def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipeline):
+    """M3 : load_checkpoint avec poids de forme incompatible lève ValueError."""
+    import pytest
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.layer1.features import FeatureVocabulary
+
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    # Pipeline avec des dimensions différentes (d_clause artificiel)
+    vocab2 = FeatureVocabulary(taxonomy_keys=["extra_key_a", "extra_key_b", "extra_key_c"])
+    enc2 = MLPEncoder(d_clause=vocab2.d_clause, d_edge=vocab2.d_edge, seed=1)
+    gr2 = RGCNLayer(d_in=vocab2.d_clause, d_out=vocab2.d_clause, seed=1)
+    p2 = CGNPipeline(enc2, gr2, pipeline.taxonomy_dir, pipeline.lang, vocab2)
+
+    with pytest.raises(ValueError, match="Incompatibilité"):
+        load_checkpoint(p2, ckpt)

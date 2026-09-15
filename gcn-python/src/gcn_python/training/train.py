@@ -1,6 +1,7 @@
 from __future__ import annotations
 import csv
 import json
+import warnings
 from pathlib import Path
 
 import click
@@ -79,11 +80,21 @@ def train_cmd(
                     continue
 
                 try:
-                    reps, valid_clause_idxs = reps_from_sentence(sample.sentence)
+                    reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
                     if not reps:
                         continue
-                    pipeline.forward(reps, sample.sentence.text)
-                except Exception:
+                    pipeline.forward(
+                        reps, sample.sentence.text,
+                        clause_positions=valid_clause_idxs,
+                        n_total_clauses=len(sample.sentence.clauses),
+                        connector_reps=connector_reps,
+                    )
+                except Exception as exc:
+                    warnings.warn(
+                        f"[{sample.sentence.id}] forward ignoré : "
+                        f"{type(exc).__name__}: {exc}",
+                        UserWarning, stacklevel=2,
+                    )
                     continue
 
                 node_logits = pipeline._cached_node_logits
@@ -107,8 +118,7 @@ def train_cmd(
                         for k in range(len(valid_clause_idxs) - 1)
                     ]
                     gold_edge_full = np.array(
-                        [sample.edge_map.get(p, sample.edge_map.get((p[1], p[0]), -1))
-                         for p in pairs], dtype=np.int64
+                        [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
                     )
                     valid_edge_mask = gold_edge_full >= 0
                     if valid_edge_mask.any():

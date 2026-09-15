@@ -52,11 +52,31 @@ class CGNPipeline:
         self._cached_node_snapshots: list | None = None
         self._cached_edge_snapshots: list | None = None
 
-    def forward(self, reps: list, text: str = "") -> dict:
-        """UDRepresentation list → CausalIR dict (JSON-serializable, conforme schéma serde Rust)."""
-        return self._forward_from_reps(reps, text)
+    def forward(
+        self,
+        reps: list,
+        text: str = "",
+        clause_positions: list[int] | None = None,
+        n_total_clauses: int | None = None,
+        connector_reps: list | None = None,
+    ) -> dict:
+        """UDRepresentation list → CausalIR dict (JSON-serializable, conforme schéma serde Rust).
 
-    def _forward_from_reps(self, reps: list, text: str) -> dict:
+        clause_positions : indices originaux des reps dans la phrase complète — utilisés
+          pour calculer les features de position dans vectorize_edge.
+        n_total_clauses : nombre total de clauses dans la phrase (dénominateur de la distance).
+        connector_reps : UDRepresentation|None par paire consécutive (len = len(reps)-1).
+        """
+        return self._forward_from_reps(reps, text, clause_positions, n_total_clauses, connector_reps)
+
+    def _forward_from_reps(
+        self,
+        reps: list,
+        text: str,
+        clause_positions: list[int] | None = None,
+        n_total_clauses: int | None = None,
+        connector_reps: list | None = None,
+    ) -> dict:
 
         # Réinitialiser le cache
         self._cached_clause_vecs = None
@@ -96,11 +116,16 @@ class CGNPipeline:
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
         if len(reps) >= 2:
+            real_n = n_total_clauses if n_total_clauses else len(reps)
             for src_i in range(len(reps) - 1):
                 dst_i = src_i + 1
+                real_src = clause_positions[src_i] if clause_positions else src_i
+                real_dst = clause_positions[dst_i] if clause_positions else dst_i
+                connector = (connector_reps[src_i]
+                             if connector_reps and src_i < len(connector_reps) else None)
                 edge_vec = vectorize_edge(
-                    reps[src_i], reps[dst_i], None,
-                    src_i, dst_i, len(reps),
+                    reps[src_i], reps[dst_i], connector,
+                    real_src, real_dst, real_n,
                     self.vocabulary, self._tax,
                 )
                 edge_vecs.append(edge_vec)
@@ -186,12 +211,14 @@ class CGNPipeline:
         edge_logits: np.ndarray | None,  # (E, 11) — logits arêtes du forward, ou None
         gold_node: np.ndarray,      # (N,) int — indices dans NODE_TYPES
         gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
+        edge_loss_weight: float = 1.0,  # pondération relative edge_loss / node_loss
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes.
 
         Retourne (total_loss, d_node_logits, d_edge_logits).
         Gradients normalisés par le nombre d'exemples.
+        edge_loss_weight permet d'équilibrer la contribution des arêtes dans la loss totale.
         """
         if len(node_logits) != len(gold_node):
             raise ValueError(
@@ -209,7 +236,7 @@ class CGNPipeline:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
 
-        return node_loss + edge_loss, d_node, d_edge
+        return node_loss + edge_loss_weight * edge_loss, d_node, d_edge
 
     def backward(
         self,
@@ -330,6 +357,11 @@ def _cross_entropy(
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N."""
     if len(logits) == 0:
         return 0.0, np.zeros_like(logits)
+    if len(labels) > 0 and int(labels.max()) >= logits.shape[1]:
+        raise ValueError(
+            f"Label hors-bornes dans _cross_entropy : "
+            f"max={labels.max()} >= n_classes={logits.shape[1]}"
+        )
     N = len(logits)
     probs = _softmax(logits)                               # (N, C)
     loss = float(-np.log(probs[np.arange(N), labels] + 1e-9).mean())

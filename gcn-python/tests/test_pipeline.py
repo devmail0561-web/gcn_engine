@@ -74,3 +74,55 @@ def test_forward_two_reps(taxonomy_dir):
     result = pipeline.forward([rep1, rep2], "Les ventes baissent puis on réduit.")
     assert len(result["nodes"]) == 2
     assert len(result["edges"]) >= 1
+
+
+def test_forward_connector_slot_nonzero(taxonomy_dir):
+    """M2 : avec un connector_rep, les features d_conn ne sont pas toutes à zéro."""
+    from gcn_python.layer1.features import vectorize_edge, FeatureVocabulary
+    from gcn_python.taxonomy.loader import TaxonomyIndex
+
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+
+    rep1 = make_rep()
+    rep2 = make_rep()
+    connector = UDRepresentation(
+        tokens=[{"lemma": "parce", "pos": "SCONJ", "dep_rel": "mark", "morph": {}}],
+        root_lemma="parce", root_pos="SCONJ", root_dep_rel="mark",
+        root_morph={}, subject_pos=None,
+        has_object=False, has_advcl=False, has_temporal_obl=False,
+        token_span=(3, 3), lang="fr",
+    )
+
+    vec_with = vectorize_edge(rep1, rep2, connector, 0, 1, 2, vocab, tax)
+    vec_without = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab, tax)
+
+    # La partie UPOS du connecteur (premières len(upos_tags) dims du slot d_conn)
+    n_upos = len(vocab.upos_tags)
+    d_conn = vocab.d_conn
+    upos_with = vec_with[-d_conn: -d_conn + n_upos]
+    upos_without = vec_without[-d_conn: -d_conn + n_upos]
+
+    assert not np.all(upos_with == 0), "La UPOS du connecteur doit être encodée"
+    assert np.all(upos_without == 0), "Sans connecteur, la UPOS doit être nulle"
+
+
+def test_forward_position_features_noncontiguous(taxonomy_dir):
+    """M4 : clause_positions corrige les features de distance pour clauses non-contiguës."""
+    from gcn_python.layer1.features import vectorize_edge, FeatureVocabulary
+    from gcn_python.taxonomy.loader import TaxonomyIndex
+
+    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    vocab = FeatureVocabulary.build(tax)
+
+    rep1 = make_rep()
+    rep2 = make_rep()
+
+    # Sans positions : src_i=0, dst_i=1, n=2 → distance = 1/2
+    vec_filtered = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab, tax)
+    # Avec positions originales : src=0, dst=2, n=3 → distance = 2/3
+    vec_original = vectorize_edge(rep1, rep2, None, 0, 2, 3, vocab, tax)
+
+    # Les deux dernières dimensions du connecteur encodent la position
+    assert not np.allclose(vec_filtered[-2:], vec_original[-2:]), \
+        "Les features de position doivent différer selon les positions originales"
