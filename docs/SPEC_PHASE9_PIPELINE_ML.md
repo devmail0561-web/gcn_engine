@@ -22,7 +22,7 @@ Les 3 problèmes originaux (inférence sur texte non-annoté, décodeur non-séq
 INFÉRENCE
 │
 ├── ENTRÉE
-│   └── P1 — Modèle inutilisable sur texte non-annoté (pas de chemin texte brut → UDRepresentation)
+│   └── P1 — Pas de chemin d'intégration frontend → moteur pour l'inférence
 │   └── P9 — Clause nominale : root = déterminant (loader.py:192)
 │
 ├── PIPELINE FORWARD
@@ -67,7 +67,7 @@ INFÉRENCE
 | P10 | — | R-GCN graphe en chaîne (déféré) |
 | P3e | P3e | R-GCN reçoit gradient mélangé classification + génération |
 | P2d | P2d | Décodeur produit 1 distribution, pas une séquence |
-| P1 | — | Modèle inutilisable sur texte non-annoté (**non résolu** — problème architectural) |
+| P1 | — | Pas de chemin d'intégration frontend → moteur pour l'inférence (**non résolu** — hors scope moteur) |
 
 ---
 
@@ -427,7 +427,7 @@ vocabulaire. Ce n'est pas une génération de séquence.
 `loss_decode(logits, gold_tokens)` reçoit ces logits 1D `(|V|,)` et des gold tokens
 `(T,)`. Elle évalue chaque token gold (position 0, 1, ..., T-1) contre la même et unique
 distribution de probabilité. Autrement dit, "les" et "ventes" et "baissent" sont tous
-comparés au même vecteur de logits. Le modèle ne peut pas apprendre l'ordre ni les
+comparés au même vecteur de logits. Le décodeur ne peut pas apprendre l'ordre ni les
 dépendances entre tokens. Ce n'est pas une génération de surface, c'est un classifieur
 de sac de mots.
 
@@ -459,37 +459,35 @@ def _rnn_step(context, h_prev):
 
 ---
 
-### P1 — Le modèle entraîné ne peut pas faire de prédictions sur texte non-annoté
+### P1 — Pas de chemin d'intégration frontend → moteur pour l'inférence
 
 **Fichier :** `data/loader.py`, `pipeline/cgnp.py`
 
-**Problème détaillé :**
+**Constat :**
 
-À l'entraînement, `reps_from_sentence()` construit les `UDRepresentation` depuis les
-tokens annotés manuellement dans les JSON (lemma, pos, dep_rel, morph, spans). Ces
-annotations sont aussi les gold labels (node_type, relation) qui servent à calculer la
-loss.
+Le moteur (`CGNPipeline.forward()`) prend des `UDRepresentation` en entrée — c'est sa
+spécification d'interface. C'est correct : le moteur est un engine (comme le Transformer),
+pas un modèle. Le Transformer ne contient pas le tokenizer. Le moteur GCN-Core ne contient
+pas le parser UD.
 
-Après entraînement, pour prédire le CausalIR d'un nouveau texte, le pipeline attend en
-entrée des `UDRepresentation` avec exactement les mêmes champs (lemma, pos, dep_rel,
-morph, token_span). Mais ces champs n'existent pas sur du texte brut — ils doivent être
-produits par un parser UD (lemmatisation, POS-tagging, analyse syntaxique).
+Les frontends Rust (`gcn-frontend-fr`, `gcn-frontend-en`) produisent déjà des
+représentations structurées depuis du texte brut : tokenisation, POS-tagging, analyse
+syntaxique, annotation causale. Ces frontends existent et sont testés (137 tests Rust).
 
-**Le problème concret :** il n'existe aucun chemin `texte brut → UDRepresentation →
-pipeline.forward()` dans le moteur. Un texte non-annoté est une entrée invalide, ce qui
-rend le modèle inutilisable en production. C'est l'équivalent d'entraîner un LLM puis
-d'exiger qu'on étiquette manuellement chaque prompt avant de le soumettre.
+**Ce qui manque :** un chemin d'intégration en production qui chaîne :
+```
+texte brut → gcn-frontend-{lang} → UDRepresentation → CGNPipeline.forward() → CausalIR
+```
 
-**Contrainte architecturale :** la décision v0.9.3 a explicitement retiré spaCy du moteur.
-Le moteur ne doit pas dépendre d'un parser UD externe. Le chemin de production actuel
-(annotation JSON → `GCNDataLoader` → pipeline) est valide pour l'entraînement, mais il
-ne peut pas être le chemin d'inférence.
+Ce n'est pas un défaut du moteur — c'est un problème d'intégration entre les frontends
+symboliques (Rust) et le pipeline ML (Python). La solution est un adaptateur qui convertit
+la sortie des frontends Rust en `UDRepresentation` Python.
 
-**Statut : NON RÉSOLU.** Ce problème est architectural et ne peut pas être résolu par
-l'ajout d'une dépendance externe dans `loader.py`. La solution doit intégrer la production
-des features UD dans l'architecture du moteur lui-même, ou s'appuyer sur le pipeline
-symbolique existant (gcn-frontend-fr/en) comme première passe. À traiter dans une phase
-ultérieure.
+**Ce que P1 n'est PAS :** un problème architectural du moteur. Le moteur n'a pas à
+dépendre d'un parser UD (spaCy ou autre). Son contrat d'entrée est `UDRepresentation`,
+et c'est la bonne séparation de responsabilités.
+
+**Statut :** Hors scope moteur. À traiter dans une phase d'intégration frontend → moteur.
 
 ---
 
@@ -526,7 +524,7 @@ ultérieure.
 
 | Limitation | Raison du report |
 |---|---|
-| **Inférence texte non-annoté (P1)** | **Problème architectural : le moteur n'a aucun chemin texte brut → UDRepresentation. La solution ne peut pas être une dépendance externe (spaCy) — elle doit s'intégrer dans l'architecture du moteur ou s'appuyer sur les frontends symboliques existants.** |
+| **Intégration frontend → moteur (P1)** | **Hors scope moteur. Le moteur prend des `UDRepresentation` — c'est son contrat d'interface. Les frontends Rust (`gcn-frontend-fr/en`) produisent les features UD depuis du texte brut. Il manque un adaptateur qui chaîne frontend → moteur en production.** |
 | R-GCN graphe en chaîne (C10) | Nécessite re-annotation des datasets avec arêtes gap>1 — hors scope phase 9 |
 | `temporal_ref` "unresolved" (P6) | Nécessite un module de résolution temporelle dédié — phase 10 |
 | Confidence non calibrée (C13) | Nécessite temperature scaling post-entraînement — phase 10 |
@@ -578,7 +576,7 @@ rep2 = UDRepresentation(
     token_span=(1, 3), lang='fr',
 )
 
-cir = pipeline.forward([rep1, rep2], 'Si les ventes baissent, tous les coûts augmentent.')
+cir = pipeline.forward([rep2, rep1], 'Si les ventes baissent, tous les coûts augmentent.')
 
 # Vérifications post-fix
 assert any(n['attributes']['entity'] is not None for n in cir['nodes']), 'attributes vides'

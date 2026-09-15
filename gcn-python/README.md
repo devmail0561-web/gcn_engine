@@ -794,7 +794,7 @@ from gcn_python.pipeline.label_builder import build_label
 label = build_label(
     rep=ud_rep,                     # UDRepresentation
     node_type="action",             # type prédit
-    taxonomies_dir=None,            # Path vers taxonomies (nominalizations.yaml)
+    taxonomies_dir=None,            # Path vers taxonomies (nominalizations.json)
 )
 # -> str  ex. "réduire(coûts)", "décroissance(ventes)", "hidden_cause(?)"
 ```

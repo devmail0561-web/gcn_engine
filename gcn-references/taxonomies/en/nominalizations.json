@@ -1,0 +1,95 @@
+{
+  "taxonomy": "nominalizations",
+  "version": "1.0",
+  "description": "English verb-to-noun mappings used for node label generation in the GCN",
+  "classes": {
+    "nominalization": {
+      "examples": [
+        {
+          "lemma": "collapse",
+          "note": "collapse"
+        },
+        {
+          "lemma": "fail",
+          "note": "failure"
+        },
+        {
+          "lemma": "grow",
+          "note": "growth"
+        },
+        {
+          "lemma": "decline",
+          "note": "decline"
+        },
+        {
+          "lemma": "increase",
+          "note": "increase"
+        },
+        {
+          "lemma": "decrease",
+          "note": "decrease"
+        },
+        {
+          "lemma": "develop",
+          "note": "development"
+        },
+        {
+          "lemma": "transform",
+          "note": "transformation"
+        },
+        {
+          "lemma": "trigger",
+          "note": "triggering"
+        },
+        {
+          "lemma": "enable",
+          "note": "enablement"
+        },
+        {
+          "lemma": "prevent",
+          "note": "prevention"
+        },
+        {
+          "lemma": "block",
+          "note": "blockage"
+        },
+        {
+          "lemma": "produce",
+          "note": "production"
+        },
+        {
+          "lemma": "create",
+          "note": "creation"
+        },
+        {
+          "lemma": "build",
+          "note": "construction"
+        },
+        {
+          "lemma": "spread",
+          "note": "spread"
+        },
+        {
+          "lemma": "rise",
+          "note": "rise"
+        },
+        {
+          "lemma": "fall",
+          "note": "fall"
+        },
+        {
+          "lemma": "escalate",
+          "note": "escalation"
+        },
+        {
+          "lemma": "intervene",
+          "note": "intervention"
+        },
+        {
+          "lemma": "implement",
+          "note": "implementation"
+        }
+      ]
+    }
+  }
+}

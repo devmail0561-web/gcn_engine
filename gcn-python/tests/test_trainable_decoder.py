@@ -174,8 +174,7 @@ def test_pipeline_with_decoder_forward(tmp_path):
     )
     result = pipeline.forward([rep], "Les ventes baissent.")
     assert "nodes" in result
-    assert pipeline._cached_decode_logits is not None
-    assert pipeline._cached_decode_logits.shape == (len(v),)
+    assert result["nodes"]  # forward produit des nœuds avec decoder attaché
 
 
 def test_pipeline_decoder_none_unchanged():
@@ -190,7 +189,6 @@ def test_pipeline_decoder_none_unchanged():
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
     assert pipeline.decoder is None
-    assert pipeline._cached_decode_logits is None
 
 
 def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):

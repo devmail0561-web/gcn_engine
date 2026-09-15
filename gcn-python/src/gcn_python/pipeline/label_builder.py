@@ -1,6 +1,6 @@
 from __future__ import annotations
+import json
 from pathlib import Path
-import yaml
 
 from ..layer1.representation import UDRepresentation
 
@@ -89,9 +89,10 @@ def _nominalize(lemma: str, lang: str, taxonomies_dir: Path | None) -> str:
 def _load_nominalizations(taxonomies_dir: Path, lang: str) -> dict[str, str]:
     table: dict[str, str] = {}
     for search_dir in [taxonomies_dir / lang, taxonomies_dir]:
-        nom_path = search_dir / "nominalizations.yaml"
+        nom_path = search_dir / "nominalizations.json"
         if nom_path.exists():
-            doc = yaml.safe_load(nom_path.read_text(encoding="utf-8"))
+            with open(nom_path, encoding="utf-8") as f:
+                doc = json.load(f)
             if isinstance(doc, dict):
                 examples_key = "examples_fr" if lang == "fr" else "examples"
                 for _cls, cls_data in (doc.get("classes") or {}).items():

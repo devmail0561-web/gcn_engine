@@ -67,8 +67,7 @@ class CGNPipeline:
         # forward_node au backward (pas de re-run, pas de fragilitié de cache)
         self._cached_node_snapshots: list | None = None
         self._cached_edge_snapshots: list | None = None
-        # Cache décodeur — rempli par forward() si decoder présent
-        self._cached_decode_logits: np.ndarray | None = None
+        # Cache décodeur — rempli par loss() quand gold_surface est fourni
         self._cached_decode_gradient: np.ndarray | None = None
 
     def forward(
@@ -113,7 +112,6 @@ class CGNPipeline:
         self._cached_edge_type_idxs = None
         self._cached_node_snapshots = None
         self._cached_edge_snapshots = None
-        self._cached_decode_logits = None
         self._cached_decode_gradient = None
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
@@ -218,14 +216,6 @@ class CGNPipeline:
             )
             for i, nt in enumerate(node_types)
         ]
-
-        # Décodeur (optionnel) — utilise les embeddings R-GCN enrichis si disponibles
-        if self.decoder is not None:
-            _vecs = (self._cached_enriched_vecs
-                     if self._cached_enriched_vecs is not None
-                     else self._cached_clause_vecs)
-            if _vecs is not None and len(_vecs) > 0:
-                self._cached_decode_logits = self.decoder.forward_decode(_vecs)
 
         return emit(text, self.lang, node_types, node_labels, token_spans,
                     scopes, edge_triples, node_origins=node_origins,
@@ -464,7 +454,6 @@ _SCOPE_HINTS: dict[str, str] = {
     "tous": "universal", "toutes": "universal", "chaque": "universal",
     "tout": "universal", "aucun": "null", "aucune": "null",
     "certains": "existential", "certaines": "existential",
-    "un": "existential", "une": "existential",
     "quelques": "partial",
 }
 

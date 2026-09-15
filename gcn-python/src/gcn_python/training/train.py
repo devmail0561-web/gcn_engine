@@ -172,7 +172,7 @@ def train_cmd(
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
-                    gold_surface=_gold_surface,
+                    gold_surface=_gold_surface if not decoder_only else None,
                 )
 
                 # Backward (gelé si --decoder-only)
