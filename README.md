@@ -1,5 +1,11 @@
 # GCN-Core — Grammaire Causale Naturelle
 
+[![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
+[![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-137%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-112%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
 > *"La causalité n'est pas extérieure au langage — elle y est encodée de manière systématique à travers chaque partie du discours."*
@@ -108,18 +114,25 @@ projet_CNM/
 
 ## Installation
 
+### Depuis les registres publics (recommandé)
+
 ```bash
-# Cloner le dépôt
-git clone https://github.com/devmail0561-web/gcn_engine.git projet_CNM
-cd projet_CNM
+# Package Python (couches ML)
+pip install gcn-python
 
-# Compiler le moteur Rust
-cd gcn-core
-cargo build --release
+# Crates Rust (dans votre projet)
+cargo add gcn-ir gcn-backend gcn-frontend-fr
+```
 
-# Installer le package Python (optionnel — couches ML)
-cd ../gcn-python
-pip install -e .
+### Depuis les sources (moteur complet + CLI `gcn`)
+
+```bash
+git clone https://github.com/devmail0561-web/gcn_engine.git
+cd gcn_engine
+
+make install        # build release + pip install gcn-python
+# ou
+make install-dev    # build debug + pip install -e gcn-python
 ```
 
 ---
@@ -374,20 +387,25 @@ class MyRGCN:
 from pathlib import Path
 from gcn_python.pipeline.cgnp import CGNPipeline
 from gcn_python.layer1.features import FeatureVocabulary
-from gcn_python.taxonomy.loader import TaxonomyIndex
+from gcn_python.data.loader import GCNDataLoader, reps_from_sentence
 
-tax = TaxonomyIndex.load(Path("gcn-references/taxonomies"), "fr")
-vocab = FeatureVocabulary.build(tax)
+vocab = FeatureVocabulary()
 
 pipeline = CGNPipeline(
     encoder=MyEncoder(),
     graph=MyRGCN(),
-    taxonomy_dir=Path("gcn-references/taxonomies"),
     lang="fr",
     vocabulary=vocab,
 )
 
-causal_ir_dict = pipeline.forward("Les ventes baissent parce que la qualité a chuté.")
+loader = GCNDataLoader(Path("gcn-datasets/examples/"), lang="fr")
+for sample in loader:
+    reps, valid_idxs, connector_reps = reps_from_sentence(sample.sentence)
+    causal_ir_dict = pipeline.forward(
+        reps,
+        text=sample.sentence.text,
+        connector_reps=connector_reps,
+    )
 ```
 
 ### Évaluation
@@ -447,18 +465,18 @@ document:
 ## Tests
 
 ```bash
-# Suite complète Rust (103 tests)
+# Suite complète Rust (137 tests)
 cd gcn-core && cargo test --workspace
 
 # Par crate
 cargo test -p gcn-ir
-cargo test -p gcn-frontend-fr      # 16 tests
+cargo test -p gcn-frontend-fr      # 21 tests
 cargo test -p gcn-frontend-en      # 16 tests (dont isomorphisme fr↔en)
-cargo test -p gcn-frontend-code    # 27 tests (Python, Rust, JS)
+cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
-cargo test -p gcn-backend          # 26 tests (Pearl 1-2-3)
+cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (76 collectés, 71 passent, 5 skippés sans spaCy fr)
+# Python (112 tests)
 cd gcn-python && python -m pytest
 ```
 
@@ -469,14 +487,15 @@ cd gcn-python && python -m pytest
 | Phase | Composants | Statut |
 |---|---|---|
 | 1 | `gcn-ir` + `gcn-knowledge` | ✅ Terminé |
-| 2a | `gcn-frontend-fr` (16 tests) | ✅ Terminé |
+| 2a | `gcn-frontend-fr` (21 tests) | ✅ Terminé |
 | 2b | `gcn-python` couches 1-3 (référence NumPy) | ✅ Terminé |
 | 2c | `gcn-python/evaluation` (métriques, TrainingRecorder) | ✅ Terminé |
 | 3 | `gcn-middleend` (17 tests) | ✅ Terminé |
-| 4 | `gcn-backend` Pearl 1 + `gcn-cli` (26 tests) | ✅ Terminé |
-| 5 | `gcn-verbalizer` — CausalIR → surface (texte et code) | ✅ Terminé |
-| 6 | `gcn-frontend-code` — AST Python/Rust/JS (27 tests) | ✅ Terminé |
+| 4 | `gcn-backend` Pearl 1 + `gcn-cli` (34 tests) | ✅ Terminé |
+| 5 | `gcn-verbalizer` + décodeur entraînable (21 tests) | ✅ Terminé |
+| 6 | `gcn-frontend-code` — AST Python/Rust/JS (26 tests) | ✅ Terminé |
 | 7 | Pearl 2-3, R-GCN PyTorch, `gcn-frontend-en` (16 tests) | ✅ Terminé |
+| 8 | Mise en production — Makefile, gcn-eval, publication | ✅ Terminé |
 
 ---
 

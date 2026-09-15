@@ -16,7 +16,7 @@ Phase 4  ████████████████████  100%  gcn
 Phase 5  ████████████████████  100%  gcn-verbalizer
 Phase 6  ████████████████████  100%  gcn-frontend-code
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
-Phase 8  ████████████████████   95%  Mise en production (corpus manquant)
+Phase 8  ████████████████████  100%  Mise en production + publication
 ```
 
 **Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
@@ -295,18 +295,25 @@ Phase 8  ████████████████████   95%  Mis
 
 | Composant | Fichier | Statut |
 |---|---|---|
-| `Makefile` (install / install-dev / build-release) | `Makefile` | ✅ |
+| `Makefile` (install / install-dev / build-release / test / release) | `Makefile` | ✅ |
 | `GCN_PYTHON_BIN` env var override | `gcn-cli/src/main.rs` | ✅ |
 | `gcn-eval` CLI | `gcn-python/evaluation/eval_runner.py` | ✅ |
 | Métriques dans `gcn-train` (node_accuracy, edge_macro_f1) | `gcn-python/training/train.py` | ✅ |
 | `TrainingRecorder` câblé + export JSON | `gcn-python/training/train.py` | ✅ |
-| Corpus réel — structure + workflow | `gcn-datasets/corpus/phrases_fr.txt` | 🔲 (annotation manuelle) |
 | `gcn-bootstrap` — 2 bugs corrigés | `gcn-python/training/bootstrap.py` | ✅ |
+| Corpus réel — structure + workflow | `gcn-datasets/corpus/phrases_fr.txt` | 🔲 (annotation manuelle) |
+| **README gcn-python** (vision, architecture, API complète) | `gcn-python/README.md` | ✅ |
+| **README 9 crates Rust** (gcn-ir … gcn-cli) | `gcn-core/crates/*/README.md` | ✅ |
+| **Publication PyPI** — `gcn-python 1.0.2` | pypi.org/project/gcn-python | ✅ |
+| **Publication crates.io** — 9 crates v1.0.1 | crates.io/crates/gcn-ir (+ 8) | ✅ |
+| Tag git `v1.0.0` | git | ✅ |
 
 **Vérification :**
 - `make install-dev` depuis la racine installe Rust + Python d'un coup
+- `make test` lance `cargo test --workspace` + `pytest`
 - `gcn-eval --data-dir gcn-datasets/examples/ --model-path model.npz` sort un rapport JSON à 5 métriques
-- `gcn-train --log-csv loss.csv` produit `loss.json` avec `node_accuracy` et `edge_macro_f1` par époque
+- `pip install gcn-python` installe le package depuis PyPI
+- `cargo add gcn-ir` ajoute la crate depuis crates.io
 
 **Limites restantes (non-bloquantes) :**
 - Corpus `gcn-datasets/corpus/` à remplir manuellement (40 phrases, 8 patterns causaux)

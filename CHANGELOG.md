@@ -5,6 +5,29 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-09-15
+
+### Corrigé
+- URL GitHub corrigée dans toute la documentation : `Maik-start/projet_CNM` → `devmail0561-web/gcn_engine`
+- `gcn-python/README.md` : commande `cd gcn_engine` après `git clone`
+- `gcn-core/Cargo.toml` : `workspace.package.repository` mis à jour
+
+---
+
+## [1.0.1] - 2026-09-15
+
+### Ajouté
+- **README pour les 9 crates Rust** (gcn-ir, gcn-knowledge, gcn-frontend-fr, gcn-frontend-en, gcn-frontend-code, gcn-middleend, gcn-backend, gcn-verbalizer, gcn-cli) : vision, rôle dans l'architecture, API complète avec signatures exactes, exemples Rust
+- `readme = "README.md"` ajouté dans chaque `Cargo.toml` (affiché sur crates.io)
+- **Publication crates.io** : 9 crates publiées à v1.0.1 (gcn-ir → gcn-cli)
+- `[workspace.package]` enrichi : `repository`, `license`, `authors` hérités par toutes les crates
+- Makefile : cibles `test` et `release` ajoutées
+
+### Corrigé
+- Version explicite sur les dépendances internes (`path = "../gcn-ir", version = "1.0.1"`) — requis par `cargo publish`
+
+---
+
 ## [1.0.0] - 2026-09-15
 
 ### Ajouté
@@ -486,6 +509,8 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+[1.0.2]: https://github.com/devmail0561-web/gcn_engine/commits/v1.0.2
+[1.0.1]: https://github.com/devmail0561-web/gcn_engine/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/devmail0561-web/gcn_engine/commits/v1.0.0
 [0.9.0]: https://github.com/devmail0561-web/gcn_engine/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/devmail0561-web/gcn_engine/compare/v0.7.0...v0.8.0
