@@ -15,7 +15,7 @@ members = [
 [workspace.package]
 version = "1.0.0"
 authors = ["Michel Tendeng"]
-repository = "https://github.com/Maik-start/projet_CNM"
+repository = "https://github.com/devmail0561-web/gcn_engine"
 license = "MIT"
 
 [workspace.dependencies]

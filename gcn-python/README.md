@@ -84,8 +84,8 @@ pip install gcn-python
 pip install gcn-python torch
 
 # Avec le moteur Rust (CLI gcn-analyze, gcn-query, gcn-export)
-git clone https://github.com/Maik-start/projet_CNM.git
-cd projet_CNM && make install
+git clone https://github.com/devmail0561-web/gcn_engine.git
+cd gcn_engine && make install
 ```
 
 **Prérequis :** Python ≥ 3.10, NumPy ≥ 1.24
@@ -1090,4 +1090,4 @@ gcn analyze "Si les ventes baissent, on réduit les coûts." | gcn-verbalize -
 
 ## Licence
 
-MIT — voir [LICENSE](https://github.com/Maik-start/projet_CNM/blob/master/LICENSE)
+MIT — voir [LICENSE](https://github.com/devmail0561-web/gcn_engine/blob/master/LICENSE)
