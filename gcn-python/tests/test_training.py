@@ -200,6 +200,42 @@ def test_dataloader_yields_batches(paper_examples_yaml: Path):
     for s in samples:
         assert s.gold_node_labels.dtype == np.int64
         assert s.gold_edge_labels.dtype == np.int64
+        assert isinstance(s.edge_map, dict)
+
+
+def test_edge_map_alignment():
+    """edge_map mappe les node_ids YAML → indices de clauses, pas l'ordre d'insertion."""
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import (
+        SentenceRecord, ClauseRecord, EdgeRecord, TokenRecord
+    )
+    from gcn_python.constants import RELATION_TYPES
+
+    clauses = [
+        ClauseRecord(node_id="n001", node_type="etat", label="A",
+                     token_span=(1, 1), scope="specific", temporal_index=0, origin="explicit"),
+        ClauseRecord(node_id="n002", node_type="action", label="B",
+                     token_span=(2, 2), scope="specific", temporal_index=1, origin="explicit"),
+        ClauseRecord(node_id="n003", node_type="processus", label="C",
+                     token_span=(3, 3), scope="specific", temporal_index=2, origin="explicit"),
+    ]
+    # Arête non-consécutive : n001 → n003 (saute n002)
+    edges = [
+        EdgeRecord(source="n001", target="n003", relation="cause",
+                   confidence=1.0, explicit=True, negated=False, marker_token=None),
+    ]
+    rec = SentenceRecord(id="s1", text="test", lang="fr",
+                         tokens=[], clauses=clauses, edges=edges)
+
+    loader = GCNDataLoader.__new__(GCNDataLoader)
+    sample = loader._to_sample(rec)
+
+    # n001=idx 0, n003=idx 2 → (0, 2)
+    assert (0, 2) in sample.edge_map
+    assert sample.edge_map[(0, 2)] == RELATION_TYPES.index("cause")
+    # La paire consécutive (0, 1) n'a pas de gold label
+    assert (0, 1) not in sample.edge_map
+    assert (1, 2) not in sample.edge_map
 
 
 def test_reps_from_sentence_alignment():

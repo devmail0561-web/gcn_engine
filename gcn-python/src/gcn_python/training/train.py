@@ -100,8 +100,30 @@ def train_cmd(
                     ]
                 else:
                     gold_node = sample.gold_node_labels
-                gold_edge = sample.gold_edge_labels if len(sample.gold_edge_labels) > 0 else None
-                edge_logits_arg = edge_logits if edge_logits is not None and len(edge_logits) > 0 else None
+                # Aligner les gold edges sur les paires consécutives prédites via edge_map
+                if (valid_clause_idxs and len(valid_clause_idxs) >= 2
+                        and sample.edge_map
+                        and edge_logits is not None and len(edge_logits) > 0):
+                    pairs = [
+                        (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                        for k in range(len(valid_clause_idxs) - 1)
+                    ]
+                    gold_edge_full = np.array(
+                        [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
+                    )
+                    valid_edge_mask = gold_edge_full >= 0
+                    if valid_edge_mask.any():
+                        valid_edge_idxs = np.where(valid_edge_mask)[0]
+                        gold_edge = gold_edge_full[valid_edge_idxs]
+                        edge_logits_arg = edge_logits[valid_edge_idxs]
+                        pipeline.filter_edge_cache(valid_edge_idxs)
+                    else:
+                        gold_edge = None
+                        edge_logits_arg = None
+                else:
+                    # Fallback : paper_examples sans tokens ou pas de valid_clause_idxs
+                    gold_edge = sample.gold_edge_labels if len(sample.gold_edge_labels) > 0 else None
+                    edge_logits_arg = edge_logits if edge_logits is not None and len(edge_logits) > 0 else None
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge

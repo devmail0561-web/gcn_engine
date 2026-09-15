@@ -164,6 +164,20 @@ class CGNPipeline:
         return emit(text, self.lang, node_types, node_labels, token_spans,
                     scopes, edge_triples)
 
+    def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
+        """Filtre les caches MLP d'arêtes aux seuls indices valides.
+
+        Appelé après forward() pour aligner edge_logits ↔ gold_edge avant loss/backward.
+        _cached_edge_index/_cached_edge_type_idxs ne sont PAS filtrés : le R-GCN
+        a utilisé toutes les arêtes dans son forward et a besoin de toutes pour backward.
+        """
+        if self._cached_edge_vecs is not None:
+            self._cached_edge_vecs = self._cached_edge_vecs[valid_idxs]
+        if self._cached_edge_logits is not None:
+            self._cached_edge_logits = self._cached_edge_logits[valid_idxs]
+        if self._cached_edge_snapshots is not None:
+            self._cached_edge_snapshots = [self._cached_edge_snapshots[i] for i in valid_idxs]
+
     def loss(
         self,
         node_logits: np.ndarray,    # (N, 7)  — logits nœuds du forward

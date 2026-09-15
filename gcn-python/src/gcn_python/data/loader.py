@@ -14,6 +14,7 @@ class TrainingSample:
     sentence: SentenceRecord
     gold_node_labels: np.ndarray  # (N,) int — indices dans NODE_TYPES
     gold_edge_labels: np.ndarray  # (E,) int — indices dans RELATION_TYPES
+    edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — alignement sémantique
 
 
 class GCNDataLoader:
@@ -36,6 +37,7 @@ class GCNDataLoader:
                 break
 
     def _to_sample(self, rec: SentenceRecord) -> TrainingSample:
+        node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
         node_labels = np.array(
             [NODE_TYPES.index(c.node_type) if c.node_type in NODE_TYPES else 0
              for c in rec.clauses],
@@ -46,7 +48,14 @@ class GCNDataLoader:
              for e in rec.edges],
             dtype=np.int64,
         )
-        return TrainingSample(rec, node_labels, edge_labels)
+        edge_map: dict[tuple[int, int], int] = {}
+        for e in rec.edges:
+            src_idx = node_id_to_idx.get(e.source)
+            tgt_idx = node_id_to_idx.get(e.target)
+            if src_idx is not None and tgt_idx is not None:
+                rel_idx = RELATION_TYPES.index(e.relation) if e.relation in RELATION_TYPES else 0
+                edge_map[(src_idx, tgt_idx)] = rel_idx
+        return TrainingSample(rec, node_labels, edge_labels, edge_map)
 
 
 def reps_from_sentence(

@@ -9,6 +9,19 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.2] — 2026-09-15
+
+### Corrigé
+- **Misalignement gold edges ↔ arêtes prédites** (`data/loader.py`, `pipeline/cgnp.py`, `training/train.py`) — les arêtes YAML sont des triplets sémantiques arbitraires (source/target quelconques) alors que les arêtes prédites sont strictement des paires consécutives `i → i+1`. Le `min()` dans `loss()` prenait le Kième label YAML pour la Kième paire, sans vérifier la correspondance source/target ; pour les phrases à ≥ 3 nœuds avec des arêtes non-séquentielles, les gradients d'arête étaient faux.
+  - `TrainingSample` gagne `edge_map: dict[(src_idx, tgt_idx), rel_idx]` construit depuis les `node_id` YAML résolus en indices de clauses
+  - `CGNPipeline.filter_edge_cache(valid_idxs)` filtre les caches MLP d'arêtes (`_cached_edge_vecs`, `_cached_edge_logits`, `_cached_edge_snapshots`) — les caches R-GCN ne sont pas filtrés (le message-passing forward a utilisé toutes les arêtes)
+  - `train.py` construit `gold_edge` aligné sur les paires consécutives via `edge_map`, masque les paires sans label YAML, filtre les logits et les caches en conséquence
+
+### Tests
+- `test_edge_map_alignment` — vérifie que `edge_map` résout correctement une arête non-consécutive n001→n003 vers `(0, 2)` et que les paires `(0,1)` et `(1,2)` restent absentes
+
+---
+
 ## [0.9.1] — 2026-09-15
 
 ### Corrigé

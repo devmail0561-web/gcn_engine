@@ -19,7 +19,7 @@ Phase 7  ████████████████████  100%  Pea
 ```
 
 **Tests Rust : 126 / 126 passent** (`cargo test --workspace`)
-**Tests Python : 72 / 72 passent** (5 skippés sans spaCy fr) (`pytest gcn-python/tests/`)
+**Tests Python : 73 / 73 passent** (5 skippés sans spaCy fr) (`pytest gcn-python/tests/`)
 
 ---
 
