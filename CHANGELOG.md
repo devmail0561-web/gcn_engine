@@ -9,6 +9,32 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.0] — 2026-09-15
+
+### Ajouté
+- **`InferenceEngine`** — implémentation complète dans `gcn-knowledge/src/inference.rs` (remplace le stub)
+  - `InferenceNote` enum : `NodeTypeResolved`, `ConfidenceAdjusted`, `CausalGapSignaled`
+  - `InferenceEngine::new(lexicon)` + `from_dir(path)`
+  - `infer_node_type(lemma, pos)` : lookup taxonomie → `NodeType` (verbes + noms ; `auxiliaire` → `None`)
+  - `infer_scope(lemma, pos)` : lookup DET/PRON → `Scope` (priorité `entry.scope`, fallback classe)
+  - `score_confidence(from, to, rel, explicit)` : score structurel `[0.1, 1.0]` basé sur compatibilité des types causaux
+  - `enrich(&mut CausalIR)` : 3 passes — résolution types nœuds inférés, recalibrage confiance arêtes implicites, signalement lacunes causales
+  - `Lexicon::from_taxonomies_for_test` sous `#[cfg(test)]` pour tests sans YAML
+  - `InferenceNote` ajouté au re-export public de `gcn-knowledge`
+  - 23 tests sur données synthétiques — indépendants des fichiers YAML
+- **Bypass spaCy à l'entraînement** — `data/loader.py` : `reps_from_sentence(SentenceRecord)` construit une `UDRepresentation` par nœud CIR directement depuis les tokens annotés du YAML, garantissant l'alignement exact features ↔ gold labels
+  - `CGNPipeline.forward_from_reps(reps, text)` expose la passe avant sans extraction spaCy
+  - `CGNPipeline._forward_from_reps` factorise le corps commun
+  - `train.py` utilise `reps_from_sentence` quand les tokens sont disponibles, fallback spaCy sinon
+
+### Corrigé
+- `data/yaml_reader.py` : `_parse_edge` lisait `confidence`, `explicit`, `negated`, `marker_token` au niveau racine — ces champs sont imbriqués sous `attributes` dans le schéma GCN-NL, corrigé avec fallback racine pour compatibilité
+- `training/checkpoint.py` : `load_checkpoint` ne restaurait pas `FeatureVocabulary` depuis le `_vocab_json` sauvegardé — le vocab est maintenant rechargé, évitant une inférence incorrecte si les taxonomies changent
+- `pipeline/cgnp.py` : `backward_message_pass` recevait `d_enriched` de shape `(min(N,M), D_out)` au lieu de `(N, D_out)` quand le nombre de gold labels diffère du nombre de clauses spaCy — padding à `N` ajouté avant le backward R-GCN
+- `pipeline/cgnp.py` : assemblage `flat_grads` sans garde-fou sur les indices — ajout de bornes `if i < len(flat_grads)` pour robustesse avec encodeurs custom non-3+3 couches
+
+---
+
 ## [0.8.0] — 2026-09-14
 
 ### Ajouté
@@ -198,7 +224,8 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-[Unreleased]: https://github.com/Maik-start/projet_CNM/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Maik-start/projet_CNM/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Maik-start/projet_CNM/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Maik-start/projet_CNM/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Maik-start/projet_CNM/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Maik-start/projet_CNM/compare/v0.5.0...v0.6.0

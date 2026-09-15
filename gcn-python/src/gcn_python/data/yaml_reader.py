@@ -96,12 +96,13 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
 
 
 def _parse_edge(e: dict) -> EdgeRecord:
+    attrs = e.get("attributes") or {}
     return EdgeRecord(
         source=e.get("source", ""),
         target=e.get("target", ""),
         relation=e.get("relation", "cause"),
-        confidence=float(e.get("confidence", 1.0)),
-        explicit=bool(e.get("explicit", True)),
-        negated=bool(e.get("negated", False)),
-        marker_token=e.get("marker_token"),
+        confidence=float(attrs.get("confidence", e.get("confidence", 1.0))),
+        explicit=bool(attrs.get("explicit", e.get("explicit", True))),
+        negated=bool(attrs.get("negated", e.get("negated", False))),
+        marker_token=attrs.get("marker_token", e.get("marker_token")),
     )

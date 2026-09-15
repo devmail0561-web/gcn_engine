@@ -55,6 +55,13 @@ class CGNPipeline:
     def forward(self, text: str) -> dict:
         """text → CausalIR dict (JSON-serializable, conforme schéma serde Rust)"""
         reps = extract(text, self.lang)
+        return self._forward_from_reps(reps, text)
+
+    def forward_from_reps(self, reps: list, text: str = "") -> dict:
+        """Passe avant depuis des UDRepresentation pré-construites (bypass spaCy)."""
+        return self._forward_from_reps(reps, text)
+
+    def _forward_from_reps(self, reps: list, text: str) -> dict:
 
         # Réinitialiser le cache
         self._cached_clause_vecs = None
@@ -264,18 +271,27 @@ class CGNPipeline:
             flat_grads = [np.zeros_like(p) for p in all_params]
             node_flat = [g for pair in all_node_grads for g in pair]
             for i, g in enumerate(node_flat):
-                flat_grads[i] = g
+                if i < len(flat_grads):
+                    flat_grads[i] = g
             if all_edge_grads is not None:
                 edge_flat = [g for pair in all_edge_grads for g in pair]
                 for i, g in enumerate(edge_flat):
-                    flat_grads[len(node_flat) + i] = g
+                    j = len(node_flat) + i
+                    if j < len(flat_grads):
+                        flat_grads[j] = g
             self.encoder.update(flat_grads, lr)
 
         # --- Rétropropagation R-GCN ---
         if (self._cached_edge_index is not None
                 and self._cached_enriched_vecs is not None
                 and hasattr(self.graph, 'backward_message_pass')):
-            _, graph_grads = self.graph.backward_message_pass(d_enriched)
+            N_full = len(self._cached_enriched_vecs)
+            if d_enriched.shape[0] < N_full:
+                pad = np.zeros((N_full - d_enriched.shape[0], d_enriched.shape[1]), dtype=np.float32)
+                d_enriched_full = np.concatenate([d_enriched, pad], axis=0)
+            else:
+                d_enriched_full = d_enriched
+            _, graph_grads = self.graph.backward_message_pass(d_enriched_full)
             self.graph.update(graph_grads, lr)
 
 

@@ -4,8 +4,9 @@ from pathlib import Path
 import numpy as np
 
 from .yaml_reader import load_all_sentences
-from .schema import SentenceRecord
+from .schema import SentenceRecord, TokenRecord, ClauseRecord
 from ..constants import NODE_TYPES, RELATION_TYPES
+from ..layer1.representation import UDRepresentation
 
 
 @dataclass
@@ -46,3 +47,56 @@ class GCNDataLoader:
             dtype=np.int64,
         )
         return TrainingSample(rec, node_labels, edge_labels)
+
+
+def reps_from_sentence(rec: SentenceRecord) -> list[UDRepresentation]:
+    """Une UDRepresentation par ClauseRecord, construite depuis les tokens YAML annotés.
+
+    Bypass spaCy : garantit l'alignement exact features ↔ gold labels.
+    Retourne [] si le SentenceRecord n'a pas de tokens annotés (format paper_examples).
+    """
+    if not rec.tokens or not rec.clauses:
+        return []
+    result = []
+    for clause in rec.clauses:
+        rep = _rep_from_clause(clause, rec.tokens, rec.lang)
+        if rep is not None:
+            result.append(rep)
+    return result
+
+
+def _rep_from_clause(
+    clause: ClauseRecord,
+    all_tokens: list[TokenRecord],
+    lang: str,
+) -> UDRepresentation | None:
+    span_start, span_end = clause.token_span
+    span_toks = [t for t in all_tokens if span_start <= t.id <= span_end]
+    if not span_toks:
+        return None
+
+    # Priorité : VERB annoté gcn_causal_type="verbe", sinon premier VERB/AUX, sinon premier token
+    root_tok = (
+        next((t for t in span_toks
+              if t.gcn_causal_type == "verbe" and t.pos in {"VERB", "AUX"}), None)
+        or next((t for t in span_toks if t.pos in {"VERB", "AUX"}), span_toks[0])
+    )
+
+    subject = next((t for t in span_toks if t.dep_rel in {"nsubj", "nsubj:pass"}), None)
+
+    return UDRepresentation(
+        tokens=[
+            {"lemma": t.lemma, "pos": t.pos, "dep_rel": t.dep_rel, "morph": t.morph}
+            for t in span_toks
+        ],
+        root_lemma=root_tok.lemma,
+        root_pos=root_tok.pos,
+        root_dep_rel=root_tok.dep_rel,
+        root_morph=root_tok.morph,
+        subject_pos=subject.pos if subject else None,
+        has_object=any(t.dep_rel in {"obj", "iobj", "nobj"} for t in span_toks),
+        has_advcl=any(t.dep_rel == "advcl" for t in span_toks),
+        has_temporal_obl=any(t.dep_rel in {"obl", "obl:tmod"} for t in span_toks),
+        token_span=clause.token_span,
+        lang=lang,
+    )

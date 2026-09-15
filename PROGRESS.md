@@ -18,7 +18,7 @@ Phase 6  ████████████████████  100%  gcn
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
 ```
 
-**Tests Rust : 103 / 103 passent** (`cargo test --workspace`)
+**Tests Rust : 126 / 126 passent** (`cargo test --workspace`)
 **Tests Python : 71 / 71 passent** (5 skippés sans spaCy fr) (`pytest gcn-python/tests/`)
 
 ---
@@ -39,10 +39,13 @@ Phase 7  ████████████████████  100%  Pea
 | CodeCausalType | `gcn-ir/src/code.rs` | ✅ |
 | Chargeur YAML taxonomies | `gcn-knowledge/src/loader.rs` | ✅ |
 | Lexicon (POS → classe GCN) | `gcn-knowledge/src/lexicon.rs` | ✅ |
-| InferenceEngine | `gcn-knowledge/src/inference.rs` | ⚠️ Stub — à enrichir |
+| InferenceEngine | `gcn-knowledge/src/inference.rs` | ✅ |
 | 11 taxonomies YAML (fr) | `gcn-references/taxonomies/` | ✅ |
 
 **Vérification :** `cargo test -p gcn-ir -p gcn-knowledge` ✅
+
+**Corrections appliquées (post-audit) :**
+- `InferenceEngine` enrichi : `infer_node_type`, `infer_scope`, `score_confidence`, `enrich` — 23 tests sur données synthétiques (indépendants des YAML)
 
 ---
 
@@ -104,6 +107,13 @@ Phase 7  ████████████████████  100%  Pea
 - `rules.rs` : normalisation NFC avant `strip_suffix` (unicode-normalization)
 - `annotator.rs` : paramètre `_res` mort supprimé de `extract_object`
 - `lib.rs` : test debug AST avec assertions réelles
+
+**Corrections post-audit (bugs pipeline) :**
+- `yaml_reader.py` : `_parse_edge` lisait `confidence`/`explicit`/`negated`/`marker_token` au niveau racine alors qu'ils sont imbriqués sous `attributes` dans le YAML — corrigé avec fallback
+- `checkpoint.py` : `load_checkpoint` ne restaurait pas `FeatureVocabulary` — corrigé, vocab rechargé depuis `_vocab_json`
+- `cgnp.py` : `backward_message_pass` recevait `d_enriched` de shape `(min(N,M), D)` au lieu de `(N, D)` quand gold labels < clauses spaCy → crash shape mismatch — corrigé par padding à la taille N
+- `cgnp.py` : assemblage `flat_grads` sans garde-fou sur les bornes → potentiel IndexError avec encodeur custom — bornes ajoutées
+- **Alignement entraînement** : `pipeline.forward(text)` re-parsait le texte brut via spaCy au lieu d'utiliser les tokens annotés du YAML — `reps_from_sentence()` construit les `UDRepresentation` depuis les tokens YAML (bypass spaCy, alignement garanti features ↔ gold labels) ; `CGNPipeline.forward_from_reps()` expose ce chemin ; `train.py` l'utilise quand les tokens sont disponibles
 
 ---
 

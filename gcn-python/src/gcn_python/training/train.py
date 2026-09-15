@@ -11,7 +11,7 @@ from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..taxonomy.loader import TaxonomyIndex
-from ..data.loader import GCNDataLoader
+from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..constants import NODE_TYPES, RELATION_TYPES
 from .checkpoint import save_checkpoint
 
@@ -78,9 +78,13 @@ def train_cmd(
                 if not sample.sentence.clauses:
                     continue
 
-                # Forward
+                # Forward — bypass spaCy si les tokens YAML sont disponibles
                 try:
-                    pipeline.forward(sample.sentence.text)
+                    reps = reps_from_sentence(sample.sentence)
+                    if reps:
+                        pipeline.forward_from_reps(reps, sample.sentence.text)
+                    else:
+                        pipeline.forward(sample.sentence.text)
                 except Exception:
                     continue
 

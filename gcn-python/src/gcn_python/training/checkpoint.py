@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from ..pipeline.cgnp import CGNPipeline
+from ..layer1.features import FeatureVocabulary
 
 
 def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
@@ -38,3 +39,6 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         key = f"graph_{i}"
         if key in data:
             p[:] = data[key]
+
+    if "_vocab_json" in data:
+        pipeline.vocabulary = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))

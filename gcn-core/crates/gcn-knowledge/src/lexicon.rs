@@ -47,6 +47,11 @@ impl Lexicon {
     pub fn taxonomies(&self) -> &HashMap<String, Taxonomy> {
         &self.taxonomies
     }
+
+    #[cfg(test)]
+    pub fn from_taxonomies_for_test(taxonomies: HashMap<String, Taxonomy>) -> Self {
+        Self { taxonomies }
+    }
 }
 
 fn pos_to_taxonomy(pos: &str) -> Option<&'static str> {

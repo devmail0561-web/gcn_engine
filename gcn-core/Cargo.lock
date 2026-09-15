@@ -314,6 +314,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "smallvec",
  "thiserror",
  "yaml_serde",
 ]

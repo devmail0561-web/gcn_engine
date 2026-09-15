@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 pub use taxonomy::{Taxonomy, TaxonomyClass, LexicalEntry, SubType, CompositionalRule};
 pub use lexicon::Lexicon;
-pub use inference::InferenceEngine;
+pub use inference::{InferenceEngine, InferenceNote};
 pub use loader::{load_taxonomy, load_all_taxonomies};
 
 #[derive(Debug, thiserror::Error)]
