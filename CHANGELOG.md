@@ -9,6 +9,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.8] — 2026-09-15
+
+### Corrigé
+- **Double normalisation des gradients** (`pipeline/cgnp.py`) — `_cross_entropy` normalise déjà ses gradients par N (`d_logits /= N`). `backward()` renormalisait à nouveau les gradients accumulés par `n` (nœuds) et `e` (arêtes), produisant un gradient effectif `1/N²` au lieu de `1/N`. Pour une phrase de 3 clauses, le learning rate réel était 9× trop faible ; pour 10 clauses, 100× trop faible — et variable selon la longueur des phrases. Les deux renormalisations redondantes sont supprimées ; `_cross_entropy` reste la seule source de normalisation.
+
+### Tests
+- **85 / 85 tests Python passent** (inchangé)
+
+---
+
 ## [0.9.7] — 2026-09-15
 
 ### Corrigé

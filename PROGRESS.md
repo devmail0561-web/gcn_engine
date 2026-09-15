@@ -120,6 +120,7 @@ Phase 7  ████████████████████  100%  Pea
 - **Champ mort `gold_edge_labels`** (0.9.5) : tableau insertion-order jamais aligné avec les logits, supprimé de `TrainingSample` ; fallback `train.py` → `gold_edge = None`
 - **Warning arêtes longue distance** (0.9.5) : `_to_sample` émet un `UserWarning` pour toute arête gold avec `gap > 1` (aucune supervision possible avec le forward consécutif)
 - **Warning R-GCN dimensionnel** (0.9.5) : `cgnp.py` émet un `UserWarning` si `d_out ≠ d_clause` (enrichissement R-GCN silencieusement ignoré)
+- **Double normalisation des gradients** (0.9.8) : `_cross_entropy` normalisait déjà par N ; `backward()` renormalisait à nouveau par `n`/`e`, produisant un gradient `1/N²` au lieu de `1/N`. Les deux renormalisations redondantes supprimées dans `cgnp.py`.
 
 ---
 

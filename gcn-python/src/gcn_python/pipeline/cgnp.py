@@ -290,8 +290,7 @@ class CGNPipeline:
                         all_node_grads[j][1] + db_i,
                     )
 
-        if all_node_grads and n > 0:
-            all_node_grads = [(dW / n, db / n) for dW, db in all_node_grads]
+        # _cross_entropy normalise déjà par N — pas de renormalisation ici
 
         # --- Rétropropagation arêtes ---
         all_edge_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
@@ -312,8 +311,7 @@ class CGNPipeline:
                             all_edge_grads[j][0] + dW_i,
                             all_edge_grads[j][1] + db_i,
                         )
-            if all_edge_grads and e > 0:
-                all_edge_grads = [(dW / e, db / e) for dW, db in all_edge_grads]
+            # _cross_entropy normalise déjà par E — pas de renormalisation ici
 
         # --- Mise à jour encodeur (zeros pour les poids sans gradient) ---
         if all_node_grads is not None:
