@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-python"
-version = "1.0.1"
+version = "1.0.2"
 description = "CGNP ML layers — Causal Graph Neural Parser architecture"
 readme = "README.md"
 requires-python = ">=3.10"
