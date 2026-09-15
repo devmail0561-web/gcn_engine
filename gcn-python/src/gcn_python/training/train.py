@@ -13,6 +13,8 @@ from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..constants import NODE_TYPES, RELATION_TYPES
+from ..evaluation.metrics import node_accuracy, node_macro_f1, edge_accuracy, edge_macro_f1
+from ..evaluation.recorder import TrainingRecorder
 from .checkpoint import save_checkpoint
 
 
@@ -46,18 +48,27 @@ def train_cmd(
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 
+    recorder = TrainingRecorder()
     history: list[dict] = []
     csv_writer = None
     csv_file = None
     if log_csv:
         csv_file = open(log_csv, "w", newline="", encoding="utf-8")
-        csv_writer = csv.DictWriter(csv_file, fieldnames=["epoch", "loss"])
+        csv_writer = csv.DictWriter(
+            csv_file,
+            fieldnames=["epoch", "loss", "node_accuracy", "node_macro_f1",
+                        "edge_accuracy", "edge_macro_f1"],
+        )
         csv_writer.writeheader()
 
     try:
         for epoch in range(1, epochs + 1):
             epoch_loss = 0.0
             n_samples = 0
+            epoch_node_preds: list[str] = []
+            epoch_node_gold: list[str] = []
+            epoch_edge_preds: list[str] = []
+            epoch_edge_gold: list[str] = []
 
             for sample in loader:
                 if not sample.sentence.clauses:
@@ -126,23 +137,55 @@ def train_cmd(
                 # Backward
                 pipeline.backward(d_node, d_edge, lr=lr)
 
+                # Accumuler les prédictions pour les métriques de l'époque
+                node_pred_idxs = np.argmax(node_logits, axis=1)
+                if valid_clause_idxs:
+                    gold_node_aligned = sample.gold_node_labels[
+                        np.array(valid_clause_idxs, dtype=np.int64)
+                    ]
+                else:
+                    gold_node_aligned = sample.gold_node_labels
+                epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
+                epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
+
+                if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
+                    edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
+                    epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
+                    epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
+
                 epoch_loss += loss_val
                 n_samples += 1
 
             avg_loss = epoch_loss / max(n_samples, 1)
-            history.append({"epoch": epoch, "loss": avg_loss})
+            metrics = {
+                "node_accuracy": node_accuracy(epoch_node_preds, epoch_node_gold),
+                "node_macro_f1": node_macro_f1(epoch_node_preds, epoch_node_gold),
+                "edge_accuracy": edge_accuracy(epoch_edge_preds, epoch_edge_gold),
+                "edge_macro_f1": edge_macro_f1(epoch_edge_preds, epoch_edge_gold),
+            }
+            recorder.record(epoch, avg_loss, metrics)
+            history.append({"epoch": epoch, "loss": avg_loss, **metrics})
 
             if csv_writer:
-                csv_writer.writerow({"epoch": epoch, "loss": avg_loss})
+                csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics})
 
             if epoch % max(1, epochs // 10) == 0 or epoch == 1:
-                click.echo(f"Epoch {epoch:4d}/{epochs}  loss={avg_loss:.4f}")
+                click.echo(
+                    f"Epoch {epoch:4d}/{epochs}  loss={avg_loss:.4f}"
+                    f"  node_acc={metrics['node_accuracy']:.3f}"
+                    f"  edge_acc={metrics['edge_accuracy']:.3f}"
+                )
     finally:
         if csv_file:
             csv_file.close()
 
     save_checkpoint(pipeline, output)
     click.echo(f"Checkpoint sauvegardé : {output}")
+
+    if log_csv:
+        json_path = Path(log_csv).with_suffix(".json")
+        recorder.to_json(json_path)
+        click.echo(f"Courbe d'entraînement : {json_path}")
 
     # Vérification : la loss doit décroître sur les 10 dernières epochs
     if len(history) >= 10:

@@ -22,6 +22,7 @@ gcn-forward = "gcn_python.pipeline.cli:forward_cmd"
 gcn-verbalize = "gcn_python.verbalizer.cli:verbalize_cmd"
 gcn-train = "gcn_python.training.train:train_cmd"
 gcn-bootstrap = "gcn_python.training.bootstrap:bootstrap_cmd"
+gcn-eval = "gcn_python.evaluation.eval_runner:eval_cmd"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gcn_python"]

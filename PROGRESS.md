@@ -67,7 +67,11 @@ Phase 7  ████████████████████  100%  Pea
 
 **Limites connues :**
 - Parser symbolique : couverture limitée aux marqueurs du lexique YAML
-- Résolution coréférentielle inter-phrases : non implémentée
+- Résolution coréférentielle inter-phrases : non implémentée dans FrenchParser (outil de
+  bootstrap uniquement). Dans le pipeline ML de production, les labels des nœuds sont les
+  référents résolus manuellement dans `gcn-datasets/` — la coréférence n'intervient pas à
+  l'inférence. Le slot `AmbiguousField::CorefTarget` dans `gcn-ir` est réservé pour une
+  future extension sur texte brut entrant. **Non-bloquant en production.**
 - Compositionnalité verbale (aspect) : partiellement implémentée
 
 ---

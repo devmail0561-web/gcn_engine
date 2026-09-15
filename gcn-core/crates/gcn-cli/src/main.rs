@@ -126,7 +126,9 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Forward { text, lang, taxonomy_dir, enrich } => {
-            let mut cmd = std::process::Command::new("gcn-forward");
+            let bin = std::env::var("GCN_PYTHON_BIN")
+                .unwrap_or_else(|_| "gcn-forward".into());
+            let mut cmd = std::process::Command::new(&bin);
             cmd.arg("--lang").arg(&lang);
             if let Some(dir) = &taxonomy_dir {
                 cmd.arg("--taxonomy-dir").arg(dir);
