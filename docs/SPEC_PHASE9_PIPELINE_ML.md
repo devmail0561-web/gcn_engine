@@ -2,370 +2,426 @@
 
 **Auteur :** Michel Tendeng  
 **Date :** 2026-09-15  
-**Statut :** Approuvé — en attente d'implémentation  
-**Branche cible :** `master`
+**Révision :** 2 — réécriture complète après critique  
+**Statut :** En révision  
+**Branche cible :** `feat/phase9-pipeline-fixes`
 
 ---
 
-## Vue d'ensemble
+## Avertissement préliminaire
 
-Trois problèmes structurels ont été identifiés dans le pipeline ML de GCN-Core. Ils concernent le chemin complet du texte brut jusqu'au conflit d'entraînement encodeur-décodeur.
+La révision 1 de ce document contenait trois erreurs fondamentales qui auraient conduit à des régressions ou à des corrections sans effet réel :
 
-```
-PROBLÈME 1          PROBLÈME 2          PROBLÈME 3
-Texte brut          Décodeur            Conflit gradients
-    │               mean-pool           encodeur ↔ décodeur
-    ✗ manque            │                   │
-    spaCy           perd structure      R-GCN optimisé
-                    du graphe           pour 2 objectifs
-```
-
-**Ordre d'implémentation :** Problème 3 → Problème 2 → Problème 1
+1. **Problème 1 (rev.1)** : mixer FrenchParser (spans) + spaCy (features) crée un problème d'alignement d'indices de tokens et perpétue la dépendance au symbolique. La cause profonde réelle est un **mismatch train/inférence** non identifié.
+2. **Problème 2 (rev.1)** : l'attention pooling est une amélioration marginale sur N=2–8 nœuds qui ne résout pas le problème fondamental : le décodeur ne génère pas de séquences ordonnées.
+3. **Problème 3 (rev.1)** : le stop-gradient coupe les gradients sans les remplacer. La boucle standalone décodeur (`train.py` lignes 187–198) fait déjà un entraînement découplé — l'analyse de ce mécanisme existant était absente.
 
 ---
 
-## Problème 1 — Texte brut non utilisable avec l'encodeur entraîné
+## Vue d'ensemble corrigée
 
-### Manifestation
-
-Après entraînement, l'appel suivant est impossible :
-```python
-reps, idxs, connectors = reps_from_raw_text("Si les ventes baissent...")
-cir = pipeline.forward(reps, text=text)
 ```
-Cette fonction n'existe pas. Le seul chemin vers l'encodeur passe par un JSON pré-annoté avec UPOS, DEP_REL et morphologie.
+Texte brut
+    │
+    ▼
+spaCy (tokenisation + POS + DEP + morph)      ← PROBLÈME 1
+    │
+    ▼
+Segmentation en clauses (dépendance syntaxique)
+    │
+    ▼
+UDRepresentation (features syntaxiques)
+    │                    ┌─────────────────────┐
+    ▼                    │  PROBLÈME 3          │
+Encodeur MLP             │  Entraînement phasé  │
+    │                    │  (pas conjoint)      │
+    ▼                    └─────────────────────┘
+R-GCN message passing
+    │
+    ▼
+Embeddings nœuds (N, 80)
+    │
+    ▼
+Décodeur autorégressif                        ← PROBLÈME 2
+token[0] → token[1] → token[2] → ... → <eos>
+```
 
-### Cause profonde
+**Ordre d'implémentation obligatoire :** Problème 3 → Problème 2 → Problème 1  
+(chaque étape doit passer les 112+ tests Python et 137 tests Rust avant de passer à la suivante)
 
-`reps_from_sentence(rec: SentenceRecord)` lit les features syntaxiques depuis `rec.tokens` — des `TokenRecord` produits manuellement. Sans ce fichier, la fonction retourne `([], [], [])` immédiatement (ligne 118 de `loader.py`).
+---
 
-spaCy est déclaré dans `pyproject.toml` (`spacy>=3.7`) mais **aucune ligne de code ne l'appelle à l'inférence**. Cette décision était correcte pour l'entraînement (indépendance du moteur), mais crée un trou à l'inférence : l'encodeur entraîné est inutilisable sur du texte brut.
+## Problème 1 — Mismatch train/inférence + absence de chemin texte brut
+
+### Manifestation réelle (deux symptômes distincts)
+
+**Symptôme A :** il est impossible d'appeler `pipeline.forward()` sur du texte brut — la fonction `reps_from_raw_text` n'existe pas.
+
+**Symptôme B (non identifié en rev.1) :** même si on ajoutait cette fonction en utilisant spaCy, l'encodeur entraîné sur des annotations manuelles recevrait des features produites par un modèle statistique. La distribution des features serait différente à l'entraînement et à l'inférence → dégradation silencieuse des prédictions.
+
+### Cause profonde complète
+
+`reps_from_sentence()` construit les `UDRepresentation` depuis `rec.tokens` — des annotations syntaxiques produites **manuellement** par les annotateurs du corpus. Ces annotations suivent le standard Universal Dependencies, mais leur précision et leur cohérence sont celles d'un humain expert.
+
+À l'inférence sur texte brut, on devrait utiliser un annotateur automatique (spaCy). Or spaCy produit des annotations selon le même standard UD mais avec une précision statistique (~95% POS, ~90% DEP sur fr). Cette différence de source crée un décalage entre ce que l'encodeur a appris et ce qu'il reçoit à l'inférence.
+
+**La solution correcte adresse les deux symptômes simultanément :**  
+Utiliser spaCy comme source unique de features, **aussi bien à l'entraînement qu'à l'inférence**.
 
 ### Solution
 
-Ajouter `reps_from_raw_text(text, lang)` dans `gcn-python/src/gcn_python/data/loader.py`.
+#### Étape 1 — Modifier `reps_from_sentence()` pour utiliser spaCy
 
-**Principe :**
-1. Charge spaCy automatiquement selon la langue (lazy, caché dans `_NLP_CACHE` au niveau module — invisible pour l'appelant)
-2. Parse le texte → features syntaxiques automatiques (UPOS, DEP_REL, morphologie)
-3. Utilise le frontend symbolique (FrenchParser/EnglishParser) pour détecter les **spans de clauses** uniquement — leur classification symbolique est ignorée
-4. Construit les `UDRepresentation` depuis les tokens spaCy pour chaque span
-5. Retourne `(reps, valid_idxs, connector_reps)` — **signature identique à `reps_from_sentence()`**
+Fichier : `gcn-python/src/gcn_python/data/loader.py`
 
-**Interface publique (ce que voit l'appelant) :**
+`reps_from_sentence(rec)` doit ré-extraire les features syntaxiques depuis `rec.text` via spaCy, **en ignorant `rec.tokens`** pour les features (UPOS, DEP_REL, morph). Il utilise toujours `rec.clauses` pour les **spans et les labels causaux gold** (NodeType, RelationType).
+
+```python
+def reps_from_sentence(
+    rec: SentenceRecord,
+) -> tuple[list[UDRepresentation], list[int], list[UDRepresentation | None]]:
+    """Construit les UDRepresentation depuis spaCy sur rec.text.
+    Les spans de clauses et les labels causaux viennent de rec.clauses (gold).
+    Les features syntaxiques (UPOS, DEP, morph) viennent de spaCy.
+    """
+    if not rec.clauses:
+        return [], [], []
+    nlp = _get_nlp(rec.lang)
+    doc = nlp(rec.text)
+    # Aligner tokens spaCy sur les spans de clauses via positions de caractères
+    ...
+```
+
+**Alignement par position de caractère (pas par index de token) :**
+- FrenchParser retourne des `token_span (start_token_idx, end_token_idx)` dans sa propre tokenisation
+- spaCy retourne des tokens avec `token.idx` (position caractère début) et `token.idx + len(token.text)` (fin)
+- L'alignement se fait via les positions caractère du texte source `rec.text` → univoque, robuste
+
+#### Étape 2 — Ajouter `reps_from_raw_text(text, lang)`
+
+Une fois l'étape 1 faite, `reps_from_raw_text` devient simple : il faut seulement détecter les spans de clauses sans avoir de `rec.clauses` gold.
+
 ```python
 def reps_from_raw_text(
     text: str,
     lang: str = "fr",
 ) -> tuple[list[UDRepresentation], list[int], list[UDRepresentation | None]]:
-    ...
-```
-Pas de modèle spaCy en paramètre. Pas de taxonomies. Juste du texte.
-
-**Chargement spaCy — interne :**
-```python
-_NLP_CACHE: dict[str, Any] = {}
-
-def _get_nlp(lang: str):
-    if lang not in _NLP_CACHE:
-        model = "fr_core_news_sm" if lang == "fr" else "en_core_web_sm"
-        import spacy
-        _NLP_CACHE[lang] = spacy.load(model)
-    return _NLP_CACHE[lang]
 ```
 
-**Mapping spaCy → UDRepresentation :**
+**Détection de clauses via spaCy (sans FrenchParser) :**  
+La dépendance syntaxique permet de segmenter en clauses :
+- Un nouveau span de clause commence à chaque token dont `dep_` est dans `{"advcl", "csubj", "mark", "relcl"}` ou après une ponctuation forte (`,`, `;`)
+- Le token racine de la phrase (`dep_ == "ROOT"`) définit la clause principale
+- Chaque verbe fléchi (`pos_ in {"VERB", "AUX"}`) non inclus dans un span existant génère un nouveau span
 
-| Champ spaCy | → Champ UDRepresentation |
-|---|---|
-| `token.pos_` | `root_pos`, `subject_pos` |
-| `token.dep_` | `root_dep_rel`, `has_object`, `has_advcl`, `has_temporal_obl` |
-| `token.morph.to_dict()` | `root_morph` → `tense`, `aspect`, `mood` |
-| `token.lemma_` | `root_lemma` |
-| `token.morph.get("Polarity") == ["Neg"]` | `is_negative` |
+Cette segmentation est purement syntaxique — elle ne dépend pas de FrenchParser.
 
-**Mise à jour CLI Python** (`gcn-python/src/gcn_python/pipeline/cli.py`) :
-- Ajouter option `--raw-text TEXT` à `gcn-forward`
-- Quand présent : appelle `reps_from_raw_text(text, lang)` au lieu de `load_sentences(path)`
-
-**Mise à jour CLI Rust** (`gcn-core/crates/gcn-cli/src/main.rs`) :
-- Ajouter flag `--raw` à `gcn forward`
-- Passe `--raw-text "<text>"` au sous-processus `gcn-forward` au lieu d'un chemin de fichier
-
-**Usage final après implémentation :**
+**Interface finale :**
 ```bash
-gcn-forward --raw-text "Si les ventes baissent, on réduit les coûts." \
-  --lang fr --model-path model.npz
-# → CausalIR JSON, sans aucun fichier annoté
+gcn-forward --raw-text "Si les ventes baissent, on réduit les coûts." --lang fr --model-path model.npz
+# → CausalIR JSON — aucune annotation manuelle requise
 ```
+
+#### Étape 3 — Mise à jour CLI
+
+- `gcn-forward` (`cli.py`) : ajouter option `--raw-text TEXT`
+- `gcn forward` Rust (`main.rs`) : ajouter flag `--raw` → passe `--raw-text` au sous-processus
+
+#### Prérequis d'installation (à documenter)
+
+```bash
+pip install gcn-python
+python -m spacy download fr_core_news_md   # ~43 MB — modèle fr (md = meilleure morphologie)
+python -m spacy download en_core_web_md    # pour l'anglais
+```
+
+`fr_core_news_sm` est insuffisant pour la morphologie (Tense/Aspect/Mood) — utiliser `md` minimum.
 
 ### Ce qui NE CHANGE PAS
 
-- `reps_from_sentence()` — identique, tous les tests existants passent
+- Format JSON des datasets — identique (les `rec.clauses` avec labels causaux gold sont toujours lus)
 - `GCNDataLoader` — identique
-- Format JSON des datasets — identique
-- `CGNPipeline.forward()` — reçoit des `UDRepresentation` quelle qu'en soit l'origine
+- `CGNPipeline.forward()` — identique
 
-### Risques de régression
+### Risques
 
-| Risque | Mitigation |
-|---|---|
-| spaCy tokenise différemment du tokenizer symbolique | Utiliser les spans de FrenchParser comme référence, aligner les tokens spaCy par position de caractère |
-| `reps_from_raw_text` appelée dans les tests existants | Impossible — la fonction n'existe pas encore |
-| `fr_core_news_sm` non installé | `ImportError` clair avec message d'installation |
+| Risque | Gravité | Mitigation |
+|---|---|---|
+| spaCy `md` non installé | Bloquant | `ImportError` avec message d'installation explicite |
+| Légères différences spaCy vs annotation manuelle sur les données d'entraînement | Modéré | Ré-entraîner le modèle après ce changement — les features d'entraînement seront désormais cohérentes avec l'inférence |
+| Segmentation spaCy produit un nombre différent de clauses que les spans gold | Possible sur texte brut | Warning si détection ≠ spans gold sur les données de test — pas d'erreur |
 
 ---
 
-## Problème 2 — Mean-pool écrase la structure causale du graphe
+## Problème 2 — Décodeur ne génère pas de séquences ordonnées
 
 ### Manifestation
 
-`TrainableDecoder.decode(ir_json)` retourne des tokens dans le désordre, pas une phrase :
+`TrainableDecoder.decode(ir_json)` retourne des tokens dans le désordre :
 ```
 Attendu  : "Si les ventes baissent, on réduit les coûts."
 Obtenu   : "réduire coûts ventes si baissent"
 ```
 
-### Cause profonde
+### Cause profonde complète
 
-Dans `trainable.py` ligne 111 :
+Deux problèmes distincts, confondus en rev.1 :
+
+**A — Mean-pool (problème identifié en rev.1, mais solution insuffisante)**  
+`mean(axis=0)` traite tous les nœuds avec poids 1/N. L'attention pooling améliore la sélection du nœud le plus saillant mais **ne change pas le fait qu'on génère depuis un seul vecteur**.
+
+**B — Absence de génération séquentielle (problème non adressé en rev.1)**  
+Le MLP produit une distribution `(|V|,)` depuis un seul vecteur. Il n'y a aucun état récurrent, aucun mécanisme de position, aucune cohérence entre les tokens générés. Même avec une attention pooling parfaite, les tokens seront dans le désordre car rien ne encode l'ordre de génération.
+
+L'attention pooling (rev.1) ne résout que A. Le problème B est la cause du désordre.
+
+### Solution : décodeur autorégressif (NumPy référence)
+
+Un décodeur autorégressif génère les tokens **un par un**, en maintenant un état caché qui encode "ce qui a déjà été généré" :
+
+```
+Contexte (nœuds causaux) → état initial h_0
+    │
+    ▼
+token[0] = argmax(W_o @ h_0)
+    │
+    ▼
+h_1 = tanh(W_h @ h_0 + W_e @ embed(token[0]))
+    │
+    ▼
+token[1] = argmax(W_o @ h_1)
+    │   ...
+    ▼
+<eos> → arrêt
+```
+
+#### Modifications dans `trainable.py`
+
+**a) `SurfaceVocabulary`** : ajouter `<eos>` comme token spécial (index 2, après `<pad>=0` et `<unk>=1`). `build()` doit toujours inclure `<eos>` dans le vocabulaire.
+
+**b) `TrainableDecoder` — nouvelle architecture :**
+
+Paramètres apprenants :
+- `W_h (d_hidden, d_hidden)` — transition d'état caché
+- `W_e (d_hidden, d_emb)` — embedding du token précédent (`d_emb = 32` par défaut)
+- `W_c (d_hidden, d_in)` — projection du contexte (nœuds causaux) vers l'état initial
+- `W_o (|V|, d_hidden)` — projection vers le vocabulaire
+- `E (|V|, d_emb)` — matrice d'embeddings de tokens
+
+Initialisation de l'état `h_0` :
 ```python
-mean = node_embeddings.mean(axis=0)   # (N, 80) → (80,) par moyenne simple
+# Context = attention-pooled node embeddings (si disponible) ou zeros
+context = attention_pool(node_embeddings)  # (d_in,)
+h_0 = tanh(W_c @ context)                 # (d_hidden,)
 ```
 
-**Problème a — Perte de structure :** la moyenne traite le nœud `Action` et le nœud `Condition` comme équivalents, avec le même poids `1/N`. Le décodeur ne sait pas quelle clause causale est la plus pertinente pour reconstruire la surface.
+**c) `forward_decode(node_embeddings, gold_tokens=None, max_len=20)` :**
+- Si `gold_tokens` fourni (entraînement) : **teacher forcing** — utilise le token gold au pas t-1
+- Sinon (inférence) : **greedy decoding** — utilise argmax au pas t-1
+- S'arrête à `<eos>` ou `max_len`
+- Retourne `logits_sequence (T, |V|)` en entraînement, `tokens (T,)` en inférence
 
-**Problème b — Gradient pauvre :** `backward_decode()` retourne `d_mean (80,)` — un seul vecteur identique pour tous les N nœuds. Le gradient ne différencie pas les nœuds, ce qui ralentit l'apprentissage et crée un couplage avec le problème 3.
+**d) `loss_decode(logits_seq, gold_tokens)` :**
+- Cross-entropie sur toute la séquence : `mean(CE(logits_t, gold_t))` pour t=0..T-1
+- Masque les positions padding
 
-### Principe de la solution : Attention pooling sur nœuds causaux
+**e) `backward_decode(d_logits_seq)` :**
+- BPTT (Backpropagation Through Time) sur la séquence
+- Retourne les gradients de tous les paramètres
 
-> Contrairement aux Transformers qui font de l'attention sur chaque **mot** (50–512 tokens), ici l'attention opère sur N **nœuds causaux** (2–8 clauses). Chaque nœud représente une clause entière avec son type causal. L'attention apprend quelle clause est la plus pertinente pour générer la surface — une attention au niveau du **sens**, pas du lexique.
+**f) `decode(ir_json)` — inférence :**
+- Construit les embeddings one-hot des NodeTypes depuis le CausalIR
+- Appelle `forward_decode(node_embeddings)` en mode greedy
+- Retourne la séquence de tokens jointe par espaces (jusqu'à `<eos>`)
 
-Un vecteur appris `_attn_vec (80,)` calcule un score d'importance pour chaque nœud :
-
-```
-node_embeddings (N, 80)
-       │  @ _attn_vec (80,)
-       ↓
-scores (N,)  →  softmax  →  weights (N,)
-       │
-Σ weights[i] * node[i]  →  pooled (80,)
-       │
-MLP 2 couches  →  logits (|V|,)
-```
-
-L'initialisation de `_attn_vec` à zéro garantit un comportement identique au mean-pool au premier forward (softmax uniforme = poids 1/N). Le décodeur apprend progressivement à pondérer les nœuds.
-
-### Ce qui doit changer
-
-**Fichier :** `gcn-python/src/gcn_python/verbalizer/trainable.py`
-
-**a) `_init_layers(d_in)`** :
-```python
-self._attn_vec = np.zeros(d_in, dtype=np.float64)
-# + stocker d_in pour la sérialisation
-```
-
-**b) `forward_decode(node_embeddings)`** — remplacer ligne 111 :
-```python
-# Avant
-mean = node_embeddings.mean(axis=0)
-
-# Après
-attn_scores = node_embeddings @ self._attn_vec     # (N,)
-exp_s = np.exp(attn_scores - attn_scores.max())   # stabilité numérique
-attn_weights = exp_s / exp_s.sum()                 # (N,) — somme = 1
-pooled = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0)  # (80,)
-# Cache pour le backward :
-self._cached_attn_weights = attn_weights
-self._cached_node_emb = node_embeddings
-```
-
-**c) `backward_decode(d_logits)`** — ajouter backward de l'attention avant backward MLP :
-```python
-# d_pooled (80,) issu du backward MLP (déjà calculé)
-d_weighted = d_pooled[np.newaxis, :] * self._cached_attn_weights[:, np.newaxis]  # (N, 80)
-d_attn_weights = (d_pooled * self._cached_node_emb).sum(axis=1)                   # (N,)
-# Backward softmax
-d_attn_scores = self._cached_attn_weights * (
-    d_attn_weights - (self._cached_attn_weights * d_attn_weights).sum()
-)                                                                                   # (N,)
-d_attn_vec = self._cached_node_emb.T @ d_attn_scores                              # (80,)
-d_input = d_weighted                                                                # (N, 80)
-# Retourner : (d_input, grads_MLP, d_attn_vec)
-```
-
-**d) `parameters()`** : inclure `self._attn_vec`.
-
-**e) `update(grads, lr)`** : appliquer SGD sur `_attn_vec`.
-
-**f) `to_json()` / `from_json()`** : sérialiser `_attn_vec.tolist()` et `d_in`.
+**g) Sérialisation :** `to_json()` / `from_json()` incluent tous les nouveaux paramètres et `d_emb`.
 
 ### Ce qui NE CHANGE PAS
 
-- `forward_decode()` retourne toujours `(|V|,)` — interface publique identique
-- `decode(ir_json)` — identique
-- L'appel dans `cgnp.py:forward()` — identique
-- Les tests de forme existants dans `test_trainable_decoder.py` passent
+- Interface `decode(ir_json) -> str` — identique pour l'appelant
+- `CGNPipeline.forward()` appelle toujours `decoder.forward_decode(enriched_vecs)` — identique
+- Protocol `VerbalizerDecoder` — inchangé
 
-### Risques de régression
+### Risques
 
-| Risque | Mitigation |
-|---|---|
-| Ancien checkpoint sans `_attn_vec` | Détection dans `load_checkpoint` : si clé absente → initialiser à zéro |
-| `backward_decode` change de signature de retour | Adapter `cgnp.py:backward()` dans le même commit (problème 3) |
-| Test `checkpoint_roundtrip` ne teste pas `_attn_vec` | Étendre le test existant |
+| Risque | Gravité | Mitigation |
+|---|---|---|
+| Checkpoints existants incompatibles (nouvelle architecture) | Bloquant | `load_checkpoint` détecte l'ancienne architecture (absence de `W_h`, `W_e`, `E`) et refuse le chargement avec message clair |
+| BPTT instable sur longues séquences | Modéré | Gradient clipping : `np.clip(grad, -1.0, 1.0)` sur tous les gradients du décodeur |
+| `max_len` trop petit pour certaines phrases | Faible | Défaut 20, configurable via `--max-decode-len` dans `gcn-train` |
+| Tests existants passent des `(|V|,)` logits — maintenant `(T, |V|)` | Bloquant | Adapter tous les tests de `test_trainable_decoder.py` dans le même commit |
 
 ---
 
-## Problème 3 — Conflit de gradients encodeur ↔ décodeur
+## Problème 3 — Entraînement conjoint contre-productif
 
 ### Manifestation
 
-Après entraînement conjoint encodeur + décodeur, les deux composants convergent moins bien qu'avec un entraînement séparé. L'encodeur classe moins bien les types causaux.
+Après entraînement conjoint encodeur + décodeur, les deux composants convergent moins bien qu'avec un entraînement séparé. L'encodeur perd de la précision sur la classification causale.
 
-### Cause profonde
+### Cause profonde complète
 
-Dans `cgnp.py:backward()`, lignes 368–371 :
+**Cause A — Gradients conflictuels (identifiée en rev.1) :**  
+`cgnp.py:backward()` lignes 368–371 propagent `d_mean` du décodeur dans `d_enriched`, perturbant les poids R-GCN.
+
+**Cause B — Non identifiée en rev.1 :**  
+La boucle standalone décodeur (`train.py` lignes 187–198) entraîne déjà le décodeur indépendamment après la boucle encodeur. Ce mécanisme fait une partie du découplage. Mais il est exécuté **après** la boucle couplée, qui a déjà perturbé les poids R-GCN. L'ordre est incorrect.
+
+**Cause C — Non identifiée en rev.1 :**  
+L'encodeur et le décodeur utilisent le même learning rate. Or la loss décodeur (génération de texte) est sur une échelle différente de la loss encodeur (classification à 7 classes). Sans normalisation des losses, le décodeur peut dominer le gradient même avec le stop-gradient.
+
+### Solution : entraînement séquentiel en deux phases explicites
+
+Remplacer l'entraînement conjoint par deux phases séquentielles distinctes dans `gcn-train` :
+
+**Phase 1 — Encodeur seul :**
+```bash
+gcn-train --data-dir corpus/ --epochs 50 --output model_encoder.npz
+# Pas de --verbalize-dir → décodeur absent → pipeline purement encodeur
+```
+
+**Phase 2 — Décodeur seul, encodeur gelé :**
+```bash
+gcn-train --verbalize-dir corpus/ --decoder-only --encoder-checkpoint model_encoder.npz \
+  --epochs 30 --output model_full.npz
+```
+
+`--decoder-only` charge l'encodeur depuis le checkpoint, **gèle ses poids** (aucune mise à jour sur `encoder_*` et `graph_*`), et entraîne uniquement les paramètres du décodeur.
+
+#### Modifications dans `train.py`
+
+Ajouter `--decoder-only` et `--encoder-checkpoint PATH` :
+
 ```python
-d_enriched[:min(n, N_dec)] += d_mean[np.newaxis, :] / max(N_dec, 1)
+@click.option("--decoder-only", is_flag=True, default=False)
+@click.option("--encoder-checkpoint", type=click.Path(), default=None)
 ```
 
-Ce code propage le gradient de la loss décodeur (`d_mean`) dans `d_enriched`, qui est transmis au backward du R-GCN. Le R-GCN reçoit des gradients de **deux objectifs contradictoires** :
+Quand `decoder_only=True` :
+1. Charger les poids encodeur depuis `encoder_checkpoint`
+2. `encoder.frozen = True` — ne pas appeler `update_node()` / `update_edge()`
+3. `graph.frozen = True` — ne pas appeler `graph.update()`
+4. Entraîner uniquement sur les paires verbalize
+5. Sauvegarder le checkpoint complet (encodeur + décodeur)
 
-```
-Backward complet (situation actuelle) :
+#### Nettoyage de la boucle existante
 
-Loss NodeType + RelationType
-         │
-   d_node_logits, d_edge_logits
-         │
-   backward MLP encodeur  →  d_enriched (encodeur)
-         │
-         +──────────────────────────────────┐
-                                            │
-Loss surface texte (décodeur)               │
-         │                                  │
-   backward_decode() → d_mean              │
-         │                                  │
-   d_enriched += d_mean / N  ◄──────────────┘
-         │
-   backward_message_pass(d_enriched)
-         │
-   W_r mis à jour selon : classifier NodeType ET prédire vocabulaire
-   → CONFLIT → convergence dégradée pour les deux
-```
+Supprimer la boucle standalone décodeur (lignes 187–198 de `train.py`) — elle est remplacée par la phase 2 explicite ci-dessus. La garder créerait une confusion sur l'ordre d'entraînement.
 
-### Solution : Stop-gradient (découplage des entraînements)
+#### Suppression du couplage dans `cgnp.py`
 
-Ajouter `decoder_stop_gradient: bool = True` dans `CGNPipeline.__init__()`.
-
-**Avec `decoder_stop_gradient=True` (défaut recommandé) :**
-
-```
-Forward  : texte → encodeur → R-GCN → embeddings enrichis → décodeur  (couplé ✓)
-Backward : décodeur → STOP ✗  |  R-GCN ← encodeur uniquement           (découplé ✓)
-
-Résultat :
-- W_r (R-GCN) : optimisé uniquement pour NodeType / RelationType  ✓
-- W_dec (MLP décodeur + _attn_vec) : optimisé uniquement pour la surface  ✓
-- Le décodeur bénéficie toujours des embeddings causaux enrichis au forward  ✓
-```
-
-### Ce qui doit changer
-
-**Fichier :** `gcn-python/src/gcn_python/pipeline/cgnp.py`
-
-**a) `__init__()`** :
-```python
-def __init__(
-    self,
-    encoder: CausalEncoder,
-    graph: CausalGraph,
-    lang: str,
-    vocabulary: FeatureVocabulary,
-    *,
-    decoder=None,
-    decoder_stop_gradient: bool = True,   # ← nouveau paramètre
-):
-    ...
-    self.decoder_stop_gradient = decoder_stop_gradient
-```
-
-**b) `backward()`** — conditionner lignes 368–371 :
-```python
-# Backward décodeur
-if self.decoder is not None and self._cached_decode_gradient is not None:
-    d_input_dec, dec_grads, d_attn_vec = self.decoder.backward_decode(
-        self._cached_decode_gradient
-    )
-    self.decoder.update(dec_grads, d_attn_vec, lr)
-
-    if not self.decoder_stop_gradient and self._cached_enriched_vecs is not None:
-        # Propagation vers R-GCN (déconseillé — désactivé par défaut)
-        N_dec, n = d_input_dec.shape[0], d_enriched.shape[0]
-        d_enriched[:min(n, N_dec)] += d_input_dec[:min(n, N_dec)]
-# else : gradient décodeur s'arrête ici — R-GCN non perturbé
-```
+Supprimer purement les lignes 368–371 (`d_enriched += d_mean / N`). Pas de paramètre `decoder_stop_gradient` — le couplage est simplement retiré car il n'a jamais été utile. La suppression est définitive.
 
 ### Ce qui NE CHANGE PAS
 
-- `CGNPipeline(encoder, graph, lang, vocabulary)` — appel sans `decoder_stop_gradient` → comportement plus correct qu'avant, rétro-compatible
-- `CGNPipeline(encoder, graph, lang, vocabulary, decoder=dec)` — idem
-- Le forward est inchangé
-- `filter_edge_cache()` est inchangé
+- `CGNPipeline.forward()` — identique
+- `CGNPipeline.loss()` — identique (calcule toujours la loss combinée pour le logging)
+- `CGNPipeline.backward()` — simplifié (suppression des lignes 368–371 uniquement)
+- Entraînement sans décodeur (`gcn-train` sans `--verbalize-dir`) — identique
 
-### Risques de régression
+### Risques
 
-| Risque | Mitigation |
-|---|---|
-| Code qui passait `decoder_stop_gradient=False` explicitement | Aucun code existant ne fait ça — le paramètre est nouveau |
-| Test `test_pipeline_with_decoder` vérifie le backward | Mettre à jour le test pour vérifier que `W_r` ne change pas sous loss décodeur seule avec `stop_gradient=True` |
+| Risque | Gravité | Mitigation |
+|---|---|---|
+| Utilisateurs qui relancent un entraînement conjoint existant | Faible | Les deux phases peuvent être enchaînées dans un script — documenter dans README |
+| `frozen` non implémenté sur `MLPEncoder` et `RGCNLayer` | Bloquant | Ajouter attribut `frozen: bool = False` et vérifier dans `update_node()`, `update_edge()`, `graph.update()` |
+| La loss décodeur n'est plus dans `epoch_loss` en phase 1 | Informatif | Normal — la loss décodeur est loguée séparément en phase 2 |
 
 ---
 
 ## Récapitulatif des fichiers modifiés
 
-| Fichier | Modification | Problème |
-|---|---|---|
-| `gcn-python/src/gcn_python/data/loader.py` | + `reps_from_raw_text(text, lang)` + `_get_nlp()` cache | 1 |
-| `gcn-python/src/gcn_python/pipeline/cli.py` | + option `--raw-text TEXT` | 1 |
-| `gcn-core/crates/gcn-cli/src/main.rs` | + flag `--raw` dans `gcn forward` | 1 |
-| `gcn-python/src/gcn_python/verbalizer/trainable.py` | mean-pool → attention pooling, backward `(N, 80)`, `_attn_vec` sérialisé | 2 |
-| `gcn-python/src/gcn_python/pipeline/cgnp.py` | `decoder_stop_gradient=True`, backward adapté | 3 |
+| Fichier | Modification | Problème | Commit atomique |
+|---|---|---|---|
+| `gcn-python/src/gcn_python/data/loader.py` | `reps_from_sentence` utilise spaCy + `reps_from_raw_text()` | 1 | Commit P1 |
+| `gcn-python/src/gcn_python/pipeline/cli.py` | + `--raw-text` | 1 | Commit P1 |
+| `gcn-core/crates/gcn-cli/src/main.rs` | + `--raw` dans `gcn forward` | 1 | Commit P1 |
+| `gcn-python/src/gcn_python/verbalizer/trainable.py` | décodeur autorégressif complet | 2 | Commit P2 |
+| `gcn-python/src/gcn_python/pipeline/cgnp.py` | suppression lignes 368–371 | 3 | Commit P3 |
+| `gcn-python/src/gcn_python/training/train.py` | + `--decoder-only` + `--encoder-checkpoint`, suppression boucle standalone | 3 | Commit P3 |
+| `gcn-python/src/gcn_python/layer2/reference.py` | + attribut `frozen` dans `MLPEncoder` | 3 | Commit P3 |
+| `gcn-python/src/gcn_python/layer3/reference.py` | + attribut `frozen` dans `RGCNLayer` | 3 | Commit P3 |
+
+**Règle absolue :** chaque commit doit passer `pytest gcn-python/tests/ -q` (112+ tests) et `cargo test --workspace` (137 tests) **avant** de passer au commit suivant. Aucune exception.
 
 ---
 
 ## Nouveaux tests requis
 
-| Test | Fichier | Ce qu'il vérifie |
-|---|---|---|
-| `test_reps_from_raw_text_returns_reps` | `test_data_loader.py` | Retourne des UDRepresentation non vides depuis texte brut |
-| `test_reps_from_raw_text_same_clause_count` | `test_data_loader.py` | Même nombre de clauses que FrenchParser sur la même phrase |
-| `test_attention_weights_nonuniform_after_update` | `test_trainable_decoder.py` | Après updates, `attn_weights != 1/N` |
-| `test_backward_decode_returns_N_D_gradient` | `test_trainable_decoder.py` | `d_input.shape == (N, 80)` |
-| `test_checkpoint_attn_vec_roundtrip` | `test_trainable_decoder.py` | `_attn_vec` sauvegardé et restauré |
-| `test_stop_gradient_rgcn_unchanged` | `test_pipeline.py` | Avec `stop_gradient=True`, `W_r` ne varie pas sous loss décodeur seule |
+### Problème 1
+
+| Test | Ce qu'il vérifie |
+|---|---|
+| `test_reps_from_sentence_uses_spacy_features` | Les features UPOS/DEP viennent de spaCy, pas de `rec.tokens` |
+| `test_reps_from_raw_text_returns_N_reps` | Retourne autant de reps que de clauses détectées |
+| `test_reps_from_raw_text_no_manual_annotation_needed` | Fonctionne sans `rec.tokens` rempli |
+| `test_feature_consistency_sentence_vs_raw_text` | Même features pour le même texte via les deux chemins |
+
+### Problème 2
+
+| Test | Ce qu'il vérifie |
+|---|---|
+| `test_forward_decode_returns_sequence` | `forward_decode` retourne `(T, |V|)` logits |
+| `test_greedy_decode_produces_eos` | `decode()` s'arrête à `<eos>` |
+| `test_teacher_forcing_vs_greedy_same_first_token` | Cohérence entre modes train et inférence |
+| `test_backward_bptt_gradients_nonzero` | Gradients non nuls sur tous les paramètres |
+| `test_checkpoint_autoregressive_roundtrip` | Sauvegarder + restaurer → même prédictions |
+
+### Problème 3
+
+| Test | Ce qu'il vérifie |
+|---|---|
+| `test_encoder_weights_frozen_in_decoder_only_mode` | `W_r` ne change pas pendant `--decoder-only` |
+| `test_decoder_weights_update_in_decoder_only_mode` | `W_h`, `W_e` changent bien pendant `--decoder-only` |
+| `test_no_gradient_coupling_in_backward` | Supprimer les lignes 368–371 n'affecte pas la loss encodeur |
 
 ---
 
 ## Vérification end-to-end
 
+**Après Commit P3 (problème 3) :**
 ```bash
-# Régression globale (doit passer à chaque étape)
-cd gcn-core && cargo test --workspace   # 137/137
-cd .. && python3 -m pytest gcn-python/tests/ -q   # 112+ tests
+python3 -m pytest gcn-python/tests/ -q       # 112+ tests
+python3 -m pytest gcn-python/tests/test_pipeline.py -v
+```
 
-# Problème 3 — stop-gradient (après implémentation)
-python3 -m pytest gcn-python/tests/test_pipeline.py::test_stop_gradient_rgcn_unchanged -v
-
-# Problème 2 — attention pooling (après implémentation)
+**Après Commit P2 (problème 2) :**
+```bash
 python3 -m pytest gcn-python/tests/test_trainable_decoder.py -v
+python3 -c "
+from gcn_python.verbalizer.trainable import TrainableDecoder, SurfaceVocabulary
+import numpy as np
+sv = SurfaceVocabulary(); sv.build(['si les ventes baissent on réduit les coûts'])
+dec = TrainableDecoder(sv, d_hidden=32)
+emb = np.random.randn(2, 80)
+tokens = dec.decode('{\"nodes\":[{\"node_type\":\"processus\"},{\"node_type\":\"action\"}],\"edges\":[]}')
+print('tokens générés :', tokens)
+assert '<eos>' not in tokens  # <eos> ne doit pas apparaître dans la sortie
+"
+```
 
-# Problème 1 — texte brut (après implémentation, requiert fr_core_news_sm)
+**Après Commit P1 (problème 1) :**
+```bash
+# Requiert : python -m spacy download fr_core_news_md
 python3 -c "
 from gcn_python.data.loader import reps_from_raw_text
 reps, idxs, connectors = reps_from_raw_text('Si les ventes baissent, on réduit les coûts.')
-print(f'{len(reps)} clauses extraites')  # attendu : 2
+assert len(reps) >= 2, f'Attendu ≥2 clauses, obtenu {len(reps)}'
+assert reps[0].root_pos in {'VERB', 'NOUN', 'AUX'}, f'POS inattendu : {reps[0].root_pos}'
+print(f'{len(reps)} clauses — OK')
 "
+```
+
+**Pipeline complet :**
+```bash
+# Phase 1 : entraîner l'encodeur
+gcn-train --data-dir gcn-datasets/examples/ --epochs 20 --output model_enc.npz
+
+# Phase 2 : entraîner le décodeur
+gcn-train --decoder-only --encoder-checkpoint model_enc.npz \
+  --verbalize-dir gcn-datasets/examples/ --epochs 20 --output model_full.npz
+
+# Inférence sur texte brut
+gcn-forward --raw-text "Si les ventes baissent, on réduit les coûts." \
+  --lang fr --model-path model_full.npz
 ```
