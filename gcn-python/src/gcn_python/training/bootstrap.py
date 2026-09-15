@@ -13,9 +13,15 @@ import click
 @click.option("--lang", default="fr", show_default=True)
 @click.option("--out-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire de sortie pour les fichiers JSON générés")
+@click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
+              envvar="GCN_TAXONOMY_DIR",
+              help="Répertoire des taxonomies (ou env GCN_TAXONOMY_DIR)")
 @click.option("--gcn-bin", default="gcn", show_default=True,
               help="Chemin vers le binaire gcn-cli Rust")
-def bootstrap_cmd(input_file: Path, lang: str, out_dir: Path, gcn_bin: str) -> None:
+def bootstrap_cmd(
+    input_file: Path, lang: str, out_dir: Path,
+    taxonomy_dir: Path | None, gcn_bin: str,
+) -> None:
     """Génère des données d'entraînement JSON depuis des phrases brutes via gcn-cli Rust.
 
     Appelle `gcn analyze <texte>` pour chaque ligne, convertit le CausalIR JSON
@@ -33,8 +39,11 @@ def bootstrap_cmd(input_file: Path, lang: str, out_dir: Path, gcn_bin: str) -> N
 
     for i, text in enumerate(texts):
         try:
+            cmd_args = [gcn_bin, "analyze", text]
+            if taxonomy_dir:
+                cmd_args += ["--data-dir", str(taxonomy_dir)]
             result = subprocess.run(
-                [gcn_bin, "analyze", text, "--lang", lang, "--compact"],
+                cmd_args,
                 capture_output=True, text=True, timeout=30,
             )
             if result.returncode != 0:
