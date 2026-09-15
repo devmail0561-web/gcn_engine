@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import warnings
 import numpy as np
 
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
@@ -131,6 +132,13 @@ class CGNPipeline:
             self._cached_edge_type_idxs = edge_type_idxs
             enriched = self.graph.message_pass(clause_vecs, edge_index, edge_type_idxs)
             # Re-predict from enriched features ; snapshots overridés par ce pass
+            if enriched.shape[1] != self.vocabulary.d_clause:
+                warnings.warn(
+                    f"RGCNLayer.d_out={enriched.shape[1]} ≠ vocabulary.d_clause="
+                    f"{self.vocabulary.d_clause} : les logits ne seront pas recalculés "
+                    f"après enrichissement R-GCN. Instanciez RGCNLayer avec d_out=d_clause.",
+                    UserWarning, stacklevel=3,
+                )
             if enriched.shape[1] == self.vocabulary.d_clause:
                 node_logits2_list: list[np.ndarray] = []
                 node_snapshots = []

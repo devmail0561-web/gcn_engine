@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import warnings
 import numpy as np
 
 from .json_reader import load_all_sentences
@@ -31,8 +32,7 @@ def _relation_idx(relation: str, sentence_id: str) -> int:
 class TrainingSample:
     sentence: SentenceRecord
     gold_node_labels: np.ndarray  # (N,) int — indices dans NODE_TYPES
-    gold_edge_labels: np.ndarray  # (E,) int — indices dans RELATION_TYPES
-    edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — alignement sémantique
+    edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
 
 
 class GCNDataLoader:
@@ -60,17 +60,27 @@ class GCNDataLoader:
             [_node_type_idx(c.node_type, rec.id) for c in rec.clauses],
             dtype=np.int64,
         )
-        edge_labels = np.array(
-            [_relation_idx(e.relation, rec.id) for e in rec.edges],
-            dtype=np.int64,
-        )
         edge_map: dict[tuple[int, int], int] = {}
         for e in rec.edges:
             src_idx = node_id_to_idx.get(e.source)
             tgt_idx = node_id_to_idx.get(e.target)
-            if src_idx is not None and tgt_idx is not None:
-                edge_map[(src_idx, tgt_idx)] = _relation_idx(e.relation, rec.id)
-        return TrainingSample(rec, node_labels, edge_labels, edge_map)
+            if src_idx is None or tgt_idx is None:
+                continue
+            rel_idx = _relation_idx(e.relation, rec.id)
+            gap = abs(tgt_idx - src_idx)
+            if gap > 1:
+                warnings.warn(
+                    f"[{rec.id}] arête longue distance {e.source}→{e.target} "
+                    f"(gap={gap}) : aucune supervision d'arête possible (forward prédit "
+                    f"uniquement les paires consécutives).",
+                    UserWarning, stacklevel=2,
+                )
+            edge_map[(src_idx, tgt_idx)] = rel_idx
+            # Le forward prédit toujours (k, k+1) ; si l'arête gold est (k+1, k),
+            # on l'expose aussi dans la direction consécutive pour que le lookup fonctionne.
+            if gap == 1 and (tgt_idx, src_idx) not in edge_map:
+                edge_map[(tgt_idx, src_idx)] = rel_idx
+        return TrainingSample(rec, node_labels, edge_map)
 
 
 def reps_from_sentence(

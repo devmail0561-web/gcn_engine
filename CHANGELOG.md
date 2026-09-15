@@ -9,6 +9,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.5] — 2026-09-15
+
+### Corrigé
+- **Supervision des arêtes inverses perdue** (`data/loader.py`, `training/train.py`) — le forward prédit toujours les paires `(k, k+1)` mais le gold CIR encode parfois la causalité dans le sens inverse `(k+1, k)` ; `edge_map.get((0,1), -1)` retournait `-1` pour ces arêtes, éliminant leur gradient. Corrigé : `_to_sample` ajoute maintenant les deux sens pour toute arête consécutive (`gap == 1`) ; `train.py` effectue un lookup bidirectionnel `edge_map.get(p, edge_map.get((p[1], p[0]), -1))`.
+
+### Supprimé
+- **Champ mort `TrainingSample.gold_edge_labels`** (`data/loader.py`) — ce tableau (ordre d'insertion JSON) n'était jamais aligné avec les `edge_logits` et ne participait à aucun gradient. Le chemin actif passe exclusivement par `edge_map`. Champ et calcul associé retirés ; le fallback mort dans `train.py` remplacé par `gold_edge = None`.
+
+### Ajouté
+- **Warning arêtes longue distance** (`data/loader.py:_to_sample`) — une arête gold avec `|src_idx - tgt_idx| > 1` émet maintenant un `UserWarning` explicite : le forward ne prédit que les paires consécutives, aucune supervision d'arête n'est possible pour ces cas.
+- **Warning R-GCN dimensionnel** (`pipeline/cgnp.py:_forward_from_reps`) — si `RGCNLayer` est instancié avec `d_out ≠ vocabulary.d_clause`, les logits ne sont pas recalculés après enrichissement R-GCN ; un `UserWarning` l'indique maintenant explicitement avec le remède (`d_out=d_clause`).
+
+### Tests
+- `test_edge_map_alignment` : vérifie que `_to_sample` émet un `UserWarning` pour une arête longue distance et que le reverse `(2, 0)` n'est pas ajouté (aucune supervision possible de toute façon)
+- `test_dataloader_yields_batches` : assertion `gold_edge_labels.dtype` retirée (champ supprimé)
+- **79 / 79 tests Python passent**
+
+---
+
 ## [0.9.4] — 2026-09-15
 
 ### Modifié

@@ -224,12 +224,12 @@ def test_dataloader_yields_batches(paper_examples_yaml: Path):
     assert len(samples) > 0
     for s in samples:
         assert s.gold_node_labels.dtype == np.int64
-        assert s.gold_edge_labels.dtype == np.int64
         assert isinstance(s.edge_map, dict)
 
 
 def test_edge_map_alignment():
     """edge_map mappe les node_ids YAML → indices de clauses, pas l'ordre d'insertion."""
+    import warnings
     from gcn_python.data.loader import GCNDataLoader
     from gcn_python.data.schema import (
         SentenceRecord, ClauseRecord, EdgeRecord, TokenRecord
@@ -253,12 +253,19 @@ def test_edge_map_alignment():
                          tokens=[], clauses=clauses, edges=edges)
 
     loader = GCNDataLoader.__new__(GCNDataLoader)
-    sample = loader._to_sample(rec)
 
-    # n001=idx 0, n003=idx 2 → (0, 2)
+    # Une arête longue distance doit émettre un UserWarning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        sample = loader._to_sample(rec)
+    assert any(issubclass(x.category, UserWarning) and "longue distance" in str(x.message) for x in w)
+
+    # n001=idx 0, n003=idx 2 → (0, 2) enregistré tel quel
     assert (0, 2) in sample.edge_map
     assert sample.edge_map[(0, 2)] == RELATION_TYPES.index("cause")
-    # La paire consécutive (0, 1) n'a pas de gold label
+    # Pas de reverse pour une arête longue distance (gap > 1)
+    assert (2, 0) not in sample.edge_map
+    # Les paires consécutives (0,1) et (1,2) restent sans gold label
     assert (0, 1) not in sample.edge_map
     assert (1, 2) not in sample.edge_map
 

@@ -107,7 +107,8 @@ def train_cmd(
                         for k in range(len(valid_clause_idxs) - 1)
                     ]
                     gold_edge_full = np.array(
-                        [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
+                        [sample.edge_map.get(p, sample.edge_map.get((p[1], p[0]), -1))
+                         for p in pairs], dtype=np.int64
                     )
                     valid_edge_mask = gold_edge_full >= 0
                     if valid_edge_mask.any():
@@ -119,9 +120,8 @@ def train_cmd(
                         gold_edge = None
                         edge_logits_arg = None
                 else:
-                    # Fallback : paper_examples sans tokens ou pas de valid_clause_idxs
-                    gold_edge = sample.gold_edge_labels if len(sample.gold_edge_labels) > 0 else None
-                    edge_logits_arg = edge_logits if edge_logits is not None and len(edge_logits) > 0 else None
+                    gold_edge = None
+                    edge_logits_arg = None
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge

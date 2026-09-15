@@ -116,6 +116,10 @@ Phase 7  ████████████████████  100%  Pea
 - **Misalignement reps ↔ gold labels** (bug 0.9.1) : `reps_from_sentence` filtrait les clauses à span vide sans retourner les indices valides — `logit[i]` était comparé au label de la clause `i-1`. Corrigé : `reps_from_sentence` retourne `(reps, valid_indices)` ; `train.py` indexe `gold_node_labels[valid_indices]` avant la loss
 - **Indice 0 silencieux** (bug 0.9.3) : `node_type`/`relation` inconnus tombaient silencieusement à l'indice 0 — `ValueError` levée avec sentence ID et valeur fautive
 - **Troncature silencieuse** (bug 0.9.3) : `loss()` absorbait les désalignements taille logits/gold avec `min()` — `ValueError` levée pour forcer un alignement explicite en amont
+- **Supervision arêtes inverses perdue** (bug 0.9.5) : arêtes gold `(k+1, k)` jamais retrouvées par le lookup `(k, k+1)` du forward — zéro gradient d'arête pour ces samples. Corrigé par lookup bidirectionnel dans `_to_sample` (gap == 1 uniquement) et `train.py`
+- **Champ mort `gold_edge_labels`** (0.9.5) : tableau insertion-order jamais aligné avec les logits, supprimé de `TrainingSample` ; fallback `train.py` → `gold_edge = None`
+- **Warning arêtes longue distance** (0.9.5) : `_to_sample` émet un `UserWarning` pour toute arête gold avec `gap > 1` (aucune supervision possible avec le forward consécutif)
+- **Warning R-GCN dimensionnel** (0.9.5) : `cgnp.py` émet un `UserWarning` si `d_out ≠ d_clause` (enrichissement R-GCN silencieusement ignoré)
 
 ---
 
