@@ -1,0 +1,382 @@
+{
+  "schema_version": "1.0",
+  "format": "gcn-pl",
+  "source_language": {
+    "type": "programming",
+    "lang": "rust"
+  },
+  "snippets": [
+    {
+      "id": "rs-001",
+      "lang": "rust",
+      "source": "fn process_market(market: &mut Market) -> Result<Report, Error> {\n    let status = market.evaluate();\n    match status {\n        Status::Declining => {\n            market.reduce_costs(0.1);\n            Ok(Report::adjusted())\n        }\n        Status::Stable => Ok(Report::unchanged()),\n    }\n}\n",
+      "ast_nodes": [
+        {
+          "id": 0,
+          "kind": "function_item",
+          "text": "fn process_market(market: &mut Market) -> Result<Report, Error>",
+          "span": {
+            "start_line": 1,
+            "start_col": 0,
+            "end_line": 10,
+            "end_col": 1
+          },
+          "gcn": {
+            "causal_type": "function_call",
+            "attributes": {
+              "pure": false,
+              "side_effect": true,
+              "function": "process_market",
+              "type_info": "Result<Report, Error>"
+            }
+          }
+        },
+        {
+          "id": 1,
+          "kind": "let_declaration",
+          "text": "let status = market.evaluate();",
+          "span": {
+            "start_line": 2,
+            "start_col": 4,
+            "end_line": 2,
+            "end_col": 35
+          },
+          "gcn": {
+            "causal_type": "assignment",
+            "attributes": {
+              "data_flow": "write",
+              "variable": "status",
+              "type_info": "Status"
+            }
+          }
+        },
+        {
+          "id": 2,
+          "kind": "call_expression",
+          "text": "market.evaluate()",
+          "span": {
+            "start_line": 2,
+            "start_col": 17,
+            "end_line": 2,
+            "end_col": 34
+          },
+          "gcn": {
+            "causal_type": "function_call",
+            "attributes": {
+              "function": "evaluate",
+              "data_flow": "read",
+              "variable": "market"
+            }
+          }
+        },
+        {
+          "id": 3,
+          "kind": "match_expression",
+          "text": "match status { ... }",
+          "span": {
+            "start_line": 3,
+            "start_col": 4,
+            "end_line": 9,
+            "end_col": 5
+          },
+          "gcn": {
+            "causal_type": "conditional",
+            "attributes": {
+              "control_flow": "branch"
+            }
+          }
+        },
+        {
+          "id": 4,
+          "kind": "match_arm",
+          "text": "Status::Declining => { ... }",
+          "span": {
+            "start_line": 4,
+            "start_col": 8,
+            "end_line": 7,
+            "end_col": 9
+          },
+          "gcn": {
+            "causal_type": "conditional",
+            "attributes": {
+              "control_flow": "branch",
+              "value_constraint": "equals(status, Status::Declining)"
+            }
+          }
+        },
+        {
+          "id": 5,
+          "kind": "call_expression",
+          "text": "market.reduce_costs(0.1)",
+          "span": {
+            "start_line": 5,
+            "start_col": 12,
+            "end_line": 5,
+            "end_col": 36
+          },
+          "gcn": {
+            "causal_type": "mutation",
+            "attributes": {
+              "side_effect": true,
+              "function": "reduce_costs",
+              "variable": "market"
+            }
+          }
+        },
+        {
+          "id": 6,
+          "kind": "call_expression",
+          "text": "Ok(Report::adjusted())",
+          "span": {
+            "start_line": 6,
+            "start_col": 12,
+            "end_line": 6,
+            "end_col": 34
+          },
+          "gcn": {
+            "causal_type": "return_value",
+            "attributes": {
+              "data_flow": "read",
+              "type_info": "Result<Report, Error>"
+            }
+          }
+        },
+        {
+          "id": 7,
+          "kind": "match_arm",
+          "text": "Status::Stable => Ok(Report::unchanged())",
+          "span": {
+            "start_line": 8,
+            "start_col": 8,
+            "end_line": 8,
+            "end_col": 49
+          },
+          "gcn": {
+            "causal_type": "conditional",
+            "attributes": {
+              "control_flow": "branch",
+              "value_constraint": "equals(status, Status::Stable)"
+            }
+          }
+        },
+        {
+          "id": 8,
+          "kind": "call_expression",
+          "text": "Ok(Report::unchanged())",
+          "span": {
+            "start_line": 8,
+            "start_col": 27,
+            "end_line": 8,
+            "end_col": 49
+          },
+          "gcn": {
+            "causal_type": "return_value",
+            "attributes": {
+              "data_flow": "read",
+              "type_info": "Result<Report, Error>"
+            }
+          }
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat",
+            "label": "market.evaluate() -> status",
+            "source_span": {
+              "start_line": 2,
+              "start_col": 4,
+              "end_line": 2,
+              "end_col": 35
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 0,
+            "origin": "explicit",
+            "attributes": {
+              "variable": "status",
+              "type_info": "Status"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "condition",
+            "label": "status == Declining",
+            "source_span": {
+              "start_line": 4,
+              "start_col": 8,
+              "end_line": 4,
+              "end_col": 26
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 1,
+            "origin": "explicit",
+            "attributes": {
+              "value_constraint": "equals(status, Status::Declining)"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "condition",
+            "label": "status == Stable",
+            "source_span": {
+              "start_line": 8,
+              "start_col": 8,
+              "end_line": 8,
+              "end_col": 23
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 1,
+            "origin": "explicit",
+            "attributes": {
+              "value_constraint": "equals(status, Status::Stable)"
+            }
+          },
+          {
+            "id": "n004",
+            "type": "transition",
+            "label": "market.reduce_costs(0.1)",
+            "source_span": {
+              "start_line": 5,
+              "start_col": 12,
+              "end_line": 5,
+              "end_col": 36
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 2,
+            "origin": "explicit",
+            "attributes": {
+              "variable": "market",
+              "function": "reduce_costs"
+            }
+          },
+          {
+            "id": "n005",
+            "type": "etat",
+            "label": "Ok(Report::adjusted())",
+            "source_span": {
+              "start_line": 6,
+              "start_col": 12,
+              "end_line": 6,
+              "end_col": 34
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 3,
+            "origin": "explicit",
+            "attributes": {
+              "type_info": "Result<Report, Error>"
+            }
+          },
+          {
+            "id": "n006",
+            "type": "etat",
+            "label": "Ok(Report::unchanged())",
+            "source_span": {
+              "start_line": 8,
+              "start_col": 27,
+              "end_line": 8,
+              "end_col": 49
+            },
+            "scope": "specific",
+            "modifiers": [],
+            "temporal_ref": {
+              "type": "unresolved"
+            },
+            "temporal_index": 2,
+            "origin": "explicit",
+            "attributes": {
+              "type_info": "Result<Report, Error>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "data_dependency",
+            "confidence": 1.0,
+            "temporal_gap": null,
+            "explicit": true,
+            "negated": false,
+            "marker_token": null,
+            "in_cycle": null
+          },
+          {
+            "source": "n001",
+            "target": "n003",
+            "relation": "data_dependency",
+            "confidence": 1.0,
+            "temporal_gap": null,
+            "explicit": true,
+            "negated": false,
+            "marker_token": null,
+            "in_cycle": null
+          },
+          {
+            "source": "n002",
+            "target": "n004",
+            "relation": "condition",
+            "confidence": 1.0,
+            "temporal_gap": null,
+            "explicit": true,
+            "negated": false,
+            "marker_token": null,
+            "in_cycle": null
+          },
+          {
+            "source": "n004",
+            "target": "n005",
+            "relation": "sequence",
+            "confidence": 1.0,
+            "temporal_gap": null,
+            "explicit": true,
+            "negated": false,
+            "marker_token": null,
+            "in_cycle": null
+          },
+          {
+            "source": "n003",
+            "target": "n006",
+            "relation": "condition",
+            "confidence": 1.0,
+            "temporal_gap": null,
+            "explicit": true,
+            "negated": false,
+            "marker_token": null,
+            "in_cycle": null
+          }
+        ],
+        "cycles": [],
+        "unresolved": [],
+        "metadata": {
+          "schema_version": "1.0",
+          "pipeline": [
+            "tree-sitter-rust",
+            "gcn-frontend-code"
+          ],
+          "created_at": "2026-09-14"
+        }
+      }
+    }
+  ]
+}

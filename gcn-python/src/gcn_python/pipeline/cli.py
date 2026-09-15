@@ -9,7 +9,7 @@ from ..layer1.features import FeatureVocabulary
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from .cgnp import CGNPipeline
-from ..data.yaml_reader import load_sentences
+from ..data.json_reader import load_sentences
 from ..data.loader import reps_from_sentence
 
 
@@ -17,9 +17,9 @@ DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxono
 
 
 @click.command("gcn-forward")
-@click.argument("yaml_path", type=click.Path(path_type=Path, exists=True))
+@click.argument("dataset_path", type=click.Path(path_type=Path, exists=True))
 @click.option("--sentence-id", default=None,
-              help="ID de la sentence dans le YAML (défaut : première)")
+              help="ID de la sentence dans le fichier (défaut : première)")
 @click.option("--lang", default="fr", show_default=True, help="Code langue (fr, en, …)")
 @click.option(
     "--taxonomy-dir", type=click.Path(path_type=Path),
@@ -32,7 +32,7 @@ DEFAULT_TAXONOMY_DIR = Path(__file__).parents[5] / "gcn-core" / "data" / "taxono
     help="Checkpoint .npz (produit par gcn-train). Sans ce flag : poids aléatoires.",
 )
 def forward_cmd(
-    yaml_path: Path,
+    dataset_path: Path,
     sentence_id: str | None,
     lang: str,
     taxonomy_dir: Path | None,
@@ -40,9 +40,9 @@ def forward_cmd(
     model_path: Path | None,
 ) -> None:
     """
-    Run the CGNP forward pass: YAML annoté → CausalIR JSON → stdout.
+    Run the CGNP forward pass: dataset JSON annoté → CausalIR JSON → stdout.
 
-    YAML_PATH doit être un fichier au format dataset GCN-NL (tokens + cir).
+    DATASET_PATH doit être un fichier au format dataset GCN-NL (tokens + cir).
     """
     if taxonomy_dir is None:
         taxonomy_dir = DEFAULT_TAXONOMY_DIR
@@ -52,15 +52,15 @@ def forward_cmd(
             f"Définir GCN_TAXONOMY_DIR ou passer --taxonomy-dir"
         )
 
-    records = load_sentences(yaml_path, lang)
+    records = load_sentences(dataset_path, lang)
     if not records:
-        raise click.ClickException(f"Aucune sentence chargée depuis {yaml_path}")
+        raise click.ClickException(f"Aucune sentence chargée depuis {dataset_path}")
 
     if sentence_id:
         rec = next((r for r in records if r.id == sentence_id), None)
         if rec is None:
             raise click.ClickException(
-                f"Sentence {sentence_id!r} introuvable dans {yaml_path}. "
+                f"Sentence {sentence_id!r} introuvable dans {dataset_path}. "
                 f"IDs disponibles : {[r.id for r in records]}"
             )
     else:

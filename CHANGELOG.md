@@ -9,6 +9,27 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [0.9.4] — 2026-09-15
+
+### Modifié
+- **Format des datasets migré de YAML vers JSON** (`gcn-datasets/examples/`, `gcn-core/tests/fixtures/`) — les fichiers annotés (sentences + tokens + CIR) sont désormais en `.json` ; les taxonomies linguistiques (`gcn-references/taxonomies/`, `gcn-knowledge/`) restent en YAML
+- `data/yaml_reader.py` remplacé par `data/json_reader.py` — même API (`load_sentences`, `load_all_sentences`), `import json` stdlib au lieu de PyYAML, glob `*.json` au lieu de `*.yaml`
+- `data/loader.py` — import mis à jour vers `json_reader`
+- `pipeline/cli.py` — argument `yaml_path` renommé `dataset_path`, docstring mise à jour
+- `training/bootstrap.py` — génère des `.json` via `json.dumps` (plus de dépendance `yaml` dans ce module)
+
+### Supprimé
+- `data/yaml_reader.py` — remplacé par `json_reader.py`
+- `gcn-datasets/examples/*.yaml` (5 fichiers) — remplacés par leurs équivalents `.json`
+- `gcn-core/tests/fixtures/paper_examples.yaml` — remplacé par `paper_examples.json`
+
+### Tests
+- `tests/test_yaml_reader.py` remplacé par `tests/test_json_reader.py`
+- `tests/conftest.py` — fixture `paper_examples_yaml` pointe vers `paper_examples.json`
+- **79 / 79 tests Python passent**
+
+---
+
 ## [0.9.3] — 2026-09-15
 
 ### Supprimé

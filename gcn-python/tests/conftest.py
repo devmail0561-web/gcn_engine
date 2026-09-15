@@ -16,9 +16,9 @@ def taxonomy_dir() -> Path:
 
 @pytest.fixture
 def paper_examples_yaml() -> Path:
-    p = Path(__file__).parents[2] / "gcn-core" / "tests" / "fixtures" / "paper_examples.yaml"
+    p = Path(__file__).parents[2] / "gcn-core" / "tests" / "fixtures" / "paper_examples.json"
     if not p.exists():
-        pytest.skip(f"paper_examples.yaml not found: {p}")
+        pytest.skip(f"paper_examples.json not found: {p}")
     return p
 
 

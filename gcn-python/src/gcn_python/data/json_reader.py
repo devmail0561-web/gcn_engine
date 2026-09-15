@@ -1,16 +1,16 @@
 from __future__ import annotations
 from pathlib import Path
-import yaml
+import json
 from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
 
 
 def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
-    """Charge un fichier YAML GCN-NL → List[SentenceRecord]."""
-    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    """Charge un fichier JSON GCN-NL → List[SentenceRecord]."""
+    doc = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         return []
 
-    # Format paper_examples.yaml
+    # Format paper_examples.json
     if "examples" in doc:
         return [_parse_paper_example(ex, lang) for ex in doc["examples"] if "expected_cir" in ex]
 
@@ -24,9 +24,9 @@ def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
 
 
 def load_all_sentences(data_dir: Path, lang: str = "fr") -> list[SentenceRecord]:
-    """Charge tous les fichiers YAML d'un répertoire."""
+    """Charge tous les fichiers JSON d'un répertoire."""
     records = []
-    for p in sorted(data_dir.glob("*.yaml")):
+    for p in sorted(data_dir.glob("*.json")):
         records.extend(load_sentences(p, lang))
     return records
 

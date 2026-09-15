@@ -1,4 +1,4 @@
-from gcn_python.data.yaml_reader import load_sentences
+from gcn_python.data.json_reader import load_sentences
 
 
 def test_load_paper_examples(paper_examples_yaml):

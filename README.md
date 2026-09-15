@@ -69,7 +69,7 @@ projet_CNM/
 │
 ├── gcn-python/         ← Couches ML Python (framework-agnostique)
 │   └── src/gcn_python/
-│       ├── layer1/     UDRepresentation + vectorisation (depuis tokens YAML annotés)
+│       ├── layer1/     UDRepresentation + vectorisation (depuis tokens JSON annotés)
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
 │       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerPT PyTorch)
 │       ├── pipeline/   CGNPipeline.forward() + loss() + backward() + gcn-forward CLI
@@ -88,7 +88,7 @@ projet_CNM/
 │
 └── gcn-datasets/       ← Données annotées (hors moteur)
     ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml, gcn-verbalize.schema.yaml
-    └── examples/       Exemples annotés FR, Python, Rust, cross-modal
+    └── examples/       Exemples annotés FR, Python, Rust, cross-modal (format JSON)
 ```
 
 ---
@@ -184,19 +184,19 @@ gcn analyze "..." --data-dir ./gcn-references/taxonomies --format dot | dot -Tpn
 
 ### Pipeline Python (couches ML)
 
-Le moteur ne dépend pas de spaCy. Il opère sur des `UDRepresentation` construites depuis des fichiers YAML annotés (format GCN-NL). La CLI prend un fichier dataset en entrée.
+Le moteur ne dépend pas de spaCy. Il opère sur des `UDRepresentation` construites depuis des fichiers JSON annotés (format GCN-NL). La CLI prend un fichier dataset en entrée.
 
 ```bash
-# Inférence depuis un fichier YAML annoté (poids aléatoires sans --model-path)
-gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+# Inférence depuis un fichier JSON annoté (poids aléatoires sans --model-path)
+gcn-forward gcn-datasets/examples/fr_causal_basic.json \
     --lang fr --taxonomy-dir ./gcn-references/taxonomies
 
 # Cibler une sentence spécifique
-gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+gcn-forward gcn-datasets/examples/fr_causal_basic.json \
     --sentence-id s001 --lang fr
 
 # Inférence avec un modèle entraîné
-gcn-forward gcn-datasets/examples/fr/dataset.yaml \
+gcn-forward gcn-datasets/examples/fr_causal_basic.json \
     --lang fr \
     --taxonomy-dir ./gcn-references/taxonomies \
     --model-path model.npz
@@ -208,10 +208,10 @@ gcn forward "Les ventes baissent." --lang fr --enrich
 ### Entraîner un modèle
 
 ```bash
-# Générer des données d'entraînement (YAML annoté) depuis des textes bruts
+# Générer des données d'entraînement (JSON annoté) depuis des textes bruts
 gcn-bootstrap --input phrases_fr.txt --lang fr --out-dir gcn-datasets/generated/
 
-# Lancer l'entraînement (SGD NumPy référence) — requiert des YAML avec tokens annotés
+# Lancer l'entraînement (SGD NumPy référence) — requiert des JSON avec tokens annotés
 gcn-train --data-dir gcn-datasets/generated/ \
           --taxonomy-dir ./gcn-references/taxonomies \
           --epochs 50 --lr 0.001 --output model.npz

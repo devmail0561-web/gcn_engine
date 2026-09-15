@@ -1,0 +1,251 @@
+{
+  "schema_version": "1.0",
+  "schema": "gcn-verbalize",
+  "examples": [
+    {
+      "id": "vb-cross-001",
+      "causal_ir": {
+        "source_lang": {
+          "natural": {
+            "lang": "fr"
+          }
+        },
+        "source_text": "Si les ventes baissent, on réduit les coûts.",
+        "nodes": [
+          {
+            "id": 0,
+            "node_type": "processus",
+            "label": "décroissance(ventes)",
+            "origin": "explicit"
+          },
+          {
+            "id": 1,
+            "node_type": "action",
+            "label": "réduire(coûts)",
+            "origin": "explicit"
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1,
+            {
+              "relation": "condition",
+              "confidence": 1.0,
+              "negated": false,
+              "explicit": true
+            }
+          ]
+        ]
+      },
+      "surfaces": [
+        {
+          "lang": "fr",
+          "text": "Si les ventes baissent, on réduit les coûts.",
+          "quality": "gold"
+        },
+        {
+          "lang": "python",
+          "text": "if sales_drop:\n    reduce_costs()",
+          "quality": "gold"
+        }
+      ]
+    },
+    {
+      "id": "vb-cross-002",
+      "causal_ir": {
+        "source_lang": {
+          "natural": {
+            "lang": "fr"
+          }
+        },
+        "source_text": "La crise entraîne une hausse du chômage.",
+        "nodes": [
+          {
+            "id": 0,
+            "node_type": "etat_systemique",
+            "label": "crise",
+            "origin": "explicit"
+          },
+          {
+            "id": 1,
+            "node_type": "processus",
+            "label": "hausse(chômage)",
+            "origin": "explicit"
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1,
+            {
+              "relation": "cause",
+              "confidence": 1.0,
+              "negated": false,
+              "explicit": true
+            }
+          ]
+        ]
+      },
+      "surfaces": [
+        {
+          "lang": "fr",
+          "text": "La crise entraîne une hausse du chômage.",
+          "quality": "gold"
+        },
+        {
+          "lang": "python",
+          "text": "chomage = crise.effect()",
+          "quality": "gold"
+        }
+      ]
+    },
+    {
+      "id": "vb-cross-003",
+      "causal_ir": {
+        "source_lang": {
+          "natural": {
+            "lang": "fr"
+          }
+        },
+        "source_text": "Le vaccin empêche la propagation du virus.",
+        "nodes": [
+          {
+            "id": 0,
+            "node_type": "action",
+            "label": "vacciner",
+            "origin": "explicit"
+          },
+          {
+            "id": 1,
+            "node_type": "processus",
+            "label": "propagation(virus)",
+            "origin": "explicit"
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1,
+            {
+              "relation": "prevent",
+              "confidence": 1.0,
+              "negated": false,
+              "explicit": true
+            }
+          ]
+        ]
+      },
+      "surfaces": [
+        {
+          "lang": "fr",
+          "text": "Le vaccin empêche la propagation du virus.",
+          "quality": "gold"
+        },
+        {
+          "lang": "python",
+          "text": "if vacciner:\n    return  # propagation_virus prevented",
+          "quality": "gold"
+        }
+      ]
+    },
+    {
+      "id": "vb-cross-004",
+      "causal_ir": {
+        "source_lang": {
+          "programming": {
+            "lang": "python"
+          }
+        },
+        "source_text": "load_data()\nprocess()",
+        "nodes": [
+          {
+            "id": 0,
+            "node_type": "action",
+            "label": "load_data",
+            "origin": "explicit"
+          },
+          {
+            "id": 1,
+            "node_type": "action",
+            "label": "process",
+            "origin": "explicit"
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1,
+            {
+              "relation": "sequence",
+              "confidence": 1.0,
+              "negated": false,
+              "explicit": true
+            }
+          ]
+        ]
+      },
+      "surfaces": [
+        {
+          "lang": "python",
+          "text": "load_data()\nprocess()",
+          "quality": "gold"
+        },
+        {
+          "lang": "fr",
+          "text": "Après load_data, on exécute process.",
+          "quality": "gold"
+        }
+      ]
+    },
+    {
+      "id": "vb-cross-005",
+      "causal_ir": {
+        "source_lang": {
+          "natural": {
+            "lang": "fr"
+          }
+        },
+        "source_text": "Bien que les coûts augmentent, les bénéfices restent stables.",
+        "nodes": [
+          {
+            "id": 0,
+            "node_type": "processus",
+            "label": "hausse(coûts)",
+            "origin": "explicit"
+          },
+          {
+            "id": 1,
+            "node_type": "etat",
+            "label": "stabilité(bénéfices)",
+            "origin": "explicit"
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1,
+            {
+              "relation": "concession",
+              "confidence": 1.0,
+              "negated": false,
+              "explicit": true
+            }
+          ]
+        ]
+      },
+      "surfaces": [
+        {
+          "lang": "fr",
+          "text": "Bien que les coûts augmentent, les bénéfices restent stables.",
+          "quality": "gold"
+        },
+        {
+          "lang": "python",
+          "text": "# despite hausse_couts\nstabilite_benefices()",
+          "quality": "gold"
+        }
+      ]
+    }
+  ]
+}

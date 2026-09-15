@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 
-from .yaml_reader import load_all_sentences
+from .json_reader import load_all_sentences
 from .schema import SentenceRecord, TokenRecord, ClauseRecord
 from ..constants import NODE_TYPES, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
