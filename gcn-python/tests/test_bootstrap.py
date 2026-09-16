@@ -164,6 +164,60 @@ def test_cir_to_doc_with_edges():
     assert edges[0]["confidence"] == 0.95
 
 
+def test_normalize_edge_tuple_format():
+    """COMMIT 1 : format tuple [src_id, dst_id, edge_obj] → dict correct."""
+    from gcn_python.training.bootstrap import _normalize_edge
+    e = [0, 1, {"relation": "cause", "confidence": 0.9, "explicit": True, "negated": False}]
+    result = _normalize_edge(e)
+    assert result is not None
+    assert result["source"] == "0"
+    assert result["target"] == "1"
+    assert result["relation"] == "cause"
+    assert result["confidence"] == 0.9
+    assert result["explicit"] is True
+
+
+def test_normalize_edge_dict_format():
+    """COMMIT 1 : format dict existant → résultat identique à l'ancien code."""
+    from gcn_python.training.bootstrap import _normalize_edge
+    e = {"source": "n001", "target": "n002", "relation": "condition", "confidence": 1.0,
+         "explicit": True, "negated": False}
+    result = _normalize_edge(e)
+    assert result is not None
+    assert result["source"] == "n001"
+    assert result["target"] == "n002"
+    assert result["relation"] == "condition"
+
+
+def test_normalize_edge_invalid_returns_none():
+    """COMMIT 1 : format inconnu → None (pas de crash)."""
+    from gcn_python.training.bootstrap import _normalize_edge
+    assert _normalize_edge("invalid") is None
+    assert _normalize_edge(42) is None
+    assert _normalize_edge([0, 1]) is None  # seulement 2 éléments
+    assert _normalize_edge([0, 1, "not_a_dict"]) is None  # edge_obj doit être dict
+
+
+def test_cir_to_doc_with_tuple_edges():
+    """COMMIT 1 : _cir_to_doc ne crashe plus avec des arêtes en format tuple."""
+    from gcn_python.training.bootstrap import _cir_to_doc
+    cir = {
+        "nodes": [
+            {"id": 0, "node_type": "action", "label": "A"},
+            {"id": 1, "node_type": "etat", "label": "B"},
+        ],
+        "edges": [
+            [0, 1, {"relation": "cause", "confidence": 1.0, "explicit": True, "negated": False}]
+        ]
+    }
+    doc = _cir_to_doc("A cause B.", "fr", cir)
+    edges = doc["document"]["sentences"][0]["cir"]["edges"]
+    assert len(edges) == 1
+    assert edges[0]["source"] == "0"
+    assert edges[0]["target"] == "1"
+    assert edges[0]["relation"] == "cause"
+
+
 # ── Tests Issue #1 et #2 (intégration CLI) ────────────────────────────────────
 # Note : Tests d'intégration nécessitent le binaire gcn-cli Rust.
 # Créer tests séparés avec pytest.mark.integration si disponible.

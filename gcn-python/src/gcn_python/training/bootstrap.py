@@ -95,6 +95,37 @@ def _extract_token_span(node: dict) -> list[int]:
     return list(flat) if flat else [0, 0]
 
 
+def _normalize_edge(e) -> dict | None:
+    """
+    Normalise une arête CIR vers le format doc gcn-nl.
+
+    Supporte :
+      - format tuple/list : [src_id, dst_id, edge_obj]  ← sortie gcn analyze (Rust)
+      - format dict       : {"source": ..., "target": ..., "relation": ...}
+    Retourne None si le format est invalide ou incomplet.
+    """
+    if isinstance(e, (list, tuple)) and len(e) == 3:
+        src_id, dst_id, edge_obj = e
+        if not isinstance(edge_obj, dict):
+            return None
+        source, target = str(src_id), str(dst_id)
+    elif isinstance(e, dict):
+        edge_obj = e
+        source = str(e.get("source", ""))
+        target = str(e.get("target", ""))
+    else:
+        return None
+    relation = edge_obj.get("relation_type", edge_obj.get("relation", "cause"))
+    return {
+        "source": source,
+        "target": target,
+        "relation": relation,
+        "confidence": float(edge_obj.get("confidence", 1.0)),
+        "explicit": bool(edge_obj.get("explicit", True)),
+        "negated": bool(edge_obj.get("negated", False)),
+    }
+
+
 def _cir_to_doc(text: str, lang: str, cir: dict) -> dict:
     """Convertit un CausalIR dict (format Rust ou Python) en document JSON gcn-nl."""
     nodes = cir.get("nodes", [])
@@ -113,17 +144,7 @@ def _cir_to_doc(text: str, lang: str, cir: dict) -> dict:
         for i, n in enumerate(nodes)
     ]
 
-    doc_edges = [
-        {
-            "source": e.get("source", ""),
-            "target": e.get("target", ""),
-            "relation": e.get("relation_type", e.get("relation", "cause")),
-            "confidence": float(e.get("confidence", 1.0)),
-            "explicit": bool(e.get("explicit", True)),
-            "negated": bool(e.get("negated", False)),
-        }
-        for e in edges
-    ]
+    doc_edges = [d for e in edges if (d := _normalize_edge(e)) is not None]
 
     return {
         "document": {
