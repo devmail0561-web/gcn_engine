@@ -100,11 +100,39 @@ Le modèle prédit "entite" dans **80% des cas** alors que cette classe ne repr�
 | 10 | **Contrastive learning** : embeddings de phrases causales proches | Apprend la structure causale |
 | 11 | **Data augmentation** : paraphrases via LLM | Diversifie les patterns |
 
+## Résultats avec word embeddings (FastText wiki.fr.vec, 50 dim)
+
+Entraînement avec `--embedding-dim 50` (features UD + embeddings apprenables).
+
+### Comparaison avant/après embeddings
+
+| Modèle     | Node Acc (test) | Δ    | Node F1 (test) | Δ    | Edge Acc (test) | Edge F1 (test) |
+|------------|-----------------|------|----------------|------|-----------------|----------------|
+| RGCN       | 0.5444          | —    | 0.3405         | —    | 0.2414          | 0.1599         |
+| RGCN+emb   | **0.9611**      | +77% | **0.9361**     | +175%| 0.2874          | 0.2002         |
+| GAT        | 0.5444          | —    | 0.3405         | —    | 0.2414          | 0.1494         |
+| GAT+emb    | **0.9944**      | +83% | **0.9939**     | +192%| 0.2874          | 0.2002         |
+| BiDi       | 0.5333          | —    | 0.3552         | —    | 0.2414          | 0.1494         |
+| BiDi+emb   | **0.9750**      | +83% | **0.9569**     | +169%| 0.2989          | 0.2088         |
+
+### Analyse
+
+**Node classification** : les embeddings transforment les résultats.
+- GAT+emb atteint **99.4%** de node accuracy sur test (vs 54.4% sans embeddings)
+- Le modèle discriminate correctement les 5 types de nœuds causaux
+- Pas de surapprentissage notable (train ≈ test)
+
+**Edge classification** : reste le point faible.
+- L'accuracy des arêtes plafonne à ~30% (vs 24% sans embeddings)
+- Le modèle ne parvient pas à distinguer les 11 types de relations
+- Cause probable : les embeddings n'aident pas à la classification de paires de nœuds
+
 ## Conclusion
 
 L'expérience confirme que :
 1. Le moteur GCN-Core **fonctionne** (loss décroît, accuracy > random)
 2. Les features UD seules sont **insuffisantes** pour la classification causale
-3. Le prochain pas logique est d'activer les **word embeddings** (`--embedding-file` avec FastText)
+3. Les **word embeddings** résolvent le problème du node classification (54% → 99%)
+4. Le **edge classification** reste un problème ouvert — nécessite une architecture dédiée
 
 Le dataset de 990 phrases est un banc d'essai valide pour tester ces améliorations.
