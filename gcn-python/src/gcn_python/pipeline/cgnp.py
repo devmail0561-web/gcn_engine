@@ -235,6 +235,16 @@ class CGNPipeline:
         if self._cached_edge_snapshots is not None:
             self._cached_edge_snapshots = [self._cached_edge_snapshots[i] for i in valid_idxs]
 
+    def get_enriched_vectors(self) -> np.ndarray | None:
+        """
+        Retourne les vecteurs enrichis du dernier forward(), ou None si aucun.
+
+        H1 correction : utilisé pour le workflow decode() après forward() :
+          cir_json = pipeline.forward(reps, text)
+          surface = decoder.decode(pipeline.get_enriched_vectors())
+        """
+        return self._cached_enriched_vecs
+
     def loss(
         self,
         node_logits: np.ndarray,    # (N, 7)  — logits nœuds du forward

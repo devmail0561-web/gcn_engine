@@ -137,18 +137,12 @@ def test_checkpoint_roundtrip(tmp_path: Path):
 
 
 def test_decode_inference():
+    """H1 correction : decode() accepte node_embeddings, pas JSON."""
     v = make_vocab()
-    dec = TrainableDecoder(v, d_hidden=16)
-    ir = {
-        "source_lang": {"natural": {"lang": "fr"}},
-        "source_text": "Si les ventes baissent, on réduit.",
-        "nodes": [
-            {"id": 0, "node_type": "processus", "label": "baisse", "origin": "explicit"},
-            {"id": 1, "node_type": "action", "label": "réduire", "origin": "explicit"},
-        ],
-        "edges": [[0, 1, {"relation": "condition", "confidence": 1.0}]],
-    }
-    result = dec.decode(json.dumps(ir))
+    dec = TrainableDecoder(v, d_hidden=16, d_in=7)
+    # Simuler des vecteurs enrichis (dimension 7)
+    node_embs = np.random.randn(2, 7).astype(np.float32)
+    result = dec.decode(node_embs)
     assert isinstance(result, str)
 
 

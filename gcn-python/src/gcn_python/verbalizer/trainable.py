@@ -118,21 +118,6 @@ class TrainableDecoder:
         logits = self._layers[1].forward(h_new)              # (|V|,)
         return h_new, rnn_in, z1, logits
 
-    @staticmethod
-    def _node_type_embeddings_from_ir(ir_json: str) -> np.ndarray:
-        from ..constants import NODE_TYPES
-        ir = json.loads(ir_json)
-        nodes = ir.get("nodes", [])
-        if not nodes:
-            return np.zeros((1, len(NODE_TYPES)), dtype=np.float32)
-        embs = []
-        for node in nodes:
-            nt = node.get("node_type", "")
-            idx = NODE_TYPES.index(nt) if nt in NODE_TYPES else 0
-            onehot = np.zeros(len(NODE_TYPES), dtype=np.float32)
-            onehot[idx] = 1.0
-            embs.append(onehot)
-        return np.stack(embs)  # (N, 7)
 
     def forward_decode(
         self,
@@ -324,24 +309,35 @@ class TrainableDecoder:
 
     # ── VerbalizerDecoder inference interface ─────────────────────────────────
 
-    def decode(self, ir_json: str) -> str:
-        """CausalIR JSON → surface string (greedy decode)."""
-        node_embs = self._node_type_embeddings_from_ir(ir_json)
-        if len(node_embs) == 0:
+    def decode(self, node_embeddings: np.ndarray) -> str:
+        """
+        Vecteurs enrichis (N, D_in) → surface string (greedy decode).
+
+        IMPORTANT (H1 correction) : node_embeddings doit provenir de l'encodeur+R-GCN,
+        pas du one-hot. Workflow correct :
+          1. cir_json = pipeline.forward(reps, text)
+          2. surface = decoder.decode(pipeline.get_enriched_vectors())
+
+        Un décodeur entraîné conjointement avec l'encodeur (d_in=75) ne peut PAS
+        décoder depuis du one-hot (d_in=7) → dimension mismatch.
+        """
+        if len(node_embeddings) == 0:
             return ""
         eos_idx = self.vocab._t2i.get(SurfaceVocabulary.EOS, -1)
         _skip = {0, 1, eos_idx}
         if self._layers is None:
-            logits = self.forward_decode(node_embs)
+            # Layers non initialisées — init avec d_in réel
+            logits = self.forward_decode(node_embeddings)
             top_indices = np.argsort(logits)[-10:][::-1]
             filtered = [int(i) for i in top_indices if int(i) not in _skip][:5]
             return self.vocab.decode(filtered)
+
         # Greedy multi-step decode with P2d attention pooling
         assert self._attn_vec is not None
-        attn_scores = node_embs @ self._attn_vec
+        attn_scores = node_embeddings @ self._attn_vec
         exp_s = np.exp(attn_scores - attn_scores.max())
         attn_weights = exp_s / (exp_s.sum() + 1e-9)
-        context = (attn_weights[:, np.newaxis] * node_embs).sum(axis=0).astype(np.float32)
+        context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)
 
         h = np.zeros(self.d_hidden, dtype=np.float32)
         tokens: list[int] = []
