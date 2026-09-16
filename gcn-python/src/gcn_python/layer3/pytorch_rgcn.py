@@ -162,6 +162,18 @@ class RGCNLayerPT(nn.Module):
             self.W_r -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
             self.W_0 -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
 
+    def load_state(self, arrays: list[np.ndarray]) -> None:
+        """
+        Charge les poids depuis des arrays NumPy (utilisé par checkpoint.load).
+
+        H5 correction : parameters() retourne des copies détachées, load_checkpoint
+        écrivait dans ces copies. Cette méthode copie directement dans les tenseurs
+        PyTorch W_r et W_0.
+        """
+        with torch.no_grad():
+            self.W_r.copy_(torch.as_tensor(arrays[0], dtype=torch.float32, device=self._device))
+            self.W_0.copy_(torch.as_tensor(arrays[1], dtype=torch.float32, device=self._device))
+
     # ------------------------------------------------------------------
     # API PyTorch native
     # ------------------------------------------------------------------

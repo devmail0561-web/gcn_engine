@@ -72,10 +72,17 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         if key in data:
             p[:] = data[key]
 
-    for i, p in enumerate(graph_params):
-        key = f"graph_{i}"
-        if key in data:
-            p[:] = data[key]
+    # H5 correction : utiliser load_state() pour PyTorch RGCNLayerPT
+    if hasattr(pipeline.graph, 'load_state'):
+        # PyTorch RGCNLayerPT — utiliser load_state pour copier dans les tenseurs
+        arrays = [data[f"graph_{i}"] for i in range(len(graph_params)) if f"graph_{i}" in data]
+        pipeline.graph.load_state(arrays)
+    else:
+        # NumPy RGCNLayer — copie directe
+        for i, p in enumerate(graph_params):
+            key = f"graph_{i}"
+            if key in data:
+                p[:] = data[key]
 
     if "_decoder_meta_json" in data:
         from ..verbalizer.trainable import TrainableDecoder

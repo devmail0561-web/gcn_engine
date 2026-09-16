@@ -329,7 +329,8 @@ class TrainableDecoder:
             # Layers non initialisées — init avec d_in réel
             logits = self.forward_decode(node_embeddings)
             top_indices = np.argsort(logits)[-10:][::-1]
-            filtered = [int(i) for i in top_indices if int(i) not in _skip][:5]
+            # H2 correction : pas de troncature [:5], longueur contrôlée par top 10
+            filtered = [int(i) for i in top_indices if int(i) not in _skip]
             return self.vocab.decode(filtered)
 
         # Greedy multi-step decode with P2d attention pooling
@@ -348,7 +349,8 @@ class TrainableDecoder:
                 break
             tokens.append(token)
             h = h_new
-        filtered = [i for i in tokens if i not in _skip][:5]
+        # H2 correction : pas de troncature [:5], longueur contrôlée par max_decode_len
+        filtered = [i for i in tokens if i not in _skip]
         return self.vocab.decode(filtered)
 
     # ── Checkpoint serialization ──────────────────────────────────────────────
