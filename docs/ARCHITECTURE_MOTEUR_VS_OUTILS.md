@@ -1,7 +1,7 @@
 # Architecture GCN-Core : Moteur vs Outils
 
 **Date** : 2026-09-16  
-**Contexte** : Clarification des composants essentiels vs auxiliaires après phase 9
+**Contexte** : Clarification des composants essentiels vs auxiliaires — à jour Phase 11
 
 ---
 
@@ -18,7 +18,7 @@
 │  │                                                           │    │
 │  │  Couche 1 : UDRepresentation + FeatureVocabulary         │    │
 │  │  Couche 2 : MLPEncoder (MLP causale)                     │    │
-│  │  Couche 3 : R-GCN (message passing relationnel)          │    │
+│  │  Couche 3 : R-GCN / R-GCN+GAT (message passing, bidi optionnel) │    │
 │  │  Couche 4 : CausalIR Emitter + TrainableDecoder (P2d)    │    │
 │  │                                                           │    │
 │  │  → Forward : UDRep[] → CausalIR                          │    │
@@ -181,6 +181,7 @@ Frontend Rust                UDRepresentation           CGNPipeline
 | **FeatureVocabulary** | — | MLPEncoder | ✅ Tout le reste |
 | **MLPEncoder** | FeatureVocabulary | CGNPipeline | ✅ Tout le reste |
 | **RGCNLayer** | — | CGNPipeline | ✅ Tout le reste |
+| **RGCNLayerGAT** | PyTorch | CGNPipeline (`--use-attention`) | ✅ Tout le reste (PyTorch facultatif) |
 | **TrainableDecoder** | SurfaceVocabulary | CGNPipeline (optionnel) | ✅ Tout le reste |
 | **CGNPipeline** | Encoder, Graph, Vocab | Training, Inference | ✅ Bootstrap |
 | **GCNDataLoader** | json_reader | Training | ✅ Bootstrap |
@@ -354,11 +355,13 @@ done
 
 ### **Moteur GCN-Core (Essentiel)**
 
-✅ **Complètement fonctionnel après phase 9**
+✅ **Complètement fonctionnel après phase 11**
 - 4 couches ML opérationnelles
 - P2d attention pooling implémenté
 - Training/inférence validés
-- 177 tests Python, 137 tests Rust passent
+- 12 défauts structurels corrigés (S1–S12)
+- RGCNLayerGAT + message passing bidirectionnel ajoutés (Phase 11)
+- 192 tests Python (192 ok, 2 skipped), 137 tests Rust passent
 
 ### **Bootstrap (Auxiliaire)**
 
@@ -407,5 +410,5 @@ Le moteur continuerait à fonctionner normalement pour training, inférence, et 
 
 - **Moteur** : `gcn-python/src/gcn_python/{layer1,layer2,layer3,pipeline}/`
 - **Bootstrap** : `gcn-python/src/gcn_python/training/bootstrap.py`
-- **Tests moteur** : 177 tests Python, 137 tests Rust (dont 117 indépendants de bootstrap)
+- **Tests moteur** : 192 tests Python (192 ok, 2 skipped), 137 tests Rust (dont 117 indépendants de bootstrap)
 - **Tests bootstrap** : 10 tests isolés

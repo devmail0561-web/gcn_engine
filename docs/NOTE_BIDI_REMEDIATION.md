@@ -1,15 +1,16 @@
-# Note — Plan de remédiation : constantes bidirectionnel
+# Note — Implémentation Phase 2b : message passing bidirectionnel
 
-**Constat :** `constants.py` ne contient que `RELATION_TYPES` (11 types forward).
-Les constantes `RELATION_TYPES_INV` et `ALL_RELATION_TYPES` nécessaires à la Phase 2b
-(message passing bidirectionnel) sont absentes. Les paramètres `bidirectional` dans
-`cgnp.py` et `train.py` ne sont pas encore implémentés non plus.
+**Statut : IMPLÉMENTÉ ✅ (2026-09-16)**
+
+Cette note documente l'état final de l'implémentation. Le plan original a été exécuté intégralement.
 
 ---
 
-## Étape 1 — `constants.py`
+## Ce qui a été implémenté
 
-Ajouter après `RELATION_TYPES` :
+### Étape 1 — `constants.py` ✅
+
+Après `RELATION_TYPES` :
 
 ```python
 RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
@@ -20,19 +21,18 @@ RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
 ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types
 ```
 
-**Règle d'index :** indices 0–10 = forward, indices 11–21 = backward (`r_inv = r + 11`).
-
-**Invariant à préserver :**
-- `RELATION_TYPES` (11) → classification d'arêtes (MLP Layer 2), supervision, CIR output — **synchronisé avec Rust, ne pas modifier**
-- `ALL_RELATION_TYPES` (22) → `n_relations` du R-GCN/GAT uniquement — **Python-interne, Rust ignore `_inv`**
+**Invariant :**
+- `RELATION_TYPES` (11) → classification d'arêtes (MLP Layer 2), supervision, CIR output — **synchronisé avec Rust, NE PAS MODIFIER**
+- `ALL_RELATION_TYPES` (22) → `n_relations` du R-GCN/GAT uniquement — **Python-interne, Rust ignore les types `_inv`**
+- Indices 0–10 = forward, indices 11–21 = backward (`r_inv = r + 11`)
 
 ---
 
-## Étape 2 — `pipeline/cgnp.py`
+### Étape 2 — `pipeline/cgnp.py` ✅
 
-Ajouter `bidirectional: bool = False` au constructeur de `CGNPipeline`.
+Paramètre `bidirectional: bool = False` ajouté au constructeur de `CGNPipeline`.
 
-Après la construction de `edge_index` et `edge_type_idxs`, insérer la duplication :
+Après la construction de `edge_index` et `edge_type_idxs` (lignes 244–252) :
 
 ```python
 if self.bidirectional and edge_index.shape[1] > 0:
@@ -45,31 +45,28 @@ else:
     edge_types_mp = edge_type_idxs
 ```
 
-`edge_index_mp` / `edge_types_mp` sont passés au R-GCN/GAT seulement.
-`edge_index` / `edge_type_idxs` originaux restent utilisés pour la loss d'arêtes — supervision inchangée.
+`edge_index_mp` / `edge_types_mp` sont passés au R-GCN/GAT pour le message passing.
+`edge_index` / `edge_type_idxs` originaux continuent d'être utilisés pour la loss d'arêtes — supervision inchangée.
+
+**Le MLP edge ne voit jamais les types inverses** : `forward_edge(edge_vec)` prend un vecteur de features, pas `edge_type_idxs`. Il prédit toujours parmi 11 logits.
 
 ---
 
-## Étape 3 — `layer3/gat.py` et `layer3/pytorch_rgcn.py`
+### Étape 3 — `layer3/gat.py` ✅
 
-Passer `n_relations=22` quand `bidirectional=True` :
+`RGCNLayerGAT` supporte `n_relations` arbitraire (défaut : `len(RELATION_TYPES)` = 11).
 
-```python
-graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=22)
-```
+Avec `bidirectional=True` : `n_relations=22`. Shapes résultantes :
+- `W_r` : `(22, d_out, d_in)`
+- `a_r` : `(22, 2*d_out)`
 
-`W_r` → shape `(22, d_out, d_in)`, `a_r` → shape `(22, 2*d_out)`.
-
-Ajouter dans `load_state()` une vérification de shape et une `ValueError` explicite
-si `n_relations` du checkpoint ne correspond pas à l'instance courante.
-
-`RGCNLayer` (NumPy, `reference.py`) supporte déjà `n_relations` — aucune modification nécessaire.
+`load_state()` vérifie `arrays[0].shape == (n_relations, d_out, d_in)` et lève `ValueError` si incompatible. Un checkpoint entraîné avec `n_relations=11` ne peut pas être chargé avec `n_relations=22`.
 
 ---
 
-## Étape 4 — `training/train.py`
+### Étape 4 — `training/train.py` ✅
 
-Ajouter deux flags CLI :
+Deux flags CLI ajoutés :
 
 ```
 --use-attention/--no-attention       (défaut : --no-attention)
@@ -82,18 +79,23 @@ Logique de construction :
 n_rel = 22 if bidirectional else len(RELATION_TYPES)
 if use_attention:
     graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
-elif use_pytorch:
-    graph = RGCNLayerPT(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
 else:
     graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
 pipeline = CGNPipeline(..., bidirectional=bidirectional)
 ```
 
+Combinaisons valides :
+
+| Flags | Couche graph | n_relations |
+|---|---|---|
+| (aucun) | `RGCNLayer` NumPy | 11 |
+| `--bidirectional` | `RGCNLayer` NumPy | 22 |
+| `--use-attention` | `RGCNLayerGAT` PyTorch | 11 |
+| `--use-attention --bidirectional` | `RGCNLayerGAT` PyTorch | 22 |
+
 ---
 
-## Étape 5 — Tests
-
-Modifier `tests/test_gat.py` :
+### Étape 5 — `tests/test_gat.py` ✅ (15 tests)
 
 - Shape `W_r == (22, d_out, d_in)` et `a_r == (22, 2*d_out)` avec `n_relations=22`
 - `node_repr(bidirectional=True) != node_repr(bidirectional=False)` sur un même graphe
@@ -102,12 +104,9 @@ Modifier `tests/test_gat.py` :
 
 ---
 
-## Ordre d'implémentation recommandé
+## Couverture après Phase 2b
 
-1. `constants.py` (étape 1) — prérequis de tout le reste
-2. `cgnp.py` (étape 2) — logique de duplication des arêtes
-3. `gat.py` / `pytorch_rgcn.py` (étape 3) — support 22 relations + garde checkpoint
-4. `train.py` (étape 4) — flags CLI
-5. Tests (étape 5) — validation
-
-Chaque étape doit être auditée avant de passer à la suivante.
+```
+192 / 194 tests Python passent (192 ok, 2 skipped)
+137 / 137 tests Rust passent
+```

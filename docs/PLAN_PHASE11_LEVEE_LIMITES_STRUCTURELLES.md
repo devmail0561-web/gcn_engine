@@ -1,5 +1,11 @@
 # Plan : Lever les deux limites structurelles du moteur GCN
 
+> **STATUT : IMPLÉMENTÉ ✅ (2026-09-16)**  
+> Phase 1 (bugs FastText), Phase 2 (GAT + embeddings) et Phase 2b (bidirectionnel) sont tous implémentés et testés.  
+> Tests : 192 / 194 passent. Fichiers modifiés : `constants.py`, `pipeline/cgnp.py`, `training/train.py`, `layer3/gat.py`. Tests ajoutés : `tests/test_gat.py` (15 tests).
+
+---
+
 ## Contexte
 
 Deux limites ont été identifiées :

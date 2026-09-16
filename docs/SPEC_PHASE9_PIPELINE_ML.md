@@ -3,7 +3,7 @@
 **Auteur :** Michel Tendeng  
 **Date :** 2026-09-15  
 **Révision :** 6 — P2d reclassé : mean-pool remplacé par attention pooling sur nœuds  
-**Statut :** C1-C9 + P3e + P2d résolus, P1 résolu via GCNBridgeParser heuristique (commits 3bafb75, 12691c6) — Phase 10 (2026-09-16) : S11 (stop_gradient décodeur) levé, gradient `d_node_embs` propagé dans `d_enriched`  
+**Statut :** C1-C9 + P3e + P2d résolus, P1 résolu via GCNBridgeParser heuristique (commits 3bafb75, 12691c6) — Phase 11 (2026-09-16) : S1–S12 implémentés, S11 (stop_gradient) levé, `d_node_embs` propagé dans `d_enriched`, RGCNLayerGAT + bidirectionnel ajoutés  
 **Branche cible :** `master`
 
 ---
@@ -400,9 +400,9 @@ Entraînement phasé via flag `--decoder-only` + `--encoder-checkpoint` dans `tr
 if (self.decoder is not None
         and self._cached_decode_gradient is not None
         and hasattr(self.decoder, 'backward_decode')):
-    _, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
-    self.decoder.update(dec_grads, lr)
-    # NOTE : d_mean n'est PAS propagé vers d_enriched
+    d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(self._cached_decode_gradient)
+    self.decoder.update(dec_grads, d_attn_vec, lr)
+    # NOTE : d_node_embs n'est PAS propagé vers d_enriched (stop_gradient — voir S11)
 ```
 
 **`train.py` — flags ajoutés :**
@@ -630,7 +630,7 @@ et c'est la bonne séparation de responsabilités.
 | **3bafb75** | C1 C2 C3/C4 C5 C6 C7 C8 C9 P3e P2d | +8 tests phase 9 (120 total) |
 | **12691c6** | 10 corrections post-audit code-review (max) | — (120 tests maintiennent) |
 
-**Couverture tests Python :** 120 / 120 passent (`pytest gcn-python/tests/`)  
+**Couverture tests Python :** 192 / 194 passent, 2 skipped (`pytest gcn-python/tests/`)  
 **Couverture tests Rust :** 137 / 137 passent (`cargo test --workspace`)
 
 ---
@@ -663,7 +663,7 @@ et c'est la bonne séparation de responsabilités.
 | Snapshots pre-R-GCN écrasés (C12) | Cosmétique — backward reste cohérent |
 | Entrée vide silencieuse (C14) | Ajouter un `warnings.warn` — fix triviale incluse dans C3 |
 
-> **Phase 10 (2026-09-16) :** les 12 défauts de `ENGINE_STRUCTURAL_LIMITS.md` ont été implémentés. S11 (stop_gradient décodeur) levé — `d_node_embs` est maintenant propagé dans `d_enriched`.
+> **Phase 11 (2026-09-16) :** les 12 défauts de `ENGINE_STRUCTURAL_LIMITS.md` ont été implémentés (S1–S12). S11 (stop_gradient décodeur) levé — `d_node_embs` est maintenant propagé dans `d_enriched`. Phase 11 ajoute également `RGCNLayerGAT` (`layer3/gat.py`) et le message passing bidirectionnel (`--use-attention`, `--bidirectional`) — voir `PLAN_PHASE11_LEVEE_LIMITES_STRUCTURELLES.md`.
 
 ---
 

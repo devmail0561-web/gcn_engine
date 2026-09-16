@@ -7,7 +7,13 @@
 
 ---
 
-**Note de mise à jour (2026-09-16) :** Les 12 défauts ont été corrigés. Voir le CHANGELOG v1.2.0.
+**Note de mise à jour (2026-09-16) :** Les 12 défauts ont été corrigés (Phase 11). Voir le CHANGELOG v1.2.0.
+
+**Phase 11 — Améliorations supplémentaires (au-delà des 12 défauts) :**
+- `RGCNLayerGAT` (`layer3/gat.py`) : couche R-GCN avec attention GAT par relation. Paramètres : `W_r (n_relations, d_out, d_in)`, `a_r (n_relations, 2*d_out)`, `W_0 (d_out, d_in)`. CLI `--use-attention` dans `train.py`.
+- Message passing bidirectionnel (`cgnp.py`, `constants.py`) : duplication des arêtes avec relations inverses, 22 types au lieu de 11. `RELATION_TYPES_INV` et `ALL_RELATION_TYPES` dans `constants.py`. CLI `--bidirectional` dans `train.py`.
+- Incompatibilité checkpoint détectée explicitement : `RGCNLayerGAT.load_state()` vérifie la shape de `W_r` et lève une `ValueError` si `n_relations` ne correspond pas.
+- Couverture tests : 192 / 194 passent (192 ok, 2 skipped — contre 177 avant Phase 11).
 
 ---
 
