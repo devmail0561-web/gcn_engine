@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import re
+import warnings
 import numpy as np
 
 from ..layer2.reference import _LinearLayer
@@ -36,7 +37,17 @@ class SurfaceVocabulary:
         return [self._t2i.get(tok, 1) for tok in self._tokenize(text)]
 
     def decode(self, indices: list[int] | np.ndarray) -> str:
-        return " ".join(self._i2t[int(i)] for i in indices if 0 <= int(i) < len(self._i2t))
+        # M9 : Warning si indices hors-bornes (modèle possiblement corrompu)
+        valid = [self._i2t[int(i)] for i in indices if 0 <= int(i) < len(self._i2t)]
+        invalid_count = len(indices) - len(valid)
+        if invalid_count > 0:
+            warnings.warn(
+                f"SurfaceVocabulary.decode : {invalid_count} indice(s) hors-bornes ignoré(s). "
+                f"Modèle possiblement corrompu.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return " ".join(valid)
 
     def __len__(self) -> int:
         return len(self._i2t)

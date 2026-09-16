@@ -11,8 +11,14 @@ def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
     if not isinstance(doc, dict):
         return []
 
-    # Format paper_examples.json
+    # Format paper_examples.json (legacy — préférer le format 'document')
     if "examples" in doc:
+        warnings.warn(
+            f"Format legacy 'examples' détecté dans {path.name}. "
+            f"Migrer vers le format 'document' (GCN-NL standard).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return [_parse_paper_example(ex, lang) for ex in doc["examples"] if "expected_cir" in ex]
 
     # Format dataset (document.sentences)
@@ -21,6 +27,13 @@ def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
         sentences = doc["document"].get("sentences") or []
         return [_parse_dataset_sentence(s, doc_lang) for s in sentences if "cir" in s]
 
+    # M-PL : Format non reconnu (possiblement "snippets" pour gcn-pl)
+    warnings.warn(
+        f"Format JSON non reconnu dans {path.name} (ni 'examples', ni 'document') — fichier ignoré. "
+        f"Les fichiers gcn-pl (snippets) ne sont pas supportés par le chargeur ML.",
+        UserWarning,
+        stacklevel=2,
+    )
     return []
 
 

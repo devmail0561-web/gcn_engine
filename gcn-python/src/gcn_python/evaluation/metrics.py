@@ -5,6 +5,7 @@ Le data scientist appelle ces fonctions après chaque epoch pour
 mesurer la qualité des prédictions. Aucune dépendance à PyTorch/sklearn.
 """
 from __future__ import annotations
+import warnings
 import numpy as np
 from ..constants import NODE_TYPES, RELATION_TYPES
 
@@ -101,6 +102,14 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     )
 
     # Node type accuracy (align by position)
+    if len(pred_nodes) != len(gold_nodes):
+        warnings.warn(
+            f"causal_graph_similarity: pred_nodes ({len(pred_nodes)}) ≠ gold_nodes "
+            f"({len(gold_nodes)}) — alignement par position potentiellement trompeur. "
+            f"Envisager un alignement par identité pour des métriques plus fiables.",
+            UserWarning,
+            stacklevel=2,
+        )
     n = min(len(pred_nodes), len(gold_nodes))
     node_type_acc = (
         sum(pred_nodes[i]["node_type"] == gold_nodes[i]["node_type"] for i in range(n)) / max(n, 1)
@@ -112,6 +121,14 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     )
 
     # Edge relation accuracy (align by position)
+    if len(pred_edges) != len(gold_edges):
+        warnings.warn(
+            f"causal_graph_similarity: pred_edges ({len(pred_edges)}) ≠ gold_edges "
+            f"({len(gold_edges)}) — alignement par position potentiellement trompeur. "
+            f"Envisager un alignement par identité pour des métriques plus fiables.",
+            UserWarning,
+            stacklevel=2,
+        )
     e = min(len(pred_edges), len(gold_edges))
     edge_rel_acc = (
         sum(pred_edges[i][2]["relation"] == gold_edges[i][2]["relation"] for i in range(e))

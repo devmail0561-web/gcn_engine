@@ -43,6 +43,9 @@ class GCNDataLoader:
         self.lang = lang
         self.repeat = repeat
         self._records = load_all_sentences(data_dir, lang)
+        # M1 : Compteur agrégé pour arêtes longue distance
+        self._total_long_distance = 0
+        self._warned_total = False  # flag pour éviter warning multiple en mode repeat
 
     def __len__(self) -> int:
         return len(self._records)
@@ -54,6 +57,19 @@ class GCNDataLoader:
                     yield self._to_sample(rec)
                 except ValueError as exc:
                     warnings.warn(f"[{rec.id}] sample ignoré : {exc}", UserWarning, stacklevel=2)
+            # M1 : Warning agrégé en fin de premier passage (avec garde pour tests)
+            if (not self.repeat
+                    and hasattr(self, '_total_long_distance')
+                    and self._total_long_distance > 0
+                    and hasattr(self, '_warned_total')
+                    and not self._warned_total):
+                warnings.warn(
+                    f"Total : {self._total_long_distance} arête(s) longue distance ignorées "
+                    f"sur l'ensemble du dataset (gap > 1 — supervision uniquement sur paires consécutives).",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self._warned_total = True
             if not self.repeat:
                 break
 
@@ -68,6 +84,7 @@ class GCNDataLoader:
         )
         edge_map: dict[tuple[int, int], int] = {}
         n_backward = 0
+        n_long_distance = 0
         for e in rec.edges:
             src_idx = node_id_to_idx.get(e.source)
             tgt_idx = node_id_to_idx.get(e.target)
@@ -79,18 +96,22 @@ class GCNDataLoader:
                 continue
             gap = abs(tgt_idx - src_idx)
             if gap > 1:
-                warnings.warn(
-                    f"[{rec.id}] arête longue distance {e.source}→{e.target} "
-                    f"(gap={gap}) : aucune supervision d'arête possible (forward prédit "
-                    f"uniquement les paires consécutives).",
-                    UserWarning, stacklevel=2,
-                )
+                n_long_distance += 1
+                # M1 : compteur global (avec garde défensive pour tests qui n'appellent pas __init__)
+                if hasattr(self, '_total_long_distance'):
+                    self._total_long_distance += 1
                 continue  # arête non-supervisable, ne pas insérer dans edge_map
             if src_idx > tgt_idx:
                 n_backward += 1
                 continue  # arête backward non-supervisable, ne pas insérer dans edge_map
             rel_idx = _relation_idx(e.relation, rec.id)
             edge_map[(src_idx, tgt_idx)] = rel_idx
+        if n_long_distance:
+            warnings.warn(
+                f"[{rec.id}] {n_long_distance} arête(s) longue distance ignorées (gap > 1) "
+                f"— supervision uniquement sur les paires consécutives.",
+                UserWarning, stacklevel=2,
+            )
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse "
