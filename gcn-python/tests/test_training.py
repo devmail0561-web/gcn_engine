@@ -222,11 +222,15 @@ def test_dataloader_yields_batches(paper_examples_json: Path):  # L5 : renommé
 
 
 def test_edge_map_alignment():
-    """edge_map mappe les node_ids YAML → indices de clauses, pas l'ordre d'insertion."""
+    """edge_map mappe les node_ids → indices de clauses, pas l'ordre d'insertion.
+
+    S4 : avec all_pairs=False (défaut), les arêtes gap>1 sont filtrées.
+    Avec all_pairs=True, elles sont insérées dans edge_map.
+    """
     import warnings
     from gcn_python.data.loader import GCNDataLoader
     from gcn_python.data.schema import (
-        SentenceRecord, ClauseRecord, EdgeRecord, TokenRecord
+        SentenceRecord, ClauseRecord, EdgeRecord
     )
     from gcn_python.constants import RELATION_TYPES
 
@@ -238,7 +242,7 @@ def test_edge_map_alignment():
         ClauseRecord(node_id="n003", node_type="processus", label="C",
                      token_span=(3, 3), scope="specific", temporal_index=2, origin="explicit"),
     ]
-    # Arête non-consécutive : n001 → n003 (saute n002)
+    # Arête non-consécutive : n001 → n003 (gap=2)
     edges = [
         EdgeRecord(source="n001", target="n003", relation="cause",
                    confidence=1.0, explicit=True, negated=False, marker_token=None),
@@ -246,20 +250,26 @@ def test_edge_map_alignment():
     rec = SentenceRecord(id="s1", text="test", lang="fr",
                          tokens=[], clauses=clauses, edges=edges)
 
-    loader = GCNDataLoader.__new__(GCNDataLoader)
-
-    # Une arête longue distance doit émettre un UserWarning
+    # Mode défaut (all_pairs=False) : arête longue distance filtrée + warning
+    loader_default = GCNDataLoader.__new__(GCNDataLoader)
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        sample = loader._to_sample(rec)
+        sample_default = loader_default._to_sample(rec)
     assert any(issubclass(x.category, UserWarning) and "longue distance" in str(x.message) for x in w)
+    assert (0, 2) not in sample_default.edge_map
+    assert (2, 0) not in sample_default.edge_map
 
-    # Arête longue distance non insérée dans edge_map (m3)
-    assert (0, 2) not in sample.edge_map
-    assert (2, 0) not in sample.edge_map
-    # Les paires consécutives (0,1) et (1,2) restent sans gold label
-    assert (0, 1) not in sample.edge_map
-    assert (1, 2) not in sample.edge_map
+    # Mode all_pairs=True (S4) : arête longue distance présente dans edge_map
+    loader_all = GCNDataLoader.__new__(GCNDataLoader)
+    loader_all.all_pairs = True
+    with warnings.catch_warnings(record=True) as w2:
+        warnings.simplefilter("always")
+        sample_all = loader_all._to_sample(rec)
+    assert not any("longue distance" in str(x.message) for x in w2), \
+        "Pas de warning long-distance en mode all_pairs=True"
+    cause_idx = RELATION_TYPES.index("cause")
+    assert sample_all.edge_map.get((0, 2)) == cause_idx, \
+        "L'arête gap=2 doit être dans edge_map quand all_pairs=True"
 
 
 def test_reps_from_sentence_alignment():

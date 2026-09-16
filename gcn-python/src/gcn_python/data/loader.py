@@ -38,14 +38,16 @@ class TrainingSample:
 class GCNDataLoader:
     """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
-    def __init__(self, data_dir: Path, lang: str = "fr", repeat: bool = False):
+    def __init__(self, data_dir: Path, lang: str = "fr", repeat: bool = False,
+                 all_pairs: bool = False):
         self.data_dir = data_dir
         self.lang = lang
         self.repeat = repeat
+        self.all_pairs = all_pairs
         self._records = load_all_sentences(data_dir, lang)
-        # M1 : Compteur agrégé pour arêtes longue distance
+        # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
         self._total_long_distance = 0
-        self._warned_total = False  # flag pour éviter warning multiple en mode repeat
+        self._warned_total = False
 
     def __len__(self) -> int:
         return len(self._records)
@@ -95,21 +97,20 @@ class GCNDataLoader:
                 )
                 continue
             gap = abs(tgt_idx - src_idx)
-            if gap > 1:
+            if gap > 1 and not getattr(self, 'all_pairs', False):
                 n_long_distance += 1
-                # M1 : compteur global (avec garde défensive pour tests qui n'appellent pas __init__)
                 if hasattr(self, '_total_long_distance'):
                     self._total_long_distance += 1
-                continue  # arête non-supervisable, ne pas insérer dans edge_map
+                continue
             if src_idx > tgt_idx:
                 n_backward += 1
                 continue  # arête backward non-supervisable, ne pas insérer dans edge_map
             rel_idx = _relation_idx(e.relation, rec.id)
             edge_map[(src_idx, tgt_idx)] = rel_idx
-        if n_long_distance:
+        if n_long_distance and not getattr(self, 'all_pairs', False):
             warnings.warn(
                 f"[{rec.id}] {n_long_distance} arête(s) longue distance ignorées (gap > 1) "
-                f"— supervision uniquement sur les paires consécutives.",
+                f"— utilisez all_pairs=True pour les superviser.",
                 UserWarning, stacklevel=2,
             )
         if n_backward:

@@ -285,6 +285,32 @@ def _call_gcn_analyze(
         ) from exc
 
 
+class GCNBridgeParser:
+    """
+    Implémentation de layer0.interface.TextParser via le subprocess gcn-cli.
+
+    Qualité approximative — root_morph toujours {}, donc Tense/Aspect/Mood
+    et Polarity toujours _absent/False (14 dimensions de features à zéro).
+    Voir module docstring pour la table de qualité complète.
+
+    Implémente TextParser (layer0/interface.py) par duck typing (pas d'import
+    direct du Protocol pour éviter les dépendances circulaires).
+    """
+
+    def __init__(self, gcn_bin: str = "gcn", taxonomy_dir=None):
+        self.gcn_bin = gcn_bin
+        self.taxonomy_dir = taxonomy_dir
+
+    def parse(
+        self,
+        text: str,
+        lang: str = "fr",
+    ) -> tuple[list, list]:
+        """Implémente TextParser.parse — retourne (clause_reps, connector_reps)."""
+        cir = _call_gcn_analyze(text, self.gcn_bin, self.taxonomy_dir)
+        return _cir_to_reps_and_connectors(cir, lang)
+
+
 def reps_from_text(
     text: str,
     lang: str = "fr",

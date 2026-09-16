@@ -5,6 +5,60 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [1.2.0] — 2026-09-16
+
+### Correctifs structurels moteur (12 défauts — `docs/ENGINE_STRUCTURAL_LIMITS.md`)
+
+**Entrée texte et représentation (S1, S2, S9)**
+- `layer1/embedding.py` : nouvelle classe `WordEmbedding` — table d'embeddings apprenables pour `root_lemma`, backward SGD, chargement GloVe/FastText (`load_from_file`)
+- `vectorize_clause(rep, vocab, word_embedding=None)` : embedding `root_lemma` concaténé si fourni — résout l'identité de vecteur entre verbes différents
+- `CGNPipeline(word_embedding=None)` et `train.py` : options `--embedding-dim`, `--embedding-file`
+- `training/checkpoint.py` : sérialisation/restauration de `WordEmbedding`
+
+**Protocol et batch (S3)**
+- `MLPEncoder.forward_batch(X)` : extension duck-typed (hors Protocol) — permet aux encodeurs Transformer d'utiliser la self-attention sur N nœuds
+- `CGNPipeline` : essaie `forward_batch` si disponible et pas de snapshots requis
+
+**Arêtes toutes-paires opt-in (S4)**
+- `CGNPipeline(all_pairs=False)`, `GCNDataLoader(all_pairs=False)`, `train.py --all-pairs/--no-all-pairs`
+- Génère toutes les paires `(i,j)` quand activé ; défaut `False` (compatibilité dataset gap=1)
+
+**R-GCN multi-couches (S5)**
+- `CGNPipeline(n_rgcn_layers=1)` : empile N couches `RGCNLayer` dans `_graph_layers`
+- Forward et backward par boucle sur `_graph_layers` ; checkpoint backward-compatible
+
+**Attention per-step dans le décodeur (S6)**
+- `TrainableDecoder` : ajout de `_W_query` (zero-init) — `query_vec = attn_vec + W_query.T @ h_prev`
+- Contexte dynamique par step : le décodeur peut focaliser sur des nœuds différents à chaque étape
+- `parameters()` : 6 params (était 5) ; `to_json()`/`from_json()` incluent `w_query`
+- Backward complet à travers `_W_query` (stocké dans `_d_W_query`, appliqué par `update()`)
+
+**Ontologie configurable (S7)**
+- `MLPEncoder(n_node_types=len(NODE_TYPES), n_relation_types=len(RELATION_TYPES))`
+- `CGNPipeline(node_types=None, relation_types=None)` — remplace les constantes module-level
+
+**Protocol TextParser — abstraction Layer 0 (S8)**
+- Nouveau package `layer0/` avec `interface.py` : Protocol `TextParser` (duck-typed, sans import spaCy)
+- `frontend/bridge.py` : classe `GCNBridgeParser` implémente `TextParser` via le subprocess gcn-cli
+- `CGNPipeline.analyze(text_parser=None)` : accepte toute implémentation `TextParser`
+
+**Gradient décodeur→encodeur (S11)**
+- `cgnp.py` : `d_node_embs` retourné par `backward_decode` est maintenant propagé dans `d_enriched` (était un stop-gradient)
+
+**Confidence calibrée (S12)**
+- `CGNPipeline(temperature=1.0)` : divise les logits d'arêtes par `temperature` avant softmax
+
+**Accumulation de gradients mini-batch (S10)**
+- `CGNPipeline.backward_accumulate()` + `apply_accumulated_gradients(lr, n_samples)` — accumulation sans update
+- `train.py --mini-batch-size` (défaut 1 = SGD standard)
+
+### Tests
+- 177 tests Python passent (2 skipped stables)
+- Test `test_edge_map_alignment` réécrit : couvre maintenant les modes `all_pairs=False` et `all_pairs=True`
+- `TrainableDecoder` : assertions `len(parameters()) == 5` → `== 6`
+
+---
+
 ## [1.1.0] - 2026-09-15
 
 ### Corrigé — Phase 9 : pipeline ML (14 problèmes d'inférence)

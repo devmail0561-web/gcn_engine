@@ -105,9 +105,7 @@ Les couches ML (Couches 1-3 CGNP) sont implémentées dans le package Python `gc
 
 | Package | Usage |
 |---|---|
-| `spacy>=3.7` | Couche 1 — parsing UD universel (fr/en/…) |
 | `numpy>=1.24` | Opérations numériques — implémentations de référence des couches 2-3 |
-| `pyyaml>=6.0` | Chargement taxonomies GCN |
 | `click>=8.1` | CLI `gcn-forward` |
 
 `torch>=2.0` — disponible via `RGCNLayerPT` (couche 3 PyTorch, GPU/MPS). Optionnel : `ImportError` explicite si non installé.
@@ -190,10 +188,10 @@ projet_CNM/
 │   │   ├── gcn-nl.schema.yaml        # Schéma dataset langues naturelles
 │   │   └── gcn-pl.schema.yaml        # Schéma dataset langues de programmation
 │   └── examples/
-│       ├── fr_causal_basic.yaml
-│       ├── fr_causal_cycles.yaml
-│       ├── python_basic.yaml
-│       └── rust_basic.yaml
+│       ├── fr_causal_basic.json
+│       ├── fr_causal_cycles.json
+│       ├── python_basic.json
+│       └── rust_basic.json
 │
 ├── gcn-python/                       # Couches ML (Python, framework-agnostique)
 └── docs/                             # SAD papier de recherche (.docx)
@@ -272,11 +270,12 @@ pub struct CausalEdge {
 pub struct CausalIR {
     pub source_lang: SourceLanguage,     // Natural{fr} | Programming{python}
     pub source_text: String,
-    pub graph: DiGraph<CausalNode, CausalEdge>,  // petgraph
     pub nodes: Vec<CausalNode>,
     pub edges: Vec<(NodeId, NodeId, CausalEdge)>,
     pub cycles: Vec<CausalCycle>,        // boucles de rétroaction
     pub metadata: IrMetadata,
+    // NOTE: pas de DiGraph ici — CausalIR est 100% sérialisable.
+    // Le DiGraph vit dans CausalGraph (gcn-middleend). Voir DA-6 et L7.
 }
 ```
 
@@ -620,37 +619,13 @@ impl CausalGraph {
 
 ### L8 — Configuration du système absente
 
-Aucune mention de comment configurer quel frontend, quelle langue, ML on/off. Ajout d'un fichier `gcn-core/gcn.toml` :
+~~Ajout d'un fichier `gcn-core/gcn.toml`~~
 
-```toml
-[frontend]
-language = "fr"            # fr | wo | en | ar
-parser = "udpipe"          # udpipe | rules_only
-
-[middleend]
-enable_cycle_detection = true
-max_propagation_depth = 10
-merge_strategy = "entity"  # entity | temporal | aggressive
-
-[backend]
-pearl_levels = [1]         # [1] | [1, 2] | [1, 2, 3]
-export_format = "json"     # json | dot | graphml
-
-[ml]
-enabled = false            # Nécessite feature "ml" à la compilation
-model = "camembert-base"
-confidence_threshold = 0.6 # En dessous → signalé comme ambiguïté
-```
-
-Ajout d'un fichier `crates/gcn-cli/src/config.rs` dans la structure.
+**Non implémenté, remplacé par arguments CLI directs.** `gcn.toml` n'existe pas dans l'implémentation actuelle. La configuration (langue, options frontend/backend) est passée directement via les arguments de `gcn-cli` (clap). Aucun fichier de configuration externe n'est nécessaire au runtime.
 
 ### L9 — Distribution des modèles UDPipe
 
-Le modèle UDPipe français (~20MB) n'est pas inclus dans le binaire. Il faut une stratégie de distribution.
-
-**Solution** : le modèle est téléchargé au premier lancement via `gcn-cli setup` ou inclus optionnellement via `include_bytes!` avec une feature Cargo `embed-models`. Par défaut, le binaire est léger et le modèle est téléchargé.
-
-Ajout dans la structure : `crates/gcn-cli/src/setup.rs` pour le téléchargement initial.
+**Résolue sans pertinence** — Le moteur n'utilise pas UDPipe. La couche 0 repose sur un tokenizer symbolique (`GCNBridgeParser` en Python, frontends Rust à règles) et `GCNDataLoader` pour les données annotées JSON. Aucun modèle externe n'est téléchargé au lancement.
 
 ### L10 — Scope `Specific` manquant
 
@@ -722,12 +697,15 @@ projet_CNM/
     ├── pyproject.toml
     └── src/gcn_python/
         ├── constants.py          # Sync avec gcn-ir enums (snake_case serde)
-        ├── taxonomy/loader.py    # TaxonomyIndex par langue
-        ├── data/                 # Chargement datasets YAML annotés
+        ├── taxonomy/loader.py    # TaxonomyIndex par langue (outil annotateur — pas de dépendance runtime ML)
+        ├── layer0/               # Couche 0 : parsing symbolique / bridge heuristique
+        │   └── interface.py      # Protocol TextParser
         ├── layer1/               # Couche 1 : représentation UD universelle
         │   ├── representation.py # UDRepresentation (abstraction UD-agnostique)
-        │   ├── extractor.py      # spaCy Doc → List[UDRepresentation]
-        │   └── features.py       # FeatureVocabulary + vectorize() → ndarray[D_clause≈135]
+        │   ├── embedding.py      # WordEmbedding — vecteurs de mots pré-entraînés
+        │   └── features.py       # FeatureVocabulary + vectorize() → ndarray[D_clause=80]
+        ├── frontend/
+        │   └── bridge.py         # GCNBridgeParser — texte brut → UDRepresentation (heuristique, sans spaCy)
         ├── layer2/               # Couche 2 : encodage causal MLP
         │   ├── interface.py      # CausalEncoder Protocol
         │   └── reference.py      # MLPEncoder NumPy (fc→ReLU→fc→ReLU→fc)
@@ -736,20 +714,21 @@ projet_CNM/
         │   ├── reference.py      # RGCNLayer NumPy (message passing relationnel)
         │   └── pytorch_rgcn.py   # RGCNLayerPT PyTorch (GPU/MPS, autograd, scatter_add_)
         ├── pipeline/
-        │   ├── cgnp.py           # CGNPipeline.forward() → CIR JSON
+        │   ├── cgnp.py           # CGNPipeline(temperature, n_rgcn_layers, all_pairs, word_embedding)
+        │   │                     # .forward() → CIR JSON
         │   │                     # .loss(node_logits, edge_logits, gold_node, gold_edge) → (float, d_node, d_edge)
         │   │                     # .backward(d_node, d_edge, lr) → SGD + snapshots par nœud
         │   ├── label_builder.py
         │   ├── ir_emitter.py     # → JSON conforme schéma serde Rust CausalIR
         │   └── cli.py            # gcn-forward --lang fr [--model-path model.npz] "texte"
-        ├── data/
-        │   ├── loader.py         # GCNDataLoader — itère sur YAML → TrainingSample
-        │   ├── yaml_reader.py    # load_all_sentences(data_dir, lang) → List[SentenceRecord]
+        ├── data/                 # Chargement datasets JSON annotés
+        │   ├── loader.py         # GCNDataLoader — itère sur JSON → TrainingSample (pré-vectorise via vocab)
+        │   ├── json_reader.py    # load_all_sentences(data_dir, lang) → List[SentenceRecord]
         │   └── schema.py         # SentenceRecord, ClauseRecord, EdgeRecord
         ├── training/
         │   ├── train.py          # gcn-train CLI — boucle SGD multi-epoch
         │   ├── checkpoint.py     # save/load checkpoint .npz
-        │   └── bootstrap.py      # gcn-bootstrap CLI — génération YAML via gcn analyze
+        │   └── bootstrap.py      # gcn-bootstrap CLI — génération JSON via gcn analyze
         └── evaluation/
             ├── metrics.py        # Métriques NumPy pures (framework-agnostiques)
             │                     #   node_accuracy, node_f1_per_class
@@ -770,6 +749,8 @@ class CausalEncoder(Protocol):
     def forward_edge(self, x: np.ndarray) -> np.ndarray: ...  # (D_edge,)   → (11,) logits
     def parameters(self) -> list[np.ndarray]: ...
     def update(self, grads: list[np.ndarray], lr: float) -> None: ...
+    def update_node(self, grads: list[np.ndarray], lr: float) -> None: ...
+    def update_edge(self, grads: list[np.ndarray], lr: float) -> None: ...
 
 # Couche 3 — CausalGraph (R-GCN)
 class CausalGraph(Protocol):
@@ -792,7 +773,9 @@ Support natif des cycles (pas de restriction DAG).
 
 ```
 text + lang_code
-  ↓ [Couche 1] spaCy UD → UDRepresentation[] → ndarray[N, D_clause]
+  ↓ [Couche 0] JSON annotés (GCNDataLoader) → UDRepresentation[]
+  │            ou GCNBridgeParser (heuristique, texte brut → UDRepresentation[])
+  ↓ [Couche 1] FeatureVocabulary.vectorize() → ndarray[N, D_clause]
   ↓ [Couche 2] CausalEncoder → NodeType[] + RelationType[]
   ↓ [Couche 3] CausalGraph.message_pass() → représentations enrichies
   ↓ ir_emitter → CausalIR JSON
@@ -800,18 +783,19 @@ text + lang_code
   ↓ [Couche 4 Rust] Pearl inference (do-calculus)
 ```
 
-### Features Couche 1 (D_clause ≈ 135, universelles)
+### Features Couche 1 (D_clause = 80, universelles, purement syntaxiques)
 
 | Groupe | Dims |
 |---|---|
 | UPOS racine (one-hot 18 + unk) | 19 |
 | dep_rel racine (one-hot 37 UD + unk) | 38 |
 | UPOS sujet (one-hot 5) | 5 |
-| UD Morph Tense/Aspect/Mood/Polarity | 15+1 |
+| UD Morph Tense/Aspect/Mood/Polarity | 15 |
 | Flags UD structurels (has_obj, has_advcl, has_temporal_obl) | 3 |
-| Appartenance taxonomie GCN (~56 gcn_class_keys) | ~56 |
 
-`D_edge = 2 × D_clause + D_conn = 346` (D_conn = 76)
+Note : TaxonomyIndex (gcn_class_keys) est un outil pour annotateurs — il n'est **pas** une feature runtime du moteur ML.
+
+`D_edge = 2 × D_clause + D_conn = 181` (D_conn = 21)
 
 ## Décisions architecturales
 
@@ -841,13 +825,13 @@ text + lang_code
 ## Vérification
 
 1. **Phase 1** : `cargo test -p gcn-ir -p gcn-knowledge` — les types compilent, les taxonomies se chargent, proptest valide les invariants (ex: tout CausalNode sérialisé→désérialisé = identique, tout Scope a un quantificateur logique associé)
-2. **Phase 2** : Tous les exemples du papier (`paper_examples.yaml`) passent le pipeline frontend-fr → CIR et produisent les graphes attendus. Test spécifique : causalité implicite sur phrases juxtaposées.
+2. **Phase 2** : Tous les exemples du papier (`paper_examples.json`) passent le pipeline frontend-fr → CIR et produisent les graphes attendus. Test spécifique : causalité implicite sur phrases juxtaposées.
 3. **Phase 3** : Tests d'intégration phrase → CIR → graphe. Détection des cycles sur l'exemple "ventes → coûts → qualité → ventes". Test feedback loop : annotation incohérente → middleend retourne `Inconsistency::TemporalContradiction`. Test fusion incrémentale : 3 phrases → graphe unifié.
 4. **Phase 4** : `gcn-cli analyze "Si les ventes baissent, on réduit les coûts."` → JSON CIR correct. `gcn-cli query "WHY ventes?"` → chaîne causale. `gcn-cli query "GAPS?"` → lacunes.
 5. **Phase 5** : `Verbalizer::decode(ir)` retourne une surface non vide pour tout CausalIR valide. `roundtrip_similarity` ≥ 0.7 sur les exemples gold du dataset. `cross_modal_consistency` ≥ 0.7 entre deux surfaces du même graphe. La sortie dépend de l'entraînement, pas de l'architecture.
 6. **Phase 6** : Snippet Python → CIR produit le même graphe causal qu'une description française équivalente. Test : `if x < y: reduce(z)` et "Si x est inférieur à y, on réduit z" → CIR isomorphe. ✅
 7. **Phase 7** : `gcn query "DO X"` et `gcn query "COUNTERFACTUAL X"` retournent les résultats attendus. `gcn-frontend-en` produit un CIR isomorphe à `gcn-frontend-fr` pour la même structure conditionnelle. `RGCNLayerPT.message_pass()` implémente le Protocol `CausalGraph`. ✅
-8. **End-to-end** : `cargo test --workspace` passe (103 tests), `cargo clippy -- -D warnings` propre, `python -m pytest gcn-python/tests/` passe (76 collectés, 71 passent, 5 skippés sans spaCy fr).
+8. **End-to-end** : `cargo test --workspace` passe (137 tests Rust), `cargo clippy -- -D warnings` propre, `python -m pytest gcn-python/tests/` passe (177 tests Python, 2 skipped).
 
 ## Architecture du décodeur
 

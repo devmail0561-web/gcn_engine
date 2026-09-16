@@ -32,7 +32,7 @@
 │  │              FRONTENDS SYMBOLIQUES (Rust)                 │    │
 │  │                   🟡 IMPORTANT                            │    │
 │  │                                                           │    │
-│  │  gcn-frontend-fr : Parser français (UDPipe + règles)     │    │
+│  │  gcn-frontend-fr : Parser français (tokenizer symbolique + taxonomies) │    │
 │  │  gcn-frontend-en : Parser anglais                        │    │
 │  │  gcn-frontend-code : Parser Python/Rust (Treesitter)     │    │
 │  │                                                           │    │
@@ -153,8 +153,9 @@ OU
 Frontend Rust                UDRepresentation           CGNPipeline
 (gcn-frontend-fr)                 │                          │
      │                            │                          │
-     │  Texte → UDPipe            │                          │
-     │          + règles causales │                          │
+     │  Texte → tokenizer         │                          │
+     │          symbolique        │                          │
+     │          + taxonomies      │                          │
      │                            │                          │
      │  Produit UDRep             │                          │
      ├────────────────────────────>                          │
@@ -357,7 +358,7 @@ done
 - 4 couches ML opérationnelles
 - P2d attention pooling implémenté
 - Training/inférence validés
-- 127 tests passent
+- 177 tests Python, 137 tests Rust passent
 
 ### **Bootstrap (Auxiliaire)**
 
@@ -366,6 +367,13 @@ done
 - UTF-8 robuste
 - Null handling sécurisé
 - 10 tests ajoutés
+
+### **Frontend Bridge Python (GCNBridgeParser)**
+
+✅ **Pont texte brut → UDRepresentation disponible**
+- `GCNBridgeParser` implémente le Protocol `TextParser` de `layer0/interface.py`
+- Chaîne : texte brut → gcn-cli subprocess → UDRepresentation heuristique → CGNPipeline
+- Qualité inférieure aux frontends Rust (heuristique) mais autonome en Python pur
 
 ### **Relation**
 
@@ -399,5 +407,5 @@ Le moteur continuerait à fonctionner normalement pour training, inférence, et 
 
 - **Moteur** : `gcn-python/src/gcn_python/{layer1,layer2,layer3,pipeline}/`
 - **Bootstrap** : `gcn-python/src/gcn_python/training/bootstrap.py`
-- **Tests moteur** : 127 tests (dont 117 indépendants de bootstrap)
+- **Tests moteur** : 177 tests Python, 137 tests Rust (dont 117 indépendants de bootstrap)
 - **Tests bootstrap** : 10 tests isolés

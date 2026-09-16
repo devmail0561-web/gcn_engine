@@ -15,6 +15,7 @@ from ..training.checkpoint import load_checkpoint
 from ..evaluation.metrics import (
     node_accuracy, node_macro_f1,
     edge_accuracy, edge_macro_f1,
+    causal_graph_similarity,
 )
 from ..constants import NODE_TYPES, RELATION_TYPES
 
@@ -37,6 +38,7 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
     all_node_gold: list[str] = []
     all_edge_preds: list[str] = []
     all_edge_gold: list[str] = []
+    causal_sim_scores: list[float] = []
     n_samples = 0
     n_skipped = 0
 
@@ -49,7 +51,7 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
             if not reps:
                 n_skipped += 1
                 continue
-            pipeline.forward(
+            pred_cir = pipeline.forward(
                 reps, sample.sentence.text,
                 clause_positions=valid_clause_idxs,
                 n_total_clauses=len(sample.sentence.clauses),
@@ -92,7 +94,31 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
                 all_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
                 all_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
 
+        # causal_graph_similarity: compare pred_cir vs gold CIR reconstructed from sample
+        if pred_cir is not None:
+            gold_nodes = [
+                {"node_type": NODE_TYPES[int(lbl)] if int(lbl) < len(NODE_TYPES) else "action"}
+                for lbl in sample.gold_node_labels
+            ]
+            gold_edges = [
+                [src, tgt, {"relation": RELATION_TYPES[int(rel)]}]
+                for (src, tgt), rel in sample.edge_map.items()
+                if 0 <= int(rel) < len(RELATION_TYPES)
+            ]
+            gold_cir = {"nodes": gold_nodes, "edges": gold_edges}
+            sim = causal_graph_similarity(pred_cir, gold_cir)
+            causal_sim_scores.append(sim["overall"])
+
         n_samples += 1
+
+    # BLEU and cross_modal_consistency require decoder surface output — not available here
+    if n_samples > 0:
+        warnings.warn(
+            "run_eval: generation_bleu et cross_modal_consistency ne peuvent pas être calculés "
+            "sans sortie décodeur (surface text). Utilisez un pipeline avec décodeur attaché.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     return {
         "n_samples": n_samples,
@@ -101,6 +127,9 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
         "node_macro_f1": node_macro_f1(all_node_preds, all_node_gold),
         "edge_accuracy": edge_accuracy(all_edge_preds, all_edge_gold),
         "edge_macro_f1": edge_macro_f1(all_edge_preds, all_edge_gold),
+        "causal_graph_similarity": (
+            round(float(np.mean(causal_sim_scores)), 4) if causal_sim_scores else None
+        ),
     }
 
 

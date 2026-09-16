@@ -34,6 +34,16 @@ from .checkpoint import save_checkpoint
               help="Entraîne uniquement le décodeur (l'encodeur et le R-GCN sont gelés)")
 @click.option("--encoder-checkpoint", default=None, type=click.Path(path_type=Path),
               help="Checkpoint à charger pour initialiser l'encodeur (utilisé avec --decoder-only)")
+@click.option("--all-pairs/--no-all-pairs", default=False, show_default=True,
+              help="Superviser toutes les paires (i,j) avec i<j, pas seulement consécutives. "
+                   "Requiert dataset re-annoté avec des arêtes gap>1.")
+@click.option("--embedding-dim", default=0, show_default=True, type=int,
+              help="Activer les word embeddings apprenables (S1/S2). 0 = désactivé.")
+@click.option("--embedding-file", default=None, type=click.Path(path_type=Path),
+              help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
+                   "Active automatiquement --embedding-dim si non précisé.")
+@click.option("--mini-batch-size", default=1, show_default=True, type=int,
+              help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
 def train_cmd(
     data_dir: Path,
     lang: str,
@@ -44,14 +54,41 @@ def train_cmd(
     verbalize_dir: Path | None,
     decoder_only: bool,
     encoder_checkpoint: Path | None,
+    all_pairs: bool,
+    embedding_dim: int,
+    embedding_file: Path | None,
+    mini_batch_size: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
     from ..verbalizer.trainable import TrainableDecoder
 
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+
+    # S1/S2/S9 : word embeddings optionnels
+    word_embedding = None
+    d_emb = 0
+    if embedding_file is not None or embedding_dim > 0:
+        from ..layer1.embedding import WordEmbedding
+        if embedding_file is not None and embedding_dim == 0:
+            # Détecter la dimension depuis la première ligne du fichier
+            with open(embedding_file, encoding="utf-8") as ef:
+                for line in ef:
+                    parts = line.strip().split()
+                    if len(parts) > 2:
+                        d_emb = len(parts) - 1
+                        break
+        else:
+            d_emb = embedding_dim
+        if d_emb > 0:
+            word_embedding = WordEmbedding(d_emb=d_emb)
+            if embedding_file is not None:
+                n_loaded = word_embedding.load_from_file(str(embedding_file))
+                click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
+
+    d_effective = vocab.d_clause + d_emb
+    encoder = MLPEncoder(d_clause=d_effective, d_edge=vocab.d_edge + 2 * d_emb)
+    graph = RGCNLayer(d_in=d_effective, d_out=d_effective)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -68,14 +105,14 @@ def train_cmd(
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
     pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
-                           decoder=decoder)
+                           decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding)
 
     if encoder_checkpoint is not None:
         from .checkpoint import load_checkpoint
         load_checkpoint(pipeline, encoder_checkpoint)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, lang=lang)
+    loader = GCNDataLoader(data_dir, lang=lang, all_pairs=all_pairs)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
 
@@ -98,6 +135,7 @@ def train_cmd(
         for epoch in range(1, epochs + 1):
             epoch_loss = 0.0
             n_samples = 0
+            batch_step_count = 0
             epoch_node_preds: list[str] = []
             epoch_node_gold: list[str] = []
             epoch_edge_preds: list[str] = []
@@ -143,10 +181,17 @@ def train_cmd(
                 if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                         and sample.edge_map
                         and edge_logits is not None and len(edge_logits) > 0):
-                    pairs = [
-                        (valid_clause_idxs[k], valid_clause_idxs[k + 1])
-                        for k in range(len(valid_clause_idxs) - 1)
-                    ]
+                    if all_pairs:
+                        pairs = [
+                            (valid_clause_idxs[i], valid_clause_idxs[j])
+                            for i in range(len(valid_clause_idxs))
+                            for j in range(i + 1, len(valid_clause_idxs))
+                        ]
+                    else:
+                        pairs = [
+                            (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                            for k in range(len(valid_clause_idxs) - 1)
+                        ]
                     gold_edge_full = np.array(
                         [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
                     )
@@ -175,9 +220,16 @@ def train_cmd(
                     gold_surface=_gold_surface if not decoder_only else None,
                 )
 
-                # Backward (gelé si --decoder-only)
+                # Backward (gelé si --decoder-only) — S10 : accumulation mini-batch
                 if not decoder_only:
-                    pipeline.backward(d_node, d_edge, lr=lr)
+                    if mini_batch_size <= 1:
+                        pipeline.backward(d_node, d_edge, lr=lr)
+                    else:
+                        pipeline.backward_accumulate(d_node, d_edge)
+                        batch_step_count += 1
+                        if batch_step_count >= mini_batch_size:
+                            pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
+                            batch_step_count = 0
 
                 # Accumuler les prédictions pour les métriques de l'époque
                 node_pred_idxs = np.argmax(node_logits, axis=1)
@@ -197,6 +249,11 @@ def train_cmd(
 
                 epoch_loss += loss_val
                 n_samples += 1
+
+            # S10 : flush des gradients résiduels en fin d'époque
+            if mini_batch_size > 1 and batch_step_count > 0 and not decoder_only:
+                pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
+                batch_step_count = 0
 
             # Entraînement standalone du décodeur sur les paires verbalize
             if verb_loader is not None and pipeline.decoder is not None:

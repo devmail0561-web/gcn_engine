@@ -99,8 +99,8 @@ def test_parameters_after_init():
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16, d_in=7)
     params = dec.parameters()
-    # P2d: _attn_vec + 2 layers × (W, b) = 5 params
-    assert len(params) == 5
+    # attn_vec + 2 layers × (W, b) + W_query = 6 params
+    assert len(params) == 6
 
 
 def test_update_changes_weights():
@@ -179,7 +179,7 @@ def test_checkpoint_includes_attn_vec(tmp_path):
     params2 = dec2.parameters()
 
     # Vérifier que attn_vec est le premier paramètre
-    assert len(params) == 5, "attn_vec + 2 layers × (W, b) = 5 params"
+    assert len(params) == 6, "attn_vec + 2 layers × (W, b) + W_query = 6 params"
     assert params[0].shape == (7,), "Premier param = attn_vec"
     assert np.allclose(params[0], params2[0]), "attn_vec restauré correctement"
 

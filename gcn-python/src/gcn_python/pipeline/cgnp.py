@@ -40,13 +40,21 @@ class CGNPipeline:
         *,
         decoder=None,
         taxonomies_dir=None,
+        temperature: float = 1.0,
+        node_types: list[str] | None = None,
+        relation_types: list[str] | None = None,
+        n_rgcn_layers: int = 1,
+        all_pairs: bool = False,
+        word_embedding=None,
     ):
-        if hasattr(graph, 'd_out') and graph.d_out != vocabulary.d_clause:
+        # S1 : dimension effective = features structurelles + embedding si actif
+        _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
+        if hasattr(graph, 'd_out') and graph.d_out != _d_eff:
             raise ValueError(
-                f"RGCNLayer.d_out={graph.d_out} ≠ vocabulary.d_clause="
-                f"{vocabulary.d_clause} : instanciez RGCNLayer avec "
-                f"d_out=vocabulary.d_clause pour alimenter le MLP nœud "
-                f"depuis les représentations enrichies."
+                f"RGCNLayer.d_out={graph.d_out} ≠ d_effective={_d_eff} "
+                f"(vocabulary.d_clause={vocabulary.d_clause}"
+                + (f" + word_embedding.d_emb={word_embedding.d_emb}" if word_embedding is not None else "")
+                + ") : instanciez RGCNLayer avec d_out=d_effective."
             )
         self.encoder = encoder
         self.graph = graph
@@ -54,6 +62,34 @@ class CGNPipeline:
         self.vocabulary = vocabulary
         self.decoder = decoder
         self.taxonomies_dir = taxonomies_dir
+        self.temperature = float(temperature)
+        self.node_types = list(node_types) if node_types is not None else list(NODE_TYPES)
+        self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
+        self.all_pairs = all_pairs
+        self.word_embedding = word_embedding
+
+        # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
+        self.n_rgcn_layers = n_rgcn_layers
+        self._graph_layers: list = [graph]
+        if n_rgcn_layers > 1:
+            if hasattr(graph, 'd_in') and hasattr(graph, 'd_out') and hasattr(graph, 'n_relations'):
+                from ..layer3.reference import RGCNLayer
+                for extra_i in range(1, n_rgcn_layers):
+                    self._graph_layers.append(
+                        RGCNLayer(
+                            d_in=graph.d_in, d_out=graph.d_out,
+                            n_relations=graph.n_relations,
+                            seed=extra_i * 100 + 42,
+                        )
+                    )
+            else:
+                import warnings as _w
+                _w.warn(
+                    f"n_rgcn_layers={n_rgcn_layers} requiert un graph avec d_in/d_out/n_relations. "
+                    "Repli sur n_rgcn_layers=1.",
+                    UserWarning, stacklevel=2,
+                )
+                self.n_rgcn_layers = 1
 
         # Cache rempli par forward() — utilisé par loss() et backward()
         self._cached_clause_vecs: np.ndarray | None = None
@@ -69,6 +105,12 @@ class CGNPipeline:
         self._cached_edge_snapshots: list | None = None
         # Cache décodeur — rempli par loss() quand gold_surface est fourni
         self._cached_decode_gradient: np.ndarray | None = None
+        # Cache reps — utilisé par backward pour word_embedding.backward()
+        self._cached_reps: list | None = None
+        # S10 : accumulateurs de gradients pour mini-batch
+        self._accum_node_grads = None
+        self._accum_edge_grads = None
+        self._accum_rgcn_grads = None
 
     def forward(
         self,
@@ -113,27 +155,36 @@ class CGNPipeline:
         self._cached_node_snapshots = None
         self._cached_edge_snapshots = None
         self._cached_decode_gradient = None
+        self._cached_reps = None
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
         if not reps:
             return emit(text, self.lang, [], [], [], [], [])
 
-        # Couche 1 — vectorisation
+        self._cached_reps = reps
+
+        # Couche 1 — vectorisation (S1 : word_embedding optionnel)
         clause_vecs = np.stack([
-            vectorize_clause(r, self.vocabulary) for r in reps
-        ])  # (N, D_clause)
+            vectorize_clause(r, self.vocabulary, self.word_embedding) for r in reps
+        ])  # (N, D_effective)
         self._cached_clause_vecs = clause_vecs
 
+        # S3 : chemin batch si forward_batch disponible et pas de snapshots requis
+        _has_batch = hasattr(self.encoder, 'forward_batch')
+
         # Couche 2 — prédiction des types de nœuds (snapshot par nœud pour backward)
-        node_logits_list: list[np.ndarray] = []
         node_snapshots: list = []
-        for v in clause_vecs:
-            node_logits_list.append(self.encoder.forward_node(v))
-            if _snap:
-                node_snapshots.append(self.encoder.snapshot_node_cache())
-        node_logits = np.stack(node_logits_list)
+        if _has_batch and not _snap:
+            node_logits = self.encoder.forward_batch(clause_vecs)
+        else:
+            node_logits_list: list[np.ndarray] = []
+            for v in clause_vecs:
+                node_logits_list.append(self.encoder.forward_node(v))
+                if _snap:
+                    node_snapshots.append(self.encoder.snapshot_node_cache())
+            node_logits = np.stack(node_logits_list)
         node_type_idxs = np.argmax(node_logits, axis=1)
-        node_types = [NODE_TYPES[i] for i in node_type_idxs]
+        node_types = [self.node_types[i] for i in node_type_idxs]
 
         # Prédiction des arêtes entre clauses adjacentes
         edge_triples: list[tuple[int, int, str, float, bool, int | None]] = []
@@ -142,16 +193,22 @@ class CGNPipeline:
         edge_snapshots: list = []
         if len(reps) >= 2:
             real_n = n_total_clauses if n_total_clauses is not None else len(reps)
-            for src_i in range(len(reps) - 1):
-                dst_i = src_i + 1
+            _edge_pairs = (
+                [(i, j) for i in range(len(reps)) for j in range(i + 1, len(reps))]
+                if self.all_pairs
+                else [(i, i + 1) for i in range(len(reps) - 1)]
+            )
+            for src_i, dst_i in _edge_pairs:
                 real_src = clause_positions[src_i] if clause_positions else src_i
                 real_dst = clause_positions[dst_i] if clause_positions else dst_i
+                # Le connecteur n'existe que pour les paires adjacentes (len = len(reps)-1)
                 connector = (connector_reps[src_i]
-                             if connector_reps and src_i < len(connector_reps) else None)
+                             if connector_reps and src_i < len(connector_reps) and dst_i == src_i + 1
+                             else None)
                 edge_vec = vectorize_edge(
                     reps[src_i], reps[dst_i], connector,
                     real_src, real_dst, real_n,
-                    self.vocabulary,
+                    self.vocabulary, self.word_embedding,
                 )
                 edge_vecs.append(edge_vec)
                 edge_logit = self.encoder.forward_edge(edge_vec)
@@ -159,10 +216,10 @@ class CGNPipeline:
                 if _snap:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
                 rel_idx = int(np.argmax(edge_logit))
-                rel_conf = float(_softmax(edge_logit.reshape(1, -1))[0, rel_idx])
+                rel_conf = float(_softmax((edge_logit / self.temperature).reshape(1, -1))[0, rel_idx])
                 marker_tok_id = connector.token_span[0] if connector is not None else None
                 negated = _detect_negation(reps[src_i], reps[dst_i], connector)
-                edge_triples.append((src_i, dst_i, RELATION_TYPES[rel_idx], rel_conf, negated, marker_tok_id))
+                edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf, negated, marker_tok_id))
 
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)
@@ -176,22 +233,27 @@ class CGNPipeline:
                 [[e[0] for e in edge_triples], [e[1] for e in edge_triples]], dtype=np.int64
             )
             edge_type_idxs = np.array(
-                [RELATION_TYPES.index(e[2]) if e[2] in RELATION_TYPES else 0
+                [self.relation_types.index(e[2]) if e[2] in self.relation_types else 0
                  for e in edge_triples],
                 dtype=np.int64,
             )
             self._cached_edge_index = edge_index
             self._cached_edge_type_idxs = edge_type_idxs
-            enriched = self.graph.message_pass(clause_vecs, edge_index, edge_type_idxs)
-            node_logits2_list: list[np.ndarray] = []
+            enriched = clause_vecs.copy()
+            for _layer in self._graph_layers:
+                enriched = _layer.message_pass(enriched, edge_index, edge_type_idxs)
             node_snapshots = []
-            for v in enriched:
-                node_logits2_list.append(self.encoder.forward_node(v))
-                if _snap:
-                    node_snapshots.append(self.encoder.snapshot_node_cache())
-            node_logits2 = np.stack(node_logits2_list)
+            if _has_batch and not _snap:
+                node_logits2 = self.encoder.forward_batch(enriched)
+            else:
+                node_logits2_list: list[np.ndarray] = []
+                for v in enriched:
+                    node_logits2_list.append(self.encoder.forward_node(v))
+                    if _snap:
+                        node_snapshots.append(self.encoder.snapshot_node_cache())
+                node_logits2 = np.stack(node_logits2_list)
             node_type_idxs = np.argmax(node_logits2, axis=1)
-            node_types = [NODE_TYPES[i] for i in node_type_idxs]
+            node_types = [self.node_types[i] for i in node_type_idxs]
             node_logits = node_logits2
             self._cached_enriched_vecs = enriched
 
@@ -250,35 +312,29 @@ class CGNPipeline:
         text: str,
         gcn_bin: str = "gcn",
         taxonomy_dir=None,
+        text_parser=None,
     ) -> dict:
         """
         Texte brut → CausalIR dict (bridge + forward en une opération).
 
-        Appelle `gcn analyze` (subprocess) pour construire les UDRepresentation
-        et connector_reps depuis le CIR, puis les passe à forward().
-        Qualité approximative — voir frontend.bridge pour les limitations.
-
-        Args:
-            text: texte brut français/anglais à analyser.
-            gcn_bin: chemin vers le binaire gcn-cli (défaut : "gcn" dans PATH).
-            taxonomy_dir: répertoire des taxonomies causales (optionnel).
-
-        Returns:
-            CausalIR dict (conforme schéma serde Rust).
+        text_parser (optionnel) : tout objet implémentant le Protocol TextParser
+          (layer0/interface.py). Si None, utilise GCNBridgeParser(gcn_bin, taxonomy_dir).
+        Qualité approximative si text_parser=None — voir frontend.bridge.
 
         Raises:
-            GCNBridgeError: si gcn-cli est absent ou l'appel échoue.
+            GCNBridgeError: si gcn-cli est absent ou l'appel échoue (quand text_parser=None).
         """
         import warnings
-        from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors
-        warnings.warn(
-            "CGNPipeline.analyze() produit des UDRepresentation approximatifs. "
-            "Voir frontend.bridge pour les limitations de qualité.",
-            UserWarning,
-            stacklevel=2,
-        )
-        cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
-        reps, connector_reps = _cir_to_reps_and_connectors(cir, self.lang)
+        from ..frontend.bridge import GCNBridgeParser
+        if text_parser is None:
+            warnings.warn(
+                "CGNPipeline.analyze() produit des UDRepresentation approximatifs. "
+                "Voir frontend.bridge pour les limitations de qualité.",
+                UserWarning,
+                stacklevel=2,
+            )
+            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
+        reps, connector_reps = text_parser.parse(text, self.lang)
         return self.forward(reps, text, connector_reps=connector_reps)
 
     def analyze_or_skip(
@@ -340,7 +396,7 @@ class CGNPipeline:
             edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge)
         else:
             edge_loss = 0.0
-            d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
+            d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
 
         total_loss = node_loss + edge_loss_weight * edge_loss
 
@@ -466,14 +522,132 @@ class CGNPipeline:
                 self._cached_decode_gradient
             )
             self.decoder.update(dec_grads, d_attn_vec, lr)
-            # d_node_embs (N, D_in) ignoré (stop_gradient=True — voir P3e)
+            # S11 : propager le gradient décodeur vers le R-GCN
+            if (d_node_embs is not None
+                    and d_enriched is not None
+                    and d_node_embs.shape == d_enriched.shape):
+                d_enriched += d_node_embs
 
-        # --- Rétropropagation R-GCN ---
+        # --- Rétropropagation R-GCN (S5 : boucle sur _graph_layers en ordre inverse) ---
         if (self._cached_edge_index is not None
-                and self._cached_enriched_vecs is not None
-                and hasattr(self.graph, 'backward_message_pass')):
-            _, graph_grads = self.graph.backward_message_pass(d_enriched)
-            self.graph.update(graph_grads, lr)
+                and self._cached_enriched_vecs is not None):
+            d_curr = d_enriched
+            for _layer in reversed(self._graph_layers):
+                if hasattr(_layer, 'backward_message_pass'):
+                    d_curr, graph_grads = _layer.backward_message_pass(d_curr)
+                    _layer.update(graph_grads, lr)
+
+    def backward_accumulate(
+        self,
+        d_node_logits: np.ndarray,
+        d_edge_logits: np.ndarray,
+    ) -> None:
+        """S10 : accumule les gradients sans appeler update. Utiliser avec apply_accumulated_gradients()."""
+        if not hasattr(self.encoder, 'backward_node_dx'):
+            return
+
+        vecs = (self._cached_enriched_vecs
+                if self._cached_enriched_vecs is not None
+                else self._cached_clause_vecs)
+        if vecs is None or len(vecs) == 0:
+            return
+
+        N = len(vecs)
+        n = min(len(d_node_logits), N)
+        _has_node_snap = (
+            hasattr(self.encoder, 'restore_node_cache')
+            and self._cached_node_snapshots is not None
+            and len(self._cached_node_snapshots) >= n
+        )
+        _has_edge_snap = (
+            hasattr(self.encoder, 'restore_edge_cache')
+            and self._cached_edge_snapshots is not None
+        )
+
+        all_node_grads = None
+        d_enriched = np.zeros((N, vecs.shape[1]), dtype=np.float32)
+        for i in range(n):
+            if _has_node_snap:
+                self.encoder.restore_node_cache(self._cached_node_snapshots[i])
+            else:
+                self.encoder.forward_node(vecs[i])
+            grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
+            d_enriched[i] = dx_i
+            if all_node_grads is None:
+                all_node_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
+            else:
+                for j, (dW_i, db_i) in enumerate(grads_i):
+                    all_node_grads[j] = (all_node_grads[j][0] + dW_i, all_node_grads[j][1] + db_i)
+
+        all_edge_grads = None
+        if (d_edge_logits is not None and len(d_edge_logits) > 0
+                and self._cached_edge_vecs is not None):
+            e = min(len(d_edge_logits), len(self._cached_edge_vecs))
+            for i in range(e):
+                if _has_edge_snap and i < len(self._cached_edge_snapshots):
+                    self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
+                else:
+                    self.encoder.forward_edge(self._cached_edge_vecs[i])
+                grads_i = self.encoder.backward_edge(d_edge_logits[i])
+                if all_edge_grads is None:
+                    all_edge_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
+                else:
+                    for j, (dW_i, db_i) in enumerate(grads_i):
+                        all_edge_grads[j] = (all_edge_grads[j][0] + dW_i, all_edge_grads[j][1] + db_i)
+
+        # Accumulation (liste de tuples → somme)
+        def _acc(existing, new):
+            if existing is None:
+                return new
+            if new is None:
+                return existing
+            return [(e[0] + n[0], e[1] + n[1]) for e, n in zip(existing, new)]
+
+        self._accum_node_grads = _acc(self._accum_node_grads, all_node_grads)
+        self._accum_edge_grads = _acc(self._accum_edge_grads, all_edge_grads)
+
+        # R-GCN gradients
+        if (self._cached_edge_index is not None
+                and self._cached_enriched_vecs is not None):
+            d_curr = d_enriched
+            layer_grads_list = []
+            for _layer in reversed(self._graph_layers):
+                if hasattr(_layer, 'backward_message_pass'):
+                    d_curr, g = _layer.backward_message_pass(d_curr)
+                    layer_grads_list.append((_layer, g))
+            if self._accum_rgcn_grads is None:
+                self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
+            else:
+                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list):
+                    for i in range(len(acc_g)):
+                        acc_g[i] += new_g[i]
+
+    def apply_accumulated_gradients(self, lr: float, n_samples: int = 1) -> None:
+        """S10 : applique les gradients accumulés normalisés par n_samples."""
+        if self._accum_node_grads is not None and hasattr(self.encoder, 'update_node'):
+            norm = [(dW / n_samples, db / n_samples) for dW, db in self._accum_node_grads]
+            self.encoder.update_node(norm, lr)
+        if self._accum_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
+            norm = [(dW / n_samples, db / n_samples) for dW, db in self._accum_edge_grads]
+            self.encoder.update_edge(norm, lr)
+        if self._accum_rgcn_grads is not None:
+            for _layer, acc_g in self._accum_rgcn_grads:
+                _layer.update([g / n_samples for g in acc_g], lr)
+        self._accum_node_grads = None
+        self._accum_edge_grads = None
+        self._accum_rgcn_grads = None
+
+        # --- Word embedding backward (S2) ---
+        if (self.word_embedding is not None
+                and self._cached_reps is not None
+                and d_enriched is not None
+                and d_enriched.shape[1] > self.vocabulary.d_clause):
+            # Les d_emb dernières dimensions de d_enriched correspondent à l'embedding
+            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+            n = min(len(self._cached_reps), len(d_emb_slice))
+            for i in range(n):
+                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+            self.word_embedding.update(lr)
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:

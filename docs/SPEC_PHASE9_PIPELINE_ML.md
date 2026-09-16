@@ -2,8 +2,8 @@
 
 **Auteur :** Michel Tendeng  
 **Date :** 2026-09-15  
-**Révision :** 5 — descriptions de problèmes clarifiées, P1 reclassé  
-**Statut :** Partiellement implémenté — C1-C9 + P2d + P3e résolus, P1 non résolu (commits 3bafb75, 12691c6)  
+**Révision :** 6 — P2d reclassé : mean-pool remplacé par attention pooling sur nœuds  
+**Statut :** C1-C9 + P3e + P2d résolus, P1 résolu via GCNBridgeParser heuristique (commits 3bafb75, 12691c6) — Phase 10 (2026-09-16) : S11 (stop_gradient décodeur) levé, gradient `d_node_embs` propagé dans `d_enriched`  
 **Branche cible :** `master`
 
 ---
@@ -211,7 +211,6 @@ _SCOPE_HINTS = {
     "tous": "universal", "toutes": "universal", "chaque": "universal",
     "tout": "universal", "aucun": "null", "aucune": "null",
     "certains": "existential", "certaines": "existential",
-    "un": "existential", "une": "existential",
     "quelques": "partial",
 }
 
@@ -431,31 +430,164 @@ comparés au même vecteur de logits. Le décodeur ne peut pas apprendre l'ordre
 dépendances entre tokens. Ce n'est pas une génération de surface, c'est un classifieur
 de sac de mots.
 
-**Solution :** Décodeur autorégressif — RNN à contexte mean-pool.
+**Défaut architectural supplémentaire du mean-pool :**
 
-**Architecture implémentée :**
+La couche 3 (R-GCN) produit N nœuds causaux typés — un nœud "condition" n'a pas le même
+rôle sémantique qu'un nœud "processus". Le mean-pool traite tous les nœuds avec le poids
+identique `1/N` et efface cette structure avant même que le décodeur ne commence. De plus,
+`backward_decode()` retourne `d_mean (D_in,)` — un seul vecteur identique broadcasté sur
+tous les nœuds — ce qui empêche le R-GCN de recevoir des gradients différenciés par nœud.
+
+**Solution corrigée (rev.6) :** Décodeur autorégressif — RNN à contexte **attention pooling** sur nœuds.
+
+> **Historique :** La rev.2 avait simplifié à mean-pool pour accélérer l'implémentation.
+> Ce choix est architecturalement incorrect : il détruit la structure du graphe causal
+> produit par le R-GCN. La solution correcte est l'attention pooling, spécifiée dès la rev.1.
+
+**Architecture cible :**
+
+```
+node_embeddings (N, D_in)
+      │
+      │  @ _attn_vec (D_in,)          ← vecteur d'attention appris
+      ↓
+scores (N,)  →  softmax  →  attn_weights (N,)
+      │
+      Σ attn_weights[i] * node_embeddings[i]  →  context (D_in,)
+      │
+      ┌─────────────────────────────────────────────┐
+      │  RNN autorégressif (T pas, teacher forcing) │
+      │  h_0 = zeros(D_hidden)                      │
+      │  h_t = tanh(W_rnn @ [context; h_{t-1}])    │
+      │  logit_t = W_out @ h_t + b_out              │
+      └─────────────────────────────────────────────┘
+      → (T, |V|) logits en entraînement
+      → greedy jusqu'à <eos> en inférence
+```
+
+**Propriété clé :** `_attn_vec` initialisé à **zéro** → softmax uniforme → `attn_weights = 1/N`
+→ comportement identique au mean-pool au premier forward. L'attention ne fait que progresser.
+
+**Implémentation — `_init_layers(d_in)`** :
 
 ```python
-# Étape RNN : h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
-# Sortie   : logit_t = W_out @ h_t + b_out
-# context  = mean_pool(node_embeddings)  — (D_in,)
-# h_0      = zeros(d_hidden)
+self._attn_vec = np.zeros(d_in, dtype=np.float32)   # (D_in,) — initialisé à zéro
+self._last_d_in = d_in
+self._layers = [
+    _LinearLayer(d_in + self.d_hidden, self.d_hidden, self._rng),  # RNN cell
+    _LinearLayer(self.d_hidden, len(self.vocab), self._rng),        # output
+]
+```
 
-def _rnn_step(context, h_prev):
-    rnn_in = np.concatenate([context, h_prev])  # (D_in + D_hidden,)
-    z1 = W_rnn @ rnn_in + b_rnn
-    h_new = np.tanh(z1)
-    logits = W_out @ h_new + b_out
-    return h_new, logits
+**Implémentation — `forward_decode(node_embeddings, gold_tokens=None)`** :
+
+```python
+# Attention pooling — remplace mean_pool
+attn_scores = node_embeddings @ self._attn_vec          # (N,)
+exp_s = np.exp(attn_scores - attn_scores.max())         # stabilité numérique
+attn_weights = exp_s / exp_s.sum()                      # (N,) — somme = 1
+context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0)  # (D_in,)
+# Cacher pour backward
+self._cached_attn_weights = attn_weights                # (N,)
+self._cached_node_embs = node_embeddings                # (N, D_in)
+
+# RNN autorégressif — inchangé
+h = np.zeros(self.d_hidden, dtype=np.float32)
+# teacher forcing (T pas) ou inférence (1 pas) — identique à l'implémentation actuelle
+```
+
+**Implémentation — `backward_decode(d_logits)`** :
+
+Le backward traverse dans l'ordre : output layer → RNN cell → attention.
+
+```python
+# 1. Backward RNN (identique à l'implémentation actuelle) → d_context (D_in,)
+
+# 2. Backward attention pooling
+# d_context (D_in,) → gradient vers node_embeddings et _attn_vec
+
+# Gradient vers node_embeddings :
+d_weighted = d_context[np.newaxis, :] * attn_weights[:, np.newaxis]   # (N, D_in)
+
+# Gradient vers attn_weights :
+d_attn_weights = (d_context * node_embeddings).sum(axis=1)            # (N,)
+
+# Backward softmax :
+d_attn_scores = attn_weights * (
+    d_attn_weights - (attn_weights * d_attn_weights).sum()
+)                                                                       # (N,)
+
+# Gradient vers _attn_vec :
+d_attn_vec = node_embeddings.T @ d_attn_scores                        # (D_in,)
+
+# Gradient vers node_embeddings (terme indirect via scores) :
+d_node_embs_indirect = d_attn_scores[:, np.newaxis] * self._attn_vec[np.newaxis, :]  # (N, D_in)
+d_node_embs = d_weighted + d_node_embs_indirect                       # (N, D_in)
+
+# Retour : (d_node_embs, param_grads, d_attn_vec)
+# d_node_embs (N, D_in) — gradient différencié par nœud (vs d_mean (D_in,) en mean-pool)
+```
+
+**Signature de retour de `backward_decode` :** `(d_node_embs, param_grads, d_attn_vec)`
+- `d_node_embs` : `(N, D_in)` — gradient par nœud, utilisable par le R-GCN si stop_gradient désactivé
+- `param_grads` : `list[tuple[ndarray, ndarray]]` — gradients W/b des 2 LinearLayer
+- `d_attn_vec` : `(D_in,)` — gradient du vecteur d'attention
+
+**Implémentation — `parameters()`, `update()`, `to_json()`, `from_json()`** :
+
+```python
+# parameters() : inclure _attn_vec comme premier paramètre
+def parameters(self):
+    return [self._attn_vec] + [p for layer in self._layers for p in [layer.W, layer.b]]
+
+# update() : appliquer SGD sur _attn_vec + layers
+def update(self, param_grads, d_attn_vec, lr):
+    self._attn_vec -= lr * d_attn_vec
+    for layer, (dW, db) in zip(self._layers, param_grads):
+        layer.W -= lr * dW
+        layer.b -= lr * db
+
+# to_json() : sérialiser _attn_vec
+{
+    "vocab": ...,
+    "d_hidden": ...,
+    "d_in": self._last_d_in,
+    "max_decode_len": ...,
+    "attn_vec": self._attn_vec.tolist()   # ← nouveau
+}
+
+# from_json() : restaurer _attn_vec si présent, sinon zeros (compatibilité checkpoints antérieurs)
+```
+
+**Mise à jour `cgnp.py` — `backward()`** :
+
+```python
+# La signature de backward_decode change : retourne 3 valeurs au lieu de 2
+d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(
+    self._cached_decode_gradient
+)
+self.decoder.update(dec_grads, d_attn_vec, lr)
+# d_node_embs (N, D_in) ignoré (stop_gradient=True par défaut — voir P3e)
 ```
 
 **Teacher forcing (entraînement) :** `loss()` appelle `forward_decode(vecs, gold_surface)` — T pas, retourne `(T, |V|)` logits. Chaque position t produit sa propre distribution.
 
 **Greedy decoding (inférence) :** boucle jusqu'à `<eos>` ou `max_decode_len` (défaut : 20).
 
-**BPTT :** gradient `dx_rnn[d_in:]` (w.r.t. `h_prev`) propagé à l'étape précédente via `d_h_next`.
+**BPTT :** gradient `dx_rnn[d_in:]` (w.r.t. `h_prev`) propagé à l'étape précédente via `d_h_next` — inchangé.
 
-**SurfaceVocabulary :** `<eos>` ajouté en fin de vocabulaire dans `build()` (pas dans `__init__`) pour éviter de décaler les indices des tokens utilisateur existants. `to_json`/`from_json` inclut `max_decode_len`.
+**SurfaceVocabulary :** `<eos>` ajouté en fin de vocabulaire dans `build()` — inchangé.
+
+**Compatibilité checkpoints antérieurs :** Si `"attn_vec"` absent du JSON → initialiser `_attn_vec` à zéro. Comportement identique au mean-pool, pas de régression.
+
+**Tests à mettre à jour :**
+
+| Test | Changement requis |
+|---|---|
+| `test_backward_decode_gradient_nonzero` | `d_mean` → `d_node_embs` shape `(N, D_in)` |
+| `test_checkpoint_roundtrip` | Vérifier `attn_vec` sauvegardé et restauré |
+| `test_attention_weights_nonuniform_after_update` | **Nouveau** — après updates, `attn_weights != 1/N` |
+| `test_stop_gradient_rgcn_unchanged` | Vérifier que `W_r` ne change pas sous loss décodeur seule |
 
 ---
 
@@ -530,6 +662,8 @@ et c'est la bonne séparation de responsabilités.
 | Confidence non calibrée (C13) | Nécessite temperature scaling post-entraînement — phase 10 |
 | Snapshots pre-R-GCN écrasés (C12) | Cosmétique — backward reste cohérent |
 | Entrée vide silencieuse (C14) | Ajouter un `warnings.warn` — fix triviale incluse dans C3 |
+
+> **Phase 10 (2026-09-16) :** les 12 défauts de `ENGINE_STRUCTURAL_LIMITS.md` ont été implémentés. S11 (stop_gradient décodeur) levé — `d_node_embs` est maintenant propagé dans `d_enriched`.
 
 ---
 

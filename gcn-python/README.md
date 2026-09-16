@@ -38,7 +38,12 @@ Utilise `gcn-python` quand tu as besoin de :
 ```
 Texte naturel (fr/en) ou Code source (Python/Rust/JS)
                         │
-              [gcn-cli — Rust]
+         ┌──────────────┴──────────────┐
+         │                             │
+[gcn-cli — Rust]            Layer 0 — TextParser
+(gcn-bootstrap)             GCNBridgeParser / custom
+         │                             │
+         └──────────────┬──────────────┘
                         │
                CausalIR (JSON)
                         │
@@ -47,6 +52,7 @@ Texte naturel (fr/en) ou Code source (Python/Rust/JS)
   Layer 1 — Features            Tokens annotés
   FeatureVocabulary                   │
   vectorize_clause()           reps_from_sentence()
+  WordEmbedding (optionnel)          │
          │                             │
          └──────────────┬──────────────┘
                         │
@@ -57,13 +63,14 @@ Texte naturel (fr/en) ou Code source (Python/Rust/JS)
                         │
               Layer 3 — Graphe causal
               RGCNLayer / RGCNLayerPT
-              Message passing R-GCN
+              Message passing R-GCN (1..N couches)
                         │
               CGNPipeline.forward()
                         │
                CausalIR enrichi
                         │
               [Optionnel] TrainableDecoder
+              Attention pooling + RNN autorégressif
                         │
                   Surface texte
 ```
@@ -392,12 +399,15 @@ loader = GCNDataLoader(
     data_dir=Path("corpus/"),
     lang="fr",          # code langue
     repeat=False,       # True = itérateur infini
+    all_pairs=False,    # True = inclut les arêtes gap>1 dans edge_map
 )
 
 len(loader)             # nombre de SentenceRecord chargés
 for sample in loader:   # yield TrainingSample
     ...
 ```
+
+Quand `all_pairs=True`, `edge_map` contient toutes les paires `(i, j)` avec `i < j`, pas seulement les consécutives (gap=1).
 
 #### `reps_from_sentence`
 ```python
@@ -501,13 +511,15 @@ vocab2 = FeatureVocabulary.from_json(json_str)
 
 #### `vectorize_clause`
 ```python
-vec = vectorize_clause(rep, vocab)
-# rep  : UDRepresentation
-# vocab: FeatureVocabulary
-# -> np.ndarray shape (d_clause,) float32
+vec = vectorize_clause(rep, vocab, word_embedding=None)
+# rep           : UDRepresentation
+# vocab         : FeatureVocabulary
+# word_embedding: WordEmbedding | None  — si fourni, lookup(root_lemma) est concaténé
+# -> np.ndarray shape (d_clause,) ou (d_clause + d_emb,) si word_embedding fourni
 # Concaténation : one_hot(root_pos) + one_hot(root_dep_rel) + one_hot(subject_pos)
 #   + one_hot(tense) + one_hot(aspect) + one_hot(mood)
 #   + [is_negative] + [has_object, has_advcl, has_temporal_obl]
+#   [+ word_embedding.lookup(root_lemma) si word_embedding fourni]
 ```
 
 #### `vectorize_connector`
@@ -522,6 +534,101 @@ vec = vectorize_connector(marker_rep, src_idx, dst_idx, n_clauses, vocab)
 vec = vectorize_edge(src_rep, dst_rep, connector_rep, src_idx, dst_idx, n_clauses, vocab)
 # -> np.ndarray shape (d_edge,) float32
 # = concat(vectorize_clause(src), vectorize_clause(dst), vectorize_connector(...))
+```
+
+---
+
+### `gcn_python.layer0.interface`
+
+```python
+from gcn_python.layer0.interface import TextParser
+```
+
+#### `TextParser`
+Protocol `@runtime_checkable`. Interface Layer 0 : texte brut → représentations clausales.
+
+```python
+class MonParser:
+    def parse(
+        self,
+        text: str,
+        lang: str,
+    ) -> tuple[list["UDRepresentation"], list["UDRepresentation | None"]]:
+        # -> (clause_reps, connector_reps)
+        # clause_reps    : list[UDRepresentation] — une par clause détectée
+        # connector_reps : list[UDRepresentation | None] — len == len(clause_reps) - 1
+        ...
+
+assert isinstance(MonParser(), TextParser)  # True
+```
+
+Implémenter `TextParser` pour brancher un parseur custom (stanza, trankit, etc.) dans `CGNPipeline.analyze()`.
+
+---
+
+### `gcn_python.frontend.bridge`
+
+```python
+from gcn_python.frontend.bridge import GCNBridgeParser
+```
+
+#### `GCNBridgeParser`
+Implémentation heuristique de `TextParser` qui appelle le binaire Rust `gcn-cli`.
+
+```python
+parser = GCNBridgeParser(
+    gcn_bin="gcn",                          # chemin vers le binaire gcn-cli
+    taxonomy_dir=Path("gcn-references/taxonomies/"),
+)
+
+clause_reps, connector_reps = parser.parse("Si les ventes baissent, on réduit les coûts.", lang="fr")
+# clause_reps    : list[UDRepresentation]
+# connector_reps : list[UDRepresentation | None]
+```
+
+`GCNBridgeParser` invoque `gcn analyze` en sous-processus, parse la sortie JSON en `UDRepresentation` heuristiques, et remplit les champs morphologiques disponibles. C'est la voie d'accès texte brut → pipeline quand aucun parseur UD externe n'est disponible.
+
+---
+
+### `gcn_python.layer1.embedding`
+
+```python
+from gcn_python.layer1.embedding import WordEmbedding
+```
+
+#### `WordEmbedding`
+Embedding de mots entraînable ou chargeable depuis GloVe/FastText.
+
+```python
+emb = WordEmbedding(d_emb=50, seed=42)
+
+# Construction du vocabulaire
+emb.add_lemma("baisse")
+emb.add_lemma("réduire")
+emb.build_vocab()        # finalise les vecteurs (He init)
+
+# Lookup
+vec = emb.lookup("baisse")    # -> np.ndarray (d_emb,)
+                               # vecteur zéro si lemme inconnu
+
+# Backward / update (SGD)
+emb.backward(d_emb, "baisse") # accumule le gradient pour ce lemme
+emb.update(lr=0.001)          # applique les gradients accumulés
+
+# Chargement depuis GloVe ou FastText (.txt)
+emb.load_from_file(Path("glove.6B.50d.txt"))
+
+# Paramètres (pour checkpoint)
+params = emb.parameters()  # list[np.ndarray]
+
+# Sérialisation
+json_str = emb.to_json()
+emb2 = WordEmbedding.from_json(json_str)
+```
+
+Avec embedding de mots, la dimension effective d'une clause devient :
+```
+d_effective = vocab.d_clause + word_embedding.d_emb   # ex. 80 + 50 = 130
 ```
 
 ---
@@ -564,11 +671,17 @@ from gcn_python.layer2.reference import MLPEncoder
 Implémentation NumPy de référence de `CausalEncoder`.
 
 **Architecture :**
-- Node MLP : `d_clause → 128 → 64 → 7` (initialisation He, ReLU)
-- Edge MLP : `d_edge → 256 → 128 → 11` (initialisation He, ReLU)
+- Node MLP : `d_clause → 128 → 64 → n_node_types` (initialisation He, ReLU)
+- Edge MLP : `d_edge → 256 → 128 → n_relation_types` (initialisation He, ReLU)
 
 ```python
-encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=42)
+encoder = MLPEncoder(
+    d_clause=vocab.d_clause,
+    d_edge=vocab.d_edge,
+    seed=42,
+    n_node_types=len(NODE_TYPES),         # défaut: 7 — configurable
+    n_relation_types=len(RELATION_TYPES), # défaut: 11 — configurable
+)
 
 # Inférence
 node_logits = encoder.forward_node(clause_vec)  # (7,)
@@ -585,6 +698,9 @@ encoder.restore_node_cache(snap)
 # SGD manuel
 encoder.update_node(grads_node, lr=0.001)
 encoder.update_edge(grads_edge, lr=0.001)
+
+# Forward batch (duck-typing extension)
+node_logits_batch = encoder.forward_batch(X)  # (N, d_clause) -> (N, n_node_types)
 
 # Tous les paramètres (pour checkpoint)
 params = encoder.parameters()  # [W1,b1,W2,b2,W3,b3] nœud + idem arête = 12 arrays
@@ -705,11 +821,17 @@ Compose les couches 1-3 en un pipeline complet.
 
 ```python
 pipeline = CGNPipeline(
-    encoder=encoder,    # CausalEncoder
-    graph=graph,        # CausalGraph
+    encoder=encoder,          # CausalEncoder
+    graph=graph,              # CausalGraph
     lang="fr",
     vocabulary=vocab,
-    decoder=None,       # TrainableDecoder optionnel
+    decoder=None,             # TrainableDecoder optionnel
+    word_embedding=None,      # WordEmbedding optionnel (Layer 1)
+    temperature=1.0,          # divise logits arêtes par temperature avant softmax
+    n_rgcn_layers=1,          # nombre de couches R-GCN empilées
+    all_pairs=False,          # True = génère toutes les paires (i,j) i<j
+    node_types=None,          # list[str] — ontologie nœuds (défaut: NODE_TYPES)
+    relation_types=None,      # list[str] — ontologie relations (défaut: RELATION_TYPES)
 )
 # Précondition : graph.d_out == vocab.d_clause (ValueError sinon)
 ```
@@ -752,6 +874,31 @@ pipeline.backward(
 # Étapes : backward MLP nœuds (par snapshot) → backward MLP arêtes
 #        → backward décodeur (si présent) → backward R-GCN → update poids
 # No-op si l'encodeur n'implémente pas backward_node_dx (ex. implémentation custom)
+```
+
+#### `analyze`
+```python
+cir = pipeline.analyze(
+    text,                      # str — texte brut à analyser
+    gcn_bin="gcn",             # chemin vers le binaire gcn-cli Rust
+    taxonomy_dir=None,         # Path vers taxonomies, ou None
+    text_parser=None,          # TextParser custom (Layer 0) — prioritaire sur gcn_bin
+)
+# -> dict CausalIR JSON-sérialisable
+# Si text_parser fourni, utilise text_parser.parse(text, lang) pour produire les reps.
+# Sinon, appelle GCNBridgeParser(gcn_bin, taxonomy_dir) en interne.
+```
+
+#### `backward_accumulate` / `apply_accumulated_gradients`
+```python
+# Mini-batch : accumule les gradients sur N échantillons avant la mise à jour
+for sample in mini_batch:
+    cir = pipeline.forward(reps, text=sample.text)
+    loss, d_node, d_edge = pipeline.loss(...)
+    pipeline.backward_accumulate(d_node, d_edge)
+
+pipeline.apply_accumulated_gradients(lr=0.001, n_samples=len(mini_batch))
+# Divise les gradients accumulés par n_samples avant mise à jour
 ```
 
 #### `filter_edge_cache`
@@ -853,6 +1000,10 @@ Options :
   --output PATH          Fichier checkpoint .npz (défaut: model.npz)
   --log-csv PATH         Log CSV par époque (optionnel)
   --verbalize-dir PATH   Répertoire verbalize pour entraînement conjoint (optionnel)
+  --embedding-dim INT    Dimension des embeddings de mots WordEmbedding (défaut: aucun)
+  --embedding-file PATH  Fichier GloVe/FastText à charger dans WordEmbedding (optionnel)
+  --mini-batch-size INT  Taille du mini-batch pour accumulation de gradients (défaut: 1)
+  --all-pairs            Active la supervision sur toutes les paires de clauses (gap>1)
 ```
 
 Avec `--log-csv loss.csv`, le fichier `loss.json` est aussi généré avec `node_accuracy` et `edge_macro_f1` par époque.
@@ -1026,7 +1177,13 @@ vocab2 = SurfaceVocabulary.from_json(json_str)
 ```
 
 #### `TrainableDecoder`
-Décodeur NumPy entraînable. Architecture : mean-pool(node_embeddings) → MLP 2 couches → logits vocabulaire.
+Décodeur NumPy entraînable. Architecture : attention pooling + RNN autorégressif avec teacher forcing (P2d), enrichi d'un mécanisme de cross-attention per-step via `_W_query` (S6).
+
+**Paramètres (6 au total) :** `attn_vec`, `W1`, `b1`, `W2`, `b2`, `W_query`
+
+- `attn_vec` : vecteur d'attention global sur les nœuds
+- `W1, b1, W2, b2` : deux couches MLP de projection
+- `W_query` : matrice `(d_hidden, D_in)` zero-init. Forward per-step : `query_vec = attn_vec + W_query.T @ h_prev` pour un contexte dynamique par étape de décodage.
 
 ```python
 decoder = TrainableDecoder(vocab=surface_vocab, d_hidden=64, seed=0)
@@ -1034,8 +1191,15 @@ decoder = TrainableDecoder(vocab=surface_vocab, d_hidden=64, seed=0)
 # Entraînement
 logits = decoder.forward_decode(node_embeddings)   # (N, D_in) -> (|V|,)
 loss, d_logits = decoder.loss_decode(logits, gold_tokens)
-d_mean, layer_grads = decoder.backward_decode(d_logits)
-decoder.update(layer_grads, lr=0.001)
+d_node_embs, grads, d_attn_vec = decoder.backward_decode(d_logits)
+# d_node_embs : np.ndarray (N, D_in) — gradient vers les embeddings nœuds (R-GCN)
+# grads       : list de gradients MLP
+# d_attn_vec  : gradient sur attn_vec
+decoder.update(grads, d_attn_vec, lr=0.001)
+# update() applique également _W_query via _d_W_query stocké par backward_decode
+
+# Nombre de paramètres
+len(decoder.parameters())  # 6
 
 # Inférence
 surface = decoder.decode(ir_json_str)              # -> str
@@ -1058,7 +1222,7 @@ loss, d_node, d_edge = pipeline.loss(
     gold_surface=gold_surface_tokens,  # active la loss décodeur
 )
 pipeline.backward(d_node, d_edge, lr=0.001)
-# Le gradient du décodeur se propage vers le R-GCN (couplage encodeur-décodeur)
+# Le gradient du décodeur se propage vers le R-GCN via d_node_embs (S11)
 ```
 
 ---
@@ -1081,10 +1245,11 @@ gcn analyze "Si les ventes baissent, on réduit les coûts." | gcn-verbalize -
 | Contrainte | Raison |
 |---|---|
 | `d_out == d_clause` obligatoire | Les sorties R-GCN sont réinjectées dans le MLP nœud, qui attend `d_clause` dimensions. `CGNPipeline.__init__` lève `ValueError` si non respecté. |
-| Pas de spaCy à l'inférence | `reps_from_sentence` lit les annotations directement depuis le JSON. spaCy est déclaré comme dépendance mais aucune ligne de code du moteur ne l'appelle. |
-| Supervision arêtes consécutives uniquement | Le pipeline prédit les arêtes entre clauses adjacentes (gap=1, direction croissante). Les arêtes longue-distance ou inverses déclenchent un `UserWarning` et sont exclues du calcul de la loss. |
+| Pas de spaCy à l'inférence | `reps_from_sentence` lit les annotations directement depuis le JSON. Aucune ligne de code du moteur n'appelle spaCy. |
+| Supervision arêtes consécutives par défaut | Avec `all_pairs=False` (défaut), le pipeline prédit les arêtes entre clauses adjacentes (gap=1). Avec `all_pairs=True`, toutes les paires (i,j) i<j sont incluses. |
 | Backward par snapshot | `MLPEncoder` sauvegarde les activations (`snapshot_node_cache`) pour permettre le backward par nœud sans re-exécuter le forward. Cela garantit des gradients corrects lors de l'accumulation sur N nœuds. |
-| Protocols extensibles | `CausalEncoder` et `CausalGraph` sont des `@runtime_checkable` Protocols. Toute implémentation PyTorch, JAX ou custom peut être branchée dans `CGNPipeline` sans modification. |
+| Gradient décodeur → R-GCN | `backward_decode()` retourne `d_node_embs` de shape `(N, D_in)` qui se propage vers le R-GCN. Le couplage encodeur-décodeur est actif depuis S11. |
+| Protocols extensibles | `CausalEncoder`, `CausalGraph` et `TextParser` sont des `@runtime_checkable` Protocols. Toute implémentation PyTorch, JAX ou parseur custom peut être branchée dans `CGNPipeline` sans modification. |
 
 ---
 

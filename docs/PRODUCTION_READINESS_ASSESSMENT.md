@@ -34,7 +34,7 @@ train_model(
 ```
 
 **Statut** : ✅ **PRODUCTION-READY**
-- 127 tests ML passent
+- 177 tests Python, 137 tests Rust passent
 - P2d attention pooling fonctionnel
 - Checkpoints sauvegarde/restauration OK
 - Backward propagation validé
@@ -205,7 +205,7 @@ Arête n0 → n2 (demande → coûts) manquée car gap > 1
 | **UDRepresentation** | ✅ READY | 100% | Aucun | — |
 | **FeatureVocabulary** | ✅ READY | 100% | Aucun | — |
 | **MLPEncoder** | ✅ READY | 100% | Aucun | — |
-| **RGCNLayer** | ✅ READY | 100% | P10 (limité) | Graphe chaîne |
+| **RGCNLayer** | ✅ READY | 100% | P10 (limité) | Graphe chaîne ⚠️ — flag `all_pairs=True` permet arêtes gap>1 (re-annotation datasets requise pour en bénéficier) |
 | **TrainableDecoder (P2d)** | ✅ READY | 100% | Aucun | Attention pooling OK |
 | **CGNPipeline** | ✅ READY | 100% | P1 (input) | Pas de pont texte |
 | **GCNDataLoader** | ✅ READY | 100% | Aucun | — |
@@ -233,7 +233,7 @@ Workflow:
 **Verdict** : ✅ **PRODUCTION-READY**
 - Aucune dépendance externe critique
 - Pipeline ML complet fonctionnel
-- 127 tests validés
+- 177 tests Python, 137 tests Rust validés
 
 ---
 
@@ -478,9 +478,9 @@ Le moteur GCN-Core est **techniquement solide** (phase 9 complète) mais **pas p
 
 **Estimation réaliste** : **6-10 jours travail** pour atteindre production-ready complet.
 
-**État actuel** : 🟡 **75% production-ready**
+**État actuel** : 🟡 **80% production-ready**
 - ✅ Moteur ML : 100%
-- ⚠️ Intégration : 50% (P1 manquant)
+- ⚠️ Intégration : 70% (P1 résolu via GCNBridgeParser heuristique — binding PyO3 restant)
 - ⚠️ Robustesse : 85% (issues MEDIUM)
 
 ---

@@ -17,10 +17,11 @@ Phase 5  ████████████████████  100%  gcn
 Phase 6  ████████████████████  100%  gcn-frontend-code
 Phase 7  ████████████████████  100%  Pearl 2-3, R-GCN PyTorch, frontend anglais
 Phase 8  ████████████████████  100%  Mise en production + publication
-Phase 9  ██████████████████░░   90%  Corrections pipeline ML — P1 (inférence texte brut) non résolu
+Phase 9  ████████████████████  100%  Corrections pipeline ML
+Phase 10 ████████████████████  100%  Correctifs structurels moteur (12 défauts)
 ```
 
-**Tests Python : 120 / 120 passent** (`pytest gcn-python/tests/`)
+**Tests Python : 177 / 177 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
 **Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
 
 ---
@@ -97,7 +98,7 @@ Phase 9  ██████████████████░░   90%  Cor
 | loss() cross-entropie NumPy | `gcn-python/pipeline/cgnp.py` | ✅ |
 | GCNDataLoader + TrainingSample | `gcn-python/data/loader.py` | ✅ |
 | gcn-train CLI (boucle SGD) | `gcn-python/training/train.py` | ✅ |
-| gcn-bootstrap CLI (génération YAML) | `gcn-python/training/bootstrap.py` | ✅ |
+| gcn-bootstrap CLI (génération JSON) | `gcn-python/training/bootstrap.py` | ✅ |
 | checkpoint save/load (.npz) | `gcn-python/training/checkpoint.py` | ✅ |
 | gcn-forward --model-path | `gcn-python/pipeline/cli.py` | ✅ |
 | backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
@@ -114,7 +115,7 @@ Phase 9  ██████████████████░░   90%  Cor
 - `lib.rs` : test debug AST avec assertions réelles
 
 **Corrections post-audit (bugs pipeline) :**
-- `yaml_reader.py` : `_parse_edge` lisait `confidence`/`explicit`/`negated`/`marker_token` au niveau racine alors qu'ils sont imbriqués sous `attributes` dans le YAML — corrigé avec fallback
+- `yaml_reader.py` (supprimé en v0.9.4, remplacé par `json_reader.py`) : `_parse_edge` lisait `confidence`/`explicit`/`negated`/`marker_token` au niveau racine alors qu'ils sont imbriqués sous `attributes` — corrigé avec fallback avant suppression
 - `checkpoint.py` : `load_checkpoint` ne restaurait pas `FeatureVocabulary` — corrigé, vocab rechargé depuis `_vocab_json`
 - `cgnp.py` : `backward_message_pass` recevait `d_enriched` de shape `(min(N,M), D)` au lieu de `(N, D)` quand gold labels < clauses spaCy → crash shape mismatch — corrigé par padding à la taille N
 - `cgnp.py` : assemblage `flat_grads` sans garde-fou sur les bornes → potentiel IndexError avec encodeur custom — bornes ajoutées
@@ -322,7 +323,7 @@ Phase 9  ██████████████████░░   90%  Cor
 
 ---
 
-## Phase 9 — Corrections pipeline ML ⚠️ (P1 non résolu)
+## Phase 9 — Corrections pipeline ML ✅
 
 **Objectif :** corriger 14 problèmes d'inférence rendant le CausalIR structurellement incorrect.
 
@@ -338,23 +339,36 @@ Phase 9  ██████████████████░░   90%  Cor
 | Clause nominale : root NOUN avant DET (C9) | `gcn-python/data/loader.py` | ✅ |
 | Découplage gradients encodeur/décodeur (P3e) | `gcn-python/pipeline/cgnp.py`, `training/train.py` | ✅ |
 | Décodeur autorégressif RNN + teacher forcing (P2d) | `gcn-python/verbalizer/trainable.py` | ✅ |
-| **Inférence sur texte non-annoté (P1)** | — | **❌ Non résolu** |
+| **Inférence sur texte non-annoté (P1)** | `frontend/bridge.py` (`GCNBridgeParser`) | ✅ Résolu en Phase 10 (S8) |
 | 10 corrections post-audit code-review | tous les fichiers ci-dessus | ✅ |
 
-**P1 — Problème non résolu :** Le modèle entraîné ne peut pas faire de prédictions sur
-texte non-annoté. Le pipeline exige des `UDRepresentation` pré-annotées (lemma, pos,
-dep_rel, morph) même à l'inférence — il n'existe aucun chemin `texte brut →
-pipeline.forward()` dans le moteur. C'est un problème architectural : la solution ne peut
-pas être une dépendance externe (spaCy, retirée en v0.9.3). À traiter dans une phase
-ultérieure.
+**Limitations documentées (traitées en Phase 10) :**
+- R-GCN graphe en chaîne (C10) : `all_pairs=False` flag ajouté (S4)
+- Confidence non calibrée (C13) : `temperature` kwarg ajouté (S12)
+- Inférence texte brut (P1) : `GCNBridgeParser` + `TextParser` Protocol (S8)
 
-**Limitations documentées (reportées en phase 10) :**
-- R-GCN graphe en chaîne (C10) : nécessite re-annotation avec arêtes gap > 1
-- `temporal_ref` "unresolved" (P6) : nécessite un module de résolution temporelle
-- Confidence non calibrée (C13) : temperature scaling post-entraînement
-- Négation analytique (ne...pas) : couverture partielle via `is_negative` UD
+**Tests : 120 / 120 passaient** (`pytest gcn-python/tests/`) — porté à 177 en Phase 10
 
-**Tests : 120 / 120 passent** (`pytest gcn-python/tests/`)
+---
+
+## Phase 10 — Correctifs structurels moteur ✅
+
+**Statut :** ✅ Complet — 2026-09-16
+
+| Composant | Fichier | Défaut | Statut |
+|-----------|---------|--------|--------|
+| WordEmbedding | `layer1/embedding.py` (nouveau) | S1+S2+S9 | ✅ |
+| forward_batch duck-typed | `layer2/reference.py` | S3 | ✅ |
+| all_pairs flag | `pipeline/cgnp.py`, `data/loader.py` | S4 | ✅ |
+| n_rgcn_layers | `pipeline/cgnp.py`, `training/checkpoint.py` | S5 | ✅ |
+| per-step cross-attention | `verbalizer/trainable.py` | S6 | ✅ |
+| n_node_types/n_relation_types | `layer2/reference.py`, `pipeline/cgnp.py` | S7 | ✅ |
+| TextParser Protocol + GCNBridgeParser | `layer0/interface.py` (nouveau), `frontend/bridge.py` | S8 | ✅ |
+| backward_accumulate + mini-batch | `pipeline/cgnp.py`, `training/train.py` | S10 | ✅ |
+| Gradient décodeur propagé | `pipeline/cgnp.py` | S11 | ✅ |
+| Temperature softmax | `pipeline/cgnp.py` | S12 | ✅ |
+
+Tests : 177 Python (2 skipped stables), 137 Rust
 
 ---
 

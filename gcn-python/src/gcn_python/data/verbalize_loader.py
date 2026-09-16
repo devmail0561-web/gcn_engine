@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -76,10 +77,20 @@ class VerbalizerDataLoader:
     @staticmethod
     def _load_raw(data_dir: Path) -> list[dict]:
         examples: list[dict] = []
+        loaded: set[str] = set()
         for p in sorted(data_dir.glob("verbalize_*.json")):
             with p.open(encoding="utf-8") as f:
                 data = json.load(f)
             examples.extend(data.get("examples", []))
+            loaded.add(p.name)
+        ignored = sorted(p.name for p in data_dir.glob("*.json") if p.name not in loaded)
+        if ignored:
+            warnings.warn(
+                f"VerbalizerDataLoader: {len(ignored)} fichier(s) JSON ignorés "
+                f"(ne commencent pas par 'verbalize_') : {ignored}",
+                UserWarning,
+                stacklevel=3,
+            )
         return examples
 
     def source_text_map(self) -> dict[str, list[np.ndarray]]:

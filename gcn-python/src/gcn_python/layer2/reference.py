@@ -1,6 +1,8 @@
 from __future__ import annotations
 import numpy as np
 
+from ..constants import NODE_TYPES, RELATION_TYPES
+
 
 def _relu(x: np.ndarray) -> np.ndarray:
     return np.maximum(0.0, x)
@@ -24,6 +26,12 @@ class _LinearLayer:
 
     def backward(self, d_out: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         x = self._cache["x"]
+        assert d_out.ndim == 1 and x.ndim == 1, (
+            f"_LinearLayer.backward attend des vecteurs 1-D, "
+            f"reçu d_out.shape={d_out.shape}, x.shape={x.shape}. "
+            f"backward() reçoit des vecteurs 1-D. Utilisez forward_batch() pour "
+            f"l'inférence batch ; le backward reste par nœud."
+        )
         dW = np.outer(d_out, x)
         db = d_out.copy()
         dx = d_out @ self.W
@@ -41,21 +49,30 @@ class MLPEncoder:
     de la règle de mise à jour (clipping, weight decay…) se fait une seule fois.
     """
 
-    def __init__(self, d_clause: int, d_edge: int, seed: int = 42):
+    def __init__(
+        self,
+        d_clause: int,
+        d_edge: int,
+        seed: int = 42,
+        n_node_types: int = len(NODE_TYPES),
+        n_relation_types: int = len(RELATION_TYPES),
+    ):
         rng = np.random.default_rng(seed)
+        self.n_node_types = n_node_types
+        self.n_relation_types = n_relation_types
 
-        # Node MLP : d_clause → 128 → 64 → 7
+        # Node MLP : d_clause → 128 → 64 → n_node_types
         self._node_layers = [
             _LinearLayer(d_clause, 128, rng),
             _LinearLayer(128, 64, rng),
-            _LinearLayer(64, 7, rng),
+            _LinearLayer(64, n_node_types, rng),
         ]
 
-        # Edge MLP : d_edge → 256 → 128 → 11
+        # Edge MLP : d_edge → 256 → 128 → n_relation_types
         self._edge_layers = [
             _LinearLayer(d_edge, 256, rng),
             _LinearLayer(256, 128, rng),
-            _LinearLayer(128, 11, rng),
+            _LinearLayer(128, n_relation_types, rng),
         ]
 
         self._node_cache: list = []
@@ -79,6 +96,15 @@ class MLPEncoder:
     def forward_node(self, x: np.ndarray) -> np.ndarray:
         self._node_cache = []
         return self._forward_mlp(x, self._node_layers, self._node_cache)
+
+    def forward_batch(self, X: np.ndarray) -> np.ndarray:
+        """Batch forward_node : (N, D_clause) → (N, n_node_types).
+
+        Implémentation de référence : boucle sur les lignes.
+        Les encodeurs Transformer surchargeront cette méthode pour la self-attention.
+        Aucun snapshot capturé — backward reste par nœud via forward_node.
+        """
+        return np.stack([self.forward_node(x) for x in X])
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
         self._edge_cache = []

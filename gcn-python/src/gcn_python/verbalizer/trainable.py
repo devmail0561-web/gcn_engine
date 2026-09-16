@@ -104,14 +104,17 @@ class TrainableDecoder:
         self._rnn_step_cache: list[dict] = []  # per-step cache for BPTT
         self._last_d_in: int | None = None
         self._attn_vec: np.ndarray | None = None  # P2d: attention vector
-        self._cached_attn_weights: np.ndarray | None = None  # P2d: for backward
+        self._W_query: np.ndarray | None = None   # S6: per-step attention query
+        self._d_W_query: np.ndarray | None = None  # S6: accumulated W_query gradient
+        self._cached_attn_weights: np.ndarray | None = None  # P2d: for backward (last step)
         self._cached_node_embs: np.ndarray | None = None  # P2d: for backward
         if d_in is not None:
             self._init_layers(d_in)
 
     def _init_layers(self, d_in: int) -> None:
         if self._layers is None:
-            self._attn_vec = np.zeros(d_in, dtype=np.float32)  # P2d: attention pooling
+            self._attn_vec = np.zeros(d_in, dtype=np.float32)       # P2d: attention pooling
+            self._W_query = np.zeros((self.d_hidden, d_in), dtype=np.float32)  # S6: zero-init
             self._layers = [
                 _LinearLayer(d_in + self.d_hidden, self.d_hidden, self._rng),  # RNN cell
                 _LinearLayer(self.d_hidden, len(self.vocab), self._rng),        # output
@@ -146,34 +149,44 @@ class TrainableDecoder:
         d_in = node_embeddings.shape[1]
         self._init_layers(d_in)
 
-        # P2d: Attention pooling (remplace mean-pool)
         assert self._attn_vec is not None
-        attn_scores = node_embeddings @ self._attn_vec  # (N,)
-        exp_s = np.exp(attn_scores - attn_scores.max())  # stabilité numérique
-        attn_weights = exp_s / (exp_s.sum() + 1e-9)  # (N,) — somme = 1
-        context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)  # (d_in,)
-
-        # Cacher pour backward
-        self._cached_attn_weights = attn_weights
+        assert self._W_query is not None
+        # Cacher les node embeddings pour backward
         self._cached_node_embs = node_embeddings
-
         h = np.zeros(self.d_hidden, dtype=np.float32)
 
+        def _step_attention(h_prev: np.ndarray):
+            """S6 : attention per-step — query = attn_vec + W_query.T @ h_prev."""
+            query_vec = self._attn_vec + self._W_query.T @ h_prev  # (d_in,)
+            scores = node_embeddings @ query_vec                    # (N,)
+            exp_s = np.exp(scores - scores.max())
+            step_attn = exp_s / (exp_s.sum() + 1e-9)               # (N,)
+            context = (step_attn[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)
+            return context, step_attn, query_vec
+
         if gold_tokens is None:
-            # Inference: single step
+            # Inference: single step (h_prev = zeros → query_vec = attn_vec, rétrocompat)
+            context, step_attn, query_vec = _step_attention(h)
+            self._cached_attn_weights = step_attn
             h_new, rnn_in, z1, logits = self._rnn_step(context, h)
-            self._rnn_step_cache = [{"rnn_in": rnn_in, "h1": h_new, "z1": z1}]
+            self._rnn_step_cache = [{"rnn_in": rnn_in, "h1": h_new, "z1": z1,
+                                     "step_attn": step_attn, "h_prev": h.copy(),
+                                     "query_vec": query_vec}]
             return logits  # (|V|,)
         else:
-            # Teacher forcing: T steps
+            # Teacher forcing: T steps with per-step attention
             T = len(gold_tokens)
             all_logits = np.zeros((T, len(self.vocab)), dtype=np.float32)
             self._rnn_step_cache = []
             for t in range(T):
+                context, step_attn, query_vec = _step_attention(h)
                 h_new, rnn_in, z1, logits = self._rnn_step(context, h)
                 all_logits[t] = logits
-                self._rnn_step_cache.append({"rnn_in": rnn_in, "h1": h_new, "z1": z1})
+                self._rnn_step_cache.append({"rnn_in": rnn_in, "h1": h_new, "z1": z1,
+                                             "step_attn": step_attn, "h_prev": h.copy(),
+                                             "query_vec": query_vec})
                 h = h_new
+            self._cached_attn_weights = self._rnn_step_cache[-1]["step_attn"]
             return all_logits  # (T, |V|)
 
     def loss_decode(
@@ -233,80 +246,97 @@ class TrainableDecoder:
         """
         assert self._layers is not None, "backward_decode called before forward_decode"
         assert self._last_d_in is not None
-        assert self._cached_attn_weights is not None, "forward_decode must be called first"
         assert self._cached_node_embs is not None
+        assert self._W_query is not None
 
         dW0_total = np.zeros_like(self._layers[0].W)
         db0_total = np.zeros_like(self._layers[0].b)
         dW1_total = np.zeros_like(self._layers[1].W)
         db1_total = np.zeros_like(self._layers[1].b)
-        d_context_total = np.zeros(self._last_d_in, dtype=np.float32)
+        d_attn_vec_total = np.zeros(self._last_d_in, dtype=np.float32)
+        d_W_query_total = np.zeros_like(self._W_query)    # (d_hidden, d_in)
+        d_node_embs_total = np.zeros_like(self._cached_node_embs)  # (N, d_in)
 
         steps = self._rnn_step_cache
         if d_logits.ndim == 1:
-            # Single step
-            step = steps[0]
+            T, n_steps = 1, 1
+            d_logits_2d = d_logits.reshape(1, -1)
+        else:
+            T = d_logits.shape[0]
+            n_steps = max(T, 1)
+            d_logits_2d = d_logits
+
+        d_h_next = np.zeros(self.d_hidden, dtype=np.float32)
+        for t in range(min(T, len(steps)) - 1, -1, -1):
+            step = steps[t]
+            step_logits = d_logits_2d[t]
+
+            # Couche output backward
             self._layers[0]._cache["x"] = step["rnn_in"]
             self._layers[1]._cache["x"] = step["h1"]
-            dx_h1, dW1, db1 = self._layers[1].backward(d_logits)
+            dx_h1, dW1, db1 = self._layers[1].backward(step_logits)
+            dx_h1 += d_h_next  # gradient depuis l'étape future
             dW1_total += dW1; db1_total += db1
+
+            # Couche RNN backward
             d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
             dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
             dW0_total += dW0; db0_total += db0
-            d_context_total += dx_rnn[:self._last_d_in]  # gradient vers context
-            n_steps = 1
-        else:
-            # Multi-step BPTT — propagate h_prev gradient through time
-            T = d_logits.shape[0]
-            n_steps = max(T, 1)
-            d_h_next = np.zeros(self.d_hidden, dtype=np.float32)
-            for t in range(T - 1, -1, -1):
-                step = steps[t]
-                self._layers[0]._cache["x"] = step["rnn_in"]
-                self._layers[1]._cache["x"] = step["h1"]
-                dx_h1, dW1, db1 = self._layers[1].backward(d_logits[t])
-                dx_h1 += d_h_next  # gradient from future step's h_prev
-                dW1_total += dW1; db1_total += db1
-                d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
-                dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
-                dW0_total += dW0; db0_total += db0
-                d_context_total += dx_rnn[:self._last_d_in]
-                d_h_next = dx_rnn[self._last_d_in:]  # gradient w.r.t. h_prev → previous step
 
-        # P2d: Backward attention pooling
-        d_context = d_context_total / n_steps  # (D_in,)
+            d_context_t = dx_rnn[:self._last_d_in]   # (d_in,)
+            d_h_from_rnn = dx_rnn[self._last_d_in:]  # (d_hidden,) → h_prev
 
-        # Gradient vers node_embeddings (terme direct via weighted sum)
-        d_weighted = d_context[np.newaxis, :] * self._cached_attn_weights[:, np.newaxis]  # (N, D_in)
+            # S6 : Backward attention per-step
+            step_attn = step["step_attn"]   # (N,)
+            h_prev_t = step["h_prev"]       # (d_hidden,)
+            query_vec_t = step["query_vec"] # (d_in,)
 
-        # Gradient vers attn_weights
-        d_attn_weights = (d_context * self._cached_node_embs).sum(axis=1)  # (N,)
+            # d_context_t → d_step_attn_t
+            d_step_attn_t = (d_context_t * self._cached_node_embs).sum(axis=1)  # (N,)
 
-        # Backward softmax
-        d_attn_scores = self._cached_attn_weights * (
-            d_attn_weights - (self._cached_attn_weights * d_attn_weights).sum()
-        )  # (N,)
+            # d_step_attn_t → d_scores_t (inverse softmax)
+            d_scores_t = step_attn * (
+                d_step_attn_t - (step_attn * d_step_attn_t).sum()
+            )  # (N,)
 
-        # Gradient vers _attn_vec
-        d_attn_vec = self._cached_node_embs.T @ d_attn_scores  # (D_in,)
+            # d_scores_t → d_query_vec_t
+            d_query_vec_t = self._cached_node_embs.T @ d_scores_t  # (d_in,)
 
-        # Gradient vers node_embeddings (terme indirect via scores)
-        d_node_embs_indirect = d_attn_scores[:, np.newaxis] * self._attn_vec[np.newaxis, :]  # (N, D_in)
-        d_node_embs = d_weighted + d_node_embs_indirect  # (N, D_in)
+            # d_query_vec → d_attn_vec (direct)
+            d_attn_vec_total += d_query_vec_t
+
+            # d_query_vec → d_W_query : outer(h_prev, d_query_vec) — shape (d_hidden, d_in)
+            d_W_query_total += np.outer(h_prev_t, d_query_vec_t)
+
+            # d_query_vec → d_h_prev via W_query
+            d_h_from_attn = self._W_query @ d_query_vec_t  # (d_hidden,)
+
+            # Gradient combiné vers h_prev
+            d_h_next = d_h_from_rnn + d_h_from_attn
+
+            # Gradient vers node_embeddings (via context et via scores)
+            d_node_embs_total += step_attn[:, np.newaxis] * d_context_t[np.newaxis, :]
+            d_node_embs_total += d_scores_t[:, np.newaxis] * query_vec_t[np.newaxis, :]
+
+        # Stocker d_W_query pour update() — interface rétrocompatible
+        self._d_W_query = d_W_query_total / n_steps
 
         grads = [
             (dW0_total / n_steps, db0_total / n_steps),
             (dW1_total / n_steps, db1_total / n_steps),
         ]
-        return d_node_embs, grads, d_attn_vec
+        d_attn_vec = d_attn_vec_total / n_steps
+        return d_node_embs_total, grads, d_attn_vec
 
     def parameters(self) -> list[np.ndarray]:
         if self._layers is None:
             return []
-        # P2d: _attn_vec en premier paramètre
+        # Ordre : attn_vec, layers(W,b)×2, W_query (en dernier pour compat checkpoints antérieurs)
         params: list[np.ndarray] = [self._attn_vec] if self._attn_vec is not None else []
         for layer in self._layers:
             params.extend([layer.W, layer.b])
+        if self._W_query is not None:
+            params.append(self._W_query)
         return params
 
     def update(self, grads: list[tuple[np.ndarray, np.ndarray]], d_attn_vec: np.ndarray, lr: float) -> None:
@@ -314,6 +344,10 @@ class TrainableDecoder:
         # P2d: Mettre à jour attn_vec
         if self._attn_vec is not None:
             self._attn_vec -= lr * d_attn_vec
+        # S6: Mettre à jour W_query depuis le gradient stocké par backward_decode
+        if self._W_query is not None and self._d_W_query is not None:
+            self._W_query -= lr * self._d_W_query
+            self._d_W_query = None
         for layer, (dW, db) in zip(self._layers, grads):
             layer.W -= lr * dW
             layer.b -= lr * db
@@ -344,16 +378,18 @@ class TrainableDecoder:
             filtered = [int(i) for i in top_indices if int(i) not in _skip]
             return self.vocab.decode(filtered)
 
-        # Greedy multi-step decode with P2d attention pooling
+        # Greedy multi-step decode with S6 per-step attention
         assert self._attn_vec is not None
-        attn_scores = node_embeddings @ self._attn_vec
-        exp_s = np.exp(attn_scores - attn_scores.max())
-        attn_weights = exp_s / (exp_s.sum() + 1e-9)
-        context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)
+        assert self._W_query is not None
 
         h = np.zeros(self.d_hidden, dtype=np.float32)
         tokens: list[int] = []
         for _ in range(self.max_decode_len):
+            query_vec = self._attn_vec + self._W_query.T @ h
+            attn_scores = node_embeddings @ query_vec
+            exp_s = np.exp(attn_scores - attn_scores.max())
+            attn_weights = exp_s / (exp_s.sum() + 1e-9)
+            context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)
             h_new, _, _, logits = self._rnn_step(context, h)
             token = int(np.argmax(logits))
             if token == eos_idx:
@@ -367,14 +403,15 @@ class TrainableDecoder:
     # ── Checkpoint serialization ──────────────────────────────────────────────
 
     def to_json(self) -> str:
-        # P2d: Sérialiser attn_vec
         attn_vec_list = self._attn_vec.tolist() if self._attn_vec is not None else None
+        w_query_list = self._W_query.tolist() if self._W_query is not None else None
         return json.dumps({
             "vocab": self.vocab.to_json(),
             "d_hidden": self.d_hidden,
             "d_in": self._last_d_in,
             "max_decode_len": self.max_decode_len,
             "attn_vec": attn_vec_list,
+            "w_query": w_query_list,
         })
 
     @classmethod
@@ -386,4 +423,7 @@ class TrainableDecoder:
         # P2d: Restaurer attn_vec si présent (compatibilité checkpoints antérieurs)
         if data.get("attn_vec") and dec._layers is not None:
             dec._attn_vec = np.array(data["attn_vec"], dtype=np.float32)
+        # S6: Restaurer W_query si présent
+        if data.get("w_query") and dec._layers is not None:
+            dec._W_query = np.array(data["w_query"], dtype=np.float32)
         return dec

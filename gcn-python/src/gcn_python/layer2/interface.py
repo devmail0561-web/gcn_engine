@@ -17,15 +17,20 @@ class CausalEncoder(Protocol):
 
     def forward_node(self, x: np.ndarray) -> np.ndarray:
         """
-        x      : shape (D_clause,)  — features d'une clause
-        retour : shape (7,)         — logits sur NODE_TYPES (non normalisés)
+        x      : shape (D_clause,)       — features d'une clause
+        retour : shape (n_node_types,)   — logits sur NODE_TYPES (non normalisés)
+
+        Extension optionnelle duck-typée :
+          forward_batch(X: ndarray[N, D_clause]) → ndarray[N, n_node_types]
+          Le pipeline l'utilise si disponible (permet la self-attention sur N nœuds).
+          Le backward reste par nœud (1-D).
         """
         ...
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
         """
-        x      : shape (D_edge,)    — features d'une paire de clauses
-        retour : shape (11,)        — logits sur RELATION_TYPES (non normalisés)
+        x      : shape (D_edge,)            — features d'une paire de clauses
+        retour : shape (n_relation_types,)  — logits sur RELATION_TYPES (non normalisés)
         """
         ...
 

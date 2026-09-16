@@ -73,8 +73,14 @@ def _one_hot(value: str, vocab: list[str]) -> np.ndarray:
 def vectorize_clause(
     rep: UDRepresentation,
     vocab: FeatureVocabulary,
+    word_embedding=None,
 ) -> np.ndarray:
-    """UDRepresentation → np.ndarray[d_clause]"""
+    """UDRepresentation → np.ndarray[d_clause (+ d_emb si word_embedding fourni)]
+
+    word_embedding : WordEmbedding optionnel (S1/S2). Si fourni, le vecteur
+    d'embedding du root_lemma est concaténé à la fin des features structurelles.
+    Quand None (défaut), comportement identique à l'original — rétrocompatible.
+    """
     parts = [
         _one_hot(rep.root_pos, vocab.upos_tags),
         _one_hot(rep.root_dep_rel, vocab.dep_rels),
@@ -86,6 +92,8 @@ def vectorize_clause(
         np.array([float(rep.has_object), float(rep.has_advcl), float(rep.has_temporal_obl)],
                  dtype=np.float32),
     ]
+    if word_embedding is not None:
+        parts.append(word_embedding.lookup(rep.root_lemma))
     return np.concatenate(parts)
 
 
@@ -117,10 +125,11 @@ def vectorize_edge(
     dst_idx: int,
     n_clauses: int,
     vocab: FeatureVocabulary,
+    word_embedding=None,
 ) -> np.ndarray:
-    """Two clauses + connector → np.ndarray[d_edge]"""
+    """Two clauses + connector → np.ndarray[d_edge (+ 2*d_emb si word_embedding)]"""
     return np.concatenate([
-        vectorize_clause(src, vocab),
-        vectorize_clause(dst, vocab),
+        vectorize_clause(src, vocab, word_embedding),
+        vectorize_clause(dst, vocab, word_embedding),
         vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
     ])

@@ -14,9 +14,11 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     for i, p in enumerate(encoder_params):
         arrays[f"encoder_{i}"] = p
 
-    graph_params = pipeline.graph.parameters()
-    for i, p in enumerate(graph_params):
-        arrays[f"graph_{i}"] = p
+    # S5 : sauvegarder toutes les couches R-GCN (_graph_layers)
+    for layer_i, layer in enumerate(getattr(pipeline, '_graph_layers', [pipeline.graph])):
+        prefix = "graph" if layer_i == 0 else f"graph_extra_{layer_i}"
+        for j, p in enumerate(layer.parameters()):
+            arrays[f"{prefix}_{j}"] = p
 
     vocab_json = pipeline.vocabulary.to_json()
     arrays["_vocab_json"] = np.array([vocab_json], dtype=object)
@@ -27,6 +29,12 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             arrays[f"decoder_{i}"] = p
         if hasattr(pipeline.decoder, 'to_json'):
             arrays["_decoder_meta_json"] = np.array([pipeline.decoder.to_json()], dtype=object)
+
+    # S9 : sauvegarder word_embedding si présent
+    if getattr(pipeline, 'word_embedding', None) is not None:
+        we = pipeline.word_embedding
+        arrays["_word_emb_vocab_json"] = np.array([we.to_json()], dtype=object)
+        arrays["word_emb_E"] = we._E
 
     np.savez(path, **arrays)
 
@@ -54,14 +62,16 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
                 f"Reconstruisez le pipeline avec la même taxonomie que le checkpoint."
             )
 
-    graph_params = pipeline.graph.parameters()
-    for i, p in enumerate(graph_params):
-        key = f"graph_{i}"
-        if key in data and data[key].shape != p.shape:
-            raise ValueError(
-                f"Incompatibilité de dimension pour graph_{i} : "
-                f"checkpoint={data[key].shape} ≠ pipeline={p.shape}."
-            )
+    # S5 : valider toutes les couches R-GCN
+    for layer_i, layer in enumerate(getattr(pipeline, '_graph_layers', [pipeline.graph])):
+        prefix = "graph" if layer_i == 0 else f"graph_extra_{layer_i}"
+        for j, p in enumerate(layer.parameters()):
+            key = f"{prefix}_{j}"
+            if key in data and data[key].shape != p.shape:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour {key} : "
+                    f"checkpoint={data[key].shape} ≠ pipeline={p.shape}."
+                )
 
     # Toutes les formes validées — mutation sûre
     if new_vocab is not None:
@@ -72,17 +82,30 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         if key in data:
             p[:] = data[key]
 
-    # H5 correction : utiliser load_state() pour PyTorch RGCNLayerPT
-    if hasattr(pipeline.graph, 'load_state'):
-        # PyTorch RGCNLayerPT — utiliser load_state pour copier dans les tenseurs
-        arrays = [data[f"graph_{i}"] for i in range(len(graph_params)) if f"graph_{i}" in data]
-        pipeline.graph.load_state(arrays)
-    else:
-        # NumPy RGCNLayer — copie directe
-        for i, p in enumerate(graph_params):
-            key = f"graph_{i}"
-            if key in data:
-                p[:] = data[key]
+    # S5 : restaurer toutes les couches R-GCN
+    for layer_i, layer in enumerate(getattr(pipeline, '_graph_layers', [pipeline.graph])):
+        prefix = "graph" if layer_i == 0 else f"graph_extra_{layer_i}"
+        layer_params = layer.parameters()
+        # H5 correction : utiliser load_state() pour PyTorch RGCNLayerPT
+        if hasattr(layer, 'load_state'):
+            ckpt_arrays = [data[f"{prefix}_{j}"] for j in range(len(layer_params))
+                           if f"{prefix}_{j}" in data]
+            if ckpt_arrays:
+                layer.load_state(ckpt_arrays)
+        else:
+            for j, p in enumerate(layer_params):
+                key = f"{prefix}_{j}"
+                if key in data:
+                    p[:] = data[key]
+
+    # S9 : restaurer word_embedding si présent dans le checkpoint
+    if "_word_emb_vocab_json" in data:
+        from ..layer1.embedding import WordEmbedding
+        d_emb = int(data["word_emb_E"].shape[1]) if "word_emb_E" in data else 50
+        we = WordEmbedding.from_json(str(data["_word_emb_vocab_json"][0]), d_emb=d_emb)
+        if "word_emb_E" in data:
+            we._E = data["word_emb_E"].astype(np.float32)
+        pipeline.word_embedding = we
 
     if "_decoder_meta_json" in data:
         from ..verbalizer.trainable import TrainableDecoder

@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-137%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-112%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-177%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -333,7 +333,7 @@ class MyEncoder:
     """Implémentation PyTorch, JAX ou autre — à vous de choisir."""
 
     def forward_node(self, x: np.ndarray) -> np.ndarray:
-        # x: (D_clause ≈ 136,) → retourne (7,) logits sur NodeType
+        # x: (D_clause = 80,) → retourne (7,) logits sur NodeType
         ...
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
@@ -396,6 +396,11 @@ pipeline = CGNPipeline(
     graph=MyRGCN(),
     lang="fr",
     vocabulary=vocab,
+    # Paramètres optionnels (Phase 10)
+    temperature=1.0,        # S12 : temperature softmax sur les logits
+    n_rgcn_layers=1,        # S5  : nombre de couches R-GCN empilées
+    all_pairs=False,        # S4  : toutes les paires de clauses (True) ou consécutives seulement
+    word_embedding=None,    # S1/S2/S9 : WordEmbedding apprenante (lookup root_lemma)
 )
 
 loader = GCNDataLoader(Path("gcn-datasets/examples/"), lang="fr")
@@ -434,30 +439,39 @@ print(recorder.best_epoch("overall", "max"))
 
 ## Format des datasets
 
-Les datasets suivent le schéma `gcn-datasets/schemas/gcn-nl.schema.yaml`.
+Les datasets suivent le schéma `gcn-datasets/schemas/gcn-nl.schema.yaml`. Le format de stockage est **JSON** (depuis v0.9.4).
 
 Structure minimale d'un exemple annoté :
 
-```yaml
-document:
-  id: "doc-fr-001"
-  lang: fr
-  sentences:
-    - id: "s001"
-      text: "Si les ventes baissent, on réduit les coûts."
-      tokens:
-        - { id: 1, form: "Si", lemma: "si", pos: "SCONJ",
-            gcn: { causal_type: conjonction, causal_class: condition } }
-        # ...
-      cir:
-        nodes:
-          - { id: "n001", type: processus, label: "décroissance(ventes)",
-              token_span: [3, 4], attributes: { entity: "ventes" } }
-          - { id: "n002", type: action,    label: "réduire(coûts)",
-              token_span: [6, 9], attributes: { agent: "on" } }
-        edges:
-          - { source: "n001", target: "n002", relation: condition,
-              attributes: { confidence: 1.0, explicit: true, marker_token: 1 } }
+```json
+{
+  "document": {
+    "id": "doc-fr-001",
+    "lang": "fr",
+    "sentences": [
+      {
+        "id": "s001",
+        "text": "Si les ventes baissent, on réduit les coûts.",
+        "tokens": [
+          { "id": 1, "form": "Si", "lemma": "si", "pos": "SCONJ",
+            "gcn": { "causal_type": "conjonction", "causal_class": "condition" } }
+        ],
+        "cir": {
+          "nodes": [
+            { "id": "n001", "type": "processus", "label": "décroissance(ventes)",
+              "token_span": [3, 4], "attributes": { "entity": "ventes" } },
+            { "id": "n002", "type": "action", "label": "réduire(coûts)",
+              "token_span": [6, 9], "attributes": { "agent": "on" } }
+          ],
+          "edges": [
+            { "source": "n001", "target": "n002", "relation": "condition",
+              "attributes": { "confidence": 1.0, "explicit": true, "marker_token": 1 } }
+          ]
+        }
+      }
+    ]
+  }
+}
 ```
 
 ---
@@ -476,7 +490,7 @@ cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (112 tests)
+# Python (177 tests)
 cd gcn-python && python -m pytest
 ```
 
@@ -496,6 +510,8 @@ cd gcn-python && python -m pytest
 | 6 | `gcn-frontend-code` — AST Python/Rust/JS (26 tests) | ✅ Terminé |
 | 7 | Pearl 2-3, R-GCN PyTorch, `gcn-frontend-en` (16 tests) | ✅ Terminé |
 | 8 | Mise en production — Makefile, gcn-eval, publication | ✅ Terminé |
+| 9 | Corrections pipeline ML (14 problèmes, 120 tests Python) | ✅ Terminé |
+| 10 | Correctifs structurels moteur (12 défauts, 177 tests Python) | ✅ Terminé |
 
 ---
 
