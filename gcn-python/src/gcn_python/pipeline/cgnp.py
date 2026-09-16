@@ -46,6 +46,7 @@ class CGNPipeline:
         n_rgcn_layers: int = 1,
         all_pairs: bool = False,
         word_embedding=None,
+        bidirectional: bool = False,
     ):
         # S1 : dimension effective = features structurelles + embedding si actif
         _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
@@ -67,6 +68,7 @@ class CGNPipeline:
         self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
         self.all_pairs = all_pairs
         self.word_embedding = word_embedding
+        self.bidirectional = bidirectional
 
         # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
         self.n_rgcn_layers = n_rgcn_layers
@@ -239,9 +241,18 @@ class CGNPipeline:
             )
             self._cached_edge_index = edge_index
             self._cached_edge_type_idxs = edge_type_idxs
+            # Message passing bidirectionnel : duplication des arêtes avec relations inverses
+            if self.bidirectional and edge_index.shape[1] > 0:
+                rev_index = edge_index[[1, 0], :]                          # (2, E) — sens inverse
+                rev_types = edge_type_idxs + len(self.relation_types)      # indices 11–21
+                edge_index_mp = np.concatenate([edge_index, rev_index], axis=1)
+                edge_types_mp = np.concatenate([edge_type_idxs, rev_types])
+            else:
+                edge_index_mp = edge_index
+                edge_types_mp = edge_type_idxs
             enriched = clause_vecs.copy()
             for _layer in self._graph_layers:
-                enriched = _layer.message_pass(enriched, edge_index, edge_type_idxs)
+                enriched = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
             node_snapshots = []
             if _has_batch and not _snap:
                 node_logits2 = self.encoder.forward_batch(enriched)
@@ -537,6 +548,16 @@ class CGNPipeline:
                     d_curr, graph_grads = _layer.backward_message_pass(d_curr)
                     _layer.update(graph_grads, lr)
 
+        # --- Word embedding backward (S2) ---
+        if (self.word_embedding is not None
+                and self._cached_reps is not None
+                and d_enriched is not None
+                and d_enriched.shape[1] > self.vocabulary.d_clause):
+            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+            for i in range(min(len(self._cached_reps), len(d_emb_slice))):
+                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+            self.word_embedding.update(lr)
+
     def backward_accumulate(
         self,
         d_node_logits: np.ndarray,
@@ -622,6 +643,15 @@ class CGNPipeline:
                     for i in range(len(acc_g)):
                         acc_g[i] += new_g[i]
 
+        # --- Word embedding backward accumulation (S2) ---
+        if (self.word_embedding is not None
+                and self._cached_reps is not None
+                and d_enriched.shape[1] > self.vocabulary.d_clause):
+            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+            for i in range(min(len(self._cached_reps), len(d_emb_slice))):
+                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+            # update() appelé dans apply_accumulated_gradients() avec normalisation
+
     def apply_accumulated_gradients(self, lr: float, n_samples: int = 1) -> None:
         """S10 : applique les gradients accumulés normalisés par n_samples."""
         if self._accum_node_grads is not None and hasattr(self.encoder, 'update_node'):
@@ -637,17 +667,9 @@ class CGNPipeline:
         self._accum_edge_grads = None
         self._accum_rgcn_grads = None
 
-        # --- Word embedding backward (S2) ---
-        if (self.word_embedding is not None
-                and self._cached_reps is not None
-                and d_enriched is not None
-                and d_enriched.shape[1] > self.vocabulary.d_clause):
-            # Les d_emb dernières dimensions de d_enriched correspondent à l'embedding
-            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
-            n = min(len(self._cached_reps), len(d_emb_slice))
-            for i in range(n):
-                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
-            self.word_embedding.update(lr)
+        # --- Word embedding update (S2) ---
+        if self.word_embedding is not None:
+            self.word_embedding.update(lr / max(n_samples, 1))
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:

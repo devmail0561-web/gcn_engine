@@ -170,6 +170,11 @@ class RGCNLayerPT(nn.Module):
         écrivait dans ces copies. Cette méthode copie directement dans les tenseurs
         PyTorch W_r et W_0.
         """
+        if arrays[0].shape != (self.n_relations, self.d_out, self.d_in):
+            raise ValueError(
+                f"W_r shape incompatible : {arrays[0].shape} "
+                f"attendu ({self.n_relations}, {self.d_out}, {self.d_in})"
+            )
         with torch.no_grad():
             self.W_r.copy_(torch.as_tensor(arrays[0], dtype=torch.float32, device=self._device))
             self.W_0.copy_(torch.as_tensor(arrays[1], dtype=torch.float32, device=self._device))

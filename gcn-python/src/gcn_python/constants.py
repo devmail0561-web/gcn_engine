@@ -2,6 +2,11 @@
 NODE_TYPES = ["etat", "action", "transition", "processus", "condition", "entite", "etat_systemique"]
 RELATION_TYPES = ["cause", "enable", "prevent", "condition", "concession", "sequence",
                   "motivation", "filter", "opposition", "data_dependency", "control_dependency"]
+
+# Types inverses pour message passing bidirectionnel (Phase 2b)
+# Indices 0-10 = forward, indices 11-21 = backward (r_inv = r + 11)
+RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
+ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types
 SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unknown"]
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
 AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]

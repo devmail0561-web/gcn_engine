@@ -44,6 +44,10 @@ from .checkpoint import save_checkpoint
                    "Active automatiquement --embedding-dim si non précisé.")
 @click.option("--mini-batch-size", default=1, show_default=True, type=int,
               help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
+@click.option("--use-attention/--no-attention", default=False, show_default=True,
+              help="Activer la couche R-GCN+GAT avec attention par relation.")
+@click.option("--bidirectional/--no-bidirectional", default=False, show_default=True,
+              help="Activer le message passing bidirectionnel (arêtes inverses, 22 types de relations).")
 def train_cmd(
     data_dir: Path,
     lang: str,
@@ -58,6 +62,8 @@ def train_cmd(
     embedding_dim: int,
     embedding_file: Path | None,
     mini_batch_size: int,
+    use_attention: bool,
+    bidirectional: bool,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -88,7 +94,14 @@ def train_cmd(
 
     d_effective = vocab.d_clause + d_emb
     encoder = MLPEncoder(d_clause=d_effective, d_edge=vocab.d_edge + 2 * d_emb)
-    graph = RGCNLayer(d_in=d_effective, d_out=d_effective)
+
+    # Couche 3 : choix du graph selon les flags
+    n_rel = 22 if bidirectional else len(RELATION_TYPES)
+    if use_attention:
+        from ..layer3.gat import RGCNLayerGAT
+        graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
+    else:
+        graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -105,7 +118,8 @@ def train_cmd(
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
     pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
-                           decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding)
+                           decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
+                           bidirectional=bidirectional)
 
     if encoder_checkpoint is not None:
         from .checkpoint import load_checkpoint
@@ -115,6 +129,16 @@ def train_cmd(
     loader = GCNDataLoader(data_dir, lang=lang, all_pairs=all_pairs)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+
+    # S2 : pré-remplir le vocabulaire des embeddings depuis toutes les lemmes
+    if word_embedding is not None:
+        all_lemmas = [
+            r.root_lemma
+            for sample in loader
+            for r in reps_from_sentence(sample.sentence)[0]
+        ]
+        word_embedding.build_vocab(all_lemmas)
+        click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 
