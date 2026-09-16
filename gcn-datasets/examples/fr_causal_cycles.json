@@ -482,7 +482,7 @@
             "n003",
             "n004"
           ],
-          "cycle_type": "feedback_negative",
+          "cycle_type": "feedback_positive",
           "description": "Boucle de rétroaction négative : la baisse des ventes entraîne une réduction des coûts, ce qui dégrade la qualité, ce qui amplifie la baisse des ventes. Le noeud n004 (décroissance amplifiée) partage l'entité \"ventes\" avec n001 — le middle-end fusionne les deux pour fermer le cycle dans le DiGraph.\n"
         }
       ],
@@ -506,7 +506,7 @@
         "gcn-frontend-fr::emitter (tokens → CIR)",
         "gcn-middleend::resolver (coréférence inter-phrases)",
         "gcn-middleend::graph (fusion incrémentale)",
-        "gcn-middleend::cycle (Tarjan SCC → feedback_negative)"
+        "gcn-middleend::cycle (Tarjan SCC → feedback_positive)"
       ],
       "created_at": "2026-09-14",
       "source": "SAD.md section Schéma de dataset GCN-NL",

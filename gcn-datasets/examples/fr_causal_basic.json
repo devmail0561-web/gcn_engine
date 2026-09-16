@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "source_lang": {
     "natural": {
-      "lang": "french"
+      "lang": "fr"
     }
   },
   "description": "Exemples français de base pour la Grammaire Causale Naturelle. Trois phrases illustrant condition, cause et motivation (causalité inversée).\n",

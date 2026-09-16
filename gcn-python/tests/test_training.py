@@ -211,9 +211,9 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
 # Test DataLoader
 # ---------------------------------------------------------------------------
 
-def test_dataloader_yields_batches(paper_examples_yaml: Path):
+def test_dataloader_yields_batches(paper_examples_json: Path):  # L5 : renommé
     from gcn_python.data.loader import GCNDataLoader
-    loader = GCNDataLoader(paper_examples_yaml.parent, lang="fr")
+    loader = GCNDataLoader(paper_examples_json.parent, lang="fr")
     samples = list(loader)
     assert len(samples) > 0
     for s in samples:
@@ -367,6 +367,64 @@ def test_backward_edge_not_supervised():
     assert (0, 1) not in sample.edge_map
     # Un warning signale l'arête non-supervisable
     assert any(issubclass(x.category, UserWarning) and "direction inverse" in str(x.message) for x in w)
+
+
+def test_train_cmd_cli(tmp_path: Path):
+    """M7 : test d'intégration CLI — gcn-train s'exécute sans erreur sur un dataset minimal."""
+    import json
+    from click.testing import CliRunner
+    from gcn_python.training.train import train_cmd
+
+    # Dataset minimal au format document
+    dataset = {
+        "document": {
+            "lang": "fr",
+            "sentences": [
+                {
+                    "id": "s1",
+                    "text": "Les ventes baissent parce que les prix augmentent.",
+                    "tokens": [
+                        {"id": 1, "form": "Les", "lemma": "le", "pos": "DET",
+                         "dep_rel": "det", "dep_head": 2, "morph": {}},
+                        {"id": 2, "form": "ventes", "lemma": "vente", "pos": "NOUN",
+                         "dep_rel": "nsubj", "dep_head": 3, "morph": {}},
+                        {"id": 3, "form": "baissent", "lemma": "baisser", "pos": "VERB",
+                         "dep_rel": "root", "dep_head": 0, "morph": {}},
+                        {"id": 4, "form": "augmentent", "lemma": "augmenter", "pos": "VERB",
+                         "dep_rel": "advcl", "dep_head": 3, "morph": {}},
+                    ],
+                    "cir": {
+                        "nodes": [
+                            {"id": "n1", "type": "processus", "label": "baisse ventes",
+                             "token_span": [1, 3]},
+                            {"id": "n2", "type": "etat", "label": "hausse prix",
+                             "token_span": [4, 4]},
+                        ],
+                        "edges": [
+                            {"source": "n2", "target": "n1", "relation": "cause",
+                             "attributes": {"confidence": 1.0, "explicit": True,
+                                           "negated": False}},
+                        ],
+                    },
+                }
+            ],
+        }
+    }
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "train.json").write_text(
+        json.dumps(dataset), encoding="utf-8"
+    )
+    output_path = tmp_path / "model.npz"
+
+    runner = CliRunner()
+    result = runner.invoke(train_cmd, [
+        "--data-dir", str(data_dir),
+        "--epochs", "2",
+        "--output", str(output_path),
+    ])
+    assert result.exit_code == 0, f"gcn-train a échoué :\n{result.output}\n{result.exception}"
+    assert output_path.exists(), "Checkpoint non créé"
 
 
 def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipeline):

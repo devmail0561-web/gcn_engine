@@ -53,9 +53,10 @@ def build_label(
 
 
 def _find_patient_lemma(rep: UDRepresentation) -> str | None:
-    """Premier token avec dep_rel obj/iobj/nobj — patient syntaxique de la clause."""
+    """Premier token avec dep_rel obj/iobj — patient syntaxique de la clause."""
     for t in rep.tokens:
-        if t.get("dep_rel") in {"obj", "iobj", "nobj"}:
+        # L4 : retirer "nobj" (relation UD invalide)
+        if t.get("dep_rel") in {"obj", "iobj"}:
             return t["lemma"]
     return None
 

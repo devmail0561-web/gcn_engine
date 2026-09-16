@@ -36,7 +36,7 @@ class TrainingSample:
 
 
 class GCNDataLoader:
-    """Itère sur les sentences YAML d'un répertoire et produit des TrainingSample."""
+    """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
     def __init__(self, data_dir: Path, lang: str = "fr", repeat: bool = False):
         self.data_dir = data_dir
@@ -125,7 +125,7 @@ class GCNDataLoader:
 def reps_from_sentence(
     rec: SentenceRecord,
 ) -> tuple[list[UDRepresentation], list[int], list[UDRepresentation | None]]:
-    """Une UDRepresentation par ClauseRecord non-vide, construite depuis les tokens YAML.
+    """Une UDRepresentation par ClauseRecord non-vide, construite depuis les tokens JSON.
 
     Bypass spaCy : garantit l'alignement exact features ↔ gold labels.
     Retourne ([], [], []) si le SentenceRecord n'a pas de tokens annotés.
@@ -227,7 +227,8 @@ def _rep_from_clause(
         root_dep_rel=root_tok.dep_rel,
         root_morph=root_tok.morph,
         subject_pos=subject.pos if subject else None,
-        has_object=any(t.dep_rel in {"obj", "iobj", "nobj"} for t in span_toks),
+        # L3 : retirer "nobj" (relation UD invalide)
+        has_object=any(t.dep_rel in {"obj", "iobj"} for t in span_toks),
         has_advcl=any(t.dep_rel == "advcl" for t in span_toks),
         has_temporal_obl=any(t.dep_rel in {"obl", "obl:tmod"} for t in span_toks),
         token_span=clause.token_span,
