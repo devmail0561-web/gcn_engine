@@ -131,7 +131,9 @@ def _rep_from_clause(clause: ClauseRecord, all_tokens: list[TokenRecord]) -> UDR
     )
 ```
 
-Les appels `_rep_from_clause(clause, rec.tokens, rec.lang)` et `_connector_between(..., rec.lang)` aux lignes 145 et 154 deviennent `_rep_from_clause(clause, rec.tokens)` et `_connector_between(..., rec.lang)` avec suppression du dernier argument.
+Les appels aux lignes 145 et 154 deviennent :
+- `_rep_from_clause(clause, rec.tokens, rec.lang)` → `_rep_from_clause(clause, rec.tokens)`
+- `_connector_between(clause_a, clause_b, all_tokens, rec.lang)` → `_connector_between(clause_a, clause_b, all_tokens)`
 
 ### 6. `pipeline/label_builder.py` — Universaliser + corriger `_load_nominalizations`
 
@@ -298,6 +300,7 @@ Les numéros de lignes peuvent avoir évolué. Les patterns à mettre à jour :
 | `pipeline/cli.py` | Supprimer `--lang` | Oui (CLI) |
 | `taxonomy/loader.py` | Supprimer `lang_code`, scanner tous les dirs | Comportement élargi |
 | `tests/` (11 fichiers) | ~50 substitutions par patterns | — |
+| `tests/test_taxonomy.py` | `test_unknown_lang_fallback` → adapter : sans `lang_code`, vérifier que tous les sous-répertoires sont scannés | — |
 
 **Rust (`gcn-core/`)** : **inchangé**.
 
@@ -335,7 +338,7 @@ gcn-train --data-dir gcn-datasets/ --epochs 5 --output /tmp/ckpt_mixed.npz
 
 # 3. Tests complets
 python -m pytest gcn-python/tests/ -v
-# Attendu : 177+ passed, 0 failed
+# Attendu : 0 failed (le nombre total peut varier après ajouts/suppressions de tests)
 
 # 4. Non-régression labels
 python -c "
