@@ -134,7 +134,7 @@ def _parse_edges(edges: list) -> list[tuple[int, int, dict]]:
     return result
 
 
-def _rep_from_cir_node(node: dict, lang: str) -> UDRepresentation:
+def _rep_from_cir_node(node: dict) -> UDRepresentation:
     """
     Construit une UDRepresentation heuristique depuis un nœud CIR.
 
@@ -171,11 +171,10 @@ def _rep_from_cir_node(node: dict, lang: str) -> UDRepresentation:
         has_advcl=False,  # CIR ne porte pas l'info sur les sous-clauses advcl internes
         has_temporal_obl=has_temporal_obl,
         token_span=_extract_span(node),
-        lang=lang,
     )
 
 
-def _build_connector_rep(marker_token_id: int, lang: str) -> UDRepresentation:
+def _build_connector_rep(marker_token_id: int) -> UDRepresentation:
     """UDRepresentation synthétique pour un token connecteur entre deux clauses."""
     return UDRepresentation(
         tokens=[{"lemma": "_connector", "pos": "SCONJ", "dep_rel": "mark", "morph": {}}],
@@ -188,13 +187,11 @@ def _build_connector_rep(marker_token_id: int, lang: str) -> UDRepresentation:
         has_advcl=False,
         has_temporal_obl=False,
         token_span=(marker_token_id, marker_token_id),
-        lang=lang,
     )
 
 
 def _cir_to_reps_and_connectors(
     cir: dict,
-    lang: str,
 ) -> tuple[list[UDRepresentation], list[UDRepresentation | None]]:
     """
     CIR dict → (clause_reps, connector_reps).
@@ -222,14 +219,14 @@ def _cir_to_reps_and_connectors(
             except (TypeError, ValueError):
                 pass
 
-    clause_reps = [_rep_from_cir_node(n, lang) for n in nodes]
+    clause_reps = [_rep_from_cir_node(n) for n in nodes]
 
     connector_reps: list[UDRepresentation | None] = []
     for i in range(len(nodes) - 1):
         src_node_id = nodes[i].get("id", i)
         dst_node_id = nodes[i + 1].get("id", i + 1)
         marker = pair_to_marker.get((src_node_id, dst_node_id))
-        connector_reps.append(_build_connector_rep(marker, lang) if marker else None)
+        connector_reps.append(_build_connector_rep(marker) if marker else None)
 
     return clause_reps, connector_reps
 
@@ -304,16 +301,14 @@ class GCNBridgeParser:
     def parse(
         self,
         text: str,
-        lang: str = "fr",
     ) -> tuple[list, list]:
         """Implémente TextParser.parse — retourne (clause_reps, connector_reps)."""
         cir = _call_gcn_analyze(text, self.gcn_bin, self.taxonomy_dir)
-        return _cir_to_reps_and_connectors(cir, lang)
+        return _cir_to_reps_and_connectors(cir)
 
 
 def reps_from_text(
     text: str,
-    lang: str = "fr",
     gcn_bin: str = "gcn",
     taxonomy_dir: Path | None = None,
 ) -> list[UDRepresentation]:
@@ -324,7 +319,6 @@ def reps_from_text(
 
     Args:
         text: texte brut à analyser.
-        lang: code langue ISO 639-1 ("fr", "en").
         gcn_bin: chemin vers le binaire gcn-cli (défaut : "gcn" dans PATH).
         taxonomy_dir: répertoire des taxonomies causales (optionnel).
 
@@ -342,5 +336,5 @@ def reps_from_text(
         stacklevel=2,
     )
     cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
-    reps, _ = _cir_to_reps_and_connectors(cir, lang)
+    reps, _ = _cir_to_reps_and_connectors(cir)
     return reps

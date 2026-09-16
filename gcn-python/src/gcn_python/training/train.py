@@ -21,7 +21,6 @@ from .checkpoint import save_checkpoint
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
-@click.option("--lang", default="fr", show_default=True)
 @click.option("--epochs", default=50, show_default=True, type=int)
 @click.option("--lr", default=0.001, show_default=True, type=float)
 @click.option("--output", default="model.npz", show_default=True,
@@ -50,7 +49,6 @@ from .checkpoint import save_checkpoint
               help="Activer le message passing bidirectionnel (arêtes inverses, 22 types de relations).")
 def train_cmd(
     data_dir: Path,
-    lang: str,
     epochs: int,
     lr: float,
     output: Path,
@@ -117,7 +115,7 @@ def train_cmd(
     if decoder_only and decoder is None:
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab,
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional)
 
@@ -126,7 +124,7 @@ def train_cmd(
         load_checkpoint(pipeline, encoder_checkpoint)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, lang=lang, all_pairs=all_pairs)
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
 

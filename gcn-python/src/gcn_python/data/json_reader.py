@@ -6,7 +6,7 @@ import warnings
 from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
 
 
-def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
+def load_sentences(path: Path) -> list[SentenceRecord]:
     """Charge un fichier JSON GCN-NL → List[SentenceRecord]."""
     doc = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
@@ -20,11 +20,11 @@ def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
             DeprecationWarning,
             stacklevel=2,
         )
-        return [_parse_paper_example(ex, lang) for ex in doc["examples"] if "expected_cir" in ex]
+        return [_parse_paper_example(ex) for ex in doc["examples"] if "expected_cir" in ex]
 
     # Format dataset (document.sentences)
     if "document" in doc:
-        doc_lang = doc["document"].get("lang", lang)
+        doc_lang = doc["document"].get("lang", "")
         sentences = doc["document"].get("sentences") or []
         return [_parse_dataset_sentence(s, doc_lang) for s in sentences if "cir" in s]
 
@@ -38,29 +38,28 @@ def load_sentences(path: Path, lang: str = "fr") -> list[SentenceRecord]:
     return []
 
 
-def load_all_sentences(data_dir: Path, lang: str = "fr") -> list[SentenceRecord]:
+def load_all_sentences(data_dir: Path) -> list[SentenceRecord]:
     """Charge tous les fichiers JSON d'un répertoire."""
     records = []
     for p in sorted(data_dir.glob("*.json")):
-        records.extend(load_sentences(p, lang))
+        records.extend(load_sentences(p))
     return records
 
 
-def _parse_paper_example(ex: dict, lang: str) -> SentenceRecord:
+def _parse_paper_example(ex: dict) -> SentenceRecord:
     cir = ex.get("expected_cir", {})
     clauses = [_parse_clause_node(n) for n in cir.get("nodes", [])]
     edges = [_parse_edge(e) for e in cir.get("edges", [])]
     return SentenceRecord(
         id=ex.get("id", ""),
         text=ex.get("text", ""),
-        lang=lang,
         tokens=[],
         clauses=clauses,
         edges=edges,
     )
 
 
-def _parse_dataset_sentence(s: dict, lang: str) -> SentenceRecord:
+def _parse_dataset_sentence(s: dict, lang: str = "") -> SentenceRecord:
     tokens = [_parse_token(t) for t in s.get("tokens", [])]
     cir = s.get("cir", {})
     clauses = [_parse_clause_node(n) for n in cir.get("nodes", [])]

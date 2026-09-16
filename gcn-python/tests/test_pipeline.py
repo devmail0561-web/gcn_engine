@@ -7,7 +7,7 @@ from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 
 
-def make_rep(lang: str = "fr") -> UDRepresentation:
+def make_rep() -> UDRepresentation:
     return UDRepresentation(
         tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
         root_lemma="baisser",
@@ -19,15 +19,14 @@ def make_rep(lang: str = "fr") -> UDRepresentation:
         has_advcl=False,
         has_temporal_obl=False,
         token_span=(1, 2),
-        lang=lang,
     )
 
 
-def make_pipeline(lang: str = "fr") -> CGNPipeline:
+def make_pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
+    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
 
 def test_forward_returns_cir():
@@ -82,7 +81,7 @@ def test_forward_connector_slot_nonzero():
         root_lemma="parce", root_pos="SCONJ", root_dep_rel="mark",
         root_morph={}, subject_pos=None,
         has_object=False, has_advcl=False, has_temporal_obl=False,
-        token_span=(3, 3), lang="fr",
+        token_span=(3, 3),
     )
 
     vec_with = vectorize_edge(rep1, rep2, connector, 0, 1, 2, vocab)
@@ -103,7 +102,7 @@ def test_forward_rgcn_dout_mismatch_raises():
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
     with pytest.raises(ValueError, match="d_out=.*≠.*d_clause"):
-        CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
+        CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
 
 def test_forward_position_features_noncontiguous():
@@ -123,8 +122,8 @@ def test_forward_position_features_noncontiguous():
 
 def test_forward_en_returns_valid_cir():
     """T-1 : le pipeline EN produit un CausalIR valide."""
-    pipeline = make_pipeline(lang="en")
-    rep = make_rep(lang="en")
+    pipeline = make_pipeline()
+    rep = make_rep()
     result = pipeline.forward([rep], "Sales fall because costs rise.")
     assert "source_lang" in result
     assert "nodes" in result
@@ -134,7 +133,7 @@ def test_forward_en_returns_valid_cir():
 def test_forward_en_condition_label():
     """T-1 : le label de condition EN est 'hidden_cause(?)' et non 'cause_cachée(?)'."""
     from gcn_python.pipeline.label_builder import build_label
-    rep = make_rep(lang="en")
+    rep = make_rep()
     label, _ = build_label(rep, "condition")
     assert label == "hidden_cause(?)", f"Attendu 'hidden_cause(?)', obtenu {label!r}"
 
@@ -178,7 +177,7 @@ def test_backward_with_pt_graph_does_not_crash():
         graph = _StubGraph()
 
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
     rep1, rep2 = make_rep(), make_rep()
     pipeline.forward([rep1, rep2], "test")
@@ -199,7 +198,7 @@ def test_custom_encoder_emits_warning_no_rgcn_update():
 
     vocab = FeatureVocabulary()
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=_CustomEncoder(), graph=graph, lang="fr", vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=_CustomEncoder(), graph=graph, vocabulary=vocab)
     rep1, rep2 = make_rep(), make_rep()
     pipeline.forward([rep1, rep2], "test")
     d_node = np.zeros((2, 7), dtype=np.float32)
@@ -228,7 +227,7 @@ def test_negated_edge_detected():
     from gcn_python.layer3.reference import RGCNLayer
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     rep1 = make_rep()
     rep2 = make_rep()
     neg_rep = UDRepresentation(
@@ -236,7 +235,7 @@ def test_negated_edge_detected():
         root_lemma="pas", root_pos="ADV", root_dep_rel="advmod",
         root_morph={"Polarity": "Neg"}, subject_pos=None,
         has_object=False, has_advcl=False, has_temporal_obl=False,
-        token_span=(3, 3), lang="fr",
+        token_span=(3, 3),
     )
     result = pipeline.forward([rep1, rep2], "X ne cause pas Y.", connector_reps=[neg_rep])
     assert result["edges"][0][2]["negated"] is True
@@ -254,7 +253,7 @@ def test_scope_universal_tous():
         root_lemma="augmenter", root_pos="VERB", root_dep_rel="root",
         root_morph={}, subject_pos="NOUN",
         has_object=False, has_advcl=False, has_temporal_obl=False,
-        token_span=(5, 8), lang="fr",
+        token_span=(5, 8),
     )
     pipeline = make_pipeline()
     result = pipeline.forward([rep], "Tous les coûts augmentent.")
@@ -280,7 +279,7 @@ def test_attributes_entity_not_null():
         root_lemma="augmenter", root_pos="VERB", root_dep_rel="root",
         root_morph={}, subject_pos="NOUN",
         has_object=False, has_advcl=False, has_temporal_obl=False,
-        token_span=(1, 2), lang="fr",
+        token_span=(1, 2),
     )
     pipeline = make_pipeline()
     result = pipeline.forward([rep], "Les coûts augmentent.")
@@ -294,7 +293,7 @@ def test_label_nominalized():
     from gcn_python.layer3.reference import RGCNLayer
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     g = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    p = CGNPipeline(enc, g, "fr", vocab, taxonomies_dir=None)
+    p = CGNPipeline(enc, g, vocab, taxonomies_dir=None)
     assert p.taxonomies_dir is None
 
 

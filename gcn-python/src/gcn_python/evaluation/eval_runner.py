@@ -20,7 +20,7 @@ from ..evaluation.metrics import (
 from ..constants import NODE_TYPES, RELATION_TYPES
 
 
-def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
+def run_eval(data_dir: Path, model_path: Path) -> dict:
     """Évalue le pipeline CGNP sur toutes les sentences d'un répertoire.
 
     Retourne un dict avec : n_samples, n_skipped, node_accuracy,
@@ -29,10 +29,10 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     load_checkpoint(pipeline, model_path)
 
-    loader = GCNDataLoader(data_dir, lang=lang)
+    loader = GCNDataLoader(data_dir)
 
     all_node_preds: list[str] = []
     all_node_gold: list[str] = []
@@ -136,14 +136,13 @@ def run_eval(data_dir: Path, model_path: Path, lang: str = "fr") -> dict:
 @click.command("gcn-eval")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path))
 @click.option("--model-path", required=True, type=click.Path(path_type=Path))
-@click.option("--lang", default="fr", show_default=True)
 @click.option("--output", default=None, type=click.Path(path_type=Path),
               help="Chemin JSON du rapport (optionnel, sinon stdout)")
 def eval_cmd(
-    data_dir: Path, model_path: Path, lang: str, output: Path | None
+    data_dir: Path, model_path: Path, output: Path | None
 ) -> None:
     """Évalue le pipeline CGNP sur un répertoire de données annotées."""
-    report = run_eval(data_dir, model_path, lang)
+    report = run_eval(data_dir, model_path)
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if output:
         Path(output).write_text(text, encoding="utf-8")

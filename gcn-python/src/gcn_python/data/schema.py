@@ -44,7 +44,7 @@ class EdgeRecord:
 class SentenceRecord:
     id: str
     text: str
-    lang: str
     tokens: list[TokenRecord]
     clauses: list[ClauseRecord]
     edges: list[EdgeRecord]
+    lang: str = ""  # conservé comme métadonnée, non utilisé en calcul

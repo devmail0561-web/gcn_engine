@@ -10,7 +10,6 @@ import click
 @click.command("gcn-bootstrap")
 @click.option("--input", "input_file", required=True, type=click.Path(path_type=Path),
               help="Fichier texte (.txt) — une phrase par ligne")
-@click.option("--lang", default="fr", show_default=True)
 @click.option("--out-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire de sortie pour les fichiers JSON générés")
 @click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
@@ -19,7 +18,7 @@ import click
 @click.option("--gcn-bin", default="gcn", show_default=True,
               help="Chemin vers le binaire gcn-cli Rust")
 def bootstrap_cmd(
-    input_file: Path, lang: str, out_dir: Path,
+    input_file: Path, out_dir: Path,
     taxonomy_dir: Path | None, gcn_bin: str,
 ) -> None:
     """Génère des données d'entraînement JSON depuis des phrases brutes via gcn-cli Rust.
@@ -58,7 +57,7 @@ def bootstrap_cmd(
                 continue
 
             cir = json.loads(result.stdout)
-            doc = _cir_to_doc(text, lang, cir)
+            doc = _cir_to_doc(text, cir)
             out_path = out_dir / f"generated_{i+1:04d}.json"
             out_path.write_text(
                 json.dumps(doc, ensure_ascii=False, indent=2),
@@ -126,7 +125,7 @@ def _normalize_edge(e) -> dict | None:
     }
 
 
-def _cir_to_doc(text: str, lang: str, cir: dict) -> dict:
+def _cir_to_doc(text: str, cir: dict) -> dict:
     """Convertit un CausalIR dict (format Rust ou Python) en document JSON gcn-nl."""
     nodes = cir.get("nodes", [])
     edges = cir.get("edges", [])
@@ -148,7 +147,6 @@ def _cir_to_doc(text: str, lang: str, cir: dict) -> dict:
 
     return {
         "document": {
-            "lang": lang,
             "sentences": [
                 {
                     "id": "s001",

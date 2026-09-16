@@ -35,7 +35,6 @@ class CGNPipeline:
         self,
         encoder: CausalEncoder,
         graph: CausalGraph,
-        lang: str,
         vocabulary: FeatureVocabulary,
         *,
         decoder=None,
@@ -59,7 +58,6 @@ class CGNPipeline:
             )
         self.encoder = encoder
         self.graph = graph
-        self.lang = lang
         self.vocabulary = vocabulary
         self.decoder = decoder
         self.taxonomies_dir = taxonomies_dir
@@ -161,7 +159,7 @@ class CGNPipeline:
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
         if not reps:
-            return emit(text, self.lang, [], [], [], [], [])
+            return emit(text, [], [], [], [], [])
 
         self._cached_reps = reps
 
@@ -290,7 +288,7 @@ class CGNPipeline:
             for i, nt in enumerate(node_types)
         ]
 
-        return emit(text, self.lang, node_types, node_labels, token_spans,
+        return emit(text, node_types, node_labels, token_spans,
                     scopes, edge_triples, node_origins=node_origins,
                     node_attributes=node_attributes)
 
@@ -345,7 +343,7 @@ class CGNPipeline:
                 stacklevel=2,
             )
             text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
-        reps, connector_reps = text_parser.parse(text, self.lang)
+        reps, connector_reps = text_parser.parse(text)
         return self.forward(reps, text, connector_reps=connector_reps)
 
     def analyze_or_skip(
@@ -370,7 +368,7 @@ class CGNPipeline:
             return None
         try:
             cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
-            reps, connector_reps = _cir_to_reps_and_connectors(cir, self.lang)
+            reps, connector_reps = _cir_to_reps_and_connectors(cir)
             return self.forward(reps, text, connector_reps=connector_reps)
         except GCNBridgeError:
             return None

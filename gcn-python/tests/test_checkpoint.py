@@ -16,7 +16,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     gr = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=enc, graph=gr, lang="fr", vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
 
     # Sauvegarder poids originaux
     ckpt = tmp_path / "model.npz"
@@ -27,7 +27,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     # Créer nouveau pipeline et charger
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     gr2 = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    p2 = CGNPipeline(encoder=enc2, graph=gr2, lang="fr", vocabulary=FeatureVocabulary())
+    p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     load_checkpoint(p2, ckpt)
 
     # Vérifier que les poids PyTorch ont bien été restaurés

@@ -106,9 +106,8 @@ def test_cir_to_doc_basic():
         ],
         "edges": []
     }
-    doc = _cir_to_doc("Les ventes baissent.", "fr", cir)
+    doc = _cir_to_doc("Les ventes baissent.", cir)
 
-    assert doc["document"]["lang"] == "fr"
     assert len(doc["document"]["sentences"]) == 1
     sent = doc["document"]["sentences"][0]
     assert sent["text"] == "Les ventes baissent."
@@ -130,7 +129,7 @@ def test_cir_to_doc_with_null_token_span():
         ],
         "edges": []
     }
-    doc = _cir_to_doc("Test.", "fr", cir)
+    doc = _cir_to_doc("Test.", cir)
 
     # Ne doit pas crasher
     assert doc["document"]["sentences"][0]["cir"]["nodes"][0]["token_span"] == [0, 0]
@@ -154,7 +153,7 @@ def test_cir_to_doc_with_edges():
             }
         ]
     }
-    doc = _cir_to_doc("Si A alors B.", "fr", cir)
+    doc = _cir_to_doc("Si A alors B.", cir)
 
     edges = doc["document"]["sentences"][0]["cir"]["edges"]
     assert len(edges) == 1
@@ -210,7 +209,7 @@ def test_cir_to_doc_with_tuple_edges():
             [0, 1, {"relation": "cause", "confidence": 1.0, "explicit": True, "negated": False}]
         ]
     }
-    doc = _cir_to_doc("A cause B.", "fr", cir)
+    doc = _cir_to_doc("A cause B.", cir)
     edges = doc["document"]["sentences"][0]["cir"]["edges"]
     assert len(edges) == 1
     assert edges[0]["source"] == "0"

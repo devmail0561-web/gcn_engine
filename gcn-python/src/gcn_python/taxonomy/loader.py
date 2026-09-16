@@ -22,20 +22,17 @@ class TaxonomyIndex:
     data: dict[str, frozenset[str]] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, taxonomies_dir: Path, lang_code: str = "fr") -> "TaxonomyIndex":
+    def load(cls, taxonomies_dir: Path) -> "TaxonomyIndex":
         """
         Charge les taxonomies depuis:
-          1. taxonomies_dir/{lang_code}/  (spécifiques à la langue)
-          2. taxonomies_dir/              (partagées, fallback)
+          1. taxonomies_dir/              (partagées)
+          2. Sous-répertoires             (fusion multi-langues)
         """
         index: dict[str, frozenset[str]] = {}
 
-        dirs_to_scan = []
-        lang_dir = taxonomies_dir / lang_code
-        if lang_dir.is_dir():
-            dirs_to_scan.append(lang_dir)
+        dirs_to_scan = [taxonomies_dir]
         if taxonomies_dir.is_dir():
-            dirs_to_scan.append(taxonomies_dir)
+            dirs_to_scan += sorted(d for d in taxonomies_dir.iterdir() if d.is_dir())
 
         for scan_dir in dirs_to_scan:
             for yaml_path in sorted(scan_dir.glob("*.yaml")):
@@ -50,14 +47,15 @@ class TaxonomyIndex:
                 for class_name, class_data in classes.items():
                     key = f"{tax_name}.{class_name}"
                     if key in index:
-                        continue  # lang-specific already loaded
+                        continue  # déjà chargé
                     lemmas: set[str] = set()
-                    examples = (class_data or {}).get("examples_fr") or []
-                    for entry in examples:
-                        if isinstance(entry, dict) and "lemma" in entry:
-                            lemmas.add(entry["lemma"].lower().strip())
-                        elif isinstance(entry, str):
-                            lemmas.add(entry.lower().strip())
+                    for examples_key in ("examples_fr", "examples"):
+                        examples = (class_data or {}).get(examples_key) or []
+                        for entry in examples:
+                            if isinstance(entry, dict) and "lemma" in entry:
+                                lemmas.add(entry["lemma"].lower().strip())
+                            elif isinstance(entry, str):
+                                lemmas.add(entry.lower().strip())
                     index[key] = frozenset(lemmas)
 
         return cls(data=index)

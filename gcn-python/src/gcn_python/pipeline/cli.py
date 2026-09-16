@@ -16,7 +16,6 @@ from ..data.loader import reps_from_sentence
 @click.argument("dataset_path", type=click.Path(path_type=Path, exists=True))
 @click.option("--sentence-id", default=None,
               help="ID de la sentence dans le fichier (défaut : première)")
-@click.option("--lang", default="fr", show_default=True, help="Code langue (fr, en, …)")
 @click.option("--pretty/--compact", default=True, help="JSON indenté ou compact")
 @click.option(
     "--model-path", type=click.Path(path_type=Path), default=None,
@@ -25,7 +24,6 @@ from ..data.loader import reps_from_sentence
 def forward_cmd(
     dataset_path: Path,
     sentence_id: str | None,
-    lang: str,
     pretty: bool,
     model_path: Path | None,
 ) -> None:
@@ -34,7 +32,7 @@ def forward_cmd(
 
     DATASET_PATH doit être un fichier au format dataset GCN-NL (tokens + cir).
     """
-    records = load_sentences(dataset_path, lang)
+    records = load_sentences(dataset_path)
     if not records:
         raise click.ClickException(f"Aucune sentence chargée depuis {dataset_path}")
 
@@ -58,7 +56,7 @@ def forward_cmd(
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang=lang, vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
     if model_path is not None:
         from ..training.checkpoint import load_checkpoint

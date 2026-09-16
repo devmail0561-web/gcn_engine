@@ -18,7 +18,6 @@ class UDRepresentation:
     has_advcl: bool             # dep advcl existe
     has_temporal_obl: bool      # dep obl avec morph temporel
     token_span: tuple[int, int]
-    lang: str
 
     @property
     def tense(self) -> str:

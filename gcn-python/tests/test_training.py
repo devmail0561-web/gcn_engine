@@ -20,7 +20,7 @@ def pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
-    return CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
+    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
 
 # ---------------------------------------------------------------------------
@@ -118,14 +118,14 @@ def test_backward_updates_encoder_weights(pipeline: CGNPipeline):
             root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
             root_morph={"Tense": "Pres"}, subject_pos="NOUN",
             has_object=False, has_advcl=False, has_temporal_obl=False,
-            token_span=(1, 2), lang="fr",
+            token_span=(1, 2),
         ),
         UDRepresentation(
             tokens=[{"lemma": "augmenter", "pos": "VERB", "dep_rel": "advcl", "morph": {}}],
             root_lemma="augmenter", root_pos="VERB", root_dep_rel="advcl",
             root_morph={"Tense": "Pres"}, subject_pos="NOUN",
             has_object=False, has_advcl=False, has_temporal_obl=False,
-            token_span=(4, 5), lang="fr",
+            token_span=(4, 5),
         ),
     ]
     pipeline.forward(reps, "Les ventes baissent parce que les coûts augmentent.")
@@ -152,14 +152,14 @@ def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
             root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
             root_morph={"Tense": "Pres"}, subject_pos="NOUN",
             has_object=False, has_advcl=False, has_temporal_obl=False,
-            token_span=(1, 2), lang="fr",
+            token_span=(1, 2),
         ),
         UDRepresentation(
             tokens=[{"lemma": "augmenter", "pos": "VERB", "dep_rel": "advcl", "morph": {}}],
             root_lemma="augmenter", root_pos="VERB", root_dep_rel="advcl",
             root_morph={"Tense": "Pres"}, subject_pos="NOUN",
             has_object=False, has_advcl=False, has_temporal_obl=False,
-            token_span=(4, 5), lang="fr",
+            token_span=(4, 5),
         ),
     ]
     losses = []
@@ -198,7 +198,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     vocab = FeatureVocabulary()
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=99)
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
-    p2 = CGNPipeline(enc2, gr2, pipeline.lang, vocab)
+    p2 = CGNPipeline(enc2, gr2, vocab)
 
     load_checkpoint(p2, ckpt)
     params_loaded = p2.encoder.parameters()
@@ -213,7 +213,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
 
 def test_dataloader_yields_batches(paper_examples_json: Path):  # L5 : renommé
     from gcn_python.data.loader import GCNDataLoader
-    loader = GCNDataLoader(paper_examples_json.parent, lang="fr")
+    loader = GCNDataLoader(paper_examples_json.parent)
     samples = list(loader)
     assert len(samples) > 0
     for s in samples:
@@ -452,7 +452,7 @@ def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipel
     vocab2 = FeatureVocabulary(upos_tags=["NOUN", "VERB", "ADJ"])
     enc2 = MLPEncoder(d_clause=vocab2.d_clause, d_edge=vocab2.d_edge, seed=1)
     gr2 = RGCNLayer(d_in=vocab2.d_clause, d_out=vocab2.d_clause, seed=1)
-    p2 = CGNPipeline(enc2, gr2, pipeline.lang, vocab2)
+    p2 = CGNPipeline(enc2, gr2, vocab2)
 
     with pytest.raises(ValueError, match="Incompatibilité"):
         load_checkpoint(p2, ckpt)

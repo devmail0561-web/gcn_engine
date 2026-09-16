@@ -3,7 +3,6 @@ from __future__ import annotations
 
 def emit(
     text: str,
-    lang: str,
     node_types: list[str],
     node_labels: list[str],
     token_spans: list[tuple[int, int]],
@@ -60,7 +59,7 @@ def emit(
         }])
 
     return {
-        "source_lang": {"natural": {"lang": lang}},
+        "source_lang": {"natural": {"lang": "und"}},
         "source_text": text,
         "nodes": nodes,
         "edges": edges,

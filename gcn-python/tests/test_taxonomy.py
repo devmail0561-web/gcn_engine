@@ -2,7 +2,7 @@ from gcn_python.taxonomy.loader import TaxonomyIndex
 
 
 def test_load_all_taxonomies(taxonomy_dir):
-    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    tax = TaxonomyIndex.load(taxonomy_dir)
     assert len(tax) > 0, "No taxonomies loaded"
     assert "verbes.etat" in tax.data
     assert "verbes.action" in tax.data
@@ -11,11 +11,11 @@ def test_load_all_taxonomies(taxonomy_dir):
 
 
 def test_membership(taxonomy_dir):
-    tax = TaxonomyIndex.load(taxonomy_dir, "fr")
+    tax = TaxonomyIndex.load(taxonomy_dir)
     m = tax.membership("être")
     assert m.get("verbes.etat") is True
 
 
 def test_unknown_lang_fallback(taxonomy_dir):
-    tax = TaxonomyIndex.load(taxonomy_dir, "xx")
+    tax = TaxonomyIndex.load(taxonomy_dir)
     assert isinstance(tax, TaxonomyIndex)

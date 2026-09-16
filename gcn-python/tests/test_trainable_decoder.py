@@ -254,14 +254,14 @@ def test_pipeline_with_decoder_forward(tmp_path):
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang="fr",
+    pipeline = CGNPipeline(encoder=encoder, graph=graph,
                            vocabulary=vocab, decoder=dec)
     rep = UDRepresentation(
         tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
         root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
         root_morph={}, subject_pos=None,
         has_object=False, has_advcl=False, has_temporal_obl=False,
-        token_span=(1, 1), lang="fr",
+        token_span=(1, 1),
     )
     result = pipeline.forward([rep], "Les ventes baissent.")
     assert "nodes" in result
@@ -278,7 +278,7 @@ def test_pipeline_decoder_none_unchanged():
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, lang="fr", vocabulary=vocab)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     assert pipeline.decoder is None
 
 
@@ -301,7 +301,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     node_embs = np.random.randn(2, vocab.d_clause).astype(np.float32)
     dec.forward_decode(node_embs)
 
-    pipeline = CGNPipeline(encoder=enc, graph=gr, lang="fr", vocabulary=vocab, decoder=dec)
+    pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, decoder=dec)
 
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipeline, ckpt)
@@ -309,7 +309,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     # Reload into fresh pipeline without decoder
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    p2 = CGNPipeline(encoder=enc2, graph=gr2, lang="fr", vocabulary=FeatureVocabulary())
+    p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     load_checkpoint(p2, ckpt)
 
     assert p2.decoder is not None

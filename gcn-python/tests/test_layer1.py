@@ -3,7 +3,7 @@ from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause, vect
 from gcn_python.layer1.representation import UDRepresentation
 
 
-def make_rep(lang: str = "fr") -> UDRepresentation:
+def make_rep() -> UDRepresentation:
     return UDRepresentation(
         tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
         root_lemma="baisser",
@@ -15,7 +15,6 @@ def make_rep(lang: str = "fr") -> UDRepresentation:
         has_advcl=False,
         has_temporal_obl=False,
         token_span=(1, 2),
-        lang=lang,
     )
 
 

@@ -133,12 +133,11 @@ def test_rep_from_cir_node_action():
             "source_span": {"token_span": {"start": 1, "end": 3}},
             "temporal_ref": "unresolved",
             "attributes": {"entity": "ventes", "agent": None, "patient": None}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.root_pos == "VERB"
     assert rep.root_dep_rel == "root"
     assert rep.has_advcl is False
     assert rep.root_morph == {}
-    assert rep.lang == "fr"
 
 
 def test_rep_from_cir_node_etat():
@@ -147,7 +146,7 @@ def test_rep_from_cir_node_etat():
             "source_span": {"token_span": {"start": 5, "end": 7}},
             "temporal_ref": "unresolved",
             "attributes": {"entity": "prix", "agent": None, "patient": None}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.root_pos == "NOUN"
     assert rep.root_dep_rel == "nsubj"
     assert rep.has_advcl is False
@@ -159,7 +158,7 @@ def test_rep_from_cir_node_condition():
             "source_span": {"token_span": {"start": 0, "end": 2}},
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": None, "patient": None}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.root_pos == "SCONJ"
     assert rep.root_dep_rel == "advcl"
     assert rep.has_advcl is False  # conservative : CIR ne porte pas cette info
@@ -170,7 +169,7 @@ def test_rep_from_cir_node_patient_has_object():
     node = {"id": 0, "node_type": "action", "label": "réduire(coûts)",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": None, "patient": "coûts"}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.has_object is True
 
 
@@ -179,7 +178,7 @@ def test_rep_from_cir_node_agent_subject_pos():
     node = {"id": 0, "node_type": "action", "label": "investit",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": "entreprise", "patient": None}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.subject_pos == "NOUN"
 
 
@@ -188,7 +187,7 @@ def test_rep_from_cir_node_no_agent():
     node = {"id": 0, "node_type": "etat", "label": "hausse",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": None, "patient": None}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.subject_pos is None
 
 
@@ -197,7 +196,7 @@ def test_rep_morph_always_empty():
     for nt in NODE_TYPE_TO_POS:
         node = {"id": 0, "node_type": nt, "label": "test",
                 "temporal_ref": "unresolved", "attributes": {}}
-        rep = _rep_from_cir_node(node, "fr")
+        rep = _rep_from_cir_node(node)
         assert rep.root_morph == {}
         assert rep.tense == "_absent"
         assert rep.mood == "_absent"
@@ -209,7 +208,7 @@ def test_rep_temporal_obl_resolved():
     node = {"id": 0, "node_type": "processus", "label": "croissance",
             "temporal_ref": {"range": {"start": -30, "end": 0}},
             "attributes": {}}
-    rep = _rep_from_cir_node(node, "fr")
+    rep = _rep_from_cir_node(node)
     assert rep.has_temporal_obl is True
 
 
@@ -248,7 +247,7 @@ def test_parse_edges_invalid_ignored():
 
 def test_connector_from_marker_token():
     """marker_token=4 → UDRep SCONJ avec token_span=(4,4)."""
-    reps, connectors = _cir_to_reps_and_connectors(_CIR_TWO_NODES, "fr")
+    reps, connectors = _cir_to_reps_and_connectors(_CIR_TWO_NODES)
     assert len(connectors) == 1
     assert connectors[0] is not None
     assert connectors[0].root_pos == "SCONJ"
@@ -265,7 +264,7 @@ def test_connector_none_without_marker():
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": None}]],
     }
-    reps, connectors = _cir_to_reps_and_connectors(cir, "fr")
+    reps, connectors = _cir_to_reps_and_connectors(cir)
     assert len(connectors) == 1
     assert connectors[0] is None
 
@@ -279,13 +278,13 @@ def test_connector_marker_zero_ignored():
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": 0}]],
     }
-    reps, connectors = _cir_to_reps_and_connectors(cir, "fr")
+    reps, connectors = _cir_to_reps_and_connectors(cir)
     assert connectors[0] is None
 
 
 def test_cir_empty_nodes():
     """nodes=[] → ([], []) sans exception."""
-    reps, connectors = _cir_to_reps_and_connectors({"nodes": [], "edges": []}, "fr")
+    reps, connectors = _cir_to_reps_and_connectors({"nodes": [], "edges": []})
     assert reps == []
     assert connectors == []
 
@@ -370,7 +369,7 @@ def test_reps_from_text_integration():
     """Test d'intégration complet avec vrai binaire gcn."""
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
-        reps = reps_from_text("Les ventes baissent.", lang="fr")
+        reps = reps_from_text("Les ventes baissent.")
     assert len(reps) >= 1
     for rep in reps:
         assert rep.root_pos in {"VERB", "NOUN", "SCONJ", "ADJ", "_unk"}
@@ -390,7 +389,6 @@ def _make_pipeline():
     return CGNPipeline(
         encoder=MLPEncoder(vocab.d_clause, vocab.d_edge),
         graph=RGCNLayer(vocab.d_clause, vocab.d_clause),
-        lang="fr",
         vocabulary=vocab,
     )
 

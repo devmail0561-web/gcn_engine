@@ -22,7 +22,6 @@ class TextParser(Protocol):
     def parse(
         self,
         text: str,
-        lang: str = "fr",
     ) -> tuple[list[UDRepresentation], list[UDRepresentation | None]]:
         """
         text → (clause_reps, connector_reps)

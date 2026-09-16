@@ -38,13 +38,12 @@ class TrainingSample:
 class GCNDataLoader:
     """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
-    def __init__(self, data_dir: Path, lang: str = "fr", repeat: bool = False,
+    def __init__(self, data_dir: Path, repeat: bool = False,
                  all_pairs: bool = False):
         self.data_dir = data_dir
-        self.lang = lang
         self.repeat = repeat
         self.all_pairs = all_pairs
-        self._records = load_all_sentences(data_dir, lang)
+        self._records = load_all_sentences(data_dir)
         # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
         self._total_long_distance = 0
         self._warned_total = False
@@ -142,7 +141,7 @@ def reps_from_sentence(
     result: list[UDRepresentation] = []
     valid_indices: list[int] = []
     for i, clause in enumerate(rec.clauses):
-        rep = _rep_from_clause(clause, rec.tokens, rec.lang)
+        rep = _rep_from_clause(clause, rec.tokens)
         if rep is not None:
             result.append(rep)
             valid_indices.append(i)
@@ -151,7 +150,6 @@ def reps_from_sentence(
             rec.clauses[valid_indices[k]],
             rec.clauses[valid_indices[k + 1]],
             rec.tokens,
-            rec.lang,
         )
         for k in range(len(result) - 1)
     ]
@@ -162,7 +160,6 @@ def _connector_between(
     clause_a: ClauseRecord,
     clause_b: ClauseRecord,
     all_tokens: list[TokenRecord],
-    lang: str,
 ) -> UDRepresentation | None:
     """Retourne une UDRepresentation pour le token connecteur entre deux spans consécutives."""
     end_a = clause_a.token_span[1]
@@ -187,14 +184,12 @@ def _connector_between(
         has_advcl=False,
         has_temporal_obl=False,
         token_span=(tok.id, tok.id),
-        lang=lang,
     )
 
 
 def _rep_from_clause(
     clause: ClauseRecord,
     all_tokens: list[TokenRecord],
-    lang: str,
 ) -> UDRepresentation | None:
     span_start, span_end = clause.token_span
     if span_start > span_end:
@@ -233,5 +228,4 @@ def _rep_from_clause(
         has_advcl=any(t.dep_rel == "advcl" for t in span_toks),
         has_temporal_obl=any(t.dep_rel in {"obl", "obl:tmod"} for t in span_toks),
         token_span=clause.token_span,
-        lang=lang,
     )
