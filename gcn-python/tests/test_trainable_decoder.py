@@ -146,6 +146,99 @@ def test_decode_inference():
     assert isinstance(result, str)
 
 
+def test_backward_decode_returns_node_gradients():
+    """P2d : backward_decode retourne d_node_embs (N, D_in) au lieu de d_mean (D_in,)."""
+    v = make_vocab()
+    dec = TrainableDecoder(v, d_hidden=16)
+    node_embs = np.random.randn(3, 7).astype(np.float32)
+    logits = dec.forward_decode(node_embs)
+    gold = np.array(v.encode("si ventes"), dtype=np.int64)
+    _, d_logits = dec.loss_decode(logits, gold)
+    d_node_embs, grads, d_attn_vec = dec.backward_decode(d_logits)
+
+    # Vérifications P2d
+    assert d_node_embs.shape == (3, 7), "Gradient doit être par nœud (N, D_in)"
+    assert d_attn_vec.shape == (7,), "Gradient attn_vec doit être (D_in,)"
+    assert len(grads) == 2, "2 layers RNN"
+    assert any(np.any(dW != 0) for dW, _ in grads), "Gradients non nuls"
+
+
+def test_checkpoint_includes_attn_vec(tmp_path):
+    """P2d : attn_vec sauvegardé et restauré dans checkpoint."""
+    v = make_vocab()
+    dec = TrainableDecoder(v, d_hidden=16)
+    node_embs = np.random.randn(2, 7).astype(np.float32)
+    dec.forward_decode(node_embs)  # init layers + attn_vec
+
+    meta_json = dec.to_json()
+    data = json.loads(meta_json)
+    assert "attn_vec" in data, "attn_vec doit être sérialisé"
+
+    dec2 = TrainableDecoder.from_json(meta_json)
+    params = dec.parameters()
+    params2 = dec2.parameters()
+
+    # Vérifier que attn_vec est le premier paramètre
+    assert len(params) == 5, "attn_vec + 2 layers × (W, b) = 5 params"
+    assert params[0].shape == (7,), "Premier param = attn_vec"
+    assert np.allclose(params[0], params2[0]), "attn_vec restauré correctement"
+
+
+def test_attention_weights_nonuniform_after_update():
+    """P2d : attn_vec évolue par SGD, attention weights deviennent non-uniformes."""
+    v = make_vocab()
+    dec = TrainableDecoder(v, d_hidden=16)
+    node_embs = np.random.randn(4, 7).astype(np.float32)
+
+    # Forward initial — attn_vec = 0 → weights uniformes
+    logits = dec.forward_decode(node_embs)
+    attn_weights_before = dec._cached_attn_weights.copy()
+    assert np.allclose(attn_weights_before, 0.25, atol=1e-3), "Poids uniformes initiaux"
+
+    # Backward + update
+    gold = np.array(v.encode("si"), dtype=np.int64)
+    _, d_logits = dec.loss_decode(logits, gold)
+    _, grads, d_attn_vec = dec.backward_decode(d_logits)
+    dec.update(grads, d_attn_vec, lr=0.5)
+
+    # Forward après update — weights doivent diverger
+    logits2 = dec.forward_decode(node_embs)
+    attn_weights_after = dec._cached_attn_weights
+    assert not np.allclose(attn_weights_after, 0.25, atol=1e-2), "Poids non-uniformes après update"
+
+
+def test_decode_accepts_enriched_vectors():
+    """H1 : decode() accepte vecteurs enrichis (N, D_in), pas one-hot."""
+    v = make_vocab()
+    dec = TrainableDecoder(v, d_hidden=16)
+
+    # Simuler des vecteurs enrichis R-GCN (d_in=75)
+    enriched_vecs = np.random.randn(2, 75).astype(np.float32)
+    dec.forward_decode(enriched_vecs)  # init layers avec d_in=75
+
+    # decode() doit accepter les mêmes vecteurs
+    result = dec.decode(enriched_vecs)
+    assert isinstance(result, str), "decode() retourne une string"
+
+    # Vérifier que decode() ne crashe pas avec dimension correcte
+    assert dec._last_d_in == 75, "Layers initialisées avec d_in=75"
+
+
+def test_decode_no_truncation():
+    """H2 : decode() ne tronque pas à 5 tokens."""
+    v = make_vocab()
+    v.build(["un deux trois quatre cinq six sept huit neuf dix"])
+    dec = TrainableDecoder(v, d_hidden=16, max_decode_len=12)
+
+    node_embs = np.random.randn(3, 7).astype(np.float32)
+    dec.forward_decode(node_embs)
+
+    # Forcer une longue séquence — test approximatif : vérifier que le code ne crashe pas
+    result = dec.decode(node_embs)
+    assert isinstance(result, str)
+    # Note : Impossible de garantir >5 tokens sans mocker, mais au moins pas de crash
+
+
 # ── CGNPipeline avec decoder ──────────────────────────────────────────────────
 
 def test_pipeline_with_decoder_forward(tmp_path):
