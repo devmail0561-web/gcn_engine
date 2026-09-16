@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gcn-annotate"
+version = "0.1.0"
+description = "Outil d'annotation LLM pour le projet GCN-NL"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.30"]
+openai = ["openai>=1.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+gcn-annotate = "gcn_annotate.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gcn_annotate"]
