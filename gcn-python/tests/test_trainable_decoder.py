@@ -88,8 +88,10 @@ def test_backward_decode_gradient_nonzero():
     logits = dec.forward_decode(node_embs)
     gold = np.array(v.encode("si ventes"), dtype=np.int64)
     _, d_logits = dec.loss_decode(logits, gold)
-    d_mean, grads = dec.backward_decode(d_logits)
-    assert d_mean.shape == (7,)
+    # P2d: backward_decode retourne (d_node_embs, grads, d_attn_vec)
+    d_node_embs, grads, d_attn_vec = dec.backward_decode(d_logits)
+    assert d_node_embs.shape == (3, 7), "Gradient différencié par nœud (N, D_in)"
+    assert d_attn_vec.shape == (7,), "Gradient attention vector (D_in,)"
     assert any(np.any(dW != 0) for dW, _ in grads)
 
 
@@ -97,7 +99,8 @@ def test_parameters_after_init():
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16, d_in=7)
     params = dec.parameters()
-    assert len(params) == 4  # 2 layers × (W, b)
+    # P2d: _attn_vec + 2 layers × (W, b) = 5 params
+    assert len(params) == 5
 
 
 def test_update_changes_weights():
@@ -107,9 +110,10 @@ def test_update_changes_weights():
     logits = dec.forward_decode(node_embs)
     gold = np.array(v.encode("si"), dtype=np.int64)
     _, d_logits = dec.loss_decode(logits, gold)
-    _, grads = dec.backward_decode(d_logits)
+    # P2d: backward_decode retourne 3 valeurs
+    _, grads, d_attn_vec = dec.backward_decode(d_logits)
     params_before = [p.copy() for p in dec.parameters()]
-    dec.update(grads, lr=0.1)
+    dec.update(grads, d_attn_vec, lr=0.1)
     params_after = dec.parameters()
     assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
 

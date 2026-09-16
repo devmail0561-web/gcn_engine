@@ -57,11 +57,16 @@ class TrainableDecoder:
     """
     Reference NumPy autoregressive decoder.
 
-    Architecture: h_0 = zeros(d_hidden); context = mean_pool(node_embs)
-    RNN step: h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
-    Output:   logit_t = W_out @ h_t + b_out
+    Architecture (P2d - attention pooling):
+      scores = node_embs @ _attn_vec
+      attn_weights = softmax(scores)
+      context = sum(attn_weights[i] * node_embs[i])
+      h_0 = zeros(d_hidden)
+      RNN step: h_t = tanh(W_rnn @ [context; h_{t-1}] + b_rnn)
+      Output:   logit_t = W_out @ h_t + b_out
 
-    Stored as 2 _LinearLayer objects (4 params total):
+    Stored as 1 attention vector + 2 _LinearLayer objects (5 params total):
+      _attn_vec : (d_in,) — attention vector (initialized to zero)
       layer0 : _LinearLayer(d_in + d_hidden, d_hidden)  — RNN cell
       layer1 : _LinearLayer(d_hidden, |V|)               — output
 
@@ -87,11 +92,15 @@ class TrainableDecoder:
         self._layers: list[_LinearLayer] | None = None
         self._rnn_step_cache: list[dict] = []  # per-step cache for BPTT
         self._last_d_in: int | None = None
+        self._attn_vec: np.ndarray | None = None  # P2d: attention vector
+        self._cached_attn_weights: np.ndarray | None = None  # P2d: for backward
+        self._cached_node_embs: np.ndarray | None = None  # P2d: for backward
         if d_in is not None:
             self._init_layers(d_in)
 
     def _init_layers(self, d_in: int) -> None:
         if self._layers is None:
+            self._attn_vec = np.zeros(d_in, dtype=np.float32)  # P2d: attention pooling
             self._layers = [
                 _LinearLayer(d_in + self.d_hidden, self.d_hidden, self._rng),  # RNN cell
                 _LinearLayer(self.d_hidden, len(self.vocab), self._rng),        # output
@@ -140,7 +149,18 @@ class TrainableDecoder:
             return np.zeros(len(self.vocab), dtype=np.float32)
         d_in = node_embeddings.shape[1]
         self._init_layers(d_in)
-        context = node_embeddings.mean(axis=0).astype(np.float32)  # (d_in,)
+
+        # P2d: Attention pooling (remplace mean-pool)
+        assert self._attn_vec is not None
+        attn_scores = node_embeddings @ self._attn_vec  # (N,)
+        exp_s = np.exp(attn_scores - attn_scores.max())  # stabilité numérique
+        attn_weights = exp_s / (exp_s.sum() + 1e-9)  # (N,) — somme = 1
+        context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)  # (d_in,)
+
+        # Cacher pour backward
+        self._cached_attn_weights = attn_weights
+        self._cached_node_embs = node_embeddings
+
         h = np.zeros(self.d_hidden, dtype=np.float32)
 
         if gold_tokens is None:
@@ -207,21 +227,24 @@ class TrainableDecoder:
 
     def backward_decode(
         self, d_logits: np.ndarray
-    ) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]]]:
+    ) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
         """
-        Backward through RNN. Returns (d_mean, param_grads).
+        Backward through RNN + attention. Returns (d_node_embs, param_grads, d_attn_vec).
 
-        d_mean has shape (D_in,) — gradient w.r.t. the mean-pooled node embedding.
-        Handles 1D d_logits (|V|,) for single-step or 2D (T, |V|) for multi-step.
+        P2d: d_node_embs shape (N, D_in) — gradient différencié par nœud
+        (vs d_mean (D_in,) en mean-pool). Handles 1D d_logits (|V|,) for single-step
+        or 2D (T, |V|) for multi-step.
         """
         assert self._layers is not None, "backward_decode called before forward_decode"
         assert self._last_d_in is not None
+        assert self._cached_attn_weights is not None, "forward_decode must be called first"
+        assert self._cached_node_embs is not None
 
         dW0_total = np.zeros_like(self._layers[0].W)
         db0_total = np.zeros_like(self._layers[0].b)
         dW1_total = np.zeros_like(self._layers[1].W)
         db1_total = np.zeros_like(self._layers[1].b)
-        d_mean_total = np.zeros(self._last_d_in, dtype=np.float32)
+        d_context_total = np.zeros(self._last_d_in, dtype=np.float32)
 
         steps = self._rnn_step_cache
         if d_logits.ndim == 1:
@@ -234,7 +257,7 @@ class TrainableDecoder:
             d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
             dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
             dW0_total += dW0; db0_total += db0
-            d_mean_total += dx_rnn[:self._last_d_in]
+            d_context_total += dx_rnn[:self._last_d_in]  # gradient vers context
             n_steps = 1
         else:
             # Multi-step BPTT — propagate h_prev gradient through time
@@ -251,25 +274,50 @@ class TrainableDecoder:
                 d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
                 dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
                 dW0_total += dW0; db0_total += db0
-                d_mean_total += dx_rnn[:self._last_d_in]
+                d_context_total += dx_rnn[:self._last_d_in]
                 d_h_next = dx_rnn[self._last_d_in:]  # gradient w.r.t. h_prev → previous step
+
+        # P2d: Backward attention pooling
+        d_context = d_context_total / n_steps  # (D_in,)
+
+        # Gradient vers node_embeddings (terme direct via weighted sum)
+        d_weighted = d_context[np.newaxis, :] * self._cached_attn_weights[:, np.newaxis]  # (N, D_in)
+
+        # Gradient vers attn_weights
+        d_attn_weights = (d_context * self._cached_node_embs).sum(axis=1)  # (N,)
+
+        # Backward softmax
+        d_attn_scores = self._cached_attn_weights * (
+            d_attn_weights - (self._cached_attn_weights * d_attn_weights).sum()
+        )  # (N,)
+
+        # Gradient vers _attn_vec
+        d_attn_vec = self._cached_node_embs.T @ d_attn_scores  # (D_in,)
+
+        # Gradient vers node_embeddings (terme indirect via scores)
+        d_node_embs_indirect = d_attn_scores[:, np.newaxis] * self._attn_vec[np.newaxis, :]  # (N, D_in)
+        d_node_embs = d_weighted + d_node_embs_indirect  # (N, D_in)
 
         grads = [
             (dW0_total / n_steps, db0_total / n_steps),
             (dW1_total / n_steps, db1_total / n_steps),
         ]
-        return d_mean_total / n_steps, grads
+        return d_node_embs, grads, d_attn_vec
 
     def parameters(self) -> list[np.ndarray]:
         if self._layers is None:
             return []
-        params: list[np.ndarray] = []
+        # P2d: _attn_vec en premier paramètre
+        params: list[np.ndarray] = [self._attn_vec] if self._attn_vec is not None else []
         for layer in self._layers:
             params.extend([layer.W, layer.b])
         return params
 
-    def update(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+    def update(self, grads: list[tuple[np.ndarray, np.ndarray]], d_attn_vec: np.ndarray, lr: float) -> None:
         assert self._layers is not None
+        # P2d: Mettre à jour attn_vec
+        if self._attn_vec is not None:
+            self._attn_vec -= lr * d_attn_vec
         for layer, (dW, db) in zip(self._layers, grads):
             layer.W -= lr * dW
             layer.b -= lr * db
@@ -288,8 +336,13 @@ class TrainableDecoder:
             top_indices = np.argsort(logits)[-10:][::-1]
             filtered = [int(i) for i in top_indices if int(i) not in _skip][:5]
             return self.vocab.decode(filtered)
-        # Greedy multi-step decode
-        context = node_embs.mean(axis=0).astype(np.float32)
+        # Greedy multi-step decode with P2d attention pooling
+        assert self._attn_vec is not None
+        attn_scores = node_embs @ self._attn_vec
+        exp_s = np.exp(attn_scores - attn_scores.max())
+        attn_weights = exp_s / (exp_s.sum() + 1e-9)
+        context = (attn_weights[:, np.newaxis] * node_embs).sum(axis=0).astype(np.float32)
+
         h = np.zeros(self.d_hidden, dtype=np.float32)
         tokens: list[int] = []
         for _ in range(self.max_decode_len):
@@ -305,16 +358,23 @@ class TrainableDecoder:
     # ── Checkpoint serialization ──────────────────────────────────────────────
 
     def to_json(self) -> str:
+        # P2d: Sérialiser attn_vec
+        attn_vec_list = self._attn_vec.tolist() if self._attn_vec is not None else None
         return json.dumps({
             "vocab": self.vocab.to_json(),
             "d_hidden": self.d_hidden,
             "d_in": self._last_d_in,
             "max_decode_len": self.max_decode_len,
+            "attn_vec": attn_vec_list,
         })
 
     @classmethod
     def from_json(cls, s: str) -> "TrainableDecoder":
         data = json.loads(s)
         vocab = SurfaceVocabulary.from_json(data["vocab"])
-        return cls(vocab, d_hidden=data["d_hidden"], d_in=data.get("d_in"),
-                   max_decode_len=data.get("max_decode_len", 20))
+        dec = cls(vocab, d_hidden=data["d_hidden"], d_in=data.get("d_in"),
+                  max_decode_len=data.get("max_decode_len", 20))
+        # P2d: Restaurer attn_vec si présent (compatibilité checkpoints antérieurs)
+        if data.get("attn_vec") and dec._layers is not None:
+            dec._attn_vec = np.array(data["attn_vec"], dtype=np.float32)
+        return dec

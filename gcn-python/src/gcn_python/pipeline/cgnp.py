@@ -388,8 +388,12 @@ class CGNPipeline:
         if (self.decoder is not None
                 and self._cached_decode_gradient is not None
                 and hasattr(self.decoder, 'backward_decode')):
-            _, dec_grads = self.decoder.backward_decode(self._cached_decode_gradient)
-            self.decoder.update(dec_grads, lr)
+            # P2d: backward_decode retourne (d_node_embs, dec_grads, d_attn_vec)
+            d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(
+                self._cached_decode_gradient
+            )
+            self.decoder.update(dec_grads, d_attn_vec, lr)
+            # d_node_embs (N, D_in) ignoré (stop_gradient=True — voir P3e)
 
         # --- Rétropropagation R-GCN ---
         if (self._cached_edge_index is not None

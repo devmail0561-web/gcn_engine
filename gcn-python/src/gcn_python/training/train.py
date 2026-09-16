@@ -207,8 +207,9 @@ def train_cmd(
                     dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, vsample.gold_tokens)
                     if not np.isfinite(dec_loss):
                         continue
-                    _, dec_grads = pipeline.decoder.backward_decode(d_dec)
-                    pipeline.decoder.update(dec_grads, lr)
+                    # P2d: backward_decode retourne 3 valeurs
+                    _, dec_grads, d_attn_vec = pipeline.decoder.backward_decode(d_dec)
+                    pipeline.decoder.update(dec_grads, d_attn_vec, lr)
                     epoch_loss += dec_loss
                     n_samples += 1
 
