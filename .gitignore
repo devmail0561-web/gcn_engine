@@ -10,6 +10,9 @@ gcn-python/src/*.egg-info/
 gcn-python/.pytest_cache/
 gcn-python/dist/
 gcn-python/build/
+
+# Models / Checkpoints
+gcn-datasets/checkpoints/
 gcn-python/models/
 
 # General
