@@ -13,6 +13,9 @@ class CausalGraph(Protocol):
 
     Formule R-GCN :
       h_i^(l+1) = σ( Σ_r Σ_{j∈N_r(i)} (1/c_{i,r}) W_r^(l) h_j^(l) + W_0^(l) h_i^(l) )
+
+    Note : backward_message_pass est optionnel (vérifié via hasattr dans le pipeline).
+    Les couches qui supportent l'entraînement end-to-end l'implémentent.
     """
 
     d_out: int

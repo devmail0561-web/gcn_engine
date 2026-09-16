@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from typing import Any
 import json
 import warnings
 from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
@@ -74,16 +75,26 @@ def _parse_dataset_sentence(s: dict, lang: str) -> SentenceRecord:
     )
 
 
+def _safe_int(val: Any, default: int = 0) -> int:
+    """Convertit une valeur en int de manière sûre (retourne default si échec)."""
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_token(t: dict) -> TokenRecord:
     gcn = t.get("gcn", {}) or {}
     morph_raw = t.get("morph") or {}
     return TokenRecord(
-        id=int(t.get("id", 0)),
+        id=_safe_int(t.get("id"), 0),
         form=t.get("form", ""),
         lemma=t.get("lemma", ""),
         pos=t.get("pos", ""),
         dep_rel=t.get("dep_rel", ""),
-        dep_head=int(t.get("dep_head", 0)),
+        dep_head=_safe_int(t.get("dep_head"), 0),
         morph=morph_raw if isinstance(morph_raw, dict) else {},
         gcn_causal_type=gcn.get("causal_type"),
         gcn_causal_class=gcn.get("causal_class"),
@@ -109,7 +120,7 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
         label=n.get("label", ""),
         token_span=(span[0], span[1]) if len(span) >= 2 else (0, 0),
         scope=n.get("scope", attrs.get("scope", "specific")),
-        temporal_index=int(n.get("temporal_index", attrs.get("temporal_index", 0))),
+        temporal_index=_safe_int(n.get("temporal_index") or attrs.get("temporal_index"), 0),
         origin=n.get("origin", "explicit"),
         attributes=attrs,
         modifiers=n.get("modifiers", []) or [],

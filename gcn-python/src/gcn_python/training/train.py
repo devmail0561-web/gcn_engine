@@ -181,7 +181,7 @@ def train_cmd(
                     )
                 except ValueError:
                     raise  # misconfiguration (d_out, clause_positions…) — non ignorable
-                except Exception as exc:
+                except (RuntimeError, IndexError, KeyError, TypeError, ValueError) as exc:
                     warnings.warn(
                         f"[{sample.sentence.id}] forward ignoré : "
                         f"{type(exc).__name__}: {exc}",
@@ -241,7 +241,7 @@ def train_cmd(
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
-                    gold_surface=_gold_surface if not decoder_only else None,
+                    gold_surface=_gold_surface,
                 )
 
                 # Backward (gelé si --decoder-only) — S10 : accumulation mini-batch

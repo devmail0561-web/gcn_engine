@@ -17,6 +17,11 @@ def _node_type_embeddings(nodes: list[dict]) -> np.ndarray:
     embs = []
     for node in nodes:
         nt = node.get("node_type", "")
+        if nt not in NODE_TYPES:
+            warnings.warn(
+                f"Type de nœud inconnu '{nt}' — mappé à index 0 ('{NODE_TYPES[0]}').",
+                UserWarning, stacklevel=3,
+            )
         idx = NODE_TYPES.index(nt) if nt in NODE_TYPES else 0
         onehot = np.zeros(len(NODE_TYPES), dtype=np.float32)
         onehot[idx] = 1.0

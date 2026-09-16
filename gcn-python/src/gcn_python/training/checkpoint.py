@@ -47,6 +47,17 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     """
     data = np.load(path, allow_pickle=True)
 
+    # Valider que seules les clés attendues sont présentes (détection de corruption)
+    _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_")
+    _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E"}
+    unexpected = set(data.files) - _VALID_EXACT
+    unexpected = {k for k in unexpected if not any(k.startswith(p) for p in _VALID_PREFIXES)}
+    if unexpected:
+        raise ValueError(
+            f"Checkpoint {path.name} contient des clés inattendues : {sorted(unexpected)}. "
+            f"Fichier potentiellement corrompu ou incompatible."
+        )
+
     new_vocab = None
     if "_vocab_json" in data:
         new_vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))

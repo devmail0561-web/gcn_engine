@@ -26,6 +26,11 @@ def node_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des NodeType."""
     if not gold:
         return 0.0
+    if len(pred) != len(gold):
+        raise ValueError(
+            f"node_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
+            f"doivent avoir la même longueur."
+        )
     correct = sum(p == g for p, g in zip(pred, gold))
     return correct / len(gold)
 
@@ -57,6 +62,11 @@ def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des RelationType."""
     if not gold:
         return 0.0
+    if len(pred) != len(gold):
+        raise ValueError(
+            f"edge_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
+            f"doivent avoir la même longueur."
+        )
     correct = sum(p == g for p, g in zip(pred, gold))
     return correct / len(gold)
 
@@ -112,7 +122,10 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
         )
     n = min(len(pred_nodes), len(gold_nodes))
     node_type_acc = (
-        sum(pred_nodes[i]["node_type"] == gold_nodes[i]["node_type"] for i in range(n)) / max(n, 1)
+        sum(
+            pred_nodes[i].get("node_type") == gold_nodes[i].get("node_type")
+            for i in range(n)
+        ) / max(n, 1)
     )
 
     # Edge count ratio
@@ -131,7 +144,11 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
         )
     e = min(len(pred_edges), len(gold_edges))
     edge_rel_acc = (
-        sum(pred_edges[i][2]["relation"] == gold_edges[i][2]["relation"] for i in range(e))
+        sum(
+            (pred_edges[i][2] if len(pred_edges[i]) > 2 else {}).get("relation")
+            == (gold_edges[i][2] if len(gold_edges[i]) > 2 else {}).get("relation")
+            for i in range(e)
+        )
         / max(e, 1)
     )
 

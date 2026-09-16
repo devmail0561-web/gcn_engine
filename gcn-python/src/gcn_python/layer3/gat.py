@@ -169,15 +169,27 @@ class RGCNLayerGAT(nn.Module):
         self,
         d_output: np.ndarray,
     ) -> tuple[np.ndarray, list[np.ndarray]]:
-        """Rétropropagation via autograd. Retourne (d_input, [dW_r, dW_0, da_r])."""
+        """Rétropropagation via autograd. Retourne (d_input, [dW_r, dW_0, da_r]).
+
+        message_pass() retourne sigmoid(out), mais _out_retained contient out
+        (pré-sigmoid). On doit appliquer la dérivée de sigmoid :
+          d/dx sigmoid(x) = sigmoid(x) * (1 - sigmoid(x))
+        pour convertir les gradients post-sigmoid en gradients pré-sigmoid.
+        """
         assert self._H_in_retained is not None, "backward_message_pass appelé avant message_pass"
         assert self._out_retained is not None, "backward_message_pass appelé avant message_pass"
 
+        out = self._out_retained
+        sig = torch.sigmoid(out)
+        sigmoid_deriv = sig * (1.0 - sig)
+
         d_out_t = torch.as_tensor(d_output, dtype=torch.float32, device=self._device)
+        d_pre_sigmoid = d_out_t * sigmoid_deriv
+
         grads = torch.autograd.grad(
-            self._out_retained,
+            out,
             [self._H_in_retained, self.W_r, self.W_0, self.a_r],
-            grad_outputs=d_out_t,
+            grad_outputs=d_pre_sigmoid,
             retain_graph=False,
         )
         d_input = grads[0].detach().cpu().numpy()
