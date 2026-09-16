@@ -1,6 +1,8 @@
 # gcn-ir — Représentation Intermédiaire Causale
 
-[![crates.io](https://img.shields.io/crates/v/gcn-ir)](https://crates.io/crates/gcn-ir)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-ir)](https://crates.io/crates/gcn-ir)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Crate fondatrice du moteur **GCN-Core**. Définit le contrat central `CausalIR` : le graphe causal typé qui traverse tout le pipeline (parsers → middle-end → backend → verbalizer).
@@ -26,7 +28,7 @@ Tous les frontends produisent un `CausalIR`. Tous les backends le consomment. `g
 
 ```toml
 [dependencies]
-gcn-ir = "1.0"
+gcn-ir = "2.0"
 ```
 
 ---

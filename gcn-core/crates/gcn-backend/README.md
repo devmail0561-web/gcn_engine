@@ -1,6 +1,8 @@
 # gcn-backend — Raisonnement Pearl, GCN-QL et Export
 
-[![crates.io](https://img.shields.io/crates/v/gcn-backend)](https://crates.io/crates/gcn-backend)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-backend)](https://crates.io/crates/gcn-backend)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Backend de raisonnement du moteur **GCN-Core**. Implémente les trois niveaux de causalité de Judea Pearl, le langage de requête GCN-QL, et l'export du graphe causal en JSON ou DOT (Graphviz).
@@ -28,7 +30,7 @@ CausalIR  (après gcn-middleend)
 
 ```toml
 [dependencies]
-gcn-backend = "1.0"
+gcn-backend = "2.0"
 ```
 
 ---

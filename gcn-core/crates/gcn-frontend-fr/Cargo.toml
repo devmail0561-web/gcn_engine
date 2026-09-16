@@ -2,18 +2,18 @@
 name = "gcn-frontend-fr"
 version.workspace = true
 edition = "2024"
-description = "French NLP frontend for GCN-Core"
+description = "Parser causal français — tokenisation, POS, annotation causale → CausalIR"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
-gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.1" }
+gcn-ir = { path = "../gcn-ir", version = "2.0.0" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "2.0.0" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 smallvec = { workspace = true }
 unicode-normalization = "0.1"
 
 [dev-dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-ir = { path = "../gcn-ir", version = "2.0.0" }

@@ -1,6 +1,8 @@
 # gcn-frontend-en — English Causal Parser
 
-[![crates.io](https://img.shields.io/crates/v/gcn-frontend-en)](https://crates.io/crates/gcn-frontend-en)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-frontend-en)](https://crates.io/crates/gcn-frontend-en)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 English symbolic frontend for the **GCN-Core** engine. Parses natural language English text and produces a `CausalIR`: tokenization, POS tagging, causal marker detection, clause annotation, graph emission.
@@ -30,7 +32,7 @@ The English and French frontends are **isomorphic** — the same causal sentence
 
 ```toml
 [dependencies]
-gcn-frontend-en = "1.0"
+gcn-frontend-en = "2.0"
 ```
 
 ---

@@ -1,6 +1,8 @@
 # gcn-frontend-code — Code Source → CausalIR
 
-[![crates.io](https://img.shields.io/crates/v/gcn-frontend-code)](https://crates.io/crates/gcn-frontend-code)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-frontend-code)](https://crates.io/crates/gcn-frontend-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Frontend code source du moteur **GCN-Core**. Analyse l'AST de code Python, Rust ou JavaScript via tree-sitter et produit un `CausalIR` structurellement isomorphe à celui produit par les frontends texte.
@@ -29,7 +31,7 @@ if x < y:
 
 ```toml
 [dependencies]
-gcn-frontend-code = "1.0"
+gcn-frontend-code = "2.0"
 ```
 
 ---

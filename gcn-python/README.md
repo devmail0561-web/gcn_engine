@@ -3,6 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/) [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python tests](https://img.shields.io/badge/tests-192-passing)](tests/)
 
 **Moteur de raisonnement causal — extraire, modéliser et inférer la causalité dans le texte naturel et le code source.**
 
@@ -62,7 +63,7 @@ Texte naturel (fr/en) ou Code source (Python/Rust/JS)
               RelationType classifier  (11 classes)
                         │
                Layer 3 — Graphe causal
-               RGCNLayer / RGCNLayerPT / RGCNLayerGAT
+               RGCNLayer / RGCNLayerPT / RGCNLayerGAT / RGCNLayerGAT
               Message passing R-GCN (1..N couches)
                         │
               CGNPipeline.forward()
@@ -203,11 +204,34 @@ enriched = graph_pt.forward_torch(H, edge_index, edge_types)
 # utiliser optimizer.step() — NE PAS appeler pipeline.backward() avec PyTorch
 ```
 
+### R-GCN + GAT (attention par relation)
+
+```python
+from gcn_python.layer3.gat import RGCNLayerGAT
+
+# Attention par relation — le modèle pondère dynamiquement l'importance de chaque voisin
+graph_gat = RGCNLayerGAT(d_in=vocab.d_clause, d_out=vocab.d_clause)
+pipeline = CGNPipeline(encoder, graph_gat, vocabulary=vocab)
+
+# Entraînement avec --use-attention
+```
+
+```bash
+gcn-train --data-dir corpus/ --use-attention --epochs 100 --output model_gat.npz
+```
+
+### Message passing bidirectionnel
+
+```bash
+# Configuration maximale : GAT + bidirectionnel (22 types de relations)
+gcn-train --data-dir corpus/ --use-attention --bidirectional --epochs 100 --output model_bidi.npz
+```
+
 ---
 
 ## Format de données
 
-Les données d'entraînement sont des fichiers JSON conformes au schéma `gcn-nl` :
+Les données d'entraînement sont des fichiers JSON conformes au schéma `gcn-nl` (note : `"lang"` dans le JSON est une métadonnée, pas un paramètre du pipeline) :
 
 ```json
 {
@@ -347,10 +371,10 @@ class EdgeRecord:
 class SentenceRecord:
     id: str
     text: str
-    lang: str = ""          # optional metadata, not used in computation
-    tokens: list[TokenRecord] = field(default_factory=list)
-    clauses: list[ClauseRecord] = field(default_factory=list)
-    edges: list[EdgeRecord] = field(default_factory=list)
+    tokens: list[TokenRecord]
+    clauses: list[ClauseRecord]
+    edges: list[EdgeRecord]
+    lang: str = ""  # métadonnée optionnelle, non utilisée en calcul
 ```
 
 ---

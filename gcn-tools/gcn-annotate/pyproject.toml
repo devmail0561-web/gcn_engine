@@ -4,9 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-annotate"
-version = "0.1.0"
-description = "Outil d'annotation LLM pour le projet GCN-NL"
+version = "1.0.0"
+description = "Outil d'annotation LLM pour la création de datasets GCN-NL"
 requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "click>=8.0",
 ]

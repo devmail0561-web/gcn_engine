@@ -2,7 +2,7 @@
 name = "gcn-ir"
 version.workspace = true
 edition = "2024"
-description = "Causal Intermediate Representation types for GCN-Core"
+description = "Représentation Intermédiaire Causale — types fondamentaux du moteur GCN-Core"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"

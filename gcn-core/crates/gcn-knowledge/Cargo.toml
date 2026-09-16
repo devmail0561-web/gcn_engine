@@ -2,13 +2,13 @@
 name = "gcn-knowledge"
 version.workspace = true
 edition = "2024"
-description = "GCN taxonomies, lexicons, and type inference rules"
+description = "Taxonomies, lexicons et moteur d'inférence causale pour GCN-Core"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-ir = { path = "../gcn-ir", version = "2.0.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 yaml_serde = { workspace = true }

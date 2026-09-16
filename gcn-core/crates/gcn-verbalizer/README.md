@@ -1,6 +1,8 @@
 # gcn-verbalizer — Pont Rust vers le Décodeur Python
 
-[![crates.io](https://img.shields.io/crates/v/gcn-verbalizer)](https://crates.io/crates/gcn-verbalizer)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-verbalizer)](https://crates.io/crates/gcn-verbalizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Pont Rust du moteur **GCN-Core** vers le décodeur de verbalisation Python. Sérialise un `CausalIR` en JSON et le pipe au sous-processus `gcn-verbalize`, retournant la surface textuelle produite par le modèle entraîné.
@@ -41,7 +43,7 @@ pip install -e path/to/gcn-python
 
 ```toml
 [dependencies]
-gcn-verbalizer = "1.0"
+gcn-verbalizer = "2.0"
 ```
 
 ---

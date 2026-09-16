@@ -1,6 +1,8 @@
 # gcn-cli — Interface en Ligne de Commande GCN-Core
 
-[![crates.io](https://img.shields.io/crates/v/gcn-cli)](https://crates.io/crates/gcn-cli)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-cli)](https://crates.io/crates/gcn-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Binaire `gcn` — point d'entrée CLI du moteur **GCN-Core**. Expose toutes les capacités du moteur : analyse causale, requêtes GCN-QL, export de graphe, et pipeline ML Python.

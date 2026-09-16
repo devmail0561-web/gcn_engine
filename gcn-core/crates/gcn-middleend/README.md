@@ -1,6 +1,8 @@
 # gcn-middleend — Construction, Propagation et Validation du Graphe Causal
 
-[![crates.io](https://img.shields.io/crates/v/gcn-middleend)](https://crates.io/crates/gcn-middleend)
+Version: 2.0.0
+
+[![Crates.io](https://img.shields.io/crates/v/gcn-middleend)](https://crates.io/crates/gcn-middleend)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Middle-end du moteur **GCN-Core**. Enrichit un `CausalIR` produit par un frontend : détecte les cycles de rétroaction (algorithme de Tarjan), propage les lacunes temporelles causales, et valide la cohérence structurelle.
@@ -31,7 +33,7 @@ CausalIR  (produit par FrenchParser / EnglishParser / parse_python...)
 
 ```toml
 [dependencies]
-gcn-middleend = "1.0"
+gcn-middleend = "2.0"
 ```
 
 ---

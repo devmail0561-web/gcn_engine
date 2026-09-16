@@ -2,14 +2,14 @@
 name = "gcn-middleend"
 version.workspace = true
 edition = "2024"
-description = "Causal graph construction, constraint propagation, validation"
+description = "Construction de graphe causal, détection de cycles, propagation, validation"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
-gcn-knowledge = { path = "../gcn-knowledge", version = "1.0.1" }
+gcn-ir = { path = "../gcn-ir", version = "2.0.0" }
+gcn-knowledge = { path = "../gcn-knowledge", version = "2.0.0" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

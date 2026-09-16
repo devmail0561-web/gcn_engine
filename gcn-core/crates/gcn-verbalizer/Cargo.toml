@@ -2,12 +2,12 @@
 name = "gcn-verbalizer"
 version.workspace = true
 edition = "2024"
-description = "Bridge to the GCN verbalizer decoder (CausalIR → text)"
+description = "Pont Rust → Python pour le décodeur CausalIR → surface texte"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "1.0.1" }
+gcn-ir = { path = "../gcn-ir", version = "2.0.0" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
