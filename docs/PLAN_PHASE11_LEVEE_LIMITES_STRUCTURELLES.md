@@ -208,7 +208,11 @@ ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types au total
 
 `CGNPipeline.relation_types` reste `RELATION_TYPES` (11) — il pilote la prédiction.
 `RGCNLayerGAT.n_relations` passe à 22 quand `bidirectional=True` — il pilote les poids du message passing.
-`FeatureVocabulary.d_edge = 181` est inchangé — il dépend de `d_clause` et `d_conn`, pas de `n_relations`.
+`FeatureVocabulary.d_edge = 181` est inchangé — confirmé sur code : `d_edge = 2*d_clause + d_conn` (pas de dépendance à `n_relations`).
+
+**`RGCNLayer` (NumPy) supporte déjà `n_relations`** — confirmé sur `reference.py` ligne 20 :
+`def __init__(self, d_in, d_out, n_relations: int | None = None, seed: int = 42)`.
+La config `--bidirectional` sans `--use-attention` utilise `RGCNLayer(n_relations=22)` sans aucune modification du code.
 
 #### Modification 2 — `pipeline/cgnp.py`
 
@@ -228,7 +232,11 @@ else:
 
 `edge_index_mp` et `edge_types_mp` sont passés au R-GCN/GAT pour le message passing uniquement. `edge_index` et `edge_type_idxs` originaux restent utilisés pour la classification d'arêtes (MLP Layer 2) — la supervision est inchangée.
 
-**Précision importante** : le MLP de classification d'arêtes prédit toujours parmi les 11 `RELATION_TYPES` originaux. Les arêtes inverses n'ont pas de gold label et ne participent pas à la supervision. Elles enrichissent uniquement les représentations de nœuds via le message passing.
+**Flux MLP edge — aucun risque de contamination des 22 types :**
+Le MLP `encoder.forward_edge(edge_vec)` (cgnp.py ligne 214) prend un **vecteur de features** en entrée — pas `edge_type_idxs`. Les `edge_type_idxs` ne sont construits qu'aux lignes 235-241 et passés exclusivement au R-GCN. Le MLP ne voit jamais les indices de relation. Il prédit toujours parmi 11 logits (`n_relation_types` dans `MLPEncoder`). Il n'y a aucune interaction entre `edge_types_mp` (22 types, R-GCN) et `encoder.forward_edge` (11 logits, MLP).
+
+**Gradient des arêtes inverses — mécanisme standard :**
+Les arêtes inverses (W_r[11:21], a_r[11:21]) n'ont pas de gold label et ne participent pas à la loss d'arêtes. Elles reçoivent néanmoins des gradients via `d_enriched` — le gradient des représentations de nœuds qui remonte à travers `backward_message_pass`. C'est le comportement standard des GNN : les paramètres de message passing apprennent via la loss des nœuds, même pour les arêtes non-supervisées. W_r[11:21] apprend à propager l'information dans le sens abductif de façon à améliorer la classification de nœuds.
 
 #### Modification 3 — `RGCNLayerGAT` et `RGCNLayerPT` dans `gat.py` / `pytorch_rgcn.py`
 
