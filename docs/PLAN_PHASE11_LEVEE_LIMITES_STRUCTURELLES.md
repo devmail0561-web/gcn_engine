@@ -59,7 +59,7 @@ if self.word_embedding is not None:
     self.word_embedding.update(lr / max(n_samples, 1))
 ```
 
-`WordEmbedding._grad_accum` accumule déjà les gradients à chaque appel de `backward()`. La division par `n_samples` dans `update()` est l'équivalent de la moyenne mini-batch.
+`WordEmbedding.backward()` (embedding.py ligne 62) fait `self._grad_accum[idx] += d_emb` — accumulation additive confirmée. N appels successifs additionnent correctement avant que `update()` applique la moyenne via `lr / n_samples`.
 
 ### Bug B : vocabulaire non pré-peuplé (`train.py`)
 
@@ -146,14 +146,18 @@ def backward_message_pass(self, d_output):
         self._out_retained,
         [self._H_in_retained, self.W_r, self.W_0, self.a_r],
         grad_outputs=d_out_t,
-        retain_graph=False,
+        retain_graph=False,   # graphe libéré — ne pas appeler deux fois après un même forward
     )
     d_input = grads[0].detach().cpu().numpy()
     # d_input[:, vocabulary.d_clause:] = gradient vers les embeddings FastText
     return d_input, [g.detach().cpu().numpy() for g in grads[1:]]
 ```
 
+**Contrainte `retain_graph=False`** : `backward_message_pass` ne peut être appelé qu'une seule fois par forward — le graphe de calcul est libéré. Dans `CGNPipeline`, c'est toujours le cas (un forward, un backward). Ne pas appeler deux fois sans nouveau forward.
+
 `CGNPipeline.backward()` appelle `backward_message_pass` via duck-typing (`if hasattr(_layer, 'backward_message_pass')`, ligne 536 de cgnp.py) — aucun changement dans le pipeline.
+
+**`_gat_forward`** est la méthode interne qui implémente la formule d'attention décrite ci-dessus (calcul de `e_ij`, softmax par destination, scatter_add). `message_pass()` et `backward_message_pass()` en sont les deux points d'entrée publics.
 
 Le gradient des embeddings remonte via `d_input[:, vocabulary.d_clause:]` extrait dans Bug A fix.
 
@@ -201,7 +205,7 @@ class LLMAnnotator(Protocol):
 **2. `AnthropicAnnotator`** — implémentation de référence :
 - Prompt système : 7 `NODE_TYPES` + 11 `RELATION_TYPES` documentés avec **few-shot examples** (minimum 3 phrases annotées complètes dans le prompt)
 - Demande JSON en format `document.sentences[].cir` (champs `type` + `relation`)
-- Traitement par batch (réponse = `document` avec N sentences → parsée via `json_reader.load_sentences`)
+- Traitement par batch : la réponse LLM est un `document` JSON avec N sentences. `json_reader.load_sentences()` prend un `Path` (appelle `path.read_text()`) — ne fonctionne pas sur du contenu en mémoire. L'outil écrit la réponse dans un fichier temporaire (`tempfile.NamedTemporaryFile`) puis appelle `load_sentences(tmp_path)`. Pas de modification de `json_reader.py`.
 - **Validation + retry** : si le JSON retourné est invalide ou contient des types inconnus après normalisation, relancer l'appel (max 3 tentatives)
 - **Gestion d'erreurs API** : retry exponentiel sur rate-limit, timeout, erreur 5xx
 
@@ -209,7 +213,10 @@ class LLMAnnotator(Protocol):
 - Table explicite des variantes LLM → valeurs canoniques (ex: `"état"→"etat"`, `"processus"→"processus"`, `"cause"→"cause"`, `"enables"→"enable"`, etc.)
 - Rejet des samples dont les labels restent invalides après normalisation (avec log)
 
-**4. Fallback UDRepresentation sans tokens** — seule modification dans `loader.py` du moteur :
+**4. Fallback UDRepresentation sans tokens** — modification de `loader.py` (moteur) :**
+
+> **Note architecturale :** cette modification du moteur est une amélioration générale — le moteur doit pouvoir charger des JSON sans tokens, quelle que soit leur origine (LLM, bootstrap, saisie manuelle). Elle ne dépend pas de l'outil LLM et est justifiée indépendamment. Elle est comptée comme partie du périmètre moteur (Phase 1/2), pas comme modification induite par l'outil externe.
+
 
 Quand `span_toks = []`, construire une `UDRepresentation` synthétique minimale depuis `ClauseRecord` :
 ```python
@@ -228,6 +235,10 @@ return UDRepresentation(
 `_node_type_to_upos` : `action/transition/processus → "VERB"`, `etat/etat_systemique → "ADJ"`, `entite → "NOUN"`.
 
 **Limitation à documenter explicitement :** Le fallback laisse `root_morph={}`, `has_advcl=False`, `has_temporal_obl=False` toujours. Cela signifie que ~14 des 80 features sont toujours à `_absent`. Les données LLM produisent des features de qualité inférieure aux données UD annotées manuellement — le modèle entraîné dessus aura un plafond de performance plus bas.
+
+**Estimation coût API (ordre de grandeur) :** prompt système ~2k tokens + 3 few-shot ~1.5k tokens + N phrases par batch. Pour 1000 phrases avec `--batch-size 10` = 100 appels. Input ~350k tokens + output ~150k tokens → ~$0.07–$0.15 (Claude Sonnet 5 à $3/$15 per Mtok in/out). À documenter dans le README de l'outil.
+
+**Évaluation qualité annotations LLM :** l'outil doit inclure une commande `gcn-annotate --eval --gold gold.json --pred pred.json` qui calcule `node_accuracy` et `edge_f1` entre annotations LLM et annotations gold sur un sous-ensemble. Sans cette évaluation, la qualité du pipeline reste inconnue.
 
 #### Format JSON produit
 
