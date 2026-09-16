@@ -245,6 +245,69 @@ class CGNPipeline:
         """
         return self._cached_enriched_vecs
 
+    def analyze(
+        self,
+        text: str,
+        gcn_bin: str = "gcn",
+        taxonomy_dir=None,
+    ) -> dict:
+        """
+        Texte brut → CausalIR dict (bridge + forward en une opération).
+
+        Appelle `gcn analyze` (subprocess) pour construire les UDRepresentation
+        et connector_reps depuis le CIR, puis les passe à forward().
+        Qualité approximative — voir frontend.bridge pour les limitations.
+
+        Args:
+            text: texte brut français/anglais à analyser.
+            gcn_bin: chemin vers le binaire gcn-cli (défaut : "gcn" dans PATH).
+            taxonomy_dir: répertoire des taxonomies causales (optionnel).
+
+        Returns:
+            CausalIR dict (conforme schéma serde Rust).
+
+        Raises:
+            GCNBridgeError: si gcn-cli est absent ou l'appel échoue.
+        """
+        import warnings
+        from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors
+        warnings.warn(
+            "CGNPipeline.analyze() produit des UDRepresentation approximatifs. "
+            "Voir frontend.bridge pour les limitations de qualité.",
+            UserWarning,
+            stacklevel=2,
+        )
+        cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
+        reps, connector_reps = _cir_to_reps_and_connectors(cir, self.lang)
+        return self.forward(reps, text, connector_reps=connector_reps)
+
+    def analyze_or_skip(
+        self,
+        text: str,
+        gcn_bin: str = "gcn",
+        taxonomy_dir=None,
+    ) -> dict | None:
+        """
+        Comme analyze(), retourne None si gcn est absent ou l'appel échoue.
+
+        Usage recommandé pour les pipelines CI/CD sans gcn-cli installé.
+        Vérifie via shutil.which() avant d'appeler le subprocess.
+        Aucun UserWarning émis (l'appelant connaît les limitations).
+
+        Returns:
+            CausalIR dict, ou None si gcn_bin introuvable ou erreur.
+        """
+        import shutil
+        from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors, GCNBridgeError
+        if shutil.which(gcn_bin) is None:
+            return None
+        try:
+            cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
+            reps, connector_reps = _cir_to_reps_and_connectors(cir, self.lang)
+            return self.forward(reps, text, connector_reps=connector_reps)
+        except GCNBridgeError:
+            return None
+
     def loss(
         self,
         node_logits: np.ndarray,    # (N, 7)  — logits nœuds du forward
