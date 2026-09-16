@@ -171,14 +171,114 @@ Le gradient des embeddings remonte via `d_input[:, vocabulary.d_clause:]` extrai
 - Pipeline complet : `CGNPipeline` avec `RGCNLayerGAT` + `word_embedding` + appel `backward()` complet sans erreur, poids modifiés
 - `loader.py` fallback : JSON sans tokens produit une `UDRepresentation` valide avec `root_pos` correct selon `node_type`
 
+### Phase 2b — Message passing bidirectionnel
+
+#### Principe
+
+Aujourd'hui toutes les arêtes du graphe sont forward (`i < j`). Le nœud `j` reçoit l'information de `i` mais `i` n'apprend rien de `j`. Un nœud au centre d'une chaîne causale ne connaît que son passé, pas son futur causal.
+
+Le message passing bidirectionnel ajoute des arêtes inverses synthétiques à chaque arête forward, créant deux flux d'information :
+- **Forward** `i → j` : propagation causale (cause → effet)
+- **Backward** `j → i` : propagation abductive (effet → cause)
+
+Les arêtes inverses ne sont pas supervisées — elles sont ajoutées automatiquement au moment du forward pass et apprises via backpropagation. Les données d'entraînement JSON ne changent pas.
+
+#### Modification 1 — `constants.py`
+
+Ajouter les 11 types de relations inverses :
+
+```python
+# constants.py — après RELATION_TYPES
+RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
+# ["cause_inv", "enable_inv", "prevent_inv", "condition_inv", "concession_inv",
+#  "sequence_inv", "motivation_inv", "filter_inv", "opposition_inv",
+#  "data_dependency_inv", "control_dependency_inv"]
+
+ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types au total
+```
+
+**Règle** : les indices `0–10` = forward, les indices `11–21` = backward (`r_inv = r + 11`).
+
+#### Modification 2 — `pipeline/cgnp.py`
+
+Ajouter le paramètre `bidirectional: bool = False` au constructeur de `CGNPipeline`. Après la construction de `edge_index` et `edge_type_idxs` (ligne ~232-237), insérer :
+
+```python
+# Message passing bidirectionnel : duplication des arêtes avec relations inverses
+if self.bidirectional and edge_index.shape[1] > 0:
+    rev_index = edge_index[[1, 0], :]                          # (2, E) — sens inverse
+    rev_types = edge_type_idxs + len(self.relation_types)     # indices 11–21
+    edge_index_mp  = np.concatenate([edge_index, rev_index], axis=1)   # (2, 2E)
+    edge_types_mp  = np.concatenate([edge_type_idxs, rev_types])       # (2E,)
+else:
+    edge_index_mp  = edge_index
+    edge_types_mp  = edge_type_idxs
+```
+
+`edge_index_mp` et `edge_types_mp` sont passés au R-GCN/GAT pour le message passing uniquement. `edge_index` et `edge_type_idxs` originaux restent utilisés pour la classification d'arêtes (MLP Layer 2) — la supervision est inchangée.
+
+**Précision importante** : le MLP de classification d'arêtes prédit toujours parmi les 11 `RELATION_TYPES` originaux. Les arêtes inverses n'ont pas de gold label et ne participent pas à la supervision. Elles enrichissent uniquement les représentations de nœuds via le message passing.
+
+#### Modification 3 — `RGCNLayerGAT` et `RGCNLayerPT` dans `gat.py` / `pytorch_rgcn.py`
+
+Passer `n_relations=22` quand `bidirectional=True` :
+
+```python
+# Dans train.py, quand --use-attention + --bidirectional :
+graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=22)
+pipeline = CGNPipeline(..., bidirectional=True)
+```
+
+`W_r` devient shape `(22, d_out, d_in)` et `a_r` devient shape `(22, 2*d_out)`. Les 11 poids supplémentaires (indices 11–21) apprennent indépendamment à pondérer les messages backward par type de relation inverse.
+
+**Incompatibilité checkpoint** : un checkpoint entraîné avec `n_relations=11` ne peut pas être chargé avec `n_relations=22`. `load_state()` doit vérifier la shape et lever une `ValueError` explicite si elle ne correspond pas.
+
+#### Modification 4 — `train.py`
+
+Ajouter deux flags CLI :
+
+```
+--use-attention/--no-attention       (défaut : --no-attention)
+--bidirectional/--no-bidirectional   (défaut : --no-bidirectional)
+```
+
+`--bidirectional` sans `--use-attention` utilise `RGCNLayerPT` (ou `RGCNLayer`) avec `n_relations=22`.
+`--bidirectional` avec `--use-attention` utilise `RGCNLayerGAT` avec `n_relations=22`.
+
+```python
+n_rel = 22 if bidirectional else len(RELATION_TYPES)  # 22 ou 11
+if use_attention:
+    graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
+else:
+    graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
+pipeline = CGNPipeline(..., bidirectional=bidirectional)
+```
+
+#### Tests à ajouter dans `test_gat.py`
+
+- Les arêtes inverses dans `edge_types_mp` ont des indices dans `[11, 21]`
+- `RGCNLayerGAT` avec `n_relations=22` : `W_r.shape == (22, d_out, d_in)`, `a_r.shape == (22, 2*d_out)`
+- Pipeline bidirectionnel : les représentations de nœuds avec `bidirectional=True` diffèrent de `bidirectional=False` sur le même graphe
+- `load_state()` avec mauvaise shape lève `ValueError` explicite
+- Checkpoint round-trip avec `n_relations=22`
+
 ### Intégration dans `train.py`
 
-Ajouter un flag CLI `--use-attention/--no-attention` (défaut : `--no-attention`). Quand actif :
-```python
-from ..layer3.gat import RGCNLayerGAT
-graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective)
+Flags CLI complets :
 ```
-Sinon : comportement actuel avec `RGCNLayer` / `RGCNLayerPT`.
+--use-attention/--no-attention       (défaut : --no-attention)
+--bidirectional/--no-bidirectional   (défaut : --no-bidirectional)
+--embedding-file PATH                (optionnel — FastText)
+--embedding-dim INT                  (optionnel — si pas de fichier)
+```
+
+Combinaisons valides :
+| Config | Couche 3 | n_relations | Commentaire |
+|---|---|---|---|
+| aucun flag | `RGCNLayer` NumPy | 11 | Baseline actuel |
+| `--use-attention` | `RGCNLayerGAT` | 11 | GAT forward uniquement |
+| `--bidirectional` | `RGCNLayer` NumPy | 22 | Bidirectionnel sans attention |
+| `--use-attention --bidirectional` | `RGCNLayerGAT` | 22 | Configuration maximale |
 
 ---
 
@@ -272,13 +372,15 @@ Identique au format gcn-nl existant, compatible `json_reader.py` sans modificati
 
 | Fichier | Action | Raison |
 |---|---|---|
-| `pipeline/cgnp.py` | Modifier | Bug A : embedding backward dans `backward()` ET `backward_accumulate()` + fix `apply_accumulated_gradients()` |
-| `training/train.py` | Modifier | Bug B : pré-peuplement vocab + flag `--use-attention` |
-| `layer3/gat.py` | Créer | `RGCNLayerGAT` — couche GAT avec `backward_message_pass` autograd |
-| `data/loader.py` | Modifier (Phase 1) | Fallback `UDRepresentation` sans tokens — amélioration moteur générale, indépendante de l'outil LLM |
+| `pipeline/cgnp.py` | Modifier | Bug A (embedding backward) + ajout `bidirectional` flag + duplication arêtes inverses |
+| `training/train.py` | Modifier | Bug B (vocab) + flags `--use-attention`, `--bidirectional`, `--embedding-file` |
+| `constants.py` | Modifier | Ajout `RELATION_TYPES_INV` + `ALL_RELATION_TYPES` (22 types) |
+| `layer3/gat.py` | Créer | `RGCNLayerGAT` — GAT avec `backward_message_pass` autograd, `n_relations` configurable |
+| `layer3/pytorch_rgcn.py` | Modifier | `RGCNLayerPT.load_state()` — vérification shape `n_relations` + `ValueError` si incompatible |
+| `data/loader.py` | Modifier (Phase 1) | Fallback `UDRepresentation` sans tokens — amélioration moteur générale |
 | `gcn-tools/gcn-annotate/` | Créer (**hors moteur**) | Outil autonome d'annotation LLM |
 | `tests/test_pytorch_rgcn.py` | **Inchangé** | `RGCNLayerPT` retourne 2 params — ne pas toucher |
-| `tests/test_gat.py` | Créer | Protocol + shapes + gradient `a_r` non-nul + `backward_message_pass` shape |
+| `tests/test_gat.py` | Modifier | Ajouter tests bidirectionnel : shapes (22), nœuds diffèrent, checkpoint round-trip, ValueError shape |
 | `tests/test_llm_annotate.py` | Créer (**dans gcn-tools**) | Normalisation + format JSON + retry |
 
 ---
@@ -293,9 +395,14 @@ gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec 
           --epochs 5 --mini-batch-size 4 --output /tmp/ckpt_emb_mb.npz
 # Attendre : loss décroissante, "Embeddings : N vecteurs chargés", pas de NameError
 
-# 2. Phase 2 — GAT
+# 2a. Phase 2 — GAT forward seul
 gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec \
           --use-attention --epochs 5 --output /tmp/ckpt_gat.npz
+
+# 2b. Phase 2b — GAT + bidirectionnel (configuration maximale)
+gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec \
+          --use-attention --bidirectional --epochs 5 --output /tmp/ckpt_gat_bidi.npz
+# Attendre : node_accuracy(bidi) >= node_accuracy(forward seul)
 python -m pytest gcn-python/tests/test_gat.py -v
 
 # 3. Phase 3 — LLM annotation (outil externe)
@@ -309,8 +416,10 @@ python -m pytest gcn-python/tests/ -v
 ```
 
 **Métriques de succès :**
-- `node_accuracy` FastText + GAT > baseline one-hot
+- `node_accuracy` FastText + GAT forward > baseline one-hot
+- `node_accuracy` GAT bidirectionnel >= GAT forward seul
 - Chemin mini-batch avec `word_embedding` : pas de NameError dans `apply_accumulated_gradients`
-- `test_gat.py` : gradient sur `a_r` non-nul après backward
+- `test_gat.py` : gradient sur `a_r` non-nul, shapes `(22, d_out, d_in)` avec `--bidirectional`
+- `load_state()` avec `n_relations` incompatible : `ValueError` explicite
 - Samples LLM sans tokens : aucun `UserWarning` sur "aucune clause convertie"
 - `test_pytorch_rgcn.py` : tous les tests passent sans modification
