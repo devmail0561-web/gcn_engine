@@ -167,6 +167,9 @@ Le gradient des embeddings remonte via `d_input[:, vocabulary.d_clause:]` extrai
 - Gradient non-nul sur `a_r` après forward + backward
 - `backward_message_pass` retourne `d_input` de shape `(N, d_in)` — gradient non-nul
 - `apply_accumulated_gradients` avec `word_embedding` actif ne crash pas
+- `RGCNLayerGAT.message_pass` produit des sorties différentes de `RGCNLayerPT` sur le même graphe (l'attention est utile)
+- Pipeline complet : `CGNPipeline` avec `RGCNLayerGAT` + `word_embedding` + appel `backward()` complet sans erreur, poids modifiés
+- `loader.py` fallback : JSON sans tokens produit une `UDRepresentation` valide avec `root_pos` correct selon `node_type`
 
 ### Intégration dans `train.py`
 
@@ -272,7 +275,7 @@ Identique au format gcn-nl existant, compatible `json_reader.py` sans modificati
 | `pipeline/cgnp.py` | Modifier | Bug A : embedding backward dans `backward()` ET `backward_accumulate()` + fix `apply_accumulated_gradients()` |
 | `training/train.py` | Modifier | Bug B : pré-peuplement vocab + flag `--use-attention` |
 | `layer3/gat.py` | Créer | `RGCNLayerGAT` — couche GAT avec `backward_message_pass` autograd |
-| `data/loader.py` | Modifier | Fallback `UDRepresentation` sans tokens |
+| `data/loader.py` | Modifier (Phase 1) | Fallback `UDRepresentation` sans tokens — amélioration moteur générale, indépendante de l'outil LLM |
 | `gcn-tools/gcn-annotate/` | Créer (**hors moteur**) | Outil autonome d'annotation LLM |
 | `tests/test_pytorch_rgcn.py` | **Inchangé** | `RGCNLayerPT` retourne 2 params — ne pas toucher |
 | `tests/test_gat.py` | Créer | Protocol + shapes + gradient `a_r` non-nul + `backward_message_pass` shape |
