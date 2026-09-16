@@ -199,6 +199,17 @@ ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types au total
 
 **Règle** : les indices `0–10` = forward, les indices `11–21` = backward (`r_inv = r + 11`).
 
+**IMPORTANT — deux `n_relations` distincts dans le pipeline :**
+
+| Constante | Valeur | Utilisée pour | Côté Rust |
+|---|---|---|---|
+| `RELATION_TYPES` | 11 | Classification d'arêtes (MLP Layer 2), supervision, CIR output | Synchronisée — NE PAS MODIFIER |
+| `ALL_RELATION_TYPES` | 22 | `n_relations` du R-GCN/GAT (poids W_r, a_r) uniquement | Python-interne — Rust ne connaît pas `_inv` |
+
+`CGNPipeline.relation_types` reste `RELATION_TYPES` (11) — il pilote la prédiction.
+`RGCNLayerGAT.n_relations` passe à 22 quand `bidirectional=True` — il pilote les poids du message passing.
+`FeatureVocabulary.d_edge = 181` est inchangé — il dépend de `d_clause` et `d_conn`, pas de `n_relations`.
+
 #### Modification 2 — `pipeline/cgnp.py`
 
 Ajouter le paramètre `bidirectional: bool = False` au constructeur de `CGNPipeline`. Après la construction de `edge_index` et `edge_type_idxs` (ligne ~232-237), insérer :
