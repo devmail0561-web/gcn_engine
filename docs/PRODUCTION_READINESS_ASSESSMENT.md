@@ -1,7 +1,7 @@
 # Évaluation Production-Ready — Moteur GCN-Core
 
 **Date** : 2026-09-16  
-**Version** : Post-Phase 11 (commit 04e944c)  
+**Version** : v2.0.0 — Post-Phase 12 (lang param removed)  
 **Évaluateur** : Claude Sonnet 4.5  
 **Verdict** : 🟡 **PARTIELLEMENT PRÊT** (use cases limités)
 
@@ -476,12 +476,12 @@ Total : 6-10 jours travail pour production générale
 
 ## 🏁 **Conclusion**
 
-Le moteur GCN-Core est **techniquement solide** (Phase 11 complète — 12 défauts structurels corrigés, GAT + bidirectionnel ajoutés). Le pont texte brut → UDRepresentation est partiellement opérationnel via `GCNBridgeParser` heuristique.
+Le moteur GCN-Core est **techniquement solide** (Phase 12 complète — v2.0.0, paramètre `lang` supprimé du pipeline, 12 défauts structurels corrigés, GAT + bidirectionnel ajoutés). Le pont texte brut → UDRepresentation est partiellement opérationnel via `GCNBridgeParser` heuristique.
 
 **Estimation réaliste** : **3-5 jours travail** supplémentaires pour atteindre production-ready complet.
 
 **État actuel** : 🟡 **85% production-ready**
-- ✅ Moteur ML : 100% (Phase 11 : +GAT +bidirectionnel, 192 tests Python)
+- ✅ Moteur ML : 100% (Phase 12 : v2.0.0, lang removed, +GAT +bidirectionnel, 192 tests Python)
 - ⚠️ Intégration : 75% (GCNBridgeParser heuristique opérationnel — binding PyO3 = optimal, non implémenté)
 - ⚠️ Robustesse : 85% (issues MEDIUM #4-6 non corrigées)
 

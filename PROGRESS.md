@@ -19,9 +19,11 @@ Phase 7  ████████████████████  100%  Pea
 Phase 8  ████████████████████  100%  Mise en production + publication
 Phase 9  ████████████████████  100%  Corrections pipeline ML
 Phase 10 ████████████████████  100%  Correctifs structurels moteur (12 défauts)
+Phase 11 ████████████████████  100%  GAT + bidirectionnel + LLM annotate + audit bugs
+Phase 12 ████████████████████  100%  Suppression paramètre lang (v2.0.0)
 ```
 
-**Tests Python : 177 / 177 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
+**Tests Python : 192 / 192 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
 **Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
 
 ---
@@ -369,6 +371,43 @@ Phase 10 ████████████████████  100%  Cor
 | Temperature softmax | `pipeline/cgnp.py` | S12 | ✅ |
 
 Tests : 177 Python (2 skipped stables), 137 Rust
+
+---
+
+## Phase 11 — GAT, bidirectionnel, annotation LLM, audit ✅
+
+**Statut :** ✅ Complet — 2026-09-16
+
+| Composant | Fichier | Statut |
+|-----------|---------|--------|
+| RGCNLayerGAT (attention par relation) | `layer3/gat.py` (nouveau) | ✅ |
+| backward_message_pass (autograd + sigmoid) | `layer3/gat.py` | ✅ |
+| Bidirectionnel (22 types de relations) | `constants.py`, `pipeline/cgnp.py` | ✅ |
+| Flags --use-attention, --bidirectional | `training/train.py` | ✅ |
+| Outil annotation LLM | `gcn-tools/gcn-annotate/` (nouveau) | ✅ |
+| Audit profond (5 critiques + 4 hauts) | 7 fichiers | ✅ |
+
+Tests : 192 Python (2 skipped stables)
+
+## Phase 12 — Suppression paramètre lang ✅
+
+**Statut :** ✅ Complet — 2026-09-16 — **Rupture d'API : v2.0.0**
+
+| Composant | Fichier | Statut |
+|-----------|---------|--------|
+| UDRepresentation.lang supprimé | `layer1/representation.py` | ✅ |
+| TextParser Protocol sans lang | `layer0/interface.py` | ✅ |
+| SentenceRecord.lang optionnel | `data/schema.py` | ✅ |
+| json_reader sans lang | `data/json_reader.py` | ✅ |
+| loader sans lang | `data/loader.py` | ✅ |
+| label_builder universalisé | `pipeline/label_builder.py` | ✅ |
+| ir_emitter émet "und" | `pipeline/ir_emitter.py` | ✅ |
+| CGNPipeline sans lang | `pipeline/cgnp.py` | ✅ |
+| bridge sans lang | `frontend/bridge.py` | ✅ |
+| CLIs sans --lang | train, bootstrap, eval_runner, cli | ✅ |
+| taxonomy sans lang_code | `taxonomy/loader.py` | ✅ |
+
+Tests : 192 Python (2 skipped stables)
 
 ---
 

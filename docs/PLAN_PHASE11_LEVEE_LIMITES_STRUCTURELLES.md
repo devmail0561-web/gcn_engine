@@ -1,7 +1,8 @@
 # Plan : Lever les deux limites structurelles du moteur GCN
 
 > **STATUT : IMPLÉMENTÉ ✅ (2026-09-16)**  
-> Phase 1 (bugs FastText), Phase 2 (GAT + embeddings) et Phase 2b (bidirectionnel) sont tous implémentés et testés.  
+> Phase 1 (bugs FastText), Phase 2 (GAT + embeddings), Phase 2b (bidirectionnel) et Phase 3 (LLM annotation tool) sont tous implémentés et testés.  
+> Audit bug fixes (S1–S12) également corrigés.  
 > Tests : 192 / 194 passent. Fichiers modifiés : `constants.py`, `pipeline/cgnp.py`, `training/train.py`, `layer3/gat.py`. Tests ajoutés : `tests/test_gat.py` (15 tests).
 
 ---
@@ -307,7 +308,7 @@ Combinaisons valides :
 
 ---
 
-## Phase 3 — Outil d'annotation LLM (hors moteur)
+## Phase 3 — Outil d'annotation LLM (hors moteur) ✅ IMPLÉMENTÉ
 
 > **Périmètre :** L'annotateur LLM n'est pas partie intégrante du moteur. Il s'agit d'un outil externe autonome dont le seul rôle est de produire des fichiers JSON gcn-nl conformes, consommables par le moteur existant sans aucune modification de celui-ci.
 

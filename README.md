@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-137%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-177%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-192%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -83,6 +83,9 @@ projet_CNM/
 │       ├── training/   gcn-train + gcn-bootstrap CLI + checkpoint save/load
 │       ├── verbalizer/ Décodeur NumPy référence + gcn-verbalize CLI
 │       └── evaluation/ Métriques + TrainingRecorder
+│
+├── gcn-tools/         ← Outils externes (hors moteur)
+│   └── gcn-annotate/  Outil d'annotation LLM (Anthropic/OpenAI)
 │
 ├── gcn-references/     ← Références linguistiques (hors moteur)
 │   └── taxonomies/
@@ -202,27 +205,26 @@ Le moteur ne dépend pas de spaCy. Il opère sur des `UDRepresentation` construi
 ```bash
 # Inférence depuis un fichier JSON annoté (poids aléatoires sans --model-path)
 gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --lang fr --taxonomy-dir ./gcn-references/taxonomies
+    --taxonomy-dir ./gcn-references/taxonomies
 
 # Cibler une sentence spécifique
 gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --sentence-id s001 --lang fr
+    --sentence-id s001
 
 # Inférence avec un modèle entraîné
 gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --lang fr \
     --taxonomy-dir ./gcn-references/taxonomies \
     --model-path model.npz
 
 # Via gcn-cli (interface Rust↔Python)
-gcn forward "Les ventes baissent." --lang fr --enrich
+gcn forward "Les ventes baissent." --enrich
 ```
 
 ### Entraîner un modèle
 
 ```bash
 # Générer des données d'entraînement (JSON annoté) depuis des textes bruts
-gcn-bootstrap --input phrases_fr.txt --lang fr --out-dir gcn-datasets/generated/
+gcn-bootstrap --input phrases_fr.txt --out-dir gcn-datasets/generated/
 
 # Lancer l'entraînement (SGD NumPy référence) — requiert des JSON avec tokens annotés
 gcn-train --data-dir gcn-datasets/generated/ \
@@ -394,7 +396,6 @@ vocab = FeatureVocabulary()
 pipeline = CGNPipeline(
     encoder=MyEncoder(),
     graph=MyRGCN(),
-    lang="fr",
     vocabulary=vocab,
     # Paramètres optionnels (Phase 10)
     temperature=1.0,        # S12 : temperature softmax sur les logits
@@ -403,7 +404,7 @@ pipeline = CGNPipeline(
     word_embedding=None,    # S1/S2/S9 : WordEmbedding apprenante (lookup root_lemma)
 )
 
-loader = GCNDataLoader(Path("gcn-datasets/examples/"), lang="fr")
+loader = GCNDataLoader(Path("gcn-datasets/examples/"))
 for sample in loader:
     reps, valid_idxs, connector_reps = reps_from_sentence(sample.sentence)
     causal_ir_dict = pipeline.forward(
@@ -490,7 +491,7 @@ cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (177 tests)
+# Python (192 tests)
 cd gcn-python && python -m pytest
 ```
 
@@ -511,7 +512,7 @@ cd gcn-python && python -m pytest
 | 7 | Pearl 2-3, R-GCN PyTorch, `gcn-frontend-en` (16 tests) | ✅ Terminé |
 | 8 | Mise en production — Makefile, gcn-eval, publication | ✅ Terminé |
 | 9 | Corrections pipeline ML (14 problèmes, 120 tests Python) | ✅ Terminé |
-| 10 | Correctifs structurels moteur (12 défauts, 177 tests Python) | ✅ Terminé |
+| 10 | Correctifs structurels moteur (12 défauts, 192 tests Python) | ✅ Terminé |
 
 ---
 

@@ -5,6 +5,57 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.0.0] — 2026-09-16
+
+### Rupture d'API — Suppression du paramètre `lang` (Phase 12)
+
+**Motivation :** Le réseau de neurones (MLP, R-GCN, GAT, embeddings, loss, backward) est
+entièrement agnostique à la langue. `lang` n'avait d'effet computationnel qu'à un seul
+endroit : `label_builder.py` (labels textuels des nœuds dans le CIR).
+
+**Changements :**
+- `CGNPipeline.__init__` : supprimé le 3e argument positionnel `lang`
+- `UDRepresentation` : champ `lang` supprimé
+- `SentenceRecord.lang` : rendu optionnel (`= ""`), conservé comme métadonnée
+- `label_builder.py` : `"hidden_cause(?)"` universel (était conditionnel à `lang`)
+- `_nominalize()` : scanne tous les sous-répertoires (était `taxonomies_dir/lang`)
+- `ir_emitter.py` : `source_lang` émet `"und"` (ISO 639-3 undetermined)
+- `taxonomy/loader.py` : `lang_code` supprimé, fusion multi-répertoires
+- Tous les CLIs : `--lang` supprimé de `gcn-train`, `gcn-bootstrap`, `gcn-eval`, `gcn-forward`
+- `TextParser.parse()` : `lang` supprimé de la signature
+
+**Fichiers modifiés (25) :** representation.py, interface.py (layer0), schema.py,
+json_reader.py, loader.py, label_builder.py, ir_emitter.py, cgnp.py, bridge.py,
+train.py, bootstrap.py, eval_runner.py, cli.py, taxonomy/loader.py, + 11 fichiers de tests
+
+### Outil d'annotation LLM (Phase 11.3)
+
+- Nouveau package `gcn-tools/gcn-annotate/` (hors moteur)
+- `annotator.py` : `LLMAnnotator` protocol, `AnthropicAnnotator`, `OpenAIAnnotator`
+- `normalize.py` : normalisation types nœuds/relations, validation, retry
+- `cli.py` : commandes `gcn-annotate annotate` (batch + retry) et `gcn-annotate eval` (accuracy vs gold)
+- Prompt système avec few-shot examples (3 phrases annotées)
+- Gestion d'erreurs API : retry exponentiel sur rate-limit, timeout, erreur 5xx
+
+### Correctifs bugs (audit profond — 5 critiques + 4 hauts)
+
+**Critiques :**
+- `gat.py` : `backward_message_pass` applique la dérivée de sigmoid (`sig * (1-sig)`)
+- `train.py` : `except (RuntimeError, IndexError, ...)` au lieu de `except Exception`
+  (KeyboardInterrupt n'est plus avalé)
+- `metrics.py` : `ValueError` si `len(pred) != len(gold)` dans `node_accuracy`/`edge_accuracy`
+- `metrics.py` : `.get()` au lieu d'accès direct dans `causal_graph_similarity`
+- `checkpoint.py` : validation des clés inattendues après chargement
+
+**Hauts :**
+- `train.py` : `gold_surface` toujours passé (plus de None en mode decoder-only)
+- `json_reader.py` : `_safe_int()` pour `dep_head`/`temporal_index` (évite crash)
+- `verbalize_loader.py` : warning sur type de nœud inconnu mappé à index 0
+- `interface.py` : `backward_message_pass` documenté comme optionnel
+
+### Tests
+- 192 tests Python passent (2 skipped stables)
+
 ## [1.2.0] — 2026-09-16
 
 ### Correctifs structurels moteur (12 défauts — `docs/ENGINE_STRUCTURAL_LIMITS.md`)
@@ -632,6 +683,8 @@ de l'entraînement.
 
 ---
 
+[2.0.0]: https://github.com/devmail0561-web/gcn_engine/compare/v1.2.0...v2.0.0
+[1.2.0]: https://github.com/devmail0561-web/gcn_engine/commits/v1.2.0
 [1.0.2]: https://github.com/devmail0561-web/gcn_engine/commits/v1.0.2
 [1.0.1]: https://github.com/devmail0561-web/gcn_engine/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/devmail0561-web/gcn_engine/commits/v1.0.0

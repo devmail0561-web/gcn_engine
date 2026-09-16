@@ -1,5 +1,7 @@
 # Plan Phase 12 — Suppression du paramètre `lang` (v2)
 
+> **STATUT : IMPLÉMENTÉ ✅ (2026-09-16)**
+
 ## Contexte
 
 Le paramètre `lang` est un artifact de conception. Le réseau de neurones (MLP, R-GCN, GAT, embeddings, loss, backward) est entièrement agnostique à la langue. `lang` n'a d'effet computationnel qu'à un seul endroit : `label_builder.py` (labels textuels des nœuds dans le CIR).

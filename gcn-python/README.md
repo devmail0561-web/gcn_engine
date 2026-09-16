@@ -1,6 +1,6 @@
 # gcn-python — Couches ML du moteur GCN-Core
 
-[![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
+[![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/) [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -61,8 +61,8 @@ Texte naturel (fr/en) ou Code source (Python/Rust/JS)
               NodeType classifier  (7 classes)
               RelationType classifier  (11 classes)
                         │
-              Layer 3 — Graphe causal
-              RGCNLayer / RGCNLayerPT
+               Layer 3 — Graphe causal
+               RGCNLayer / RGCNLayerPT / RGCNLayerGAT
               Message passing R-GCN (1..N couches)
                         │
               CGNPipeline.forward()
@@ -116,13 +116,13 @@ from gcn_python.training.checkpoint import load_checkpoint
 vocab = FeatureVocabulary()
 encoder = MLPEncoder(vocab.d_clause, vocab.d_edge)
 graph = RGCNLayer(vocab.d_clause, vocab.d_clause)   # d_out == d_clause (contrainte)
-pipeline = CGNPipeline(encoder, graph, lang="fr", vocabulary=vocab)
+pipeline = CGNPipeline(encoder, graph, vocabulary=vocab)
 
 # Charger un checkpoint entraîné
 load_checkpoint(pipeline, Path("model.npz"))
 
 # Inférence
-loader = GCNDataLoader(Path("mon_corpus/"), lang="fr")
+loader = GCNDataLoader(Path("mon_corpus/"))
 for sample in loader:
     reps, valid_idxs, connector_reps = reps_from_sentence(sample.sentence)
     cir = pipeline.forward(
@@ -180,8 +180,7 @@ Sortie :
 gcn-bootstrap \
   --input phrases_fr.txt \
   --out-dir corpus/ \
-  --taxonomy-dir gcn-references/taxonomies/ \
-  --lang fr
+  --taxonomy-dir gcn-references/taxonomies/
 
 # 3. Réviser manuellement les JSON générés
 # 4. Entraîner
@@ -195,7 +194,7 @@ from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
 
 # Détection automatique cuda / mps / cpu
 graph_pt = RGCNLayerPT(vocab.d_clause, vocab.d_clause)
-pipeline = CGNPipeline(encoder, graph_pt, lang="fr", vocabulary=vocab)
+pipeline = CGNPipeline(encoder, graph_pt, vocabulary=vocab)
 
 # Pour un entraînement natif PyTorch (avec autograd)
 import torch
@@ -348,10 +347,10 @@ class EdgeRecord:
 class SentenceRecord:
     id: str
     text: str
-    lang: str
-    tokens: list[TokenRecord]
-    clauses: list[ClauseRecord]
-    edges: list[EdgeRecord]
+    lang: str = ""          # optional metadata, not used in computation
+    tokens: list[TokenRecord] = field(default_factory=list)
+    clauses: list[ClauseRecord] = field(default_factory=list)
+    edges: list[EdgeRecord] = field(default_factory=list)
 ```
 
 ---
@@ -363,11 +362,11 @@ from gcn_python.data.json_reader import load_sentences, load_all_sentences
 from pathlib import Path
 
 # Lire un fichier JSON unique
-sentences = load_sentences(Path("corpus/doc001.json"), lang="fr")
+sentences = load_sentences(Path("corpus/doc001.json"))
 # -> list[SentenceRecord]
 
 # Lire un répertoire entier
-sentences = load_all_sentences(Path("corpus/"), lang="fr")
+sentences = load_all_sentences(Path("corpus/"))
 # Parcourt *.json (trié), concatène tous les SentenceRecord
 ```
 
@@ -397,7 +396,6 @@ class TrainingSample:
 ```python
 loader = GCNDataLoader(
     data_dir=Path("corpus/"),
-    lang="fr",          # code langue
     repeat=False,       # True = itérateur infini
     all_pairs=False,    # True = inclut les arêtes gap>1 dans edge_map
 )
@@ -473,7 +471,6 @@ class UDRepresentation:
     has_advcl: bool              # advcl dans le span
     has_temporal_obl: bool       # obl / obl:tmod dans le span
     token_span: tuple[int, int]
-    lang: str
 
 # Propriétés calculées
 rep.tense    # root_morph.get("Tense", "_absent")
@@ -552,7 +549,6 @@ class MonParser:
     def parse(
         self,
         text: str,
-        lang: str,
     ) -> tuple[list["UDRepresentation"], list["UDRepresentation | None"]]:
         # -> (clause_reps, connector_reps)
         # clause_reps    : list[UDRepresentation] — une par clause détectée
@@ -581,7 +577,7 @@ parser = GCNBridgeParser(
     taxonomy_dir=Path("gcn-references/taxonomies/"),
 )
 
-clause_reps, connector_reps = parser.parse("Si les ventes baissent, on réduit les coûts.", lang="fr")
+clause_reps, connector_reps = parser.parse("Si les ventes baissent, on réduit les coûts.")
 # clause_reps    : list[UDRepresentation]
 # connector_reps : list[UDRepresentation | None]
 ```
@@ -823,7 +819,6 @@ Compose les couches 1-3 en un pipeline complet.
 pipeline = CGNPipeline(
     encoder=encoder,          # CausalEncoder
     graph=graph,              # CausalGraph
-    lang="fr",
     vocabulary=vocab,
     decoder=None,             # TrainableDecoder optionnel
     word_embedding=None,      # WordEmbedding optionnel (Layer 1)
@@ -885,7 +880,7 @@ cir = pipeline.analyze(
     text_parser=None,          # TextParser custom (Layer 0) — prioritaire sur gcn_bin
 )
 # -> dict CausalIR JSON-sérialisable
-# Si text_parser fourni, utilise text_parser.parse(text, lang) pour produire les reps.
+# Si text_parser fourni, utilise text_parser.parse(text) pour produire les reps.
 # Sinon, appelle GCNBridgeParser(gcn_bin, taxonomy_dir) en interne.
 ```
 
@@ -917,7 +912,6 @@ from gcn_python.pipeline.ir_emitter import emit
 
 cir = emit(
     text="Si les ventes baissent, on réduit les coûts.",
-    lang="fr",
     node_types=["processus", "action"],
     node_labels=["décroissance(ventes)", "réduire(coûts)"],
     token_spans=[(3, 4), (6, 8)],
@@ -955,7 +949,6 @@ from gcn_python.taxonomy.loader import TaxonomyIndex
 
 tax = TaxonomyIndex.load(
     taxonomies_dir=Path("gcn-references/taxonomies/"),
-    lang_code="fr",
 )
 
 tax.membership("provoquer")
@@ -994,7 +987,6 @@ gcn-train [OPTIONS]
 
 Options :
   --data-dir PATH        Répertoire des données d'entraînement  [requis]
-  --lang TEXT            Code langue (défaut: fr)
   --epochs INT           Nombre d'époques (défaut: 50)
   --lr FLOAT             Taux d'apprentissage (défaut: 0.001)
   --output PATH          Fichier checkpoint .npz (défaut: model.npz)
@@ -1017,7 +1009,6 @@ gcn-bootstrap [OPTIONS]
 
 Options :
   --input PATH           Fichier .txt (une phrase par ligne)  [requis]
-  --lang TEXT            Code langue (défaut: fr)
   --out-dir PATH         Répertoire de sortie JSON  [requis]
   --taxonomy-dir PATH    Répertoire taxonomies (ou env GCN_TAXONOMY_DIR)
   --gcn-bin TEXT         Chemin vers le binaire gcn (défaut: gcn)
@@ -1113,7 +1104,6 @@ from pathlib import Path
 report = run_eval(
     data_dir=Path("corpus/"),
     model_path=Path("model.npz"),
-    lang="fr",
 )
 # -> {"n_samples": 120, "n_skipped": 2,
 #     "node_accuracy": 0.87, "node_macro_f1": 0.83,
@@ -1121,7 +1111,7 @@ report = run_eval(
 ```
 
 ```
-gcn-eval --data-dir corpus/ --model-path model.npz [--lang fr] [--output rapport.json]
+gcn-eval --data-dir corpus/ --model-path model.npz [--output rapport.json]
 ```
 
 ---
@@ -1212,7 +1202,7 @@ decoder2 = TrainableDecoder.from_json(json_str)
 **Entraînement conjoint avec CGNPipeline :**
 
 ```python
-pipeline = CGNPipeline(encoder, graph, lang="fr", vocabulary=vocab, decoder=decoder)
+pipeline = CGNPipeline(encoder, graph, vocabulary=vocab, decoder=decoder)
 cir = pipeline.forward(reps, text=text)
 loss, d_node, d_edge = pipeline.loss(
     pipeline._cached_node_logits,
