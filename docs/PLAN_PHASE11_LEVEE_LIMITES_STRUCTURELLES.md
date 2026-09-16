@@ -14,12 +14,18 @@ Deux bugs bloquants ont été découverts lors de l'exploration — ils doivent 
 
 ### Bug A : backward hors scope (`cgnp.py`)
 
-**Fichier :** `gcn-python/src/gcn_python/pipeline/cgnp.py`, méthode `apply_accumulated_gradients()` (~ligne 641)
+**Fichier :** `gcn-python/src/gcn_python/pipeline/cgnp.py`
 
-Le bloc de rétropropagation des embeddings référence `d_enriched` et `lr` qui n'existent pas dans cette méthode. Déplacer ce bloc dans `backward()` (après la ligne ~538 où `d_enriched` est en scope) :
+Le bloc de rétropropagation des embeddings (lignes 640-650) est dans `apply_accumulated_gradients()` et référence `d_enriched` qui n'y est jamais défini — NameError garanti à l'exécution quand `word_embedding is not None`.
+
+Il y a **deux chemins d'entraînement** qui doivent être corrigés séparément :
+
+#### Chemin SGD standard — `backward()` (ligne ~538)
+
+Après la boucle `reversed(self._graph_layers)` (ligne 538), le gradient `d_enriched` est en scope. Ajouter :
 
 ```python
-# Dans backward(), après la boucle reversed(self._graph_layers) :
+# Après le R-GCN backward — d_enriched contient le gradient post-propagation
 if (self.word_embedding is not None
         and self._cached_reps is not None
         and d_enriched is not None
@@ -30,9 +36,34 @@ if (self.word_embedding is not None
     self.word_embedding.update(lr)
 ```
 
+#### Chemin mini-batch — `backward_accumulate()` + `apply_accumulated_gradients()`
+
+Dans `backward_accumulate()`, `d_enriched` est défini à la ligne 568. Après la boucle R-GCN (ligne 623), accumuler les gradients embedding (sans appeler `update()` ici) :
+
+```python
+# Après R-GCN accumulation — accumuler les gradients embedding
+if (self.word_embedding is not None
+        and self._cached_reps is not None
+        and d_enriched.shape[1] > self.vocabulary.d_clause):
+    d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+    for i in range(min(len(self._cached_reps), len(d_emb_slice))):
+        self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+    # update() appelé dans apply_accumulated_gradients() avec normalisation
+```
+
+Dans `apply_accumulated_gradients()`, remplacer le bloc hors-scope (lignes 640-650) par :
+
+```python
+# Appliquer les gradients embedding accumulés (normalisés par n_samples)
+if self.word_embedding is not None:
+    self.word_embedding.update(lr / max(n_samples, 1))
+```
+
+`WordEmbedding._grad_accum` accumule déjà les gradients à chaque appel de `backward()`. La division par `n_samples` dans `update()` est l'équivalent de la moyenne mini-batch.
+
 ### Bug B : vocabulaire non pré-peuplé (`train.py`)
 
-`WordEmbedding.lookup()` retourne `_unk` pour les lemmes absents du fichier FastText — ils ne reçoivent jamais de ligne dans `_E`. Ajouter un pré-pass avant la boucle d'entraînement dans `train.py` :
+`WordEmbedding.lookup()` retourne `_unk` pour les lemmes absents du fichier FastText sans créer de ligne dans `_E`. Ajouter un pré-pass avant la boucle d'entraînement dans `train.py` :
 
 ```python
 # Après création du loader, avant la boucle d'entraînement :
@@ -44,6 +75,8 @@ if word_embedding is not None:
     ]
     word_embedding.build_vocab(all_lemmas)
 ```
+
+**Limitation à documenter :** Les lemmes absents du fichier FastText reçoivent un embedding initialisé aléatoirement (sans signal sémantique). Ils sont apprenables via SGD mais partent de zéro — gain marginal pour les lemmes rares absents du FastText.
 
 ---
 
@@ -65,11 +98,27 @@ msg_src = H[src_r] @ W_r[r].T         # (|E_r|, d_out)
 msg_dst = H[dst_r] @ W_r[r].T         # (|E_r|, d_out)
 e_ij    = LeakyReLU([msg_src ‖ msg_dst] @ a_r[r])   # (|E_r|,) scalaire
 
-# Softmax par nœud destination — sans dépendance torch_scatter :
-e_max   = scatter_reduce(e_ij, dst_r, reduce='amax')   # stabilité numérique
-alpha   = softmax manuel via logsumexp sur dst_r
+# Softmax par nœud destination (sans torch_scatter) :
+e_max[dst] = max sur tous les j tels que dst_r[j] == dst   # par destination
+e_shifted  = e_ij - e_max[dst_r]                           # stabilité numérique
+exp_e      = exp(e_shifted)
+sum_exp[dst] = scatter_add(exp_e, dst_r)                   # somme par destination
+alpha_ij   = exp_e / sum_exp[dst_r].clamp(min=1e-9)        # nœuds sans voisins → 0
 
-out += scatter_add(alpha.unsqueeze(1) * msg_src, dst_r)
+out += scatter_add(alpha_ij.unsqueeze(1) * msg_src, dst_r)
+```
+
+Implémentation de `e_max` par destination (PyTorch ≥ 1.12) :
+```python
+e_max = torch.full((N,), float('-inf'), device=self._device)
+e_max.scatter_reduce_(0, dst_r, e_ij, reduce='amax', include_self=True)
+```
+Fallback boucle Python si `torch.__version__ < "1.12"` :
+```python
+e_max = torch.full((N,), float('-inf'), device=self._device)
+for idx, val in zip(dst_r.tolist(), e_ij.tolist()):
+    if val > e_max[idx]:
+        e_max[idx] = val
 ```
 
 **Compatibilité Protocol :**
@@ -78,33 +127,42 @@ out += scatter_add(alpha.unsqueeze(1) * msg_src, dst_r)
 - `load_state(arrays)` charge 3 arrays
 - `torch_parameters()` et `forward_torch()` exposés pour optimiseur PyTorch natif
 
-**Chemin d'entraînement — `backward_message_pass` via autograd (Option A) :**
+**Chemin d'entraînement — `backward_message_pass` via autograd :**
 
-Le layer retient le graphe de calcul PyTorch pendant le forward. `backward_message_pass(d_output)` utilise `torch.autograd.grad()` pour calculer les gradients sur `W_r`, `W_0`, `a_r` et les features d'entrée :
+`H_in` provient toujours de numpy via `torch.as_tensor()` — c'est déjà un tenseur leaf détaché de tout graphe de calcul. `requires_grad_(True)` active le calcul du gradient w.r.t. H_in. `backward_message_pass` utilise `torch.autograd.grad()` :
 
 ```python
-def _forward_pt_retained(self, H_in, edge_index, edge_types):
-    H = H_in.detach().requires_grad_(True)   # retenir pour d_input
-    out = self._gat_forward(H, edge_index, edge_types)
-    self._H_in_retained = H
+def message_pass(self, node_features, edge_index, edge_types):
+    H_in = torch.as_tensor(node_features, dtype=torch.float32, device=self._device)
+    H_in.requires_grad_(True)                       # leaf tensor depuis numpy — safe
+    out = self._gat_forward(H_in, edge_index, edge_types)
+    self._H_in_retained = H_in
     self._out_retained = out
-    return out
+    return out.detach().cpu().numpy()
 
 def backward_message_pass(self, d_output):
     d_out_t = torch.as_tensor(d_output, dtype=torch.float32, device=self._device)
     grads = torch.autograd.grad(
-        self._out_retained, [self._H_in_retained, self.W_r, self.W_0, self.a_r],
-        grad_outputs=d_out_t, retain_graph=False,
+        self._out_retained,
+        [self._H_in_retained, self.W_r, self.W_0, self.a_r],
+        grad_outputs=d_out_t,
+        retain_graph=False,
     )
     d_input = grads[0].detach().cpu().numpy()
+    # d_input[:, vocabulary.d_clause:] = gradient vers les embeddings FastText
     return d_input, [g.detach().cpu().numpy() for g in grads[1:]]
 ```
 
-`message_pass()` appelle `_forward_pt_retained` au lieu de `_forward_pt`. Aucun changement dans `CGNPipeline` ni dans `train.py`.
+`CGNPipeline.backward()` appelle `backward_message_pass` via duck-typing (`if hasattr(_layer, 'backward_message_pass')`, ligne 536 de cgnp.py) — aucun changement dans le pipeline.
 
-**Contrainte PyTorch ≥ 1.12** — la softmax par destination utilise `scatter_reduce_(..., reduce='amax')` disponible depuis PyTorch 1.12. Vérifier la version au démarrage ou implémenter un fallback boucle Python si `torch.__version__ < "1.12"`.
+Le gradient des embeddings remonte via `d_input[:, vocabulary.d_clause:]` extrait dans Bug A fix.
 
-**Tests — `test_pytorch_rgcn.py` inchangé** (teste `RGCNLayerPT`, reste `== 2`). Les nouveaux tests GAT vont dans `test_gat.py` avec `assert len(params) == 3`.
+**Tests — `test_pytorch_rgcn.py` inchangé** (teste `RGCNLayerPT`, reste `== 2`). Nouveaux tests dans `test_gat.py` :
+- `assert len(params) == 3`
+- `assert params[2].shape == (n_relations, 2 * d_out)` — vecteurs d'attention
+- Gradient non-nul sur `a_r` après forward + backward
+- `backward_message_pass` retourne `d_input` de shape `(N, d_in)` — gradient non-nul
+- `apply_accumulated_gradients` avec `word_embedding` actif ne crash pas
 
 ### Intégration dans `train.py`
 
@@ -141,24 +199,23 @@ class LLMAnnotator(Protocol):
 ```
 
 **2. `AnthropicAnnotator`** — implémentation de référence :
-- Prompt système : explique les 7 `NODE_TYPES` et 11 `RELATION_TYPES` avec exemples
+- Prompt système : 7 `NODE_TYPES` + 11 `RELATION_TYPES` documentés avec **few-shot examples** (minimum 3 phrases annotées complètes dans le prompt)
 - Demande JSON en format `document.sentences[].cir` (champs `type` + `relation`)
-- Pas de token annotations requis (voir point 4 ci-dessous)
-- Traitement par batch pour limiter les appels API (réponse = `document` avec N sentences → parsée via `json_reader.load_sentences` sur le contenu en mémoire)
+- Traitement par batch (réponse = `document` avec N sentences → parsée via `json_reader.load_sentences`)
+- **Validation + retry** : si le JSON retourné est invalide ou contient des types inconnus après normalisation, relancer l'appel (max 3 tentatives)
+- **Gestion d'erreurs API** : retry exponentiel sur rate-limit, timeout, erreur 5xx
 
 **3. `normalize_annotation(raw: dict) -> dict`** — validation + normalisation :
-- Mappe les variantes LLM (`"état"` → `"etat"`, `"process"` → `"processus"`, etc.)
-- Rejette les samples dont les labels restent invalides après normalisation
-- Table de normalisation pour node_types et relation_types
+- Table explicite des variantes LLM → valeurs canoniques (ex: `"état"→"etat"`, `"processus"→"processus"`, `"cause"→"cause"`, `"enables"→"enable"`, etc.)
+- Rejet des samples dont les labels restent invalides après normalisation (avec log)
 
-**4. Fallback UDRepresentation sans tokens** — modification dans `loader.py` du moteur (seul point de contact autorisé) :
+**4. Fallback UDRepresentation sans tokens** — seule modification dans `loader.py` du moteur :
 
-Le moteur doit pouvoir charger des JSON sans tokens. Quand `span_toks = []`, construire une `UDRepresentation` synthétique minimale depuis `ClauseRecord` :
+Quand `span_toks = []`, construire une `UDRepresentation` synthétique minimale depuis `ClauseRecord` :
 ```python
-# Fallback dans loader.py:_rep_from_clause() — quand span_toks est vide :
 return UDRepresentation(
     tokens=[],
-    root_lemma=clause.label.split("(")[0].strip(),  # mot principal, ex: "baisser(ventes)"→"baisser"
+    root_lemma=clause.label.split("(")[0].strip(),  # ex: "baisser(ventes)"→"baisser"
     root_pos=_node_type_to_upos(clause.node_type),  # heuristique
     root_dep_rel="root",
     root_morph={},
@@ -168,11 +225,13 @@ return UDRepresentation(
     lang=lang,
 )
 ```
-Avec `_node_type_to_upos` : `action/transition/processus → "VERB"`, `etat/etat_systemique → "ADJ"`, `entite → "NOUN"`.
+`_node_type_to_upos` : `action/transition/processus → "VERB"`, `etat/etat_systemique → "ADJ"`, `entite → "NOUN"`.
 
-#### Format JSON produit par l'outil
+**Limitation à documenter explicitement :** Le fallback laisse `root_morph={}`, `has_advcl=False`, `has_temporal_obl=False` toujours. Cela signifie que ~14 des 80 features sont toujours à `_absent`. Les données LLM produisent des features de qualité inférieure aux données UD annotées manuellement — le modèle entraîné dessus aura un plafond de performance plus bas.
 
-Identique au format gcn-nl existant, compatible `json_reader.py` sans modification de celui-ci :
+#### Format JSON produit
+
+Identique au format gcn-nl existant, compatible `json_reader.py` sans modification :
 ```json
 {
   "document": {
@@ -199,42 +258,45 @@ Identique au format gcn-nl existant, compatible `json_reader.py` sans modificati
 
 | Fichier | Action | Raison |
 |---|---|---|
-| `pipeline/cgnp.py` | Modifier | Bug A : déplacer embedding backward dans `backward()` |
+| `pipeline/cgnp.py` | Modifier | Bug A : embedding backward dans `backward()` ET `backward_accumulate()` + fix `apply_accumulated_gradients()` |
 | `training/train.py` | Modifier | Bug B : pré-peuplement vocab + flag `--use-attention` |
-| `layer3/gat.py` | Créer | `RGCNLayerGAT` — nouvelle couche GAT |
-| `data/loader.py` | Modifier | Fallback UDRepresentation sans tokens (pour JSON sans token annotations) |
-| `gcn-tools/gcn-annotate/` | Créer (**hors moteur**) | Outil autonome d'annotation LLM — produit des JSON gcn-nl |
-| `tests/test_pytorch_rgcn.py` | **Inchangé** | `RGCNLayerPT` retourne toujours 2 params — ne pas toucher |
-| `tests/test_gat.py` | Créer | Tests Protocol + attention + gradient |
-| `tests/test_llm_annotate.py` | Créer (**dans gcn-tools**) | Tests normalisation + format JSON |
+| `layer3/gat.py` | Créer | `RGCNLayerGAT` — couche GAT avec `backward_message_pass` autograd |
+| `data/loader.py` | Modifier | Fallback `UDRepresentation` sans tokens |
+| `gcn-tools/gcn-annotate/` | Créer (**hors moteur**) | Outil autonome d'annotation LLM |
+| `tests/test_pytorch_rgcn.py` | **Inchangé** | `RGCNLayerPT` retourne 2 params — ne pas toucher |
+| `tests/test_gat.py` | Créer | Protocol + shapes + gradient `a_r` non-nul + `backward_message_pass` shape |
+| `tests/test_llm_annotate.py` | Créer (**dans gcn-tools**) | Normalisation + format JSON + retry |
 
 ---
 
 ## Vérification end-to-end
 
 ```bash
-# 1. Corriger les bugs (Phase 1) — vérifier que les embeddings s'entraînent
+# 1. Phase 1 — vérifier que les embeddings s'entraînent (SGD et mini-batch)
 gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec \
           --epochs 5 --output /tmp/ckpt_emb.npz --log-csv /tmp/emb.csv
-# Attendre : loss décroissante, "Embeddings : N vecteurs chargés"
+gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec \
+          --epochs 5 --mini-batch-size 4 --output /tmp/ckpt_emb_mb.npz
+# Attendre : loss décroissante, "Embeddings : N vecteurs chargés", pas de NameError
 
-# 2. GAT (Phase 2)
+# 2. Phase 2 — GAT
 gcn-train --data-dir gcn-datasets/examples/ --embedding-file /tmp/cc.fr.300.vec \
           --use-attention --epochs 5 --output /tmp/ckpt_gat.npz
 python -m pytest gcn-python/tests/test_gat.py -v
 
-# 3. LLM annotation (Phase 3)
+# 3. Phase 3 — LLM annotation (outil externe)
 export ANTHROPIC_API_KEY=...
 gcn-annotate --input gcn-datasets/corpus/phrases_fr.txt \
              --output /tmp/llm_dataset/ --lang fr
-# Puis entraîner sur le dataset généré :
 gcn-train --data-dir /tmp/llm_dataset/ --epochs 5 --output /tmp/ckpt_llm.npz
 
-# 4. Suite de tests complète
+# 4. Suite de tests complète moteur
 python -m pytest gcn-python/tests/ -v
 ```
 
 **Métriques de succès :**
-- `node_accuracy` avec FastText + GAT > node_accuracy baseline (features one-hot seules)
+- `node_accuracy` FastText + GAT > baseline one-hot
+- Chemin mini-batch avec `word_embedding` : pas de NameError dans `apply_accumulated_gradients`
+- `test_gat.py` : gradient sur `a_r` non-nul après backward
 - Samples LLM sans tokens : aucun `UserWarning` sur "aucune clause convertie"
 - `test_pytorch_rgcn.py` : tous les tests passent sans modification
