@@ -8,8 +8,8 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "2.0.0" }
-gcn-middleend = { path = "../gcn-middleend", version = "2.0.0" }
+gcn-ir = { path = "../gcn-ir", version = "2.1.0" }
+gcn-middleend = { path = "../gcn-middleend", version = "2.1.0" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
