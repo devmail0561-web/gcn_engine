@@ -352,30 +352,37 @@ gcn-discuss --checkpoint model.npz --graph session.json
   GCN Causal Engine
   ─────────────────────────────────────────────────────
 
-  > analyze rapport_incident.txt
-    → 47 relations causales extraites.
+  > /analyze rapport_incident.txt
+    → rapport_incident.txt : 47 relations causales extraites.
 
-  > analyze "CVE-2024-1234 enables remote code execution"
-    → 1 relation extraite. Total : 48 relations dans la session.
+  > /analyze threat_reports/
+    → APT28_2024.txt     : 23 relations
+    → Mandiant_Q3.txt    : 31 relations
+    → CrowdStrike.pdf    : 18 relations
+    → Total : 72 nouvelles relations. Session : 119 relations.
 
   > What causes data exfiltration?
     [rapport multi-lignes avec sources et niveaux de confiance]
 
-  > How does phishing lead to ransomware?
-    [chaîne causale tracée avec sources]
-
   > Any contradictions?
     [claims contradictoires entre sources]
 
-  > Without authentication_bypass, what changes?
-    [raisonnement contrefactuel Pearl niveau 2]
+  > /save session.json
+    → 119 relations sauvegardées.
 
-  > What about climate change?
-    Aucune structure causale sur ce sujet dans le corpus soumis.
-
-  > save session.json
-    → 48 relations sauvegardées.
+  > /quit
 ```
+
+**Commandes de session (préfixe /) :**
+- `/analyze <fichier_ou_répertoire>` — analyser un fichier ou tous les fichiers d'un répertoire
+- `/save <path.json>` — persister le graphe de session
+- `/load <path.json>` — charger un graphe existant
+- `/summarize` — résumé de la session courante
+- `/help` — aide
+- `/quit` — quitter
+
+**Questions libres (sans préfixe) :**
+Tout ce qui n'est pas une commande `/` est traité comme une question sur le graphe accumulé.
 
 ---
 

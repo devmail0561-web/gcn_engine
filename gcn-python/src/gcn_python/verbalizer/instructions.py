@@ -97,6 +97,45 @@ class CausalGraph:
         self.adjacency.clear()
         self.reverse_adj.clear()
 
+    def save(self, path) -> None:
+        """Persiste le graphe en JSON."""
+        import json
+        data = {
+            "nodes": self.nodes,
+            "edges": [
+                {"src": src, "dst": dst, "attrs": attrs, "text": text}
+                for src, dst, attrs, text in self.edges
+            ],
+        }
+        from pathlib import Path as _P
+        _P(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path) -> "CausalGraph":
+        """Charge un graphe depuis un fichier JSON produit par save()."""
+        import json
+        from pathlib import Path as _P
+        data = json.loads(_P(path).read_text(encoding="utf-8"))
+        g = cls()
+        g.nodes = data.get("nodes", {})
+        for e in data.get("edges", []):
+            src  = e["src"]
+            dst  = e["dst"]
+            attrs = e["attrs"]
+            text  = e.get("text", "")
+            g.edges.append((src, dst, attrs, text))
+            g.adjacency[src].append(dst)
+            g.reverse_adj[dst].append(src)
+        return g
+
+    @classmethod
+    def from_cirs(cls, cirs: list) -> "CausalGraph":
+        """Construit depuis une liste de CIR."""
+        g = cls()
+        for cir in cirs:
+            g.add_cir(cir)
+        return g
+
     def find_causes(self, keyword: str) -> list[tuple]:
         """Arêtes dont la cible contient keyword."""
         kw = keyword.lower()
