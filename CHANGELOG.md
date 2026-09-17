@@ -5,6 +5,84 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.0.2] — 2026-09-17
+
+### Phase 13 — Edge classification closed-loop + arêtes inverses
+
+**Objectif :** briser le plafond edge accuracy (~30%) identifié après la phase 12.
+
+**6 causes structurelles corrigées :**
+- C1 — Edge MLP **closed-loop** : passe après R-GCN, voit les vecteurs enrichis + prédictions nœuds
+- C2 — Enrichissement connecteur : 21 → 84 dimensions (UPOS + lemma + dep_rel + position)
+- C3 — Embeddings lexicaux dans l'edge head (lemma du connecteur)
+- C4 — Features d'interaction nœuds (shared_pos, shared_subject, distance, obj_xor)
+- C5 — Dropout edge MLP (0.3 par défaut) + 3 couches cachées (256→128→64)
+- C6 — Arêtes inverses : loader accepte `src > tgt` et les renormalise ; `--bidirectional` active 22 types de relations
+
+**Fichiers modifiés :** `pipeline/cgnp.py`, `layer2/reference.py`, `layer1/features.py`,
+`data/loader.py`, `training/train.py`, `pipeline/ir_emitter.py`
+
+---
+
+## [2.0.1] — 2026-09-17
+
+### Correctifs bugs (analyse profonde — 3 critiques + 3 moyens)
+
+**Critiques :**
+- `cgnp.py` : gradient `--weighted-loss` incorrect — appliquait `w[c]` par colonne
+  au lieu de `w[y_n]` par ligne. Gradient mathématiquement faux depuis l'introduction
+  de la pondération par classe.
+- `cgnp.py` : R-GCN edge types du premier passage initialisés via
+  `argmax(node_logits[s] + node_logits[d])` — retourne un indice nœud [0–6],
+  pas un type de relation [0–10]. Remplacé par `zeros()` (type 0, proxy neutre).
+- `cgnp.py` : `backward_accumulate` n'accumulait pas les gradients du décodeur
+  (`_cached_decode_gradient` ignoré). Le couplage encoder↔decoder était silencieusement
+  cassé en mode mini-batch. Ajout de `_accum_dec_grads` / `_accum_dec_attn`.
+
+**Moyens :**
+- `train.py` : `ValueError` dans le second `except` était du code mort (déjà intercepté
+  par le premier `except ValueError: raise`) — supprimé.
+- `train.py` : formule `d_edge_closed` dupliquée → remplacée par `vocab.d_edge_closed_loop()`.
+- `data/loader.py` : collision silencieuse dans `edge_map` pour arêtes anti-parallèles
+  (A→B et B→A vers la même clé) → `UserWarning` explicite.
+
+**3 tests ajoutés :** gradient pondéré uniforme, poids zero annule le gradient,
+gradient pondéré = w[y_n] × gradient_standard.
+
+### Conformité architecturale — aucun string literal sémantique dans le moteur
+
+**Règle appliquée :** le moteur ne contient aucune valeur du schéma IR (node types,
+relation types, scope values, origin values) codée en dur dans la logique — tout
+référence les constantes de `constants.py` ou les constantes Rust nommées.
+
+**Python :**
+- `constants.py` : ajout `SCOPE_HINTS_FR` (déterminants quantificateurs FR — était
+  `_SCOPE_HINTS` privé dans `cgnp.py`) ; ajout `TEMPORAL_REF_DEFAULT = "unresolved"`
+- `pipeline/cgnp.py` : `_SCOPE_HINTS` → import `SCOPE_HINTS_FR`
+- `pipeline/label_builder.py` : `"condition"`, `"action"`, `"entite"`… → `_NT_*`
+  références à `NODE_TYPES[i]`
+- `training/bootstrap.py` : fallbacks `"cause"`, `"action"`, `"specific"`, `"explicit"`
+  → `RELATION_TYPES[0]`, `NODE_TYPES[1]`, `SCOPE_VALUES[4]`, `NODE_ORIGIN_VALUES[0]`
+- `pipeline/ir_emitter.py` : `"explicit"` → `NODE_ORIGIN_VALUES[0]` ;
+  `"unresolved"` → `TEMPORAL_REF_DEFAULT`
+- `frontend/bridge.py` : clés de `NODE_TYPE_TO_POS/DEP` → `NODE_TYPES[i]` ;
+  fallback `"action"` → `NODE_TYPES[1]`
+- `data/json_reader.py` : `"cause"` (défaut arête) → `RELATION_TYPES[0]`
+
+**Rust :**
+- `gcn-frontend-fr/resources.rs` : `FR_INFINITIVE_MARKERS = &["pour"]`
+- `gcn-frontend-en/resources.rs` : `EN_INFINITIVE_MARKERS = &["to", "in order to", "so as to"]`
+- `gcn-frontend-fr/annotator.rs` : `FR_UNIVERSAL_SUBJECT_LEMMAS = &["on"]` ;
+  `FR_DURATIVE_MARKERS = &["depuis"]`
+- `gcn-knowledge/inference.rs` : `DELTA_STRONG_CAUSAL` (0.15), `DELTA_CAUSAL` (0.10),
+  `DELTA_ADVERSATIVE` (-0.10)
+
+### Tests
+- **195 tests Python passent** (195 ok, 2 skipped stables) — baseline : 192
+- Rust : build OK, 0 warning, 0 erreur
+
+---
+
 ## [2.0.0] — 2026-09-16
 
 ### Rupture d'API — Suppression du paramètre `lang` (Phase 12)

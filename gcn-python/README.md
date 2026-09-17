@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/) [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python tests](https://img.shields.io/badge/tests-192-passing)](tests/)
+[![Python tests](https://img.shields.io/badge/tests-195-passing)](tests/)
 
 **Moteur de raisonnement causal — extraire, modéliser et inférer la causalité dans le texte naturel et le code source.**
 

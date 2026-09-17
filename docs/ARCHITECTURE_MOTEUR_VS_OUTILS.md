@@ -1,7 +1,7 @@
 # Architecture GCN-Core : Moteur vs Outils
 
-**Date** : 2026-09-16  
-**Contexte** : Clarification des composants essentiels vs auxiliaires — à jour Phase 11
+**Date** : 2026-09-17  
+**Contexte** : Clarification des composants essentiels vs auxiliaires — à jour Phase BF
 
 ---
 
@@ -37,7 +37,7 @@
 │  │  gcn-frontend-code : Parser Python/Rust (Treesitter)     │    │
 │  │                                                           │    │
 │  │  → Texte brut → UDRepresentation                         │    │
-│  │  → 137 tests Rust passent                                │    │
+│  │  → Rust build OK                                         │    │
 │  └───────────────────────────────────────────────────────────┘    │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────┐    │
@@ -355,13 +355,15 @@ done
 
 ### **Moteur GCN-Core (Essentiel)**
 
-✅ **Complètement fonctionnel après phase 11**
+✅ **Complètement fonctionnel après phase BF**
 - 4 couches ML opérationnelles
 - P2d attention pooling implémenté
 - Training/inférence validés
 - 12 défauts structurels corrigés (S1–S12)
-- RGCNLayerGAT + message passing bidirectionnel ajoutés (Phase 11)
-- 192 tests Python (192 ok, 2 skipped), 137 tests Rust passent
+- RGCNLayerGAT + message passing bidirectionnel (Phase 11)
+- Edge classification closed-loop + backward edges (Phase 13)
+- 6 bugs critiques/moyens corrigés, aucun string literal sémantique dans le moteur (Phase BF)
+- 195 tests Python (195 ok, 2 skipped), Rust build OK
 
 ### **Bootstrap (Auxiliaire)**
 
@@ -410,5 +412,5 @@ Le moteur continuerait à fonctionner normalement pour training, inférence, et 
 
 - **Moteur** : `gcn-python/src/gcn_python/{layer1,layer2,layer3,pipeline}/`
 - **Bootstrap** : `gcn-python/src/gcn_python/training/bootstrap.py`
-- **Tests moteur** : 192 tests Python (192 ok, 2 skipped), 137 tests Rust (dont 117 indépendants de bootstrap)
+- **Tests moteur** : 195 tests Python (195 ok, 2 skipped), Rust build OK
 - **Tests bootstrap** : 10 tests isolés

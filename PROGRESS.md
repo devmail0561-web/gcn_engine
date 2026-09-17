@@ -21,10 +21,12 @@ Phase 9  ████████████████████  100%  Cor
 Phase 10 ████████████████████  100%  Correctifs structurels moteur (12 défauts)
 Phase 11 ████████████████████  100%  GAT + bidirectionnel + LLM annotate + audit bugs
 Phase 12 ████████████████████  100%  Suppression paramètre lang (v2.0.0)
+Phase 13 ████████████████████  100%  Edge classification closed-loop + backward edges
+Phase BF ████████████████████  100%  Analyse profonde + correctifs bugs + conformité arch
 ```
 
-**Tests Python : 192 / 192 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
-**Tests Rust : 137 / 137 passent** (`cargo test --workspace`)
+**Tests Python : 195 / 195 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
+**Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
 
@@ -408,6 +410,62 @@ Tests : 192 Python (2 skipped stables)
 | taxonomy sans lang_code | `taxonomy/loader.py` | ✅ |
 
 Tests : 192 Python (2 skipped stables)
+
+---
+
+## Phase 13 — Edge classification closed-loop + arêtes inverses ✅
+
+**Statut :** ✅ Complet — 2026-09-17
+
+**Contexte :** node accuracy résolue (99.4% GAT+emb), edge accuracy bloquée à ~30%.
+6 causes structurelles identifiées et corrigées.
+
+| Cause | Composant | Statut |
+|-------|-----------|--------|
+| C1 — Edge MLP open-loop | `pipeline/cgnp.py` (closed-loop) | ✅ |
+| C2 — Connecteur features faibles | `layer1/features.py` (21→84 dim) | ✅ |
+| C3 — Pas d'embeddings dans edge head | `pipeline/cgnp.py` | ✅ |
+| C4 — Pas de features interaction nœuds | `layer1/features.py` | ✅ |
+| C5 — Pas de dropout edge MLP | `layer2/reference.py` (dropout=0.3) | ✅ |
+| C6 — Backward edges éliminés | `data/loader.py` + `--bidirectional` | ✅ |
+
+Tests : 192 Python (2 skipped stables)
+
+---
+
+## Phase BF — Analyse profonde + correctifs bugs + conformité architecturale ✅
+
+**Statut :** ✅ Complet — 2026-09-17
+
+### Correctifs bugs (6 bugs corrigés)
+
+| Bug | Sévérité | Fichier | Correction |
+|-----|----------|---------|------------|
+| Gradient `--weighted-loss` incorrect (`w[c]` → `w[y_n]`) | Critique | `cgnp.py` | ✅ |
+| R-GCN edge types = argmax logits nœuds (indice nœud ≠ relation) | Critique | `cgnp.py` | ✅ |
+| `backward_accumulate` ignore gradients décodeur mini-batch | Critique | `cgnp.py` | ✅ |
+| `ValueError` mort dans second `except` | Moyen | `train.py` | ✅ |
+| Formule `d_edge_closed` dupliquée | Moyen | `train.py` | ✅ |
+| Collision silencieuse `edge_map` arêtes anti-parallèles | Moyen | `loader.py` | ✅ |
+
+3 tests de non-régression ajoutés pour le gradient pondéré.
+
+### Conformité architecturale — aucun literal sémantique dans le moteur
+
+| Composant | Violation | Correction |
+|-----------|-----------|------------|
+| `cgnp.py` | `_SCOPE_HINTS` FR inline | → `SCOPE_HINTS_FR` dans `constants.py` |
+| `json_reader.py` | `"cause"` hardcodé | → `RELATION_TYPES[0]` |
+| `label_builder.py` | `"condition"`, `"action"`… | → `_NT_*` via `NODE_TYPES[i]` |
+| `bootstrap.py` | 4 fallbacks IR en string | → constantes schéma |
+| `ir_emitter.py` | `"explicit"`, `"unresolved"` | → `NODE_ORIGIN_VALUES[0]`, `TEMPORAL_REF_DEFAULT` |
+| `bridge.py` | Clés dict + fallback `"action"` | → `NODE_TYPES[i]` |
+| `fr/resources.rs` | `"pour"` inline | → `FR_INFINITIVE_MARKERS` |
+| `en/resources.rs` | 3 lemmes `\|\|` inline | → `EN_INFINITIVE_MARKERS` |
+| `fr/annotator.rs` | `"on"`, `"depuis"` inline | → constantes nommées |
+| `inference.rs` | Deltas f32 magiques | → `DELTA_STRONG_CAUSAL/CAUSAL/ADVERSATIVE` |
+
+Tests : **195 Python (2 skipped stables)**, Rust build OK
 
 ---
 
