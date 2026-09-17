@@ -37,12 +37,11 @@ dev = ["pytest>=7.4", "ruff>=0.1"]
 all = ["torch>=2.0", "pytest>=7.4", "ruff>=0.1"]
 
 [project.scripts]
-gcn-discuss = "gcn_python.discuss:discuss_cmd"
-gcn-forward = "gcn_python.pipeline.cli:forward_cmd"
-gcn-verbalize = "gcn_python.verbalizer.cli:verbalize_cmd"
-gcn-train = "gcn_python.training.train:train_cmd"
+gcn-discuss   = "gcn_python.discuss:discuss_cmd"
+gcn-train     = "gcn_python.training.train:train_cmd"
+gcn-eval      = "gcn_python.evaluation.eval_runner:eval_cmd"
 gcn-bootstrap = "gcn_python.training.bootstrap:bootstrap_cmd"
-gcn-eval = "gcn_python.evaluation.eval_runner:eval_cmd"
+gcn-verbalize = "gcn_python.verbalizer.cli:verbalize_cmd"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gcn_python"]
