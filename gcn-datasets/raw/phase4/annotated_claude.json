@@ -1,0 +1,4456 @@
+{
+  "document": {
+    "sentences": [
+      {
+        "id": "s0001",
+        "text": "Les températures sont très basses parce que les rayons solaires arrivent très inclinés par rapport à la surface terrestre.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "basse",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "arriver",
+              "token_span": [
+                9,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0002",
+        "text": "Les valeurs d'insolation estivale sont plus importantes pour le climat régional, car la phase hivernale de la mousson est toujours sèche.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "important",
+              "token_span": [
+                1,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "sec",
+              "token_span": [
+                14,
+                24
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0003",
+        "text": "Malgré les efforts entrepris depuis François Ier avec l'ordonnance de Villers-Cotterêts, les lois ne sont pas les mêmes dans tout le royaume.",
+        "causal_pattern": "concession",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "entreprendre",
+              "token_span": [
+                2,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat_systemique",
+              "label": "loi",
+              "token_span": [
+                13,
+                25
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0004",
+        "text": "Le nord est encore soumis au droit coutumier, à peu près 300 coutumes, alors que le Sud est régi par un droit écrit, inspiré du droit romain.",
+        "causal_pattern": "opposition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "coutumier",
+              "token_span": [
+                1,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat_systemique",
+              "label": "écrit",
+              "token_span": [
+                14,
+                26
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "opposition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0005",
+        "text": "Afin de le distinguer de l'empire de Charlemagne, le royaume franc est appelé Frankenreich.",
+        "causal_pattern": "motivation",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "appeler",
+              "token_span": [
+                10,
+                16
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "distinguer",
+              "token_span": [
+                3,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "motivation",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0006",
+        "text": "Le coût d'un premier bilan est habituellement plus élevé, car il faut souvent aussi construire la base de données et l'outil de calcul adapté.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "élevé",
+              "token_span": [
+                1,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "construire",
+              "token_span": [
+                11,
+                24
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0007",
+        "text": "L'altitude élevée et les températures basses correspondantes empêchent la neige de fondre, ce qui limite l'effet de réchauffement.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "altitude",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "fondre",
+              "token_span": [
+                9,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0008",
+        "text": "Épinal est typiquement sur le versant au vent du massif des Vosges alors que Colmar, ville deux fois plus sèche, est sur le versant sous le vent.",
+        "causal_pattern": "opposition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "versant",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "versant",
+              "token_span": [
+                15,
+                28
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "opposition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0009",
+        "text": "La description des différents types de climat permet également de simplifier l'information disponible, et de la diffuser dans une forme compréhensible.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "description",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "simplifier",
+              "token_span": [
+                10,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0010",
+        "text": "Les températures relativement clémentes en hiver permettent de réduire le coût de l'énergie.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "clément",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "réduire",
+              "token_span": [
+                8,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0011",
+        "text": "Pour la France, la guerre est un désastre qui entraîne sa défaite et la perte de toutes ses colonies en Amérique du Nord.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "désastre",
+              "token_span": [
+                4,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "défaite",
+              "token_span": [
+                9,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0012",
+        "text": "Cette division de la Terre lui permettra de tracer sa carte du monde habité, première carte géométrique connue.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "diviser",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "tracer",
+              "token_span": [
+                7,
+                19
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0013",
+        "text": "Des périodes de clarté inhabituelles peuvent entraîner une augmentation de la fonte de la banquise ou des températures plus élevées.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "clarté",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "augmentation",
+              "token_span": [
+                7,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0014",
+        "text": "Le long de la côte, les températures ne varient pas trop grâce à l'influence modératrice de l'eau à proximité.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "varier",
+              "token_span": [
+                5,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "entite",
+              "label": "influence",
+              "token_span": [
+                14,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0015",
+        "text": "Si l'on classe ce climat dans la zone intertropicale chaude, certaines régions arides peuvent se situer dans d'autres parties du monde.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "condition",
+              "label": "classer",
+              "token_span": [
+                1,
+                11
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat_systemique",
+              "label": "situer",
+              "token_span": [
+                12,
+                24
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0016",
+        "text": "Si elle est suffisamment puissante, elle va devenir par inertie plus chaude que l'air environnant.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "condition",
+              "label": "puissant",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "devenir",
+              "token_span": [
+                7,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0017",
+        "text": "Si ce jour est choisi, c'est pour surprendre les anarchistes ciblés et éviter qu'ils ne se préparent aux perquisitions.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "condition",
+              "label": "choisir",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "surprendre",
+              "token_span": [
+                8,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0018",
+        "text": "Le fait que Reclus soit ciblé provoque l'indignation d'une partie du monde intellectuel français.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "ciblé",
+              "token_span": [
+                1,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "indignation",
+              "token_span": [
+                8,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0019",
+        "text": "Ces cyclones fréquents entraînent des précipitations annuelles plus importantes que dans la majeure partie de l'Arctique.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "cyclone",
+              "token_span": [
+                1,
+                3
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "précipitation",
+              "token_span": [
+                4,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0020",
+        "text": "À cause de cette mauvaise compréhension, les officiers britanniques viennent d'avouer, à leur insu, l'assassinat de Jumonville.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "compréhension",
+              "token_span": [
+                3,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "avouer",
+              "token_span": [
+                8,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0021",
+        "text": "Sa mort provoquera plusieurs tensions au sein de l'église bisontine.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "transition",
+              "label": "mort",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "tension",
+              "token_span": [
+                3,
+                11
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0022",
+        "text": "Avec l'altitude, il se produit un refroidissement avec formation de nuages de type cumulonimbus qui provoquent des pluies souvent abondantes.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "refroidissement",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "pluie",
+              "token_span": [
+                9,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0023",
+        "text": "La loi favorise l'ouverture, l'accueil et renforce les droits des étrangers et crée de nouvelles possibilités d'obtention de la nationalité française.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "loi",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "favoriser",
+              "token_span": [
+                3,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0024",
+        "text": "Le biome des prairies de montagne comprend les altitudes au-dessus de la limite des arbres, où les arbres ne poussent pas à cause du froid.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "froid",
+              "token_span": [
+                18,
+                20
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "pousser",
+              "token_span": [
+                11,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0025",
+        "text": "Elles peuvent mourir à cause du gel car elles ne sont pas adaptées aux épisodes de froid.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "gel",
+              "token_span": [
+                5,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "mourir",
+              "token_span": [
+                1,
+                4
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0026",
+        "text": "Les hivers sont nettement moins froids, rarement glaciaux et jamais persistants car le dégel est possible toute l'année.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "dégel",
+              "token_span": [
+                12,
+                19
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "froid",
+              "token_span": [
+                1,
+                11
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0027",
+        "text": "L'air est moins froid, ce qui provoque un affaiblissement des cellules anticycloniques et permet aux perturbations d'y pénétrer.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "froid",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "affaiblissement",
+              "token_span": [
+                7,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0028",
+        "text": "L'inlandsis intérieur reste couvert de neige tout au long de l'été, bien que des parties importantes connaissent une légère fonte des neiges.",
+        "causal_pattern": "concession",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "couvert",
+              "token_span": [
+                1,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "fondre",
+              "token_span": [
+                14,
+                24
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "concession",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0029",
+        "text": "Un logiciel permettant de mieux évaluer la vulnérabilité d'une collectivité au regard des changements climatiques est en cours de développement.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "logiciel",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "évaluer",
+              "token_span": [
+                3,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0030",
+        "text": "Ce mélange de chaleur et le niveau important d'humidité permet l'épanouissement de la forêt équatoriale qui est le biome le plus riche en biodiversité.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "chaleur",
+              "token_span": [
+                1,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "épanouissement",
+              "token_span": [
+                10,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0031",
+        "text": "Il entraîne l'existence d'un pergélisol et ne permet aucune agriculture.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "pergélisol",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "agriculture",
+              "token_span": [
+                7,
+                10
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0032",
+        "text": "La pression atmosphérique et la densité de l'air diminuent avec l'altitude, car l'air a tendance à se tasser au voisinage de la surface du globe.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "tasser",
+              "token_span": [
+                13,
+                23
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "diminuer",
+              "token_span": [
+                1,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0033",
+        "text": "En mai, les températures augmentent, car la lumière du jour, 24 heures sur 24, atteint de nombreuses régions.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "augmenter",
+              "token_span": [
+                3,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "lumière",
+              "token_span": [
+                7,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0034",
+        "text": "La glace de mer est principalement constituée d'eau douce, car le sel est rejeté par la glace lorsqu'elle se forme.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "constitué",
+              "token_span": [
+                1,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "rejeter",
+              "token_span": [
+                10,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n002",
+              "target": "n001",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0035",
+        "text": "En été, la glace de mer empêche la surface de se réchauffer au-dessus du point de congélation.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "glace",
+              "token_span": [
+                3,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "réchauffer",
+              "token_span": [
+                9,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0036",
+        "text": "Beaucoup de paysans perdent leur liberté car ils se donnent aux puissants en échange de leur protection.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "donner",
+              "token_span": [
+                8,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "perdre",
+              "token_span": [
+                1,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0037",
+        "text": "Cette divergence provient du fait que l'hypothèse suppose une réponse quasi instantanée du climat aux variations d'insolation.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "hypothèse",
+              "token_span": [
+                5,
+                16
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "divergence",
+              "token_span": [
+                1,
+                4
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0038",
+        "text": "La quantité et la disponibilité saisonnière de l'eau sont primordiales pour la survie à long terme, aussi bien des hommes que des plantes et des animaux.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "eau",
+              "token_span": [
+                1,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "survie",
+              "token_span": [
+                10,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0039",
+        "text": "En France, la loi Grenelle II impose aussi aux grandes collectivités d'adopter un Plan climat-énergie territorial.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "loi",
+              "token_span": [
+                3,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "adopter",
+              "token_span": [
+                7,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0040",
+        "text": "Dans certaines régions comme le sud du Brésil, des variétés spécifiques de blé ont été créées par l'EMBRAPA afin de s'adapter au climat subtropical.",
+        "causal_pattern": "motivation",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "créer",
+              "token_span": [
+                9,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "adapter",
+              "token_span": [
+                18,
+                25
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "motivation",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0041",
+        "text": "En été, la glace de mer empêche la surface de se réchauffer au-dessus du point de congélation.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "glace",
+              "token_span": [
+                3,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "réchauffer",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0042",
+        "text": "Il est alors sous le point de saturation car l'eau est tombée sous forme de pluie.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "transition",
+              "label": "tomber",
+              "token_span": [
+                1,
+                16
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "être",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0043",
+        "text": "Puis en se déplaçant vers les latitudes moyennes, l'air se refroidit et descend.",
+        "causal_pattern": "sequence",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "déplacer",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "refroidir",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "sequence",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0044",
+        "text": "Pour favoriser les exportations, il privilégie l'entretien des voies d'accès aux ports et aux frontières du royaume.",
+        "causal_pattern": "motivation",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "privilégier",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "favoriser",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "motivation",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0045",
+        "text": "D'une part, quand il y a excès de précipitations, cela peut provoquer des inondations.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "condition",
+              "label": "avoir",
+              "token_span": [
+                1,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "provoquer",
+              "token_span": [
+                1,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0046",
+        "text": "On ne peut ainsi parler de royaume de France, au sens juridique, qu'à partir du XIIe siècle si l'on se limite au point de vue royal.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "parler",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "condition",
+              "label": "limiter",
+              "token_span": [
+                1,
+                26
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0047",
+        "text": "Le plus étroit est le chemin de traverse, qui ne permet pas le passage de voitures publiques.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "être",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "passer",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0048",
+        "text": "La plupart de lieux possède un ombre pluviométrique à cause d'un cordillère.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cordillère",
+              "token_span": [
+                1,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "posséder",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0049",
+        "text": "Depuis cette position, les troupes impériales peuvent empêcher et détrousser quiconque tente de rejoindre ou quitter la principauté épiscopale.",
+        "causal_pattern": "prevent",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "troupes",
+              "token_span": [
+                4,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "rejoindre",
+              "token_span": [
+                1,
+                19
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0050",
+        "text": "Grâce à ces ascendances, de très longues distances peuvent être parcourues en planeur.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "ascendance",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "parcourir",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0051",
+        "text": "Les troupes françaises remportent des victoires décisives qui permettent de mettre fin à la guerre de Trente Ans.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "remporter",
+              "token_span": [
+                1,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "mettre",
+              "token_span": [
+                1,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0052",
+        "text": "Ce mélange de chaleur et le niveau important d'humidité permet l'épanouissement de la forêt équatoriale.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "mélange",
+              "token_span": [
+                1,
+                9
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "épanouissement",
+              "token_span": [
+                1,
+                15
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0053",
+        "text": "Beaucoup de paysans perdent leur liberté car ils se donnent aux puissants en échange de leur protection.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "donner",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "perdre",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0054",
+        "text": "Le retour à une paix relative favorise la circulation des marchandises et des hommes, la circulation monétaire et la renaissance des villes.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "transition",
+              "label": "retour",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "circulation",
+              "token_span": [
+                1,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0055",
+        "text": "La loi de 1901 sur la liberté d'association permet la formation de partis politiques qui remplacent les groupements informels des clubs et des comités.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "loi",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "former",
+              "token_span": [
+                10,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0056",
+        "text": "La recherche de Clegg est importante parce que la majorité des mesures d'intelligence sont développées dans l'ouest.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "développer",
+              "token_span": [
+                1,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "être",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0057",
+        "text": "Alors que la situation économique des Parisiens est toujours précaire, le gouvernement provisoire abroge le moratoire des loyers et des dettes.",
+        "causal_pattern": "opposition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "être",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "abroger",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "opposition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0058",
+        "text": "C'est pourquoi le SPI n'arrive pas à la conscience de la personne, car il y a un blocage émotionnel et cognitif.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "avoir",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "arriver",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0059",
+        "text": "Ainsi l'idée de remettre en cause les avantages et privilèges de la communauté française provoque un profond mécontentement.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "remettre",
+              "token_span": [
+                2,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "mécontentement",
+              "token_span": [
+                1,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0060",
+        "text": "Les hivers sont nettement moins froids, rarement glaciaux et jamais persistants car le dégel est possible toute l'année.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "être",
+              "token_span": [
+                1,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "être",
+              "token_span": [
+                1,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0061",
+        "text": "Bien que Blois ait été munie d'un tel système d'eau, aucune datation n'a pu confirmer de lien avec la période gallo-romaine.",
+        "causal_pattern": "concession",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "munir",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "confirmer",
+              "token_span": [
+                1,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0062",
+        "text": "L'utilisation de données mutualisées à travers les réseaux sociaux ou des applications smartphones permettent d'étudier l'information de manière régionalisée.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "utiliser",
+              "token_span": [
+                1,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "étudier",
+              "token_span": [
+                1,
+                19
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0063",
+        "text": "Ainsi, les technologies numériques génériques peuvent servir à échanger des connaissances mais aussi de biens et de services.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "technologie",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "échanger",
+              "token_span": [
+                8,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0064",
+        "text": "Une région suffisamment dense et chaude provoquera une fusion nucléaire, créant ainsi une étoile de la séquence principale.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "denseEtChaud",
+              "token_span": [
+                1,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "créer",
+              "token_span": [
+                9,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0065",
+        "text": "Charles d'Amboise accumule les succès, alors que les Comtois sont livrés à eux-mêmes.",
+        "causal_pattern": "opposition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "accumuler",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "livrer",
+              "token_span": [
+                8,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "opposition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0066",
+        "text": "Le numérique permet d'automatiser certaines entrées de données de traçabilité, de les rassembler, les organiser, les sauvegarder.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "numérique",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "automatiser",
+              "token_span": [
+                4,
+                18
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0067",
+        "text": "La cyclostratigraphie permet d'affiner considérablement l'échelle des temps géologiques en termes de durées.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cyclostratigraphie",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "affiner",
+              "token_span": [
+                4,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0068",
+        "text": "Les systèmes d'alerte facilitent la gestion et permettent de maîtriser les gros risques.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "système",
+              "token_span": [
+                1,
+                3
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "maîtriser",
+              "token_span": [
+                8,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0069",
+        "text": "Les batteries embarquées permettent aux tramways Bombardier de parcourir plus de 40 km sans caténaire.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "batterie",
+              "token_span": [
+                1,
+                3
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "parcourir",
+              "token_span": [
+                7,
+                15
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0070",
+        "text": "Cette circulation de masses d'air transporte puis relâche dans l'atmosphère une grande quantité de chaleur latente.",
+        "causal_pattern": "sequence",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "transporter",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "relâcher",
+              "token_span": [
+                8,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "sequence",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0071",
+        "text": "La présence de ces cycles de 500 ans provoquerait une forte sévérité de chaque cinquième phase froide des cycles de 100 ans.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cycle",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "sévérité",
+              "token_span": [
+                10,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0072",
+        "text": "Avec Internet et les NTIC, le numérique permet de créer facilement la mise en relation entre producteurs, acteurs du monde agricole, ou encore consommateurs.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "numérique",
+              "token_span": [
+                6,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "créer",
+              "token_span": [
+                10,
+                25
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0073",
+        "text": "La montagne corse a ainsi perdu 90 % de sa population entre 1960 et 1990, au profit de Bastia, d'Ajaccio et de Marseille notamment.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "transition",
+              "label": "perdre",
+              "token_span": [
+                1,
+                8
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "profiter",
+              "token_span": [
+                14,
+                21
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0074",
+        "text": "Tous les participants aux débats sur l'emploi technologique conviennent que l'innovation peut entraîner des pertes d'emploi temporaires.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "innovation",
+              "token_span": [
+                11,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "entraîner",
+              "token_span": [
+                14,
+                19
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0075",
+        "text": "De cette façon, un échantillonnage à bonne résolution permet de tracer très précisément les variations du proxie.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "échantillonnage",
+              "token_span": [
+                4,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "tracer",
+              "token_span": [
+                10,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0076",
+        "text": "La plupart des solutions de caisses informatiques connectées se sont mises en règle afin de respecter cette loi.",
+        "causal_pattern": "motivation",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "action",
+              "label": "seMettre",
+              "token_span": [
+                1,
+                10
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat_systemique",
+              "label": "respecter",
+              "token_span": [
+                13,
+                16
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "motivation",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0077",
+        "text": "La baratte est un outil qui permet de transformer la crème de lait en beurre.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "baratte",
+              "token_span": [
+                1,
+                2
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "transformer",
+              "token_span": [
+                9,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0078",
+        "text": "Il existe cependant un délai entre l'insolation et le réchauffement à cause de l'inertie thermique de l'air et des surfaces.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "inertieThermique",
+              "token_span": [
+                13,
+                16
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "délai",
+              "token_span": [
+                4,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0079",
+        "text": "Cependant, toutes les études empiriques récentes n'ont pas permis de conclure que l'automatisation entraînerait un chômage généralisé.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "automatisation",
+              "token_span": [
+                11,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "chômage",
+              "token_span": [
+                14,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0080",
+        "text": "Si le climat se produit à haute altitude, il est connu comme le climat alpin.",
+        "causal_pattern": "condition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "condition",
+              "label": "seProduire",
+              "token_span": [
+                1,
+                7
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat_systemique",
+              "label": "connaître",
+              "token_span": [
+                9,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0081",
+        "text": "Lorsqu'il descend, l'air se comprime puisque la pression augmente vers le bas et donc sa température augmente par compression adiabatique.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "augmenter",
+              "token_span": [
+                7,
+                12
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "comprimer",
+              "token_span": [
+                4,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0082",
+        "text": "Loi de Hess qui permet de déterminer les enthalpies de réaction à partir des enthalpies standards de formation.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat_systemique",
+              "label": "loiDeHess",
+              "token_span": [
+                1,
+                4
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "déterminer",
+              "token_span": [
+                7,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0083",
+        "text": "Le versant côté mer est humide, alors que le versant côté terre est plus aride.",
+        "causal_pattern": "opposition",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "humide",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "aride",
+              "token_span": [
+                9,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "opposition",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0084",
+        "text": "Des êtres pluricellulaires sont ensuite apparus et ont pu coloniser également les zones benthiques.",
+        "causal_pattern": "sequence",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "transition",
+              "label": "apparaître",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "coloniser",
+              "token_span": [
+                8,
+                13
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "sequence",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0085",
+        "text": "Sam Van Aken espérait surprendre car l'arbre présente différentes sortes de fleurs au printemps et différents types de fruits en été.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "présenter",
+              "token_span": [
+                7,
+                20
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "action",
+              "label": "surprendre",
+              "token_span": [
+                4,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0086",
+        "text": "Au travers des différentes technologies mises en œuvre, il permet à l'agriculture de gagner en efficience et de la transformer en profondeur.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "technologie",
+              "token_span": [
+                1,
+                6
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "transformer",
+              "token_span": [
+                15,
+                22
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0087",
+        "text": "Ce faisant, le récipient alourdi entraîne l'ouverture automatique des portes.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "récipientAlourdi",
+              "token_span": [
+                3,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "transition",
+              "label": "entraîner",
+              "token_span": [
+                6,
+                11
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0088",
+        "text": "Les zones alizées raccourcissent la saison sèche et permettent aux forêts tropicales humides de se développer.",
+        "causal_pattern": "enable",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "raccourcir",
+              "token_span": [
+                1,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "etat",
+              "label": "forêt",
+              "token_span": [
+                8,
+                14
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0089",
+        "text": "Dans sa phase positive, la ceinture de vent d'ouest s'intensifie et se contracte vers l'Antarctique.",
+        "causal_pattern": "cause",
+        "tokens": [],
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "etat",
+              "label": "phasePositive",
+              "token_span": [
+                3,
+                5
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 0,
+              "modifiers": [],
+              "attributes": {}
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "sIntensifier",
+              "token_span": [
+                11,
+                17
+              ],
+              "origin": "explicit",
+              "scope": "specific",
+              "temporal_index": 1,
+              "modifiers": [],
+              "attributes": {}
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause",
+              "attributes": {
+                "confidence": 0.9,
+                "explicit": true,
+                "negated": false
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
