@@ -100,82 +100,83 @@ Exemples
 
 ---
 
-### C2 — Supprimer `chat.py` et le remplacer par `gcn-index` + `gcn-discuss`
+### C2 — Supprimer `chat.py` et créer `gcn-discuss`
 
 **Fichier actuel :** `gcn-python/src/gcn_python/chat.py` → **supprimer**
 
-**Ce que ça devient :** deux outils distincts avec des rôles séparés :
+**Principe :** une seule session qui fait les deux — analyse le texte donné
+ET répond aux questions sur la structure causale extraite. Pas besoin de
+pré-annoter ou d'indexer séparément avant de pouvoir discuter.
 
-#### `gcn-index` — indexer un corpus (hors-ligne, une fois)
-
-```bash
-gcn-index \
-  --corpus threat_reports/ \
-  --checkpoint model.npz \
-  --output cti_graph.json
-```
-
-Construit le graphe causal depuis un corpus. Résultat persistant sur disque.
-Ne nécessite pas d'interaction utilisateur.
-
-#### `gcn-discuss` — discussion sur le corpus indexé
+#### `gcn-discuss` — analyser et questionner dans la même session
 
 ```bash
-gcn-discuss --graph cti_graph.json
+gcn-discuss --checkpoint model.npz [--graph session_precedente.json]
 ```
 
-Session interactive de **questions-réponses causales** sur le graphe pré-indexé.
-Différence fondamentale avec `gcn-chat` supprimé :
-- Le graphe est **persistant** (chargé depuis `cti_graph.json`), pas une session volatile
-- La discussion porte sur le **corpus déjà analysé**, pas sur du texte saisi en direct
-- Répond uniquement aux **questions causales** — pas à des instructions générales
-- Si la question est hors corpus ou hors causalité : "pas de structure causale sur ce sujet"
+**Deux modes d'entrée dans la session :**
+- `analyze <fichier_ou_texte>` → GCN analyse et enrichit le graphe
+- Question en langage naturel → GCN répond sur le graphe accumulé
 
-**Comportement de la session :**
+**Session type (cybersécurité) :**
 ```
-  GCN Causal Engine — Discussion
-  Corpus : cti_graph.json (1 247 relations, 89 documents)
-  ────────────────────────────────────────────
-  > What causes data exfiltration?
+  GCN Causal Engine
+  Checkpoint : model.npz  |  Corpus : vide (nouvelle session)
+  ─────────────────────────────────────────────────────
 
-  causes_of: data exfiltration
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    1. authentication_bypass  --[enable]-->  data_exfiltration
-       sources: APT28_report.txt:47, Mandiant_2024.pdf:12
-       confidence: 0.91  (23 occurrences)
+  > analyze rapport_incident_2024.txt
+    → 47 relations causales extraites et indexées.
 
-    2. credential_theft  --[cause]-->  data_exfiltration
-       sources: CrowdStrike_Q3.txt:89
-       confidence: 0.87  (8 occurrences)
+  > analyze "La vulnérabilité CVE-2024-1234 dans le module SSH
+     permet une exécution de code à distance."
+    → 1 relation causale extraite et indexée.
 
-    ⚠ CONTRADICTION : firewall_rule --[prevent]--> data_exfiltration
-       sources: SecPolicy_v2.txt:12  (contredit par 23 sources)
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  > What causes remote code execution?
 
-  > How does phishing lead to ransomware?
+  causes_of: remote code execution
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    1. CVE-2024-1234 (SSH vulnerability)  --[enable]-->  remote_code_execution
+       source: texte analysé, confidence: 0.91
 
-  chain: phishing → ransomware
-    [entite] phishing_email
-    → [enable] → [action] credential_harvest
-    → [cause]  → [processus] lateral_movement
-    → [enable] → [transition] ransomware_deployment
-    sources : 3 rapports
+    2. authentication_bypass  --[enable]-->  remote_code_execution
+       source: rapport_incident_2024.txt:34, confidence: 0.87
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  > What about quantum physics?
+  > analyze rapport_incident_2025.txt
+    → 31 relations causales extraites. Total : 79 relations dans la session.
 
-  Aucune structure causale sur ce sujet dans le corpus.
+  > Any contradictions?
+    ⚠ firewall_policy --[prevent]--> data_exfiltration (rapport_2024.txt:12)
+      MAIS 8 autres sources affirment data_exfiltration se produit quand même.
+
+  > save cti_session.json
+    → Graphe sauvegardé (79 relations, 3 sources).
 
   > quit
+
+# Session suivante — reprendre sans tout réanalyser
+gcn-discuss --checkpoint model.npz --graph cti_session.json
 ```
+
+**Différences fondamentales avec `gcn-chat` supprimé :**
+- Analyse des **fichiers entiers** (pas phrase par phrase)
+- Graphe **persistant entre sessions** (`save`/`load`)
+- Répond uniquement sur la **causalité extraite** du corpus soumis
+- Rapport **multi-lignes** avec sources, fréquences, contradictions
+- Si hors corpus : "aucune structure causale sur ce sujet"
 
 **Nouveau fichier :** `gcn-python/src/gcn_python/discuss.py`
 
 La session comprend :
-- Chargement du graphe persistant au démarrage
-- Détection du type de question (causes / effets / chemin / contrefactuel / résumé)
-- Appel à `CausalGraph` pour la requête
-- Appel à `QueryVerbalizer` pour le rapport multi-lignes
-- Réponse "hors corpus" si aucune structure trouvée
+- `analyze <path_ou_texte>` → `GCNEngine.analyze()` + `CausalGraph.add_cir()`
+- Questions → détection du type + `CausalGraph.*` + `QueryVerbalizer.format_*()`
+- `save <path>` → `CausalGraph.save()`
+- `load <path>` → `CausalGraph.load()` (ou `--graph` au démarrage)
+- `summarize` → `QueryVerbalizer.format_summary()`
+- Hors scope → "aucune structure causale sur ce sujet dans le corpus soumis"
+
+**`gcn-index` devient optionnel** — utile pour indexer un grand corpus en
+batch avant une session, mais plus obligatoire pour commencer à discuter.
 
 ---
 
@@ -339,36 +340,41 @@ C7 — Mettre à jour pyproject.toml
 ## Interface cible après Phase 16
 
 ```bash
-# 1. Indexer un corpus (une fois, hors-ligne)
-gcn-index \
-  --corpus threat_reports/ \
-  --checkpoint model.npz \
-  --output cti_graph.json
+# Démarrer une session — analyse et discussion dans la même session
+gcn-discuss --checkpoint model.npz
 
-# 2. Ouvrir une session de discussion sur le corpus indexé
-gcn-discuss --graph cti_graph.json
+# OU reprendre une session précédente
+gcn-discuss --checkpoint model.npz --graph session.json
 ```
 
 **Dans la session :**
 ```
-  GCN Causal Engine — Discussion
-  Corpus : cti_graph.json (1 247 relations, 89 documents analysés)
-  ─────────────────────────────────────────────────────────────────
+  GCN Causal Engine
+  ─────────────────────────────────────────────────────
+
+  > analyze rapport_incident.txt
+    → 47 relations causales extraites.
+
+  > analyze "CVE-2024-1234 enables remote code execution"
+    → 1 relation extraite. Total : 48 relations dans la session.
 
   > What causes data exfiltration?
-  [rapport multi-lignes avec sources et contradictions]
+    [rapport multi-lignes avec sources et niveaux de confiance]
 
   > How does phishing lead to ransomware?
-  [chaîne causale tracée]
+    [chaîne causale tracée avec sources]
 
-  > Any contradictions in the corpus?
-  [liste des claims contradictoires entre sources]
+  > Any contradictions?
+    [claims contradictoires entre sources]
 
   > Without authentication_bypass, what changes?
-  [raisonnement contrefactuel Pearl niveau 2]
+    [raisonnement contrefactuel Pearl niveau 2]
 
   > What about climate change?
-  Aucune structure causale sur ce sujet dans le corpus.
+    Aucune structure causale sur ce sujet dans le corpus soumis.
+
+  > save session.json
+    → 48 relations sauvegardées.
 ```
 
 ---
