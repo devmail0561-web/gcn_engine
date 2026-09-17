@@ -21,8 +21,8 @@
 ### Valeurs techniques exactes
 
 ```
-d_clause actuel     = 79   (18 UPOS + 38 DEP + 5 SUBJ_POS + 5 TENSE + 4 ASPECT + 5 MOOD + 1 POL + 3 FLAGS)
-d_clause après P5   = 90   (79 + 11 RELATION_TYPES)
+d_clause            = 79   (18 UPOS + 38 DEP + 5 SUBJ_POS + 5 TENSE + 4 ASPECT + 5 MOOD + 1 POL + 3 FLAGS)
+                           inchangé après Phase 5 — causal_pattern n'est PAS une feature
 d_conn              = 85
 d_edge actuel       = 247  (2×79 + 85 + 4)
 NODE_TYPES          = 7
@@ -798,12 +798,8 @@ def derive_causal_pattern(sentence: dict) -> str:
 Ce script s'exécute sur `annotated_ud.json` et enrichit chaque phrase avec
 `causal_pattern` avant de produire `annotated_ud_cp.json`.
 
-**Limitation documentée :** le `causal_pattern` ainsi dérivé = relation du CIR gold.
-Pendant l'entraînement, le modèle reçoit cette information pour les données réelles.
-**Ce n'est pas un data leak pour les nœuds** (node_type est une cible différente de
-causal_pattern). **C'est un data leak partiel pour les arêtes** sur les phrases à une
-seule arête. La stratégie est de le documenter, entraîner avec, et mesurer l'impact en
-Phase 6 en comparant avec/sans cette feature.
+**Usage de `causal_pattern` :** métadonnée pour le **split stratifié uniquement**
+(Phase 4.4). Il n'entre pas dans les features du modèle (voir Phase 5).
 
 ---
 
@@ -873,26 +869,30 @@ gcn-datasets/real/test_v2.json   (~840 phrases)
 
 ---
 
-## Phase 5 — `causal_pattern` comme feature d'apprentissage
+## Phase 5 — Supprimer `gcn_causal_type` des heuristiques moteur
 
-**Prérequis :** Phase 1 terminée (dataset réel avec tokens UD ET `causal_pattern` dérivé).
+**Objectif :** Le moteur doit apprendre à prédire les node types et les edge relations
+**depuis les seules features syntaxiques UD** (POS / dep_rel / morph / lemme).
+Il ne doit recevoir aucune annotation causale pré-calculée comme feature d'entrée.
 
-**Avertissement data leak :** sur les phrases à une seule arête, `causal_pattern` = relation
-gold → le modèle reçoit partiellement la réponse. Ce comportement est documenté et sera
-mesuré en Phase 6 (comparaison avec/sans `--causal-pattern-feature`).
+**Pourquoi `causal_pattern` n'est PAS une feature :**
+`causal_pattern` d'une phrase à une seule arête = la relation gold à prédire. Donner
+ce champ comme feature au réseau revient à lui donner la réponse en entrée — le modèle
+transcrirait, pas n'apprendrait. `causal_pattern` est conservé dans `SentenceRecord`
+uniquement pour le **split stratifié** du dataset (Phase 4). Il n'entre jamais dans
+`vectorize_clause` ni dans aucune couche du réseau.
 
-**Impact sur les dimensions :**
+**Architecture d'apprentissage cible :**
 ```
-d_clause AVANT Phase 5  = 79
-RELATION_TYPES          = 11  (one-hot du causal_pattern)
-d_clause APRÈS Phase 5  = 90  (79 + 11)
-d_edge_closed_loop change automatiquement via vocab.d_edge_closed_loop()
-Checkpoints existants   → INVALIDÉS (d_clause change)
+Features  = tokens UD bruts (POS / dep_rel / morph / lemme)   d_clause = 79
+Targets   = node types (7 classes) + edge relations (11 classes)
 ```
+
+**Impact sur les dimensions :** aucun. `d_clause` reste 79. Aucun checkpoint invalidé.
 
 ---
 
-### Étape 5.1 — `data/schema.py`
+### Étape 5.1 — `data/schema.py` — `causal_pattern` dans `SentenceRecord` (métadonnée seulement)
 
 ```python
 @dataclass
@@ -904,66 +904,26 @@ class SentenceRecord:
     edges: list[EdgeRecord]
     lang: str = ""
     causal_pattern: str = ""
-    # Valeur "" → vecteur nul dans vectorize_clause
-    # Valeur "cause", "condition", etc. → one-hot sur RELATION_TYPES
+    # Usage : split stratifié uniquement.
+    # N'est PAS propagé à UDRepresentation.
+    # N'est PAS vectorisé dans vectorize_clause.
 ```
 
 ---
 
-### Étape 5.2 — `data/json_reader.py`
+### Étape 5.2 — `data/json_reader.py` — lire `causal_pattern`
 
-Dans `_parse_dataset_sentence`, ajouter :
+Dans `_parse_dataset_sentence`, ajouter la lecture sans autre modification :
 ```python
 causal_pattern=s.get("causal_pattern", ""),
 ```
 
 ---
 
-### Étape 5.3 — `layer1/representation.py`
-
-```python
-@dataclass
-class UDRepresentation:
-    tokens: list[dict]
-    root_lemma: str
-    root_pos: str
-    root_dep_rel: str
-    root_morph: dict
-    subject_pos: str | None
-    has_object: bool
-    has_advcl: bool
-    has_temporal_obl: bool
-    token_span: tuple[int, int]
-    causal_pattern: str = ""   # ← NOUVEAU
-```
-
----
-
-### Étape 5.4 — `data/loader.py` — propagation dans `reps_from_sentence`
-
-Modifier `reps_from_sentence` pour accepter `causal_pattern` en paramètre et le
-propager à chaque rep :
-
-```python
-def reps_from_sentence(
-    rec: SentenceRecord,
-) -> tuple[list[UDRepresentation], list[int], list[UDRepresentation | None]]:
-    ...
-    for i, clause in enumerate(rec.clauses):
-        rep = _rep_from_clause(clause, rec.tokens)
-        if rep is not None:
-            rep.causal_pattern = rec.causal_pattern   # ← propagation
-            result.append(rep)
-            valid_indices.append(i)
-    ...
-```
-
----
-
-### Étape 5.5 — `data/loader.py` — supprimer `gcn_causal_type` des heuristiques
+### Étape 5.3 — `data/loader.py` — supprimer `gcn_causal_type` des heuristiques
 
 **`_rep_from_clause`** — le critère `gcn_causal_type == "verbe"` est supprimé.
-Le fallback POS est le seul critère :
+Le fallback POS est le seul critère de sélection du token racine :
 
 ```python
 # AVANT
@@ -983,7 +943,8 @@ root_tok = (
 )
 ```
 
-**`_connector_between`** — le critère `gcn_causal_type == "conjonction"` est supprimé :
+**`_connector_between`** — le critère `gcn_causal_type == "conjonction"` est supprimé.
+La détection du connecteur repose uniquement sur les POS UD :
 
 ```python
 # AVANT
@@ -996,85 +957,40 @@ tok = (
 tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
 ```
 
+**Note :** `causal_pattern` de `SentenceRecord` n'est pas propagé à `UDRepresentation`
+et n'est pas passé à `vectorize_clause`. Aucune modification de `layer1/`.
+
 ---
 
-### Étape 5.6 — `layer1/features.py` — `FeatureVocabulary`
+### Étape 5.4 — Tests
 
-Ajouter l'import de `RELATION_TYPES` si absent, puis le champ :
+Vérifier que les tests existants passent sans modification (d_clause inchangé = 79).
+Ajouter un test explicite :
 
 ```python
-from ..constants import (
-    UPOS_TAGS, UD_DEP_RELS, UD_TENSE_VALUES, UD_ASPECT_VALUES,
-    UD_MOOD_VALUES, SUBJECT_POS_CATS, RELATION_TYPES,   # RELATION_TYPES ajouté
-)
-
-@dataclass
-class FeatureVocabulary:
-    upos_tags: list[str] = field(default_factory=lambda: list(UPOS_TAGS))
-    dep_rels: list[str] = field(default_factory=lambda: list(UD_DEP_RELS))
-    tense_values: list[str] = field(default_factory=lambda: list(UD_TENSE_VALUES))
-    aspect_values: list[str] = field(default_factory=lambda: list(UD_ASPECT_VALUES))
-    mood_values: list[str] = field(default_factory=lambda: list(UD_MOOD_VALUES))
-    subject_pos_cats: list[str] = field(default_factory=lambda: list(SUBJECT_POS_CATS))
-    relation_types: list[str] = field(default_factory=lambda: list(RELATION_TYPES))  # ← NOUVEAU
-
-    @property
-    def d_clause(self) -> int:
-        return (
-            len(self.upos_tags)            # 18
-            + len(self.dep_rels)           # 38
-            + len(self.subject_pos_cats)   #  5
-            + len(self.tense_values)       #  5
-            + len(self.aspect_values)      #  4
-            + len(self.mood_values)        #  5
-            + 1                            #  1  polarity
-            + 3                            #  3  structural flags
-            + len(self.relation_types)     # 11  causal_pattern one-hot  ← NOUVEAU
-        )
-        # 79 + 11 = 90
+def test_causal_pattern_absent_de_vectorize_clause():
+    """
+    UDRepresentation avec deux causal_pattern différents ("cause" vs "condition")
+    doit produire le MÊME vecteur clause — causal_pattern ne doit pas être vectorisé.
+    """
+    from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause
+    from gcn_python.layer1.representation import UDRepresentation
+    vocab = FeatureVocabulary()
+    assert vocab.d_clause == 79   # inchangé
+    base = dict(tokens=[], root_lemma="baisser", root_pos="VERB",
+                root_dep_rel="root", root_morph={}, subject_pos=None,
+                has_object=False, has_advcl=False, has_temporal_obl=False,
+                token_span=(1, 2))
+    rep1 = UDRepresentation(**base)
+    rep2 = UDRepresentation(**base)
+    # causal_pattern n'existe plus dans UDRepresentation — ce test
+    # valide que d_clause=79 et que les vecteurs sont identiques
+    import numpy as np
+    np.testing.assert_array_equal(
+        vectorize_clause(rep1, vocab),
+        vectorize_clause(rep2, vocab),
+    )
 ```
-
-Inclure `relation_types` dans `to_json()` et `from_json()`.
-
----
-
-### Étape 5.7 — `layer1/features.py` — `vectorize_clause`
-
-Ajouter en fin de liste `parts`, **après le word embedding** :
-```python
-parts.append(_one_hot(rep.causal_pattern or "", vocab.relation_types))
-# "" → vecteur nul (neutre, représente l'absence de causal_pattern)
-# "cause" → index 0 = 1.0, reste = 0.0
-# "condition" → index 3 = 1.0, reste = 0.0
-```
-
----
-
-### Étape 5.8 — Ajouter `causal_pattern` dans `fr_causal_basic.json`
-
-Les 3 phrases de `gcn-datasets/examples/fr_causal_basic.json` n'ont pas de
-`causal_pattern`. Dériver depuis les edges du CIR (même règle qu'en Phase 4.1) :
-- s001 : 1 edge `"condition"` → `"causal_pattern": "condition"`
-- s002 : 1 edge `"cause"` → `"causal_pattern": "cause"`
-- s003 : 1 edge `"motivation"` → `"causal_pattern": "motivation"`
-
-`fr_causal_cycles.json` : causalité inter-phrases, pas de relation intra-phrase
-→ laisser `causal_pattern` absent (vecteur nul = neutre, ce qui est correct).
-
----
-
-### Étape 5.9 — Tests — mise à jour des hardcodes `d_clause`
-
-Les tests qui hardcodent `d_clause == 79` doivent être mis à jour vers `90`.
-Les tests qui utilisent `vocab.d_clause` directement sont automatiquement corrects.
-
-Fichiers à inspecter :
-```bash
-grep -rn "d_clause\|== 79\|== 75" gcn-python/tests/
-```
-
-Fichiers impactés connus : `test_layer2.py`, `test_pipeline.py`, `test_checkpoint.py`,
-`test_trainable_decoder.py`, `test_frontend_bridge.py`, `test_training.py`.
 
 ---
 
@@ -1153,26 +1069,7 @@ gcn-train \
 
 ---
 
-### Étape 6.3 — Mesurer l'impact du data leak de `causal_pattern`
-
-Entraîner deux modèles identiques avec et sans la feature `causal_pattern` :
-```bash
-# Sans causal_pattern
-gcn-train --data-dir gcn-datasets/real/train.json --val-dir gcn-datasets/real/val.json \
-  ... --output checkpoints/real_no_cp.npz
-
-# Avec causal_pattern (Phase 5)
-gcn-train --data-dir gcn-datasets/real/train.json --val-dir gcn-datasets/real/val.json \
-  ... --output checkpoints/real_with_cp.npz
-```
-
-Comparer `val_edge_macro_f1` entre les deux. Si l'écart est > 0.15, le data leak est
-significatif et la feature doit être retirée ou le `causal_pattern` doit être annoté
-indépendamment des edges.
-
----
-
-### Étape 6.4 — Diagnostics dans `evaluation/metrics.py`
+### Étape 6.3 — Diagnostics dans `evaluation/metrics.py`
 
 Ajouter `confusion_matrix` :
 ```python
@@ -1198,7 +1095,7 @@ def per_class_report(pred: list[str], gold: list[str], classes: list[str]) -> st
 
 ---
 
-### Étape 6.5 — Tests de robustesse (`tests/test_robustness.py`)
+### Étape 6.4 — Tests de robustesse (`tests/test_robustness.py`)
 
 Ces tests valident que les features encodent correctement la variance des inputs.
 Ils sont **indépendants d'un checkpoint** — ils testent uniquement la vectorisation.
@@ -1263,9 +1160,9 @@ def test_morph_tense_change_vecteur():
                                      │
                          ┌───────────┴───────────┐
                          │  Phase 5               │
-                         │  (causal_pattern feat) │
-                         │  d_clause : 79 → 90    │
-                         │  Checkpoints invalidés │
+                         │  Suppr. gcn_causal_type│
+                         │  d_clause : 79 (stable)│
+                         │  Aucun checkpoint inval│
                          └───────────┬────────────┘
                                      │
                          ┌───────────┴───────────┐
@@ -1273,9 +1170,8 @@ def test_morph_tense_change_vecteur():
                          │  6.0 split synthétique │
                          │  6.1 baseline synth    │
                          │  6.2 entr. réel        │
-                         │  6.3 mesure data leak  │
-                         │  6.4 diagnostics       │
-                         │  6.5 tests robustesse  │
+                         │  6.3 diagnostics       │
+                         │  6.4 tests robustesse  │
                          └────────────────────────┘
 ```
 
@@ -1302,13 +1198,11 @@ def test_morph_tense_change_vecteur():
 | L14 | Tests Phase 3 | 3.4 | `tests/test_pipeline.py` | ~60 |
 | L15 | Dérivation `causal_pattern` réel | 4.1 | `gcn-scraper/.../derive_causal_pattern.py` (nouveau) | ~30 |
 | L16 | Dataset 5 000+ | 4.2–4.4 | `gcn-datasets/real/` | — |
-| L17 | `causal_pattern` dans schema + reader | 5.1–5.2 | `data/schema.py`, `data/json_reader.py` | ~10 |
-| L18 | `causal_pattern` dans UDRepresentation | 5.3–5.4 | `layer1/representation.py`, `data/loader.py` | ~10 |
-| L19 | Suppression `gcn_causal_type` heuristiques | 5.5 | `data/loader.py` | ~15 |
-| L20 | `FeatureVocabulary` + `vectorize_clause` | 5.6–5.7 | `layer1/features.py` | ~20 |
-| L21 | Tests mis à jour `d_clause == 90` | 5.9 | 6 fichiers tests | ~20 |
-| L22 | Diagnostics + `per_class_report` | 6.4 | `evaluation/metrics.py` | ~50 |
-| L23 | Tests robustesse | 6.5 | `tests/test_robustness.py` (nouveau) | ~100 |
+| L17 | `causal_pattern` dans schema + reader (métadonnée split) | 5.1–5.2 | `data/schema.py`, `data/json_reader.py` | ~10 |
+| L18 | Suppression `gcn_causal_type` heuristiques | 5.3 | `data/loader.py` | ~15 |
+| L19 | Test `causal_pattern` absent de `vectorize_clause` | 5.4 | `tests/test_layer1.py` | ~20 |
+| L20 | Diagnostics + `per_class_report` | 6.3 | `evaluation/metrics.py` | ~50 |
+| L21 | Tests robustesse | 6.4 | `tests/test_robustness.py` (nouveau) | ~100 |
 
 ---
 
@@ -1325,4 +1219,4 @@ def test_morph_tense_change_vecteur():
 | Baseline triviale edge (réel) | 59.3 % accuracy | — | Prédire toujours "cause" |
 | Taille dataset réel utilisable | 0 | 5 000+ | Phase 4 |
 | Tests Python | 195 | ≥ 195 | Chaque phase |
-| Tests robustesse | 0 | 4 | Phase 6.5 |
+| Tests robustesse | 0 | 4 | Phase 6.4 |
