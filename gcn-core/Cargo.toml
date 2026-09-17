@@ -13,10 +13,16 @@ members = [
 ]
 
 [workspace.package]
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Michel Tendeng"]
+description = "GCN Causal Engine — symbolic causal extraction from natural language and code"
 repository = "https://github.com/devmail0561-web/gcn_engine"
+homepage = "https://github.com/devmail0561-web/gcn_engine"
+documentation = "https://github.com/devmail0561-web/gcn_engine/blob/master/gcn-core/SAD.md"
 license = "MIT"
+keywords = ["nlp", "causal", "graph", "extraction", "reasoning"]
+categories = ["science", "text-processing"]
+edition = "2021"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }

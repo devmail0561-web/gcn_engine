@@ -5,6 +5,23 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.1.0] — 2026-09-17
+
+### Publication — packaging et documentation
+
+**gcn-python :**
+- Version bump 2.0.0 → 2.1.0
+- `pyproject.toml` : suppression de `spacy` des dépendances (n'est utilisé que dans les outils, pas dans le moteur)
+- `pyproject.toml` : ajout des URLs (homepage, documentation, repository, changelog)
+- `README.md` : réécriture complète avec exemples d'usage (inference, training CLI, training Python, custom encoder, format dataset, métriques)
+- `__init__.py` : version 0.1.0 → 2.1.0
+
+**gcn-core :**
+- Version bump 2.0.0 → 2.1.0
+- `Cargo.toml` : ajout description, homepage, documentation, keywords, categories, edition
+
+---
+
 ## [2.0.3] — 2026-09-17
 
 ### Phases 1 + 2 + 3 + 5 — Val set, régularisation, pipeline UD, suppression gcn_causal_type

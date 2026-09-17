@@ -4,14 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-python"
-version = "2.0.0"
-description = "Causal Graph Neural Parser — couches ML pour l'extraction et le raisonnement causal"
+version = "2.1.0"
+description = "GCN Causal Engine — extract, model and reason over causal structure in natural language and code"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "spacy>=3.7,<4.0",
     "numpy>=1.24,<3.0",
-    "pyyaml>=6.0",
     "click>=8.1",
 ]
 classifiers = [
@@ -26,6 +24,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
+
+[project.urls]
+Homepage = "https://github.com/devmail0561-web/gcn_engine"
+Documentation = "https://github.com/devmail0561-web/gcn_engine/blob/master/gcn-python/README.md"
+Repository = "https://github.com/devmail0561-web/gcn_engine"
+Changelog = "https://github.com/devmail0561-web/gcn_engine/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 torch = ["torch>=2.0"]
