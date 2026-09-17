@@ -103,9 +103,16 @@ class GCNDataLoader:
                 continue
             rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
+                key = (tgt_idx, src_idx)
+                if key in edge_map:
+                    warnings.warn(
+                        f"[{rec.id}] conflit arête anti-parallèle {e.source}→{e.target} "
+                        f"(clé {key} déjà présente, relation ignorée).",
+                        UserWarning, stacklevel=2,
+                    )
+                else:
+                    edge_map[key] = rel_idx
                 n_backward += 1
-                # Stocker en tant que arête inverse (tgt→src) avec même relation
-                edge_map[(tgt_idx, src_idx)] = rel_idx
             else:
                 edge_map[(src_idx, tgt_idx)] = rel_idx
         if n_long_distance and not getattr(self, 'all_pairs', False):

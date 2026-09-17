@@ -47,6 +47,10 @@ from .checkpoint import save_checkpoint
               help="Activer la couche R-GCN+GAT avec attention par relation.")
 @click.option("--bidirectional/--no-bidirectional", default=False, show_default=True,
               help="Activer le message passing bidirectionnel (arêtes inverses, 22 types de relations).")
+@click.option("--edge-loss-weight", default=1.0, show_default=True, type=float,
+              help="Pondération relative de la loss arêtes dans la loss totale.")
+@click.option("--weighted-loss/--no-weighted-loss", default=False, show_default=True,
+              help="Activer les class weights inversement proportionnels à la fréquence (rééquilibre les classes rares).")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -62,6 +66,8 @@ def train_cmd(
     mini_batch_size: int,
     use_attention: bool,
     bidirectional: bool,
+    edge_loss_weight: float,
+    weighted_loss: bool,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -93,7 +99,7 @@ def train_cmd(
     d_effective = vocab.d_clause + d_emb
     # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
     n_node_types = len(NODE_TYPES)
-    d_edge_closed = vocab.d_edge + 2 * d_emb + 2 * d_effective + 2 * n_node_types
+    d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb)
     encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed)
 
     # Couche 3 : choix du graph selon les flags
@@ -130,6 +136,35 @@ def train_cmd(
     loader = GCNDataLoader(data_dir, all_pairs=all_pairs)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+
+    # Calcul des class weights si --weighted-loss (inversement proportionnel à la fréquence)
+    node_class_weights = None
+    edge_class_weights = None
+    if weighted_loss:
+        from collections import Counter
+        node_counts = Counter()
+        edge_counts = Counter()
+        for sample in loader:
+            for label in sample.gold_node_labels:
+                node_counts[int(label)] += 1
+            for (src, tgt), rel in sample.edge_map.items():
+                edge_counts[int(rel)] += 1
+        if node_counts:
+            total_nodes = sum(node_counts.values())
+            n_node_classes = len(NODE_TYPES)
+            node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
+            for c in range(n_node_classes):
+                count = node_counts.get(c, 1)
+                node_class_weights[c] = total_nodes / (n_node_classes * count)
+            click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3)))}")
+        if edge_counts:
+            total_edges = sum(edge_counts.values())
+            n_edge_classes = len(RELATION_TYPES)
+            edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
+            for c in range(n_edge_classes):
+                count = edge_counts.get(c, 1)
+                edge_class_weights[c] = total_edges / (n_edge_classes * count)
+            click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3)))}")
 
     # S2 : pré-remplir le vocabulaire des embeddings depuis toutes les lemmes
     if word_embedding is not None:
@@ -182,7 +217,7 @@ def train_cmd(
                     )
                 except ValueError:
                     raise  # misconfiguration (d_out, clause_positions…) — non ignorable
-                except (RuntimeError, IndexError, KeyError, TypeError, ValueError) as exc:
+                except (RuntimeError, IndexError, KeyError, TypeError) as exc:
                     warnings.warn(
                         f"[{sample.sentence.id}] forward ignoré : "
                         f"{type(exc).__name__}: {exc}",
@@ -242,7 +277,10 @@ def train_cmd(
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
+                    edge_loss_weight=edge_loss_weight,
                     gold_surface=_gold_surface,
+                    node_class_weights=node_class_weights,
+                    edge_class_weights=edge_class_weights,
                 )
 
                 # Backward (gelé si --decoder-only) — S10 : accumulation mini-batch
