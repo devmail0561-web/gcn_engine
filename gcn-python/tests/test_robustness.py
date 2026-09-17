@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 from gcn_python.layer1.representation import UDRepresentation
-from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge, CONNECTOR_LEMMAS
 
 CHECKPOINT = Path("checkpoints/prod_v1.npz")
 
@@ -31,8 +31,13 @@ def _make_connector(lemma, pos="SCONJ") -> UDRepresentation:
 # ---------------------------------------------------------------------------
 
 def test_connecteur_si_vs_bien_que_change_vecteur():
-    """Deux arêtes identiques sauf le connecteur produisent des vecteurs différents."""
-    vocab = FeatureVocabulary()
+    """
+    Avec un lexique de connecteurs fourni, deux connecteurs différents
+    produisent des vecteurs edge différents.
+    Sans lexique (défaut language-agnostic), les lemmes ne sont pas encodés.
+    """
+    # Fournir le lexique FR — la différence "si" vs "bien" est encodée
+    vocab = FeatureVocabulary(connector_lemmas=CONNECTOR_LEMMAS)
     src = _make_rep("baisser", morph={"Tense": "Pres"})
     dst = _make_rep("réduire", morph={"Tense": "Pres"})
     conn_si   = _make_connector("si")

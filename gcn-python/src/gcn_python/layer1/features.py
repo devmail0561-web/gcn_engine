@@ -34,38 +34,50 @@ CONNECTOR_DEP_RELS = [
 @dataclass
 class FeatureVocabulary:
     """
-    Schéma ordonné des features de la Couche 1.
-    Sérialisable JSON — partagé entre entraînement et inférence.
-    Le data scientist sérialise cette instance avec son checkpoint.
-    Features purement syntaxiques : UPOS, DEP_REL, tense/aspect/mood, polarity, flags structurels.
+    Schéma ordonné des features de la Couche 1 — language-agnostic.
+
+    Features universelles UD (UPOS, dep_rel, morph) : applicables à toute langue.
+    Lexique de connecteurs : vide par défaut — l'utilisateur fournit
+    les lemmes propres à sa langue via connector_lemmas.
+
+    Exemple pour le français :
+        from gcn_python.layer1.features import CONNECTOR_LEMMAS
+        vocab = FeatureVocabulary(connector_lemmas=CONNECTOR_LEMMAS)
+
+    Sans connector_lemmas, d_conn est minimal (UPOS + dep_rel + position)
+    et fonctionne pour toute langue sans modification.
     """
+    # Features universelles UD
     upos_tags: list[str] = field(default_factory=lambda: list(UPOS_TAGS))
     dep_rels: list[str] = field(default_factory=lambda: list(UD_DEP_RELS))
     tense_values: list[str] = field(default_factory=lambda: list(UD_TENSE_VALUES))
     aspect_values: list[str] = field(default_factory=lambda: list(UD_ASPECT_VALUES))
     mood_values: list[str] = field(default_factory=lambda: list(UD_MOOD_VALUES))
     subject_pos_cats: list[str] = field(default_factory=lambda: list(SUBJECT_POS_CATS))
+    # Lexique de connecteurs — vide par défaut (language-agnostic)
+    connector_lemmas: list[str] = field(default_factory=list)
+    connector_dep_rels: list[str] = field(default_factory=lambda: list(CONNECTOR_DEP_RELS))
 
     @property
     def d_clause(self) -> int:
         return (
-            len(self.upos_tags)
-            + len(self.dep_rels)
-            + len(self.subject_pos_cats)
-            + len(self.tense_values)
+            len(self.upos_tags)          # UPOS universel
+            + len(self.dep_rels)         # dep_rel universel
+            + len(self.subject_pos_cats) # POS du sujet
+            + len(self.tense_values)     # morphologie
             + len(self.aspect_values)
             + len(self.mood_values)
             + 1   # Polarity
-            + 3   # structural flags
+            + 3   # flags structurels : has_object, has_advcl, has_temporal_obl
         )
 
     @property
     def d_conn(self) -> int:
         return (
-            len(self.upos_tags)       # 19 : UPOS du connecteur
-            + len(CONNECTOR_LEMMAS)   # 54 : lemma du connecteur
-            + len(CONNECTOR_DEP_RELS) # 11 : dep_rel du connecteur
-            + 2                       #  2 : direction + distance
+            len(self.upos_tags)              # UPOS du connecteur
+            + len(self.connector_lemmas)     # lemme (0 si pas de lexique fourni)
+            + len(self.connector_dep_rels)   # dep_rel du connecteur
+            + 2                              # direction + distance
         )
 
     N_INTERACTION_FEATURES = 4  # shared_pos, shared_subject, clause_distance, obj_xor
@@ -75,11 +87,7 @@ class FeatureVocabulary:
         return 2 * self.d_clause + self.d_conn + self.N_INTERACTION_FEATURES
 
     def d_edge_closed_loop(self, d_effective: int, n_node_types: int, d_emb: int = 0) -> int:
-        """Dimension du edge MLP en closed-loop (avec enriched vectors + node probs).
-
-        d_effective : dimension effective des clause vectors (d_clause + d_emb).
-        d_emb : dimension des word embeddings (0 si pas d'embeddings).
-        """
+        """Dimension du edge MLP en closed-loop."""
         return self.d_edge + 2 * d_emb + 2 * d_effective + 2 * n_node_types
 
     def to_json(self) -> str:
@@ -90,6 +98,8 @@ class FeatureVocabulary:
             "aspect_values": self.aspect_values,
             "mood_values": self.mood_values,
             "subject_pos_cats": self.subject_pos_cats,
+            "connector_lemmas": self.connector_lemmas,
+            "connector_dep_rels": self.connector_dep_rels,
         }, ensure_ascii=False)
 
     @classmethod
@@ -142,13 +152,14 @@ def vectorize_connector(
 ) -> np.ndarray:
     """Connector features between two clauses → np.ndarray[d_conn]"""
     if marker_rep is not None:
-        upos_vec = _one_hot(marker_rep.root_pos, vocab.upos_tags)
-        lemma_vec = _one_hot(marker_rep.root_lemma, CONNECTOR_LEMMAS)
-        dep_vec = _one_hot(marker_rep.root_dep_rel, CONNECTOR_DEP_RELS)
+        upos_vec  = _one_hot(marker_rep.root_pos, vocab.upos_tags)
+        lemma_vec = _one_hot(marker_rep.root_lemma, vocab.connector_lemmas) \
+                    if vocab.connector_lemmas else np.zeros(0, dtype=np.float32)
+        dep_vec   = _one_hot(marker_rep.root_dep_rel, vocab.connector_dep_rels)
     else:
-        upos_vec = np.zeros(len(vocab.upos_tags), dtype=np.float32)
-        lemma_vec = np.zeros(len(CONNECTOR_LEMMAS), dtype=np.float32)
-        dep_vec = np.zeros(len(CONNECTOR_DEP_RELS), dtype=np.float32)
+        upos_vec  = np.zeros(len(vocab.upos_tags), dtype=np.float32)
+        lemma_vec = np.zeros(len(vocab.connector_lemmas), dtype=np.float32)
+        dep_vec   = np.zeros(len(vocab.connector_dep_rels), dtype=np.float32)
 
     pos_vec = np.array(
         [float(src_idx < dst_idx), abs(dst_idx - src_idx) / max(n_clauses, 1)],
