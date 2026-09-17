@@ -64,63 +64,198 @@ Baseline triviale (prédire toujours "cause") : edge accuracy = 59.3 %
 
 ## Phase 1 — Rendre le dataset réel utilisable (BLOQUANT)
 
-**Objectif précis :** Pour chaque phrase du dataset réel, produire la liste complète de
-tokens UD (id, form, lemma, pos, dep_rel, dep_head, morph) **avec les IDs alignés sur les
-`token_span` existants dans le CIR**, de façon que `_rep_from_clause` retourne des
-représentations non vides.
+**Objectif précis :** Pour chaque phrase du dataset réel, produire :
+1. La liste complète de tokens UD (id, form, lemma, pos, dep_rel, dep_head, morph)
+2. Des `token_span` dans les nodes CIR **alignés sur les IDs de tokens spaCy**
+
+**Hypothèse de travail (confirmée par observation) :** les `token_span` générés par
+`auto_annotate` sont vraisemblablement incorrects. L'exemple observé — deux nœuds
+distincts ayant le même `token_span = [0, 11]` sur la même phrase — prouve que les spans
+ne correspondent pas à une tokenisation réelle. Ce cas (deux nœuds avec span identique)
+est structurellement impossible dans un CIR valide.
+
+**Conséquence :** Phase 1 ne se limite pas à ajouter des tokens UD. Elle doit
+**re-dériver les `token_span` des nœuds CIR** depuis la structure syntaxique spaCy,
+puis injecter les tokens UD. Les types de nœuds et les relations d'arêtes du CIR
+existant sont conservés — seuls les `token_span` sont recalculés.
 
 **Contrainte architecturale :** spaCy est interdit dans le moteur (`gcn-python`).
 Il est utilisé ici uniquement dans `gcn-tools/gcn-scraper/` — conforme à la règle.
 
 ---
 
-### Étape 1.1 — Analyser l'alignement `token_span` CIR ↔ tokenisation spaCy
-
-**Avant d'écrire une seule ligne de code**, exécuter ce script de diagnostic :
+### Étape 1.1 — Confirmer que les token_span sont incorrects (diagnostic)
 
 ```python
 # gcn-tools/gcn-scraper/src/gcn_scraper/diagnose_spans.py
+"""
+Diagnostic rapide : mesure le pourcentage de phrases où les token_span CIR
+sont invalides (chevauchement identique, hors-bornes, start >= end).
+"""
 import json, spacy
 nlp = spacy.load("fr_core_news_sm")
 data = json.loads(open("gcn-datasets/real/annotated.json").read())
 sents = data["document"]["sentences"]
 
-span_types = {"char": 0, "token_1based": 0, "token_0based": 0, "unknown": 0}
-for s in sents[:50]:
-    text = s["text"]
-    doc = nlp(text)
-    tokens = list(doc)
-    for node in s.get("cir", {}).get("nodes", []):
-        start, end = node["token_span"]
-        # Tester chaque hypothèse
-        if 0 <= start < end <= len(text):
-            span_types["char"] += 1
-        if 1 <= start <= end <= len(tokens):
-            span_types["token_1based"] += 1
-        if 0 <= start < end <= len(tokens):
-            span_types["token_0based"] += 1
+n_invalid = 0
+examples = []
+for s in sents[:100]:
+    nodes = s.get("cir", {}).get("nodes", [])
+    spans = [tuple(n["token_span"]) for n in nodes]
+    doc = nlp(s["text"])
+    n_tokens = len(doc)
+    # Invalide si : start >= end, hors bornes, ou deux nœuds ont le même span
+    invalid = (
+        any(start >= end for start, end in spans)
+        or any(end > n_tokens for start, end in spans)
+        or len(spans) != len(set(spans))   # doublons
+    )
+    if invalid:
+        n_invalid += 1
+        if len(examples) < 3:
+            examples.append({"text": s["text"][:80], "spans": spans, "n_tokens": n_tokens})
 
-print("Diagnostic spans:", span_types)
+print(f"Invalide : {n_invalid}/100 phrases")
+for ex in examples:
+    print(ex)
 ```
 
-**Les trois cas possibles :**
-
-- **Cas A — offsets de caractères** : `token_span = [char_start, char_end]`
-  → Mapping : utiliser `token.idx` (offset début char) et `token.idx + len(token.text)`
-  → Affecter à chaque token UD : `id = token.i + 1` ; garder les spans caractères tels quels
-  et convertir en token IDs dans `_rep_from_clause` (nécessite une modification du moteur)
-
-- **Cas B — IDs de tokens 0-based** : `token_span = [tok_idx_start, tok_idx_end]`
-  → Affecter : `id = token.i` (0-based) ; `_rep_from_clause` filtre avec `span_start <= t.id <= span_end` → fonctionne directement
-
-- **Cas C — IDs de tokens 1-based** : `token_span = [tok_idx_start+1, tok_idx_end+1]`
-  → Affecter : `id = token.i + 1` (1-based) → fonctionne directement
-
-Le diagnostic détermine le cas avant tout autre développement.
+**Résultat attendu :** taux d'invalidité élevé (> 50 %). Ce résultat déclenche
+automatiquement l'étape 1.2 (re-dérivation). Si le taux est < 5 %, passer
+directement à l'étape 1.3 (l'alignement est correct, seuls les tokens manquent).
 
 ---
 
-### Étape 1.2 — Créer `gcn-tools/gcn-scraper/src/gcn_scraper/ud_annotator.py`
+### Étape 1.2 — Re-dériver les token_span CIR depuis spaCy (si diagnostic KO)
+
+**Principe :** utiliser la structure de dépendances spaCy pour détecter les frontières
+de clauses, puis mapper chaque nœud CIR (dans l'ordre de position dans le texte) à la
+clause correspondante détectée.
+
+```python
+# gcn-tools/gcn-scraper/src/gcn_scraper/rederive_spans.py
+"""
+Re-dérive les token_span des nœuds CIR depuis spaCy.
+
+Stratégie de détection des clauses :
+  Une clause = le sous-arbre d'un token dont dep_rel est dans
+  {"root", "advcl", "ccomp", "relcl", "acl"}.
+  Les clauses sont triées par position de leur token racine dans la phrase.
+
+Mapping CIR nodes → clauses détectées :
+  Les nœuds CIR sont supposés être ordonnés par position dans le texte
+  (hypothèse : le LLM annotateur les a produits dans l'ordre de la phrase).
+  Le nœud CIR i est mappé à la clause i (0-indexed).
+  Si n_nodes_cir != n_clauses_detected : la phrase est marquée "ambiguë"
+  et exclue du dataset (token_span non fiable).
+
+Résultat : token_span = [min_tok_id, max_tok_id] du sous-arbre de la clause,
+  avec tok_id = token.i + 1 (convention 1-based, compatible avec json_reader.py).
+"""
+import spacy
+from typing import Optional
+
+def _detect_clauses(doc) -> list[tuple[int, int]]:
+    """
+    Retourne les spans (start_1based, end_1based) de chaque clause détectée,
+    triés par position croissante dans la phrase.
+    """
+    CLAUSE_DEPS = {"root", "advcl", "ccomp", "relcl", "acl"}
+    clauses = []
+    for tok in doc:
+        if tok.dep_.lower() in CLAUSE_DEPS:
+            subtree_ids = [t.i + 1 for t in tok.subtree]  # 1-based
+            if subtree_ids:
+                clauses.append((min(subtree_ids), max(subtree_ids)))
+    # Dédupliquer et trier par position
+    clauses = sorted(set(clauses), key=lambda c: c[0])
+    return clauses
+
+
+def rederive_cir_spans(
+    sentence: dict,
+    doc,
+) -> Optional[dict]:
+    """
+    Prend une sentence (avec CIR existant) et un doc spaCy.
+    Retourne la sentence avec les token_span des nœuds CIR corrigés,
+    ou None si la re-dérivation est impossible (ambiguïté de mapping).
+
+    Les types de nœuds et les relations d'arêtes sont conservés intacts.
+    """
+    nodes = sentence.get("cir", {}).get("nodes", [])
+    if not nodes:
+        return None
+
+    clauses = _detect_clauses(doc)
+
+    if len(clauses) != len(nodes):
+        # Impossible de mapper 1-à-1 → phrase exclue
+        return None
+
+    # Mapper nœud i → clause i (ordre textuel)
+    corrected = dict(sentence)  # copie superficielle
+    corrected["cir"] = dict(sentence["cir"])
+    corrected["cir"]["nodes"] = []
+    for node, (span_start, span_end) in zip(nodes, clauses):
+        corrected_node = dict(node)
+        corrected_node["token_span"] = [span_start, span_end]
+        corrected["cir"]["nodes"].append(corrected_node)
+
+    return corrected
+```
+
+**Script principal :**
+
+```python
+# gcn-tools/gcn-scraper/src/gcn_scraper/rederive_all_spans.py
+"""
+Lit annotated.json, re-dérive les token_span, écrit annotated_spans_fixed.json.
+Rapport : nb phrases corrigées, nb exclues (ambiguïté), nb ignorées (0 nœuds).
+"""
+import json, spacy
+from rederive_spans import rederive_cir_spans
+
+nlp = spacy.load("fr_core_news_sm")
+data = json.loads(open("gcn-datasets/real/annotated.json").read())
+sents = data["document"]["sentences"]
+
+corrected, excluded, empty = [], [], []
+for s in sents:
+    if not s.get("cir", {}).get("nodes"):
+        empty.append(s)
+        continue
+    doc = nlp(s["text"])
+    result = rederive_cir_spans(s, doc)
+    if result is None:
+        excluded.append(s["id"])
+    else:
+        corrected.append(result)
+
+print(f"Corrigées : {len(corrected)}, Exclues : {len(excluded)}, Vides : {len(empty)}")
+print(f"Phrases exclues (ambiguïté) : {excluded[:10]}")
+
+output = dict(data)
+output["document"]["sentences"] = corrected
+open("gcn-datasets/real/annotated_spans_fixed.json", "w").write(
+    json.dumps(output, ensure_ascii=False, indent=2)
+)
+```
+
+**Fichier produit :** `gcn-datasets/real/annotated_spans_fixed.json`
+Contient les phrases dont les `token_span` sont alignés sur la tokenisation spaCy 1-based.
+Les nœuds CIR (type, label, id) et les arêtes (relation, confidence, etc.) sont inchangés.
+
+**Critère d'acceptabilité :** si `len(corrected) < 400` (moins de 59 % des 678 phrases),
+les spans originaux sont trop mal formés pour être récupérés par cette méthode. Dans ce
+cas, il faut re-annoter le CIR entièrement depuis zéro via `gcn-annotate` (hors scope
+Phase 1 — à planifier séparément).
+
+---
+
+### Étape 1.3 — Créer `gcn-tools/gcn-scraper/src/gcn_scraper/ud_annotator.py`
+
+**Prérequis :** étape 1.2 terminée — utiliser `annotated_spans_fixed.json` comme entrée.
 
 Ce module reçoit un texte et retourne la liste de tokens UD **avec les IDs alignés** sur
 la convention détectée en étape 1.1.
@@ -203,9 +338,10 @@ python -m spacy download en_core_web_sm
 
 ---
 
-### Étape 1.3 — Valider la qualité du CIR réel avant annotation UD
+### Étape 1.4 — Valider la qualité du CIR après re-dérivation des spans
 
-**Avant d'annoter 678 phrases**, valider que les CIR existants sont exploitables.
+**Avant d'annoter les phrases avec les tokens UD**, valider que les CIR corrigés
+sont exploitables (`annotated_spans_fixed.json`).
 Créer `gcn-tools/gcn-scraper/src/gcn_scraper/validate_cir.py` :
 
 ```python
@@ -225,15 +361,16 @@ Le plan ne peut pas progresser sur des CIR incorrects.
 
 ---
 
-### Étape 1.4 — Script d'annotation UD du dataset réel
+### Étape 1.5 — Script d'annotation UD du dataset réel
 
 Créer `gcn-tools/gcn-scraper/src/gcn_scraper/annotate_real_dataset.py` :
 
 ```python
 """
-Lit gcn-datasets/real/annotated.json (678 phrases, CIR présent, 0 token UD).
+Lit gcn-datasets/real/annotated_spans_fixed.json (CIR corrigé, 0 token UD).
 Pour chaque phrase :
-  1. Appelle annotate_ud(text, lang, id_convention) avec id_convention déterminée en 1.1
+  1. Appelle annotate_ud(text, lang, id_convention="1based")
+     (1-based car rederive_spans utilise la convention 1-based)
   2. Injecte la liste de tokens dans sentence["tokens"]
   3. NE MODIFIE PAS le CIR (nodes, edges)
 Écrit gcn-datasets/real/annotated_ud.json.
@@ -246,7 +383,7 @@ Rapport final : nb succès, nb échecs, nb tokens moyens par phrase.
 
 ---
 
-### Étape 1.5 — Valider que `reps_from_sentence` retourne des reps non vides
+### Étape 1.6 — Valider que `reps_from_sentence` retourne des reps non vides
 
 ```python
 # Script de validation post-annotation
@@ -275,7 +412,7 @@ assert n_ok > n_empty * 10, "Trop de reps vides — vérifier l'alignement token
 
 ---
 
-### Étape 1.6 — Re-générer les splits train/val/test avec tokens UD
+### Étape 1.7 — Re-générer les splits train/val/test avec tokens UD
 
 À partir de `annotated_ud.json` (uniquement les phrases dont le CIR est valide et les
 reps non vides), créer les 3 splits :
@@ -985,7 +1122,7 @@ Un gap < 0.10 est attendu — s'il est plus grand, la régularisation est insuff
 
 ---
 
-### Étape 6.2 — Entraînement sur dataset réel (1356 phrases avec tokens UD)
+### Étape 6.2 — Entraînement sur dataset réel (678 phrases avec tokens UD)
 
 ```bash
 gcn-train \
@@ -1098,18 +1235,18 @@ def test_morph_tense_change_vecteur():
 ## Ordre d'exécution avec dépendances exactes
 
 ```
-┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│  Phase 1             │  │  Phase 2             │  │  Phase 3             │
-│  (UD tokens)         │  │  (Val set)           │  │  (Régularisation)    │
-│                      │  │                      │  │                      │
-│  1.1 diagnose_spans  │  │  2.0 split synthéti- │  │  3.1 weight decay    │
-│  1.2 ud_annotator    │  │      que train/val   │  │  3.2 dropout R-GCN   │
-│  1.3 validate_cir    │  │  2.1 --val-dir       │  │  3.3 label smoothing │
-│  1.4 annotate script │  │  2.2 early stopping  │  │  3.4 tests           │
-│  1.5 validation reps │  │  2.3 shuffle         │  │                      │
-│  1.6 re-split        │  │  2.4 recorder        │  │                      │
-│                      │  │  2.5 tests           │  │                      │
-└──────────┬───────────┘  └──────────┬───────────┘  └──────────┬───────────┘
+┌──────────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+│  Phase 1                  │  │  Phase 2             │  │  Phase 3             │
+│  (UD tokens + fix spans)  │  │  (Val set)           │  │  (Régularisation)    │
+│                           │  │                      │  │                      │
+│  1.1 diagnose_spans       │  │  2.0 split synthét.  │  │  3.1 weight decay    │
+│  1.2 rederive_spans (NEW) │  │  2.1 --val-dir       │  │  3.2 dropout R-GCN   │
+│  1.3 ud_annotator         │  │  2.2 early stopping  │  │  3.3 label smoothing │
+│  1.4 validate_cir         │  │  2.3 shuffle         │  │  3.4 tests           │
+│  1.5 annotate_real_dataset│  │  2.4 recorder        │  │                      │
+│  1.6 validation reps      │  │  2.5 tests           │  │                      │
+│  1.7 re-split             │  │                      │  │                      │
+└──────────┬────────────────┘  └──────────┬───────────┘  └──────────┬───────────┘
            │                         │                          │
            └─────────────────────────┴──────────────────────────┘
                                      │
@@ -1149,10 +1286,11 @@ def test_morph_tense_change_vecteur():
 | # | Livrable | Phase | Fichier(s) | Lignes est. |
 |---|---------|-------|-----------|-------------|
 | L1 | Script diagnostic spans | 1.1 | `gcn-scraper/.../diagnose_spans.py` (nouveau) | ~40 |
-| L2 | `ud_annotator.py` | 1.2 | `gcn-scraper/.../ud_annotator.py` (nouveau) | ~80 |
-| L3 | `validate_cir.py` | 1.3 | `gcn-scraper/.../validate_cir.py` (nouveau) | ~60 |
-| L4 | Script annotation UD dataset réel | 1.4 | `gcn-scraper/.../annotate_real_dataset.py` (nouveau) | ~60 |
-| L5 | Dataset réel avec tokens UD | 1.5–1.6 | `gcn-datasets/real/annotated_ud.json` + splits | — |
+| L2 | `rederive_spans.py` + script | 1.2 | `gcn-scraper/.../rederive_spans.py` (nouveau) | ~100 |
+| L3 | `ud_annotator.py` | 1.3 | `gcn-scraper/.../ud_annotator.py` (nouveau) | ~80 |
+| L4 | `validate_cir.py` | 1.4 | `gcn-scraper/.../validate_cir.py` (nouveau) | ~60 |
+| L5 | Script annotation UD dataset réel | 1.5 | `gcn-scraper/.../annotate_real_dataset.py` (nouveau) | ~60 |
+| L6 | Dataset réel spans+tokens UD | 1.6–1.7 | `gcn-datasets/real/annotated_spans_fixed.json`, `annotated_ud.json` + splits | — |
 | L6 | Split synthétique train/val | 2.0 | `gcn-datasets/corpus_train/`, `gcn-datasets/corpus_val/` | ~30 |
 | L7 | `--val-dir` + `_set_training_mode` | 2.1 | `training/train.py` | ~80 |
 | L8 | Early stopping + best model | 2.2 | `training/train.py` | ~60 |
