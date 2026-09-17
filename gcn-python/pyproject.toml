@@ -37,6 +37,7 @@ dev = ["pytest>=7.4", "ruff>=0.1"]
 all = ["torch>=2.0", "pytest>=7.4", "ruff>=0.1"]
 
 [project.scripts]
+gcn-chat = "gcn_python.chat:_chat_cmd"
 gcn-forward = "gcn_python.pipeline.cli:forward_cmd"
 gcn-verbalize = "gcn_python.verbalizer.cli:verbalize_cmd"
 gcn-train = "gcn_python.training.train:train_cmd"
