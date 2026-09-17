@@ -597,7 +597,143 @@ def best_epoch(self, metric: str = "val_node_macro_f1") -> tuple[int, float]:
 
 ---
 
-### Étape 2.5 — Tests
+### Étape 2.5 — `graph_exact_match` — métrique au niveau phrase
+
+**Motivation :** les métriques actuelles (`node_accuracy`, `edge_macro_f1`) agrègent
+par élément (nœud par nœud, arête par arête). Elles ne mesurent pas si le modèle
+produit le **graphe causal complet et correct** pour une phrase entière. Un modèle
+qui prédit bien les nœuds fréquents mais se trompe sur les arêtes rares peut avoir
+un bon score global sans jamais produire un graphe valide.
+
+**Définition exacte :**
+Une phrase est "exacte" si et seulement si :
+1. Le nombre de nœuds prédit == le nombre de nœuds gold
+2. Chaque type de nœud est correct (aligné par position de clause)
+3. Le nombre d'arêtes prédites == le nombre d'arêtes gold
+4. Chaque relation d'arête est correcte (alignée par paire source/cible)
+
+`graph_exact_match = nombre de phrases exactes / nombre total de phrases`
+
+---
+
+#### Étape 2.5a — `evaluation/metrics.py` — nouvelle fonction
+
+```python
+def graph_exact_match(
+    sentences_node_pred: list[list[str]],
+    sentences_node_gold: list[list[str]],
+    sentences_edge_pred: list[list[str]],
+    sentences_edge_gold: list[list[str]],
+) -> float:
+    """
+    Proportion de phrases dont le graphe causal complet est prédit exactement.
+
+    Paramètres :
+      sentences_node_pred[i] : liste des types de nœuds prédits pour la phrase i
+      sentences_node_gold[i] : liste des types de nœuds gold pour la phrase i
+      sentences_edge_pred[i] : liste des relations d'arêtes prédites pour la phrase i
+      sentences_edge_gold[i] : liste des relations d'arêtes gold pour la phrase i
+
+    Les 4 listes doivent avoir la même longueur (une entrée par phrase).
+    Pour une phrase sans arête supervisée, passer [] pour pred et gold.
+
+    Retourne float [0.0, 1.0]. Retourne 0.0 si la liste est vide.
+
+    Exemple :
+      sentences_node_pred = [["processus", "action"], ["etat"]]
+      sentences_node_gold = [["processus", "action"], ["action"]]
+      sentences_edge_pred = [["cause"],               []]
+      sentences_edge_gold = [["cause"],               []]
+      → phrase 0 : nœuds OK, arête OK → exacte
+      → phrase 1 : nœud KO ("etat" ≠ "action") → pas exacte
+      → graph_exact_match = 1/2 = 0.50
+    """
+    if not sentences_node_gold:
+        return 0.0
+    if not (len(sentences_node_pred) == len(sentences_node_gold)
+            == len(sentences_edge_pred) == len(sentences_edge_gold)):
+        raise ValueError(
+            "graph_exact_match : les 4 listes doivent avoir la même longueur. "
+            f"Reçu : node_pred={len(sentences_node_pred)}, "
+            f"node_gold={len(sentences_node_gold)}, "
+            f"edge_pred={len(sentences_edge_pred)}, "
+            f"edge_gold={len(sentences_edge_gold)}"
+        )
+    n_exact = sum(
+        node_pred == node_gold and edge_pred == edge_gold
+        for node_pred, node_gold, edge_pred, edge_gold
+        in zip(sentences_node_pred, sentences_node_gold,
+               sentences_edge_pred, sentences_edge_gold)
+    )
+    return n_exact / len(sentences_node_gold)
+```
+
+---
+
+#### Étape 2.5b — `training/train.py` — accumulation par phrase
+
+La boucle interne accumule actuellement des **listes plates** :
+```python
+epoch_node_preds: list[str] = []
+epoch_node_gold: list[str] = []
+epoch_edge_preds: list[str] = []
+epoch_edge_gold: list[str] = []
+```
+
+Ajouter **4 listes par phrase** en parallèle :
+```python
+epoch_sent_node_preds: list[list[str]] = []
+epoch_sent_node_gold: list[list[str]] = []
+epoch_sent_edge_preds: list[list[str]] = []
+epoch_sent_edge_gold: list[list[str]] = []
+```
+
+Dans le corps de la boucle `for sample in loader`, après le calcul des prédictions
+nœuds et arêtes, ajouter :
+```python
+# Accumulation par phrase (pour graph_exact_match)
+sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
+sent_node_gold_list = [NODE_TYPES[i] for i in gold_node_aligned]
+epoch_sent_node_preds.append(sent_node_pred)
+epoch_sent_node_gold.append(sent_node_gold_list)
+
+if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
+    sent_edge_pred = [RELATION_TYPES[i] for i in np.argmax(edge_logits_arg, axis=1)]
+    sent_edge_gold_list = [RELATION_TYPES[i] for i in gold_edge]
+else:
+    sent_edge_pred = []
+    sent_edge_gold_list = []
+epoch_sent_edge_preds.append(sent_edge_pred)
+epoch_sent_edge_gold.append(sent_edge_gold_list)
+```
+
+En fin d'epoch, ajouter `graph_exact_match` aux métriques :
+```python
+from ..evaluation.metrics import graph_exact_match as _gem
+metrics = {
+    "node_accuracy":      node_accuracy(epoch_node_preds, epoch_node_gold),
+    "node_macro_f1":      node_macro_f1(epoch_node_preds, epoch_node_gold),
+    "edge_accuracy":      edge_accuracy(epoch_edge_preds, epoch_edge_gold),
+    "edge_macro_f1":      edge_macro_f1(epoch_edge_preds, epoch_edge_gold),
+    "graph_exact_match":  _gem(epoch_sent_node_preds, epoch_sent_node_gold,
+                               epoch_sent_edge_preds, epoch_sent_edge_gold),
+}
+```
+
+La même accumulation doit être faite dans le **pass val** (étape 2.1) pour obtenir
+`val_graph_exact_match`.
+
+---
+
+#### Étape 2.5c — Aucun changement à `recorder.py`
+
+Le `TrainingRecorder` accepte n'importe quelle clé dans le dict `metrics`. La nouvelle
+clé `graph_exact_match` (et `val_graph_exact_match`) apparaît automatiquement dans le
+CSV et le JSON de sortie.
+
+---
+
+### Étape 2.6 — Tests
 
 Dans `tests/test_training.py` :
 
@@ -607,6 +743,14 @@ Dans `tests/test_training.py` :
 4. Test early stopping lève `ClickException` si `--patience > 0` sans `--val-dir`
 5. Test shuffle permute les samples à chaque epoch (seeds différents → ordres différents)
 6. Test `_set_training_mode(pipeline, False)` → dropout désactivé sur encodeur et R-GCN
+
+Dans `tests/test_evaluation.py` :
+
+7. Test `graph_exact_match` : toutes correctes → 1.0
+8. Test `graph_exact_match` : aucune correcte → 0.0
+9. Test `graph_exact_match` : nœuds corrects mais arêtes fausses → 0.0 (pas exacte)
+10. Test `graph_exact_match` : liste vide → 0.0
+11. Test `graph_exact_match` : listes de longueurs différentes → `ValueError`
 
 ---
 
@@ -1191,18 +1335,20 @@ def test_morph_tense_change_vecteur():
 | L7 | `--val-dir` + `_set_training_mode` | 2.1 | `training/train.py` | ~80 |
 | L8 | Early stopping + best model | 2.2 | `training/train.py` | ~60 |
 | L9 | Shuffle + recorder étendu | 2.3–2.4 | `data/loader.py`, `evaluation/recorder.py` | ~70 |
-| L10 | Tests Phase 2 | 2.5 | `tests/test_training.py` | ~80 |
-| L11 | Weight decay | 3.1 | `layer2/reference.py`, `training/train.py` | ~25 |
-| L12 | Dropout R-GCN + GAT | 3.2 | `layer3/reference.py`, `layer3/gat.py`, `training/train.py` | ~40 |
-| L13 | Label smoothing | 3.3 | `pipeline/cgnp.py`, `training/train.py` | ~35 |
-| L14 | Tests Phase 3 | 3.4 | `tests/test_pipeline.py` | ~60 |
-| L15 | Dérivation `causal_pattern` réel | 4.1 | `gcn-scraper/.../derive_causal_pattern.py` (nouveau) | ~30 |
-| L16 | Dataset 5 000+ | 4.2–4.4 | `gcn-datasets/real/` | — |
-| L17 | `causal_pattern` dans schema + reader (métadonnée split) | 5.1–5.2 | `data/schema.py`, `data/json_reader.py` | ~10 |
-| L18 | Suppression `gcn_causal_type` heuristiques | 5.3 | `data/loader.py` | ~15 |
-| L19 | Test `causal_pattern` absent de `vectorize_clause` | 5.4 | `tests/test_layer1.py` | ~20 |
-| L20 | Diagnostics + `per_class_report` | 6.3 | `evaluation/metrics.py` | ~50 |
-| L21 | Tests robustesse | 6.4 | `tests/test_robustness.py` (nouveau) | ~100 |
+| L10 | `graph_exact_match` dans `metrics.py` | 2.5a | `evaluation/metrics.py` | ~45 |
+| L11 | Accumulation par phrase dans `train.py` | 2.5b | `training/train.py` | ~30 |
+| L12 | Tests Phase 2 | 2.6 | `tests/test_training.py`, `tests/test_evaluation.py` | ~100 |
+| L13 | Weight decay | 3.1 | `layer2/reference.py`, `training/train.py` | ~25 |
+| L14 | Dropout R-GCN + GAT | 3.2 | `layer3/reference.py`, `layer3/gat.py`, `training/train.py` | ~40 |
+| L15 | Label smoothing | 3.3 | `pipeline/cgnp.py`, `training/train.py` | ~35 |
+| L16 | Tests Phase 3 | 3.4 | `tests/test_pipeline.py` | ~60 |
+| L17 | Dérivation `causal_pattern` réel | 4.1 | `gcn-scraper/.../derive_causal_pattern.py` (nouveau) | ~30 |
+| L18 | Dataset 5 000+ | 4.2–4.4 | `gcn-datasets/real/` | — |
+| L19 | `causal_pattern` dans schema + reader (métadonnée split) | 5.1–5.2 | `data/schema.py`, `data/json_reader.py` | ~10 |
+| L20 | Suppression `gcn_causal_type` heuristiques | 5.3 | `data/loader.py` | ~15 |
+| L21 | Test `causal_pattern` absent de `vectorize_clause` | 5.4 | `tests/test_layer1.py` | ~20 |
+| L22 | Diagnostics + `per_class_report` | 6.3 | `evaluation/metrics.py` | ~50 |
+| L23 | Tests robustesse | 6.4 | `tests/test_robustness.py` (nouveau) | ~100 |
 
 ---
 
@@ -1216,6 +1362,8 @@ def test_morph_tense_change_vecteur():
 | Gap train–val node (synthétique) | Inconnu | < 0.10 | Phase 6.1 |
 | `val_node_macro_f1` (réel) | N/A | > 0.50 | Phase 6.2 — données déséquilibrées |
 | `val_edge_macro_f1` (réel) | N/A | > 0.40 | Phase 6.2 — 5 classes sur 11 |
+| `val_graph_exact_match` (synthétique) | N/A | > 0.50 | Phase 6.1 — graphe complet correct |
+| `val_graph_exact_match` (réel) | N/A | > 0.20 | Phase 6.2 — objectif initial réaliste |
 | Baseline triviale edge (réel) | 59.3 % accuracy | — | Prédire toujours "cause" |
 | Taille dataset réel utilisable | 0 | 5 000+ | Phase 4 |
 | Tests Python | 195 | ≥ 195 | Chaque phase |
