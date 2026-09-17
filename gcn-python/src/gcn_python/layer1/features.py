@@ -61,7 +61,7 @@ class FeatureVocabulary:
     def d_conn(self) -> int:
         return (
             len(self.upos_tags)       # 19 : UPOS du connecteur
-            + len(CONNECTOR_LEMMAS)   # 51 : lemma du connecteur
+            + len(CONNECTOR_LEMMAS)   # 54 : lemma du connecteur
             + len(CONNECTOR_DEP_RELS) # 11 : dep_rel du connecteur
             + 2                       #  2 : direction + distance
         )

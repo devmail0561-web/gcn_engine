@@ -8,15 +8,19 @@ Valide le CIR de chaque phrase du dataset réel :
 Produit un rapport : nb phrases valides, invalides, exemples d'erreurs.
 """
 import json
+import sys
+import os
+from pathlib import Path
 
-RELATION_TYPES = {
-    "cause", "enable", "prevent", "condition", "concession", "sequence",
-    "motivation", "filter", "opposition", "data_dependency", "control_dependency",
-}
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "gcn-python", "src"))
+
+from gcn_python.constants import RELATION_TYPES as _RELATION_TYPES_LIST
+
+RELATION_TYPES = set(_RELATION_TYPES_LIST)
 
 
 def validate_cir(annotated_path: str) -> dict:
-    data = json.loads(open(annotated_path).read())
+    data = json.loads(Path(annotated_path).read_text())
     sents = data["document"]["sentences"]
 
     valid = 0

@@ -4,11 +4,12 @@ sont invalides (chevauchement identique, hors-bornes, start >= end).
 """
 import json
 import spacy
+from pathlib import Path
 
 
 def diagnose_spans(annotated_path: str, n_samples: int = 100) -> dict:
     nlp = spacy.load("fr_core_news_sm")
-    data = json.loads(open(annotated_path).read())
+    data = json.loads(Path(annotated_path).read_text())
     sents = data["document"]["sentences"]
 
     n_invalid = 0

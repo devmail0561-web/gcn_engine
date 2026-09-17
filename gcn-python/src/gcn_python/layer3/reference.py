@@ -25,6 +25,7 @@ class RGCNLayer:
         self.dropout = dropout
         self.training = True
         rng = np.random.default_rng(seed)
+        self._rng = np.random.default_rng(seed)
         scale = np.sqrt(2.0 / d_in)
         self.W_r = rng.normal(0, scale, (self.n_relations, d_out, d_in)).astype(np.float32)
         self.W_0 = rng.normal(0, scale, (d_out, d_in)).astype(np.float32)
@@ -41,7 +42,7 @@ class RGCNLayer:
 
         # Dropout sur les features d'entrée
         if self.dropout > 0.0 and self.training:
-            mask = (np.random.random(node_features.shape) > self.dropout).astype(np.float32)
+            mask = (self._rng.random(node_features.shape) > self.dropout).astype(np.float32)
             node_features = node_features * mask / (1.0 - self.dropout)
 
         out = node_features @ self.W_0.T  # self-loop

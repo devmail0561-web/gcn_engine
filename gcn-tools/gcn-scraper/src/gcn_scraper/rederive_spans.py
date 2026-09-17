@@ -17,6 +17,7 @@ Résultat : token_span = [min_tok_id, max_tok_id] du sous-arbre de la clause,
 """
 import json
 import spacy
+from pathlib import Path
 from typing import Optional
 
 
@@ -75,7 +76,7 @@ def rederive_all_spans(annotated_path: str, output_path: str) -> dict:
     Rapport : nb phrases corrigées, nb exclues (ambiguïté), nb ignorées (0 nœuds).
     """
     nlp = spacy.load("fr_core_news_sm")
-    data = json.loads(open(annotated_path).read())
+    data = json.loads(Path(annotated_path).read_text())
     sents = data["document"]["sentences"]
 
     corrected, excluded, empty = [], [], []

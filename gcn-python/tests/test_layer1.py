@@ -44,10 +44,9 @@ def test_vocabulary_serialization():
 def test_causal_pattern_absent_de_vectorize_clause():
     """
     Phase 5.4 : causal_pattern ne doit pas être vectorisé.
-    d_clause reste 79 (ou 80 selon la(vraie) constante).
+    d_clause reste 80 (constante calculée dynamiquement).
     Deux UDRepresentation identiques produisent le même vecteur clause.
     """
-    from gcn_python.data.schema import SentenceRecord
     vocab = FeatureVocabulary()
     base = dict(tokens=[], root_lemma="baisser", root_pos="VERB",
                 root_dep_rel="root", root_morph={}, subject_pos=None,

@@ -11,13 +11,14 @@ Pour chaque phrase :
 import json
 import sys
 import os
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
 from ud_annotator import annotate_ud
 
 
 def annotate_real_dataset(input_path: str, output_path: str, lang: str = "fr") -> dict:
-    data = json.loads(open(input_path).read())
+    data = json.loads(Path(input_path).read_text())
     sents = data["document"]["sentences"]
 
     success = 0

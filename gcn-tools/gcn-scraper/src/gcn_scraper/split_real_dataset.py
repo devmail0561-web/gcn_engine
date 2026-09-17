@@ -8,9 +8,11 @@ Règles de split :
 - Les 5 relations présentes doivent être représentées dans val et test
 """
 import json
+import os
 import random
 import sys
 from collections import Counter, defaultdict
+from pathlib import Path
 
 
 def split_dataset(
@@ -21,7 +23,7 @@ def split_dataset(
     val_ratio: float = 0.15,
 ) -> dict:
     random.seed(seed)
-    data = json.loads(open(annotated_ud_path).read())
+    data = json.loads(Path(annotated_ud_path).read_text())
     sents = data["document"]["sentences"]
 
     by_relation = defaultdict(list)
@@ -39,11 +41,19 @@ def split_dataset(
         n = len(group)
         n_train = int(train_ratio * n)
         n_val = int(val_ratio * n)
+        # Garantir au moins 1 exemple en val si le groupe a ≥ 3 phrases
+        if n_val == 0 and n >= 3:
+            n_val = 1
+            n_train = n - n_val  # ajuster train
+        if n_val == 0 and n > 0:
+            print(
+                f"ATTENTION : relation '{rel}' a {n} phrase(s) — "
+                f"aucune assignée au val set (minimum 3 phrases requis par classe pour val≥1)."
+            )
         train_sents.extend(group[:n_train])
         val_sents.extend(group[n_train:n_train + n_val])
         test_sents.extend(group[n_train + n_val:])
 
-    import os
     os.makedirs(output_dir, exist_ok=True)
 
     for name, sents_list in [

@@ -230,6 +230,7 @@ def train_cmd(
     best_val_f1 = -1.0
     best_epoch_num = 0
     best_checkpoint_path = str(output) + ".best.npz"
+    _patience_counter = 0
 
     def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
         """Bascule TOUS les composants avec dropout en mode eval ou train."""
@@ -309,17 +310,11 @@ def train_cmd(
             n += 1
 
             node_pred_idxs = np.argmax(node_logits, axis=1)
-            if valid_clause_idxs:
-                gold_node_aligned = sample.gold_node_labels[
-                    np.array(valid_clause_idxs, dtype=np.int64)
-                ]
-            else:
-                gold_node_aligned = sample.gold_node_labels
             epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-            epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
+            epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node)
 
             sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
-            sent_node_gold = [NODE_TYPES[i] for i in gold_node_aligned]
+            sent_node_gold = [NODE_TYPES[i] for i in gold_node]
             epoch_sent_node_preds.append(sent_node_pred)
             epoch_sent_node_gold.append(sent_node_gold)
 
@@ -547,7 +542,16 @@ def train_cmd(
                 if val_f1 > best_val_f1:
                     best_val_f1 = val_f1
                     best_epoch_num = epoch
+                    _patience_counter = 0
                     save_checkpoint(pipeline, Path(best_checkpoint_path))
+                else:
+                    _patience_counter += 1
+                    if _patience_counter >= patience:
+                        click.echo(
+                            f"Early stopping : {patience} epochs sans amélioration "
+                            f"(best val_node_macro_f1={best_val_f1:.4f} à epoch {best_epoch_num})"
+                        )
+                        break
     finally:
         if csv_file:
             csv_file.close()
@@ -560,6 +564,7 @@ def train_cmd(
             Path(best_checkpoint_path).unlink(missing_ok=True)
             click.echo(f"Best checkpoint restauré (epoch {best_epoch_num}, val_f1={best_val_f1:.4f})")
         else:
+            save_checkpoint(pipeline, output)
             click.echo("Aucune amélioration val — checkpoint final sauvegardé")
     else:
         save_checkpoint(pipeline, output)
