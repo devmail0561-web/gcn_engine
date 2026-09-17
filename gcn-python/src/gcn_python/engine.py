@@ -145,20 +145,48 @@ class GCNEngine:
     # Inférence
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Segmentation en phrases (interne)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _split_sentences(text: str) -> list[str]:
+        """
+        Segmente un texte en phrases individuelles.
+
+        Utilise une règle simple : découpe sur '.', '!', '?' suivis d'un
+        espace et d'une majuscule, ou en fin de texte. Suffisant pour la
+        majorité des textes FR/EN. Chaque phrase est nettoyée et filtrée
+        si elle est trop courte (< 3 mots) pour être analysable.
+        """
+        import re
+        # Découpe sur ponctuation forte suivie d'espace + majuscule ou fin
+        raw = re.split(r'(?<=[.!?])\s+(?=[A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ])', text.strip())
+        sentences = []
+        for s in raw:
+            s = s.strip()
+            if s and len(s.split()) >= 3:
+                sentences.append(s)
+        return sentences if sentences else [text.strip()]
+
+    # ------------------------------------------------------------------
+    # Inférence
+    # ------------------------------------------------------------------
+
     def analyze(self, text: str) -> dict:
         """
-        Texte brut → CausalIR dict.
+        Une phrase → CausalIR dict.
 
-        Utilise gcn-cli (Rust) si disponible pour le parsing UD.
-        Sinon, utilise le bridge heuristique Python (qualité approximative).
+        Traite **une seule phrase**. Pour un paragraphe ou un document,
+        utiliser analyze_document() qui segmente automatiquement.
 
         Parameters
         ----------
-        text : phrase ou paragraphe en langage naturel
+        text : une phrase en langage naturel (FR ou EN)
 
         Returns
         -------
-        dict conforme au schéma CausalIR :
+        dict CausalIR :
           {
             "source_text": str,
             "nodes": [{"node_type": str, "label": str, ...}],
@@ -172,18 +200,55 @@ class GCNEngine:
             text_parser=self._text_parser,
         )
 
-    def analyze_batch(self, texts: list[str]) -> list[dict]:
+    def analyze_document(self, text: str) -> list[dict]:
         """
-        Liste de textes → liste de CausalIR.
+        Paragraphe ou document multi-phrases → liste de CausalIR, une par phrase.
+
+        Segmente automatiquement le texte en phrases, analyse chacune
+        indépendamment et retourne la liste des CIR dans l'ordre du texte.
+        Les phrases sans relation causale retournent un CIR avec edges=[].
 
         Parameters
         ----------
-        texts : liste de phrases ou paragraphes
+        text : paragraphe ou document (plusieurs phrases)
+
+        Returns
+        -------
+        Liste de dicts CausalIR — un par phrase détectée.
+
+        Exemple
+        -------
+        >>> cirs = engine.analyze_document(
+        ...     "Les ventes baissent car la demande recule. "
+        ...     "Si les coûts augmentent, les marges s'effondrent. "
+        ...     "La direction a décidé de réduire les effectifs."
+        ... )
+        >>> len(cirs)
+        3
+        >>> cirs[0]["edges"][0][2]["relation"]
+        'cause'
+        >>> cirs[1]["edges"][0][2]["relation"]
+        'condition'
+        >>> cirs[2]["edges"]   # pas de relation causale détectée
+        []
+        """
+        sentences = self._split_sentences(text)
+        return [self.analyze(s) for s in sentences]
+
+    def analyze_batch(self, texts: list[str]) -> list[dict]:
+        """
+        Liste de phrases → liste de CausalIR (une phrase par élément).
+
+        Pour des documents multi-phrases, utiliser analyze_document() sur
+        chaque document ou stream() sur un fichier.
+
+        Parameters
+        ----------
+        texts : liste de phrases (une phrase par élément, pas des paragraphes)
 
         Returns
         -------
         Liste de dicts CausalIR dans le même ordre que texts.
-        Les phrases sans relation causale retournent un CIR avec edges=[].
         """
         return [self.analyze(t) for t in texts]
 
@@ -191,9 +256,13 @@ class GCNEngine:
         """
         Itérateur paresseux sur un fichier ou une liste de textes.
 
+        Chaque ligne est traitée comme une phrase. Pour des fichiers dont
+        chaque ligne est un paragraphe, utiliser stream_documents().
+
         Usage :
             for cir in engine.stream(open("corpus.txt")):
-                process(cir)
+                if cir["edges"]:
+                    process(cir)
 
         Ne charge pas tout en mémoire — convient aux grands corpus.
         """
@@ -201,6 +270,23 @@ class GCNEngine:
             text = line.strip() if hasattr(line, "strip") else str(line).strip()
             if text:
                 yield self.analyze(text)
+
+    def stream_documents(self, source) -> Iterator[list[dict]]:
+        """
+        Itérateur paresseux sur un fichier de paragraphes (une par ligne).
+
+        Chaque ligne est segmentée en phrases et retourne une liste de CIR.
+
+        Usage :
+            for sentence_cirs in engine.stream_documents(open("docs.txt")):
+                for cir in sentence_cirs:
+                    if cir["edges"]:
+                        store(cir)
+        """
+        for line in source:
+            text = line.strip() if hasattr(line, "strip") else str(line).strip()
+            if text:
+                yield self.analyze_document(text)
 
     # ------------------------------------------------------------------
     # Introspection
