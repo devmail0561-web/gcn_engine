@@ -1015,6 +1015,11 @@ gcn-datasets/real/test_v2.json   (~840 phrases)
 
 ## Phase 5 — Supprimer `gcn_causal_type` des heuristiques moteur
 
+**Prérequis :** aucun — peut démarrer en parallèle avec les Phases 1, 2 et 3.
+**Contrainte :** les étapes 5.1 et 5.2 (ajout de `causal_pattern` dans le schéma)
+doivent être complètes **avant** Phase 4.4 (split stratifié), car le split utilise
+`causal_pattern` pour la stratification.
+
 **Objectif :** Le moteur doit apprendre à prédire les node types et les edge relations
 **depuis les seules features syntaxiques UD** (POS / dep_rel / morph / lemme).
 Il ne doit recevoir aucune annotation causale pré-calculée comme feature d'entrée.
@@ -1281,42 +1286,40 @@ def test_morph_tense_change_vecteur():
 │  (UD tokens + fix spans)  │  │  (Val set)           │  │  (Régularisation)    │
 │                           │  │                      │  │                      │
 │  1.1 diagnose_spans       │  │  2.0 split synthét.  │  │  3.1 weight decay    │
-│  1.2 rederive_spans (NEW) │  │  2.1 --val-dir       │  │  3.2 dropout R-GCN   │
+│  1.2 rederive_spans       │  │  2.1 --val-dir       │  │  3.2 dropout R-GCN   │
 │  1.3 ud_annotator         │  │  2.2 early stopping  │  │  3.3 label smoothing │
 │  1.4 validate_cir         │  │  2.3 shuffle         │  │  3.4 tests           │
 │  1.5 annotate_real_dataset│  │  2.4 recorder        │  │                      │
-│  1.6 validation reps      │  │  2.5 tests           │  │                      │
-│  1.7 re-split             │  │                      │  │                      │
+│  1.6 validation reps      │  │  2.5 graph_exact     │  │                      │
+│  1.7 re-split             │  │  2.6 tests           │  │                      │
 └──────────┬────────────────┘  └──────────┬───────────┘  └──────────┬───────────┘
-           │                         │                          │
-           └─────────────────────────┴──────────────────────────┘
-                                     │
-                            Phases 1+2+3 complètes
-                                     │
-                         ┌───────────┴───────────┐
-                         │  Phase 4               │
-                         │  (Dataset 5000+)       │
-                         │  4.1 annotation cp     │
-                         │  4.2 scraping          │
-                         │  4.3 annotation UD+CIR │
-                         │  4.4 split stratifié   │
-                         └───────────┬────────────┘
-                                     │
-                         ┌───────────┴───────────┐
-                         │  Phase 5               │
-                         │  Suppr. gcn_causal_type│
-                         │  d_clause : 79 (stable)│
-                         │  Aucun checkpoint inval│
-                         └───────────┬────────────┘
-                                     │
-                         ┌───────────┴───────────┐
-                         │  Phase 6               │
-                         │  6.0 split synthétique │
-                         │  6.1 baseline synth    │
-                         │  6.2 entr. réel        │
-                         │  6.3 diagnostics       │
-                         │  6.4 tests robustesse  │
-                         └────────────────────────┘
+           │                              │                          │
+           └──────────────────────────────┴──────────────────────────┘
+                                          │
+                                 Phases 1+2+3 complètes
+                                          │
+                ┌─────────────────────────┴──────────────────────┐
+                │                                                 │
+   ┌────────────▼───────────┐                      ┌─────────────▼──────────┐
+   │  Phase 4                │                      │  Phase 5               │
+   │  (Dataset 5000+)        │                      │  Suppr. gcn_causal_type│
+   │  4.1 annotation cp      │                      │  d_clause : 79 (stable)│
+   │  4.2 scraping           │  ←── Phase 5.1-5.2   │  Indépendante          │
+   │  4.3 annotation UD+CIR  │      requise avant   │  5.1-5.2 → schema + rd │
+   │  4.4 split stratifié ───│──── 4.4              │  5.3 suppr. heurist.   │
+   └────────────┬────────────┘                      │  5.4 tests             │
+                │                                   └─────────────┬──────────┘
+                └───────────────────────┬──────────────────────────┘
+                                        │
+                                        ▼
+                            ┌───────────────────────┐
+                            │  Phase 6               │
+                            │  6.0 split synthétique │
+                            │  6.1 baseline synth    │
+                            │  6.2 entr. réel        │
+                            │  6.3 diagnostics       │
+                            │  6.4 tests robustesse  │
+                            └───────────────────────┘
 ```
 
 ---
