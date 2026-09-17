@@ -164,10 +164,21 @@ HELP_TEXT = """
 """
 
 
+def _write_log(log_path: Optional[Path], entry: dict) -> None:
+    """Ajoute une entrée au fichier de log JSON (une entrée par ligne)."""
+    if log_path is None:
+        return
+    import json, datetime
+    entry["ts"] = datetime.datetime.utcnow().isoformat()
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
 def run_discuss(
     checkpoint: Optional[Path] = None,
     graph_path: Optional[Path] = None,
     gcn_bin: str = "gcn",
+    log_path: Optional[Path] = None,
 ) -> None:
     """Lance la session de discussion."""
     from .engine import GCNEngine
@@ -250,6 +261,12 @@ def run_discuss(
                             pass
                     total_new += n_new
                     print(f"  {filename} : {n_new} relation(s) extraite(s)")
+                    _write_log(log_path, {
+                        "event": "analyze",
+                        "file": filename,
+                        "relations_extracted": n_new,
+                        "session_total": len(handler.graph.edges),
+                    })
                 n_total = len(handler.graph.edges)
                 print(f"  Total session : {n_total} relation(s)")
                 print()
@@ -287,6 +304,12 @@ def run_discuss(
             response = _format_response(handler, user_input)
             print(response)
             print()
+            _write_log(log_path, {
+                "event": "query",
+                "question": user_input,
+                "session_relations": len(handler.graph.edges),
+                "answered": "No causal structure" not in response,
+            })
 
 
 # ---------------------------------------------------------------------------
@@ -300,10 +323,13 @@ def run_discuss(
               help="Graphe de session JSON à charger (produit par /save).")
 @click.option("--gcn-bin", default="gcn", show_default=True,
               help="Chemin vers le binaire gcn-cli Rust.")
+@click.option("--log", "log_path", default=None, type=click.Path(path_type=Path),
+              help="Fichier de log JSON pour le monitoring (optionnel).")
 def discuss_cmd(
     ckpt: Optional[Path],
     graph_path: Optional[Path],
     gcn_bin: str,
+    log_path: Optional[Path],
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
-    run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin)
+    run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin, log_path=log_path)

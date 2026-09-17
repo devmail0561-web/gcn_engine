@@ -8,58 +8,46 @@
 
 ---
 
-## Vision
+## Ce qu'est GCN
 
-Les LLMs et les Transformers ont révolutionné la compréhension du texte naturel. Leur
-limite fondamentale : ils produisent du texte **plausible**, pas de la connaissance
-**vérifiable**. Quand un LLM dit *"X cause Y"*, on ne peut pas prouver que c'est
-correct, l'interroger formellement, le combiner avec d'autres affirmations, ni raisonner
-dessus au sens de Pearl.
+GCN est un **moteur d'extraction et de raisonnement causal vérifiable**.
 
-**GCN Causal Engine vise le même domaine d'usage que les LLMs — comprendre et raisonner
-sur du texte — avec une approche radicalement différente : produire une structure causale
-vérifiable, interrogeable et raisonnnable au lieu de texte probabiliste.**
+Il prend du texte brut, extrait la structure causale, et répond à des questions sur cette structure — avec traçabilité jusqu'aux sources.
 
 ```
-Texte brut (toute langue, tout domaine)
+Texte brut (FR, EN, code — toute langue)
           │
-          ▼
-    GCN Causal Engine
+          ▼  GCN Causal Engine
           │
           ▼
 CausalIR — graphe causal structuré
-  ├── Nœuds typés (7 types : état, action, processus…)
-  ├── Relations typées (11 types : cause, enable, condition…)
+  ├── Nœuds typés  (7 types : etat, action, processus…)
+  ├── Relations typées  (11 types : cause, enable, prevent…)
   ├── Confiance par arête
-  ├── Détection de cycles
-  └── Origine (explicite / inférée / hypothétique)
+  └── Source exacte par relation
           │
-          ├── Interrogeable via GCN-QL
-          ├── Raisonnable via Pearl (niveaux 1-2-3)
-          ├── Verbalisable → texte explicatif
-          └── Sérialisable JSON → intégrable dans tout système
+          ├── Interrogeable : "what causes X ?"
+          ├── Traceable    : "selon quel document ?"
+          ├── Pearl niveau 2 : "sans X, que se passe-t-il ?"
+          └── Contradiction detection entre sources
 ```
 
-### Ce que GCN produit qu'un LLM ne peut pas garantir
+**Ce que GCN fait qu'un LLM ne garantit pas :**
 
-| Capacité | LLM | GCN Causal Engine |
-|----------|-----|-------------------|
-| Comprend la causalité dans le texte | ✅ (approximatif) | ✅ (structuré) |
-| Sortie vérifiable et auditable | ❌ (texte plausible) | ✅ (JSON typé) |
-| Requêtes formelles sur la structure | ❌ | ✅ (GCN-QL) |
-| Raisonnement interventionnel (Pearl) | ❌ | ✅ (do-calculus) |
-| Combinaison de plusieurs CIR | ❌ | ✅ (graphes composables) |
-| Détection de contradictions causales | ❌ | ✅ |
-| Entraînement sur corpus spécifique | Coûteux (fine-tuning LLM) | ✅ (léger, NumPy pur) |
+| | LLM | GCN |
+|-|-----|-----|
+| Réponse causale | Plausible, non vérifiable | Tracée jusqu'à la source |
+| Requêtes formelles sur le graphe | ❌ | ✅ |
+| Détection de contradictions entre sources | ❌ | ✅ |
+| Raisonnement Pearl (do-calculus) | ❌ | ✅ |
+| Entraînable sur corpus spécifique | Coûteux | ✅ léger (NumPy) |
 
-### Pour qui ?
-
-- **Chercheurs** : extraire des claims causaux de la littérature scientifique
-- **Ingénieurs** : analyser les dépendances causales dans du code source (Python, Rust, JS)
-- **Data scientists** : construire des modèles causaux vérifiables pour l'XAI
-- **Juristes / médecins** : tracer des chaînes causales dans des documents complexes
-- **Tout système** qui a besoin de comprendre *pourquoi* quelque chose se produit,
-  pas seulement *quoi*
+**Pour qui :**
+- Analystes CTI / SOC — chaînes d'attaque depuis des rapports de menace
+- Auditeurs — obligations causales dans des référentiels réglementaires
+- Investigateurs — chaînes de responsabilité depuis des dossiers
+- Chercheurs — extraction de claims causaux depuis la littérature
+- Ingénieurs — dépendances causales dans le code source
 
 ---
 
@@ -76,46 +64,75 @@ pip install "gcn-python[torch]"
 
 ## Usage
 
-### 1. Inférence depuis du texte brut — API haut niveau
-
-```python
-from gcn_python import GCNEngine
-
-# Charger depuis un checkpoint — l'architecture est déduite automatiquement
-engine = GCNEngine.from_pretrained("model.npz")
-
-# Analyser une phrase
-cir = engine.analyze("Les ventes baissent car la demande recule.")
-print(cir["nodes"][0]["node_type"])        # "processus"
-print(cir["edges"][0][2]["relation"])      # "cause"
-print(cir["edges"][0][2]["confidence"])    # 0.87
-
-# Analyser plusieurs phrases
-cirs = engine.analyze_batch([
-    "Les prix augmentent car la demande dépasse l'offre.",
-    "Si les températures montent, la banquise fond.",
-    "Bien que les coûts soient élevés, la production continue.",
-])
-
-# Itérer sur un fichier (mémoire constante)
-with open("corpus.txt") as f:
-    for cir in engine.stream(f):
-        if cir["edges"]:
-            print(cir["source_text"], "→", cir["edges"][0][2]["relation"])
-```
-
-### 2. Interroger le CIR via GCN-QL (gcn-backend)
+### 1. Session interactive — analyser des fichiers et poser des questions
 
 ```bash
-# Depuis la ligne de commande Rust
-gcn analyze "Les ventes baissent car la demande recule." | \
-  gcn query "SELECT causes OF ventes"
+gcn-discuss --checkpoint model.npz
 ```
+
+```
+  GCN Causal Engine
+  ─────────────────────────────────────────────────────
+  Corpus : vide  —  utilisez /analyze pour charger des documents
+
+  > /analyze incident_report.txt
+    incident_report.txt : 47 relation(s) extraite(s)
+
+  > /analyze threat_reports/
+    APT28_2024.txt   : 23 relation(s)
+    Mandiant_Q3.txt  : 31 relation(s)
+    Total session : 101 relation(s)
+
+  > What causes data exfiltration?
+    causes_of: 'data exfiltration'
+    ────────────────────────────────────────────────────
+    1. [action] authentication_bypass  --[enable]-->  (conf=91%)
+       source: APT28_2024.txt
+    2. [processus] credential_theft  --[cause]-->  (conf=87%)
+       source: Mandiant_Q3.txt
+    ⚠ CONTRADICTION : firewall_rule --[prevent]--> (SecPolicy.txt)
+    ────────────────────────────────────────────────────
+
+  > /save session.json
+    Graphe sauvegardé : 101 relations
+
+  > /quit
+
+# Reprendre la session précédente
+gcn-discuss --checkpoint model.npz --graph session.json
+```
+
+**Commandes disponibles :**
+
+| Commande | Description |
+|----------|-------------|
+| `/analyze <fichier_ou_répertoire>` | Analyser du texte brut, enrichir le graphe |
+| `/save <path.json>` | Persister le graphe de session |
+| `/load <path.json>` | Charger un graphe existant |
+| `/summarize` | Résumé du corpus courant |
+| `/help` | Aide |
+| `/quit` | Quitter |
+
+**Questions causales (sans préfixe) :**
+```
+What causes X?           explain: X
+Effects of X?            effects: X
+Chain from A to B?       chain: A B
+Without X?               counterfactual: X
+```
+
+### 2. Indexer un corpus en batch
+
+```bash
+gcn-index --corpus rapports/ --checkpoint model.npz --output graph.json
+```
+
+Construit le graphe causal depuis un répertoire entier sans interaction.
+Utile pour pré-indexer avant une session `gcn-discuss --graph graph.json`.
 
 ### 3. Entraîner sur votre corpus
 
 ```bash
-# Préparer vos données annotées au format gcn-nl (voir section Dataset)
 gcn-train \
   --data-dir  corpus/train/ \
   --val-dir   corpus/val/ \
@@ -126,55 +143,42 @@ gcn-train \
   --output    model.npz
 ```
 
-### 4. Entraînement en Python
+### 4. API Python
 
 ```python
-from gcn_python.layer1.features import FeatureVocabulary
-from gcn_python.layer2.reference import MLPEncoder
-from gcn_python.layer3.reference import RGCNLayer
-from gcn_python.pipeline.cgnp import CGNPipeline
-from gcn_python.data.loader import GCNDataLoader, reps_from_sentence
-from gcn_python.training.checkpoint import save_checkpoint
-import numpy as np
+from gcn_python import GCNEngine
+from gcn_python.verbalizer.instructions import CausalGraph
+from gcn_python.verbalizer.query_report import QueryVerbalizer
 
-vocab    = FeatureVocabulary()
-d_eff    = vocab.d_clause
-d_edge   = vocab.d_edge_closed_loop(d_eff, 7)
-encoder  = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
-graph    = RGCNLayer(d_in=d_eff, d_out=d_eff)
-pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+# Charger le moteur
+engine = GCNEngine.from_pretrained("model.npz")
 
-loader = GCNDataLoader("corpus/train/")
-for epoch in range(100):
-    for sample in loader:
-        reps, idxs, conn = reps_from_sentence(sample.sentence)
-        if not reps:
-            continue
-        pipeline.forward(reps, sample.sentence.text,
-                         clause_positions=idxs,
-                         n_total_clauses=len(sample.sentence.clauses),
-                         connector_reps=conn)
-        loss, d_node, d_edge = pipeline.loss(
-            pipeline._cached_node_logits,
-            pipeline._cached_edge_logits,
-            sample.gold_node_labels[np.array(idxs)],
-        )
-        pipeline.backward(d_node, d_edge, lr=0.001)
+# Analyser un corpus
+cirs  = engine.analyze_batch(open("corpus.txt").readlines())
+graph = CausalGraph.from_cirs(cirs)
+graph.save("graph.json")
 
-save_checkpoint(pipeline, "model.npz")
+# Interroger
+vb = QueryVerbalizer(graph)
+print(vb.causes("data_exfiltration"))
+print(vb.path("phishing", "ransomware"))
+print(vb.contradictions())
+
+# Reprendre une session
+graph2 = CausalGraph.load("graph.json")
 ```
 
-### 5. Substituer votre propre encodeur (PyTorch, JAX…)
+### 5. Substituer votre propre encodeur
 
 ```python
 from gcn_python.layer2.interface import CausalEncoder
 
 class MyEncoder(CausalEncoder):
-    """Remplacez le MLP de référence par votre architecture."""
     def forward_node(self, x): ...
     def forward_edge(self, x): ...
     def parameters(self): ...
 
+from gcn_python.pipeline.cgnp import CGNPipeline
 pipeline = CGNPipeline(encoder=MyEncoder(), graph=graph, vocabulary=vocab)
 ```
 
@@ -182,26 +186,26 @@ pipeline = CGNPipeline(encoder=MyEncoder(), graph=graph, vocabulary=vocab)
 
 ## Format de données (gcn-nl)
 
+Vos données d'entraînement : fichiers JSON avec tokens UD et CIR gold.
+
 ```json
 {
   "document": {
     "sentences": [{
       "id": "s001",
-      "text": "Les ventes baissent car la demande recule.",
-      "causal_pattern": "cause",
+      "text": "The auth bypass enables data exfiltration.",
       "tokens": [
-        {"id": 1, "form": "Les", "lemma": "le", "pos": "DET",
-         "dep_rel": "det", "dep_head": 2, "morph": {}}
+        {"id": 1, "form": "The",   "lemma": "the",    "pos": "DET",  "dep_rel": "det",   "dep_head": 3, "morph": {}},
+        {"id": 2, "form": "auth",  "lemma": "auth",   "pos": "NOUN", "dep_rel": "compound","dep_head": 3,"morph": {}},
+        {"id": 3, "form": "bypass","lemma": "bypass", "pos": "NOUN", "dep_rel": "nsubj", "dep_head": 4, "morph": {}}
       ],
       "cir": {
         "nodes": [
-          {"id": "n001", "type": "processus", "label": "baisser(ventes)",
-           "token_span": [1, 3]},
-          {"id": "n002", "type": "processus", "label": "reculer(demande)",
-           "token_span": [5, 8]}
+          {"id": "n001", "type": "entite",   "label": "auth_bypass",        "token_span": [1, 3]},
+          {"id": "n002", "type": "processus","label": "data_exfiltration",   "token_span": [5, 7]}
         ],
         "edges": [{
-          "source": "n001", "target": "n002", "relation": "cause",
+          "source": "n001", "target": "n002", "relation": "enable",
           "attributes": {"confidence": 1.0, "explicit": true, "negated": false}
         }]
       }
@@ -212,7 +216,7 @@ pipeline = CGNPipeline(encoder=MyEncoder(), graph=graph, vocabulary=vocab)
 
 **7 types de nœuds :** `etat` · `action` · `transition` · `processus` · `condition` · `entite` · `etat_systemique`
 
-**11 types de relations :** `cause` · `enable` · `prevent` · `condition` · `concession` · `sequence` · `motivation` · `filter` · `opposition` · `data_dependency` · `control_dependency`
+**11 relations :** `cause` · `enable` · `prevent` · `condition` · `concession` · `sequence` · `motivation` · `filter` · `opposition` · `data_dependency` · `control_dependency`
 
 ---
 
@@ -224,22 +228,30 @@ Texte brut (fr/en/code)
      ▼  [gcn-frontend-fr / gcn-frontend-en / gcn-frontend-code — Rust]
 UD tokens (pos, dep_rel, morph, lemma)
      │
-     ▼  Layer 1 — FeatureVocabulary (gcn-python)
+     ▼  Layer 1 — FeatureVocabulary  (gcn-python)
 79-dim vector par clause
      │
-     ▼  Layer 2 — MLPEncoder (remplaçable)
+     ▼  Layer 2 — MLPEncoder  (remplaçable)
 node_logits (N×7) + edge_logits (E×11)
      │
-     ▼  Layer 3 — RGCNLayer / RGCNLayerGAT (remplaçable)
+     ▼  Layer 3 — RGCNLayer / RGCNLayerGAT  (remplaçable)
 message passing — enrichissement des représentations
      │
-     ▼  CGNPipeline.forward()
-CausalIR (JSON)
-     │
-     ├──▶ gcn-middleend : construction graphe, cycles, validation
-     ├──▶ gcn-backend   : Pearl reasoning, GCN-QL
-     └──▶ gcn-verbalizer : CausalIR → texte explicatif
+     ▼  CGNPipeline.forward() → CausalIR
 ```
+
+---
+
+## CLI
+
+| Commande | Description |
+|----------|-------------|
+| `gcn-discuss` | Session interactive — `/analyze`, Q&A causale |
+| `gcn-index` | Indexation batch d'un corpus → graphe JSON |
+| `gcn-train` | Entraîner sur un corpus annoté |
+| `gcn-eval` | Évaluer un checkpoint |
+| `gcn-bootstrap` | Générer des données d'entraînement depuis texte brut |
+| `gcn-verbalize` | CIR → texte (TrainableDecoder) |
 
 ---
 
@@ -247,28 +259,28 @@ CausalIR (JSON)
 
 ```python
 from gcn_python.evaluation.metrics import (
-    node_macro_f1,     # F1 macro sur les 7 types de nœuds
-    edge_macro_f1,     # F1 macro sur les 11 types de relations
-    graph_exact_match, # fraction de phrases avec graphe complet correct
-    confusion_matrix,  # matrice de confusion N×N
-    per_class_report,  # précision / rappel / F1 par classe
+    node_macro_f1,      # F1 macro sur les 7 types de nœuds
+    edge_macro_f1,      # F1 macro sur les 11 relations
+    graph_exact_match,  # fraction de phrases avec graphe complet correct
+    confusion_matrix,
+    per_class_report,
 )
 ```
 
 ---
 
-## Stack complet
+## Stack complète
 
 | Package | Rôle | Langage |
 |---------|------|---------|
-| `gcn-python` | Couches ML (MLP + R-GCN), entraînement, évaluation | Python |
+| `gcn-python` | Couches ML, entraînement, évaluation, gcn-discuss | Python |
 | `gcn-ir` | Types fondamentaux CausalIR | Rust |
-| `gcn-knowledge` | Taxonomies, lexique causal, inférence | Rust |
+| `gcn-knowledge` | Taxonomies, lexique causal | Rust |
 | `gcn-frontend-fr` | Parser causal français | Rust |
 | `gcn-frontend-en` | Parser causal anglais | Rust |
-| `gcn-frontend-code` | Parser code source (Python/Rust/JS) | Rust |
-| `gcn-middleend` | Graphe causal, cycles, propagation | Rust |
-| `gcn-backend` | Pearl niveaux 1-2-3, GCN-QL, export | Rust |
+| `gcn-frontend-code` | Parser code (Python/Rust/JS) | Rust |
+| `gcn-middleend` | Graphe causal, cycles, validation | Rust |
+| `gcn-backend` | Pearl niveaux 1-2-3, GCN-QL | Rust |
 | `gcn-verbalizer` | CausalIR → texte | Rust/Python |
 
 ---
