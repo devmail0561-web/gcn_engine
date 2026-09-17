@@ -5,6 +5,43 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.0.3] — 2026-09-17
+
+### Phases 1 + 2 + 3 + 5 — Val set, régularisation, pipeline UD, suppression gcn_causal_type
+
+**Phase 2 — Évaluation correcte :**
+- `train.py` : `--val-dir`, `--patience`, early stopping, best model restoration,
+  `_set_training_mode()` bascule encoder + R-GCN en mode eval pendant le val pass
+- `data/loader.py` : `shuffle=True/False` dans `GCNDataLoader`
+- `evaluation/metrics.py` : `graph_exact_match()` — métrique au niveau phrase entière
+- `train.py` : accumulation par phrase (`epoch_sent_*`), `val_graph_exact_match` dans CSV
+
+**Phase 3 — Régularisation :**
+- `layer2/reference.py` : `--weight-decay` L2 dans `MLPEncoder._apply_grads`
+- `layer3/reference.py` : `--rgcn-dropout` sur features d'entrée `RGCNLayer`
+- `layer3/gat.py` : dropout `torch.bernoulli` sur features avant `W_r @ h`
+- `pipeline/cgnp.py` : `--label-smoothing` dans `_cross_entropy`
+
+**Phase 5 — Suppression `gcn_causal_type` :**
+- `data/schema.py` : `causal_pattern: str = ""` dans `SentenceRecord` (split only)
+- `data/json_reader.py` : lecture `causal_pattern` depuis JSON
+- `data/loader.py` : `gcn_causal_type == "verbe"` et `== "conjonction"` supprimés
+  des heuristiques — POS UD seul, `d_clause` reste 79
+
+**Phase 1 — Scripts pipeline UD (gcn-scraper) :**
+- `diagnose_spans.py` : détecte les token_span CIR invalides
+- `rederive_spans.py` : re-dérive les spans via clauses spaCy
+- `ud_annotator.py` : `annotate_ud()` tokens UD 1-based depuis texte brut
+- `validate_cir.py` : valide start<end, no doublons, relations connues
+- `annotate_real_dataset.py` : injecte tokens UD dans le dataset réel
+- `validate_reps.py` : vérifie `reps_from_sentence()` retourne des reps non vides
+- `split_real_dataset.py` : split 70/15/15 stratifié sur relation edges
+
+### Tests
+- **204 tests Python passent** (204 ok, 2 skipped stables) — baseline : 195
+
+---
+
 ## [2.0.2] — 2026-09-17
 
 ### Phase 13 — Edge classification closed-loop + arêtes inverses

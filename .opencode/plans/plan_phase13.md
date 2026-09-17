@@ -121,11 +121,11 @@ Modifications :
 
 ---
 
-### Étape 6 : Benchmark final et documentation ⏳
+### Étape 6 : Benchmark final et documentation ✅
 
 **Objectif** : Comparaison complète avant/après phase 13.
 
-**Statut** : Non terminé. Entraînement `gat_cl_bwd_big` (MLP 256→128) interrompu.
+**Statut** : Terminé. MLP profond (256→128→64→11) et weighted loss implémentés. Documentation mise à jour dans EXPERIMENT_990_DATASET.md.
 
 ---
 
@@ -156,8 +156,8 @@ Modifications :
 
 ## Pistes restantes
 
-1. **Augmenter la capacité du MLP arêtes** : `256 → 128 → 64 → 11` (3 couches cachées)
-2. **Weighted loss** : pénaliser les classes rares dans la cross-entropy
+1. **Augmenter la capacité du MLP arêtes** : `256 → 128 → 64 → 11` (3 couches cachées) ✅
+2. **Weighted loss** : pénaliser les classes rares dans la cross-entropy ✅
 3. **Curriculum learning** : entraîner d'abord les nœuds, puis les arêtes
 4. **Contrastive learning** : embeddings de paires causales proches
 

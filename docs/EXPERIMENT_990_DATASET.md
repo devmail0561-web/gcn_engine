@@ -173,7 +173,67 @@ Le dataset de 990 phrases est un banc d'essai valide pour tester ces améliorati
 
 ### Pistes restantes
 
-1. **MLP plus profond** : 3 couches cachées (256→128→64→11)
-2. **Weighted loss** : pénaliser les classes rares
+1. **MLP plus profond** : 3 couches cachées (256→128→64→11) ✅ Implémenté
+2. **Weighted loss** : pénaliser les classes rares ✅ Implémenté
 3. **Curriculum learning** : nœuds d'abord, arêtes ensuite
 4. **Contrastive learning** : embeddings de paires causales proches
+
+---
+
+## Phase 13 — Étapes finales (2026-09-17)
+
+### Modifications implémentées
+
+| Étape | Fichier | Modification |
+|-------|---------|-------------|
+| 6 | `reference.py` | Edge MLP élargi : 256→128→64→11 (3 couches cachées au lieu de 2) |
+| 7 | `cgnp.py` | `_cross_entropy()` accepte `class_weights` pour pondérer les classes rares |
+| 7 | `train.py` | Options `--weighted-loss` et `--edge-loss-weight` pour contrôler la pondération |
+
+### Architecture edge MLP finale
+
+```
+AVANT (Phase 13 step 3) :
+  Edge MLP : d_edge → 256 → 128 → 11 (2 couches cachées)
+
+APRÈS (Phase 13 step 6) :
+  Edge MLP : d_edge → 256 → 128 → 64 → 11 (3 couches cachées)
+```
+
+### Weighted loss
+
+Le problème de déséquilibre des classes est adressé par deux mécanismes :
+
+1. **`--weighted-loss`** : Calcule automatiquement les poids inversement proportionnels à la fréquence de chaque classe. Pour un dataset équilibré (11 relations × 90 = 990), les poids sont proches de 1.0. Pour un dataset déséquilibré, les classes rares reçoivent un poids plus élevé.
+
+2. **`--edge-loss-weight`** : Pondère la contribution des arêtes dans la loss totale (défaut: 1.0). Utile si les arêtes sont beaucoup moins nombreuses que les nœuds.
+
+### Tests
+
+Tous les tests passent :
+- **Python** : 192 tests (2 skipped)
+- **Rust** : 137 tests
+
+### Commande d'entraînement recommandée
+
+```bash
+# GAT + embeddings 50d + closed-loop + backward + MLP profond + weighted loss
+gcn-train \
+  --data-dir gcn-datasets/corpus/ \
+  --epochs 50 \
+  --lr 0.001 \
+  --embedding-dim 50 \
+  --embedding-file gcn-python/models/wiki.fr.vec \
+  --use-attention \
+  --bidirectional \
+  --weighted-loss \
+  --edge-loss-weight 1.0 \
+  --output gcn-datasets/checkpoints/gat_cl_bwd_deep_weighted.npz \
+  --log-csv gcn-datasets/checkpoints/gat_cl_bwd_deep_weighted_log.csv
+```
+
+### Prochaines étapes
+
+1. Lancer l'entraînement avec la nouvelle architecture et comparer les résultats
+2. Si le plafond edge accuracy persiste, implémenter le curriculum learning
+3. Envisager le contrastive learning pour améliorer la représentation des paires causales

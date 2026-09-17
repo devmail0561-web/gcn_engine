@@ -23,9 +23,10 @@ Phase 11 ████████████████████  100%  GAT
 Phase 12 ████████████████████  100%  Suppression paramètre lang (v2.0.0)
 Phase 13 ████████████████████  100%  Edge classification closed-loop + backward edges
 Phase BF ████████████████████  100%  Analyse profonde + correctifs bugs + conformité arch
+Phase 15 ████████████████████  100%  Val set, régularisation, suppression gcn_causal_type, pipeline UD
 ```
 
-**Tests Python : 195 / 195 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
+**Tests Python : 204 / 204 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
 **Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
