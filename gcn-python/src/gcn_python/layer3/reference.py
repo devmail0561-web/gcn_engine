@@ -17,10 +17,13 @@ class RGCNLayer:
     Le DS empile plusieurs couches ou substitue par PyTorch Geometric.
     """
 
-    def __init__(self, d_in: int, d_out: int, n_relations: int | None = None, seed: int = 42):
+    def __init__(self, d_in: int, d_out: int, n_relations: int | None = None,
+                 seed: int = 42, dropout: float = 0.0):
         self.d_in = d_in
         self.d_out = d_out
         self.n_relations = n_relations or len(RELATION_TYPES)
+        self.dropout = dropout
+        self.training = True
         rng = np.random.default_rng(seed)
         scale = np.sqrt(2.0 / d_in)
         self.W_r = rng.normal(0, scale, (self.n_relations, d_out, d_in)).astype(np.float32)
@@ -35,6 +38,12 @@ class RGCNLayer:
         edge_types: np.ndarray,     # (E,) int
     ) -> np.ndarray:                # (N, D_out)
         N = node_features.shape[0]
+
+        # Dropout sur les features d'entrée
+        if self.dropout > 0.0 and self.training:
+            mask = (np.random.random(node_features.shape) > self.dropout).astype(np.float32)
+            node_features = node_features * mask / (1.0 - self.dropout)
+
         out = node_features @ self.W_0.T  # self-loop
 
         if edge_index.shape[1] > 0:

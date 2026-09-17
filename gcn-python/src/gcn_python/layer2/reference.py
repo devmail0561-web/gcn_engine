@@ -57,11 +57,13 @@ class MLPEncoder:
         n_node_types: int = len(NODE_TYPES),
         n_relation_types: int = len(RELATION_TYPES),
         edge_dropout: float = 0.3,
+        weight_decay: float = 0.0,
     ):
         rng = np.random.default_rng(seed)
         self.n_node_types = n_node_types
         self.n_relation_types = n_relation_types
         self.edge_dropout = edge_dropout
+        self.weight_decay = weight_decay
         self.training = True
 
         # Node MLP : d_clause → 128 → 64 → n_node_types
@@ -71,11 +73,12 @@ class MLPEncoder:
             _LinearLayer(64, n_node_types, rng),
         ]
 
-        # Edge MLP : d_edge → 256 → 128 → n_relation_types (plus grand pour closed-loop)
+        # Edge MLP : d_edge → 256 → 128 → 64 → n_relation_types (3 couches cachées pour closed-loop)
         self._edge_layers = [
             _LinearLayer(d_edge, 256, rng),
             _LinearLayer(256, 128, rng),
-            _LinearLayer(128, n_relation_types, rng),
+            _LinearLayer(128, 64, rng),
+            _LinearLayer(64, n_relation_types, rng),
         ]
 
         self._node_cache: list = []
@@ -193,7 +196,7 @@ class MLPEncoder:
         grads: list[tuple[np.ndarray, np.ndarray]], lr: float,
     ) -> None:
         for layer, (dW, db) in zip(layers, grads):
-            layer.W -= lr * dW
+            layer.W -= lr * dW + lr * self.weight_decay * layer.W
             layer.b -= lr * db
 
     def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:

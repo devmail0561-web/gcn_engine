@@ -72,6 +72,7 @@ def _parse_dataset_sentence(s: dict, lang: str = "") -> SentenceRecord:
         tokens=tokens,
         clauses=clauses,
         edges=edges,
+        causal_pattern=s.get("causal_pattern", ""),
     )
 
 

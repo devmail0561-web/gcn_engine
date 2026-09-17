@@ -13,7 +13,10 @@ from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..constants import NODE_TYPES, RELATION_TYPES
-from ..evaluation.metrics import node_accuracy, node_macro_f1, edge_accuracy, edge_macro_f1
+from ..evaluation.metrics import (
+    node_accuracy, node_macro_f1, edge_accuracy, edge_macro_f1,
+    graph_exact_match as _gem,
+)
 from ..evaluation.recorder import TrainingRecorder
 from .checkpoint import save_checkpoint
 
@@ -51,6 +54,17 @@ from .checkpoint import save_checkpoint
               help="Pondération relative de la loss arêtes dans la loss totale.")
 @click.option("--weighted-loss/--no-weighted-loss", default=False, show_default=True,
               help="Activer les class weights inversement proportionnels à la fréquence (rééquilibre les classes rares).")
+@click.option("--val-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire val JSON (optionnel). Métriques val calculées à chaque epoch.")
+@click.option("--patience", default=0, show_default=True, type=int,
+              help="Epochs sans amélioration de val_node_macro_f1 avant arrêt. "
+                   "0 = désactivé (défaut). Requiert --val-dir.")
+@click.option("--weight-decay", default=0.0, show_default=True, type=float,
+              help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
+@click.option("--rgcn-dropout", default=0.0, show_default=True, type=float,
+              help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
+@click.option("--label-smoothing", default=0.0, show_default=True, type=float,
+              help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -68,6 +82,11 @@ def train_cmd(
     bidirectional: bool,
     edge_loss_weight: float,
     weighted_loss: bool,
+    val_dir: Path | None,
+    patience: int,
+    weight_decay: float,
+    rgcn_dropout: float,
+    label_smoothing: float,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -100,15 +119,17 @@ def train_cmd(
     # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
     n_node_types = len(NODE_TYPES)
     d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb)
-    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed)
+    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed, weight_decay=weight_decay)
 
     # Couche 3 : choix du graph selon les flags
     n_rel = 22 if bidirectional else len(RELATION_TYPES)
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
-        graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
+        graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                             dropout=rgcn_dropout)
     else:
-        graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel)
+        graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                          dropout=rgcn_dropout)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -124,6 +145,9 @@ def train_cmd(
     if decoder_only and decoder is None:
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
 
+    if patience > 0 and val_dir is None:
+        raise click.ClickException("--patience requiert --val-dir")
+
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional)
@@ -133,9 +157,16 @@ def train_cmd(
         load_checkpoint(pipeline, encoder_checkpoint)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, all_pairs=all_pairs)
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+
+    val_loader = None
+    if val_dir is not None:
+        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False)
+        if len(val_loader) == 0:
+            raise click.ClickException(f"Aucune sentence dans {val_dir}")
+        click.echo(f"Val : {len(val_loader)} sentences")
 
     # Calcul des class weights si --weighted-loss (inversement proportionnel à la fréquence)
     node_class_weights = None
@@ -183,13 +214,126 @@ def train_cmd(
     csv_writer = None
     csv_file = None
     if log_csv:
+        csv_fieldnames = [
+            "epoch", "loss", "node_accuracy", "node_macro_f1",
+            "edge_accuracy", "edge_macro_f1", "graph_exact_match",
+        ]
+        if val_loader is not None:
+            csv_fieldnames.extend([
+                "val_loss", "val_node_accuracy", "val_node_macro_f1",
+                "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
+            ])
         csv_file = open(log_csv, "w", newline="", encoding="utf-8")
-        csv_writer = csv.DictWriter(
-            csv_file,
-            fieldnames=["epoch", "loss", "node_accuracy", "node_macro_f1",
-                        "edge_accuracy", "edge_macro_f1"],
-        )
+        csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames)
         csv_writer.writeheader()
+
+    best_val_f1 = -1.0
+    best_epoch_num = 0
+    best_checkpoint_path = str(output) + ".best.npz"
+
+    def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
+        """Bascule TOUS les composants avec dropout en mode eval ou train."""
+        if hasattr(pipeline.encoder, 'training'):
+            pipeline.encoder.training = training
+        for layer in pipeline._graph_layers:
+            if hasattr(layer, 'training'):
+                layer.training = training
+
+    def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
+                       epoch_edge_preds, epoch_edge_gold,
+                       epoch_sent_node_preds, epoch_sent_node_gold,
+                       epoch_sent_edge_preds, epoch_sent_edge_gold):
+        """Exécute un pass forward sur le val set et retourne les métriques."""
+        total_loss = 0.0
+        n = 0
+        for sample in loader:
+            if not sample.sentence.clauses:
+                continue
+            try:
+                reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
+                if not reps:
+                    continue
+                pipeline.forward(
+                    reps, sample.sentence.text,
+                    clause_positions=valid_clause_idxs,
+                    n_total_clauses=len(sample.sentence.clauses),
+                    connector_reps=connector_reps,
+                )
+            except (ValueError, RuntimeError, IndexError, KeyError, TypeError):
+                continue
+
+            node_logits = pipeline._cached_node_logits
+            edge_logits = pipeline._cached_edge_logits
+            if node_logits is None or len(node_logits) == 0:
+                continue
+
+            if valid_clause_idxs:
+                gold_node = sample.gold_node_labels[
+                    np.array(valid_clause_idxs, dtype=np.int64)
+                ]
+            else:
+                gold_node = sample.gold_node_labels
+
+            gold_edge = None
+            edge_logits_arg = None
+            if (valid_clause_idxs and len(valid_clause_idxs) >= 2
+                    and sample.edge_map
+                    and edge_logits is not None and len(edge_logits) > 0):
+                if all_pairs:
+                    pairs = [
+                        (valid_clause_idxs[i], valid_clause_idxs[j])
+                        for i in range(len(valid_clause_idxs))
+                        for j in range(i + 1, len(valid_clause_idxs))
+                    ]
+                else:
+                    pairs = [
+                        (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                        for k in range(len(valid_clause_idxs) - 1)
+                    ]
+                gold_edge_full = np.array(
+                    [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
+                )
+                valid_edge_mask = gold_edge_full >= 0
+                if valid_edge_mask.any():
+                    valid_edge_idxs = np.where(valid_edge_mask)[0]
+                    gold_edge = gold_edge_full[valid_edge_idxs]
+                    edge_logits_arg = edge_logits[valid_edge_idxs]
+
+            loss_val, _, _ = pipeline.loss(
+                node_logits, edge_logits_arg, gold_node, gold_edge,
+                edge_loss_weight=edge_loss_weight,
+                node_class_weights=node_class_weights,
+                edge_class_weights=edge_class_weights,
+            )
+            total_loss += loss_val
+            n += 1
+
+            node_pred_idxs = np.argmax(node_logits, axis=1)
+            if valid_clause_idxs:
+                gold_node_aligned = sample.gold_node_labels[
+                    np.array(valid_clause_idxs, dtype=np.int64)
+                ]
+            else:
+                gold_node_aligned = sample.gold_node_labels
+            epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
+            epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
+
+            sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
+            sent_node_gold = [NODE_TYPES[i] for i in gold_node_aligned]
+            epoch_sent_node_preds.append(sent_node_pred)
+            epoch_sent_node_gold.append(sent_node_gold)
+
+            if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
+                edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
+                epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
+                epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
+                epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
+                epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
+            else:
+                epoch_sent_edge_preds.append([])
+                epoch_sent_edge_gold.append([])
+
+        return total_loss / max(n, 1)
 
     try:
         for epoch in range(1, epochs + 1):
@@ -200,6 +344,10 @@ def train_cmd(
             epoch_node_gold: list[str] = []
             epoch_edge_preds: list[str] = []
             epoch_edge_gold: list[str] = []
+            epoch_sent_node_preds: list[list[str]] = []
+            epoch_sent_node_gold: list[list[str]] = []
+            epoch_sent_edge_preds: list[list[str]] = []
+            epoch_sent_edge_gold: list[list[str]] = []
 
             for sample in loader:
                 if not sample.sentence.clauses:
@@ -216,7 +364,7 @@ def train_cmd(
                         connector_reps=connector_reps,
                     )
                 except ValueError:
-                    raise  # misconfiguration (d_out, clause_positions…) — non ignorable
+                    raise
                 except (RuntimeError, IndexError, KeyError, TypeError) as exc:
                     warnings.warn(
                         f"[{sample.sentence.id}] forward ignoré : "
@@ -230,14 +378,12 @@ def train_cmd(
                 if node_logits is None or len(node_logits) == 0:
                     continue
 
-                # Aligner les gold labels sur les seules clauses converties en reps
                 if valid_clause_idxs:
                     gold_node = sample.gold_node_labels[
                         np.array(valid_clause_idxs, dtype=np.int64)
                     ]
                 else:
                     gold_node = sample.gold_node_labels
-                # Aligner les gold edges sur les paires consécutives prédites via edge_map
                 if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                         and sample.edge_map
                         and edge_logits is not None and len(edge_logits) > 0):
@@ -268,7 +414,6 @@ def train_cmd(
                     gold_edge = None
                     edge_logits_arg = None
 
-                # Joint training : chercher une surface gold pour ce sample
                 _gold_surface = None
                 if verb_source_map:
                     _surfaces = verb_source_map.get(sample.sentence.text, [])
@@ -281,9 +426,9 @@ def train_cmd(
                     gold_surface=_gold_surface,
                     node_class_weights=node_class_weights,
                     edge_class_weights=edge_class_weights,
+                    label_smoothing=label_smoothing,
                 )
 
-                # Backward (gelé si --decoder-only) — S10 : accumulation mini-batch
                 if not decoder_only:
                     if mini_batch_size <= 1:
                         pipeline.backward(d_node, d_edge, lr=lr)
@@ -294,7 +439,6 @@ def train_cmd(
                             pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
                             batch_step_count = 0
 
-                # Accumuler les prédictions pour les métriques de l'époque
                 node_pred_idxs = np.argmax(node_logits, axis=1)
                 if valid_clause_idxs:
                     gold_node_aligned = sample.gold_node_labels[
@@ -305,20 +449,28 @@ def train_cmd(
                 epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
                 epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
 
+                sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
+                sent_node_gold = [NODE_TYPES[i] for i in gold_node_aligned]
+                epoch_sent_node_preds.append(sent_node_pred)
+                epoch_sent_node_gold.append(sent_node_gold)
+
                 if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
                     edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
                     epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
                     epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
+                    epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
+                    epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
+                else:
+                    epoch_sent_edge_preds.append([])
+                    epoch_sent_edge_gold.append([])
 
                 epoch_loss += loss_val
                 n_samples += 1
 
-            # S10 : flush des gradients résiduels en fin d'époque
             if mini_batch_size > 1 and batch_step_count > 0 and not decoder_only:
                 pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
                 batch_step_count = 0
 
-            # Entraînement standalone du décodeur sur les paires verbalize
             if verb_loader is not None and pipeline.decoder is not None:
                 for vsample in verb_loader:
                     if len(vsample.gold_tokens) == 0:
@@ -327,7 +479,6 @@ def train_cmd(
                     dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, vsample.gold_tokens)
                     if not np.isfinite(dec_loss):
                         continue
-                    # P2d: backward_decode retourne 3 valeurs
                     _, dec_grads, d_attn_vec = pipeline.decoder.backward_decode(d_dec)
                     pipeline.decoder.update(dec_grads, d_attn_vec, lr)
                     epoch_loss += dec_loss
@@ -339,7 +490,37 @@ def train_cmd(
                 "node_macro_f1": node_macro_f1(epoch_node_preds, epoch_node_gold),
                 "edge_accuracy": edge_accuracy(epoch_edge_preds, epoch_edge_gold),
                 "edge_macro_f1": edge_macro_f1(epoch_edge_preds, epoch_edge_gold),
+                "graph_exact_match": _gem(
+                    epoch_sent_node_preds, epoch_sent_node_gold,
+                    epoch_sent_edge_preds, epoch_sent_edge_gold,
+                ),
             }
+
+            # Val pass
+            if val_loader is not None:
+                _set_training_mode(pipeline, False)
+                val_node_preds, val_node_gold = [], []
+                val_edge_preds, val_edge_gold = [], []
+                val_sent_node_preds, val_sent_node_gold = [], []
+                val_sent_edge_preds, val_sent_edge_gold = [], []
+                val_loss = _run_eval_pass(
+                    pipeline, val_loader,
+                    val_node_preds, val_node_gold,
+                    val_edge_preds, val_edge_gold,
+                    val_sent_node_preds, val_sent_node_gold,
+                    val_sent_edge_preds, val_sent_edge_gold,
+                )
+                _set_training_mode(pipeline, True)
+                metrics["val_loss"] = val_loss
+                metrics["val_node_accuracy"] = node_accuracy(val_node_preds, val_node_gold)
+                metrics["val_node_macro_f1"] = node_macro_f1(val_node_preds, val_node_gold)
+                metrics["val_edge_accuracy"] = edge_accuracy(val_edge_preds, val_edge_gold)
+                metrics["val_edge_macro_f1"] = edge_macro_f1(val_edge_preds, val_edge_gold)
+                metrics["val_graph_exact_match"] = _gem(
+                    val_sent_node_preds, val_sent_node_gold,
+                    val_sent_edge_preds, val_sent_edge_gold,
+                )
+
             recorder.record(epoch, avg_loss, metrics)
             history.append({"epoch": epoch, "loss": avg_loss, **metrics})
 
@@ -347,16 +528,42 @@ def train_cmd(
                 csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics})
 
             if epoch % max(1, epochs // 10) == 0 or epoch == 1:
-                click.echo(
+                msg = (
                     f"Epoch {epoch:4d}/{epochs}  loss={avg_loss:.4f}"
                     f"  node_acc={metrics['node_accuracy']:.3f}"
                     f"  edge_acc={metrics['edge_accuracy']:.3f}"
+                    f"  gem={metrics['graph_exact_match']:.3f}"
                 )
+                if val_loader is not None:
+                    msg += (
+                        f"  val_loss={metrics['val_loss']:.4f}"
+                        f"  val_node_f1={metrics['val_node_macro_f1']:.3f}"
+                    )
+                click.echo(msg)
+
+            # Early stopping
+            if patience > 0 and val_loader is not None:
+                val_f1 = metrics.get("val_node_macro_f1", 0.0)
+                if val_f1 > best_val_f1:
+                    best_val_f1 = val_f1
+                    best_epoch_num = epoch
+                    save_checkpoint(pipeline, Path(best_checkpoint_path))
     finally:
         if csv_file:
             csv_file.close()
 
-    save_checkpoint(pipeline, output)
+    # Early stopping : restaurer le meilleur checkpoint
+    if patience > 0 and val_loader is not None:
+        import shutil
+        if best_epoch_num > 0:
+            shutil.copy2(best_checkpoint_path, str(output))
+            Path(best_checkpoint_path).unlink(missing_ok=True)
+            click.echo(f"Best checkpoint restauré (epoch {best_epoch_num}, val_f1={best_val_f1:.4f})")
+        else:
+            click.echo("Aucune amélioration val — checkpoint final sauvegardé")
+    else:
+        save_checkpoint(pipeline, output)
+
     click.echo(f"Checkpoint sauvegardé : {output}")
 
     if log_csv:
@@ -364,7 +571,6 @@ def train_cmd(
         recorder.to_json(json_path)
         click.echo(f"Courbe d'entraînement : {json_path}")
 
-    # Vérification : la loss doit décroître sur les 10 dernières epochs
     if len(history) >= 10:
         first = sum(r["loss"] for r in history[:5]) / 5
         last = sum(r["loss"] for r in history[-5:]) / 5

@@ -66,11 +66,14 @@ class RGCNLayerGAT(nn.Module):
         n_relations: int | None = None,
         device: str | torch.device | None = None,
         seed: int = 42,
+        dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
         self.n_relations = n_relations or len(RELATION_TYPES)
+        self.dropout_rate = dropout
+        self.training = True
 
         if device is None:
             device = (
@@ -159,6 +162,14 @@ class RGCNLayerGAT(nn.Module):
     ) -> np.ndarray:
         """Passe les messages avec attention et retourne les représentations enrichies."""
         H_in = torch.as_tensor(node_features, dtype=torch.float32, device=self._device)
+
+        # Dropout sur les features d'entrée
+        if self.dropout_rate > 0.0 and self.training:
+            mask = torch.bernoulli(
+                torch.full(H_in.shape, 1.0 - self.dropout_rate, device=self._device)
+            ) / (1.0 - self.dropout_rate)
+            H_in = H_in * mask
+
         H_in.requires_grad_(True)
         out = self._gat_forward(H_in, edge_index, edge_types)
         self._H_in_retained = H_in

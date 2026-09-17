@@ -39,10 +39,12 @@ class GCNDataLoader:
     """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
     def __init__(self, data_dir: Path, repeat: bool = False,
-                 all_pairs: bool = False):
+                 all_pairs: bool = False, shuffle: bool = False, seed: int = 42):
         self.data_dir = data_dir
         self.repeat = repeat
         self.all_pairs = all_pairs
+        self._shuffle = shuffle
+        self._rng = np.random.default_rng(seed) if shuffle else None
         self._records = load_all_sentences(data_dir)
         # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
         self._total_long_distance = 0
@@ -53,7 +55,11 @@ class GCNDataLoader:
 
     def __iter__(self):
         while True:
-            for rec in self._records:
+            records = self._records
+            if getattr(self, '_shuffle', False):
+                idxs = self._rng.permutation(len(records))
+                records = [records[i] for i in idxs]
+            for rec in records:
                 try:
                     yield self._to_sample(rec)
                 except ValueError as exc:
@@ -176,10 +182,7 @@ def _connector_between(
     gap_toks = [t for t in all_tokens if end_a < t.id < start_b]
     if not gap_toks:
         return None
-    tok = (
-        next((t for t in gap_toks if t.gcn_causal_type == "conjonction"), None)
-        or next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
-    )
+    tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
     if tok is None:
         return None
     return UDRepresentation(
@@ -211,11 +214,9 @@ def _rep_from_clause(
     if not span_toks:
         return None
 
-    # Priorité : VERB annoté gcn_causal_type="verbe", sinon premier VERB/AUX, sinon premier token
+    # Priorité : VERB/AUX, sinon NOUN/PROPN, sinon premier token
     root_tok = (
-        next((t for t in span_toks
-              if t.gcn_causal_type == "verbe" and t.pos in {"VERB", "AUX"}), None)
-        or next((t for t in span_toks if t.pos in {"VERB", "AUX"}), None)
+        next((t for t in span_toks if t.pos in {"VERB", "AUX"}), None)
         or next((t for t in span_toks if t.pos in {"NOUN", "PROPN"}), None)
         or span_toks[0]
     )

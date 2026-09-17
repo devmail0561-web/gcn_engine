@@ -264,6 +264,77 @@ def _ngrams(tokens: list[str], n: int) -> list[tuple]:
 
 
 # ---------------------------------------------------------------------------
+# Métrique au niveau phrase : graph_exact_match
+# ---------------------------------------------------------------------------
+
+def graph_exact_match(
+    sentences_node_pred: list[list[str]],
+    sentences_node_gold: list[list[str]],
+    sentences_edge_pred: list[list[str]],
+    sentences_edge_gold: list[list[str]],
+) -> float:
+    """
+    Proportion de phrases dont le graphe causal complet est prédit exactement.
+
+    Une phrase est "exacte" si et seulement si :
+    1. Le nombre de nœuds prédit == le nombre de nœuds gold
+    2. Chaque type de nœud est correct (aligné par position)
+    3. Le nombre d'arêtes prédites == le nombre d'arêtes gold
+    4. Chaque relation d'arête est correcte (alignée par paire)
+
+    Retourne float [0.0, 1.0]. Retourne 0.0 si la liste est vide.
+    """
+    if not sentences_node_gold:
+        return 0.0
+    if not (len(sentences_node_pred) == len(sentences_node_gold)
+            == len(sentences_edge_pred) == len(sentences_edge_gold)):
+        raise ValueError(
+            "graph_exact_match : les 4 listes doivent avoir la même longueur. "
+            f"Reçu : node_pred={len(sentences_node_pred)}, "
+            f"node_gold={len(sentences_node_gold)}, "
+            f"edge_pred={len(sentences_edge_pred)}, "
+            f"edge_gold={len(sentences_edge_gold)}"
+        )
+    n_exact = sum(
+        node_pred == node_gold and edge_pred == edge_gold
+        for node_pred, node_gold, edge_pred, edge_gold
+        in zip(sentences_node_pred, sentences_node_gold,
+               sentences_edge_pred, sentences_edge_gold)
+    )
+    return n_exact / len(sentences_node_gold)
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics : confusion matrix, per-class report
+# ---------------------------------------------------------------------------
+
+def confusion_matrix(pred: list[str], gold: list[str], classes: list[str]) -> np.ndarray:
+    """
+    Retourne une matrice (N_classes × N_classes) de type int.
+    cm[i, j] = nombre de fois où gold=classes[i] et pred=classes[j].
+    """
+    n = len(classes)
+    idx = {c: i for i, c in enumerate(classes)}
+    cm = np.zeros((n, n), dtype=np.int64)
+    for p, g in zip(pred, gold):
+        if g in idx and p in idx:
+            cm[idx[g], idx[p]] += 1
+    return cm
+
+
+def per_class_report(pred: list[str], gold: list[str], classes: list[str]) -> str:
+    """Tableau texte : classe | precision | recall | f1 | support."""
+    per_class = _f1_per_class(pred, gold, classes)
+    lines = ["classe          prec    recall     f1  support"]
+    for cls in classes:
+        m = per_class[cls]
+        lines.append(
+            f"{cls:<16s} {m['precision']:.3f}  {m['recall']:.3f}  {m['f1']:.3f}  {m['support']}"
+        )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Helpers internes
 # ---------------------------------------------------------------------------
 

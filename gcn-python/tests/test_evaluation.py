@@ -3,6 +3,7 @@ from gcn_python.evaluation.metrics import (
     edge_accuracy, edge_macro_f1, causal_graph_similarity,
     decoder_causal_fidelity, cross_modal_consistency,
     roundtrip_similarity, generation_bleu,
+    graph_exact_match, confusion_matrix, per_class_report,
 )
 from gcn_python.evaluation.recorder import TrainingRecorder
 import tempfile
@@ -244,3 +245,83 @@ def pytest_approx(x, rel=1e-6):
         def __repr__(self):
             return f"~{x}"
     return Approx()
+
+
+# ---------------------------------------------------------------------------
+# graph_exact_match (Phase 2.5)
+# ---------------------------------------------------------------------------
+
+def test_graph_exact_match_all_correct():
+    node_pred = [["action", "processus"], ["etat"]]
+    node_gold = [["action", "processus"], ["etat"]]
+    edge_pred = [["cause"], []]
+    edge_gold = [["cause"], []]
+    assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 1.0
+
+
+def test_graph_exact_match_none_correct():
+    node_pred = [["action"], ["action"]]
+    node_gold = [["etat"], ["processus"]]
+    edge_pred = [["cause"], ["enable"]]
+    edge_gold = [["enable"], ["cause"]]
+    assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 0.0
+
+
+def test_graph_exact_match_nodes_correct_edges_wrong():
+    node_pred = [["action", "processus"]]
+    node_gold = [["action", "processus"]]
+    edge_pred = [["cause"]]
+    edge_gold = [["enable"]]
+    assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 0.0
+
+
+def test_graph_exact_match_empty_list():
+    assert graph_exact_match([], [], [], []) == 0.0
+
+
+def test_graph_exact_match_mismatched_lengths():
+    try:
+        graph_exact_match([["action"]], [["action"], ["etat"]], [[]], [[]])
+        assert False, "Should have raised ValueError"
+    except ValueError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# confusion_matrix (Phase 6.3)
+# ---------------------------------------------------------------------------
+
+def test_confusion_matrix_diagonal():
+    pred = ["action", "processus", "etat"]
+    gold = ["action", "processus", "etat"]
+    classes = ["action", "processus", "etat"]
+    cm = confusion_matrix(pred, gold, classes)
+    assert cm.shape == (3, 3)
+    assert cm[0, 0] == 1
+    assert cm[1, 1] == 1
+    assert cm[2, 2] == 1
+    assert cm.sum() == 3
+
+
+def test_confusion_matrix_off_diagonal():
+    pred = ["action", "action"]
+    gold = ["action", "processus"]
+    classes = ["action", "processus"]
+    cm = confusion_matrix(pred, gold, classes)
+    assert cm[0, 0] == 1  # action→action
+    assert cm[1, 0] == 1  # processus→action
+    assert cm.sum() == 2
+
+
+# ---------------------------------------------------------------------------
+# per_class_report (Phase 6.3)
+# ---------------------------------------------------------------------------
+
+def test_per_class_report():
+    pred = ["action", "action", "processus"]
+    gold = ["action", "processus", "processus"]
+    classes = ["action", "processus"]
+    report = per_class_report(pred, gold, classes)
+    assert "action" in report
+    assert "processus" in report
+    assert "prec" in report

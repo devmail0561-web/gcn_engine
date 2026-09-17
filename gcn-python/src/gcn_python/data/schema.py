@@ -48,3 +48,4 @@ class SentenceRecord:
     clauses: list[ClauseRecord]
     edges: list[EdgeRecord]
     lang: str = ""  # conservé comme métadonnée, non utilisé en calcul
+    causal_pattern: str = ""  # métadonnée pour split stratifié uniquement, pas propagé aux features

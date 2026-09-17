@@ -406,6 +406,7 @@ class CGNPipeline:
         gold_surface: np.ndarray | None = None,  # (T,) int — tokens gold pour le décodeur
         node_class_weights: np.ndarray | None = None,  # (7,) float — poids par classe nœud
         edge_class_weights: np.ndarray | None = None,  # (11,) float — poids par classe arête
+        label_smoothing: float = 0.0,  # lissage des labels [0, 1]
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -420,14 +421,16 @@ class CGNPipeline:
             raise ValueError(
                 f"Désalignement node_logits/gold_node : {len(node_logits)} logits vs {len(gold_node)} labels"
             )
-        node_loss, d_node = _cross_entropy(node_logits, gold_node, node_class_weights)
+        node_loss, d_node = _cross_entropy(node_logits, gold_node, node_class_weights,
+                                              label_smoothing=label_smoothing)
 
         if edge_logits is not None and gold_edge is not None and len(edge_logits) > 0:
             if len(edge_logits) != len(gold_edge):
                 raise ValueError(
                     f"Désalignement edge_logits/gold_edge : {len(edge_logits)} logits vs {len(gold_edge)} labels"
                 )
-            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights)
+            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights,
+                                                label_smoothing=label_smoothing)
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
@@ -725,11 +728,15 @@ def _cross_entropy(
     logits: np.ndarray,   # (N, C)
     labels: np.ndarray,   # (N,) int
     class_weights: np.ndarray | None = None,  # (C,) float — poids par classe
+    label_smoothing: float = 0.0,
 ) -> tuple[float, np.ndarray]:
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
 
     Si class_weights est fourni, pondère la loss par le poids de la classe gold.
     Utile pour rééquilibrer les classes rares (ex: edge classification).
+
+    Si label_smoothing > 0, utilise une distribution lissée :
+    masse (1 - eps) sur la vraie classe, eps/(C-1) sur les autres.
 
     Lève ValueError si labels contient des valeurs négatives (sentinelle -1 non filtrée)
     ou hors-bornes (>= n_classes).
@@ -746,18 +753,33 @@ def _cross_entropy(
             f"Label hors-bornes dans _cross_entropy : "
             f"max={labels.max()} >= n_classes={logits.shape[1]}"
         )
-    N = len(logits)
-    probs = _softmax(logits)                               # (N, C)
-    per_sample_loss = -np.log(probs[np.arange(N), labels] + 1e-9)
-    if class_weights is not None:
-        weights = class_weights[labels]                     # (N,)
-        per_sample_loss *= weights
+    N, C = logits.shape
+    probs = _softmax(logits)
+
+    if label_smoothing > 0.0:
+        y_smooth = np.full((N, C), label_smoothing / max(C - 1, 1), dtype=np.float32)
+        y_smooth[np.arange(N), labels] = 1.0 - label_smoothing
+        if class_weights is not None:
+            w_n = class_weights[labels]
+            per_sample_loss = -(y_smooth * np.log(probs + 1e-9)).sum(axis=1) * w_n
+        else:
+            per_sample_loss = -(y_smooth * np.log(probs + 1e-9)).sum(axis=1)
+        d_logits = probs - y_smooth
+        if class_weights is not None:
+            d_logits *= class_weights[labels][:, np.newaxis]
+        d_logits /= N
+    else:
+        per_sample_loss = -np.log(probs[np.arange(N), labels] + 1e-9)
+        if class_weights is not None:
+            weights = class_weights[labels]
+            per_sample_loss *= weights
+        d_logits = probs.copy()
+        d_logits[np.arange(N), labels] -= 1.0
+        if class_weights is not None:
+            d_logits *= class_weights[labels][:, np.newaxis]
+        d_logits /= N
+
     loss = float(per_sample_loss.mean())
-    d_logits = probs.copy()
-    d_logits[np.arange(N), labels] -= 1.0
-    if class_weights is not None:
-        d_logits *= class_weights[labels][:, np.newaxis]    # (N, 1) — poids gold par sample
-    d_logits /= N
     return loss, d_logits
 
 
