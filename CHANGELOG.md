@@ -5,6 +5,45 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.2.0] — 2026-09-17
+
+### Phase 16 — Spécialisation moteur, suppression dérapages LLM
+
+**Architecture :**
+- `gcn-forward` supprimé — redondant avec `gcn-discuss` (humain) et l'API Python (pipeline)
+- `gcn-chat` supprimé — dérapage LLM
+- `_split_sentences`, `analyze_document`, `stream_documents` retirés de `engine.py` — hors scope moteur
+- Docstrings `engine.py` et `GCNEngine` : "moteur de requêtes causales", plus de comparaison LLM/HuggingFace
+
+**Nouveaux outils :**
+- `gcn-discuss` : session interactive — `/analyze <fichier_ou_répertoire>`, questions causales, `/save`, `/load`, `--log`
+- `gcn-index` : indexation batch corpus → graphe JSON sans interaction
+- `verbalizer/query_report.py` : `QueryVerbalizer` — rapports multi-lignes avec sources, confiances, contradictions, zéro hardcoding (relations depuis `RELATION_TYPES`)
+- `CIR → verbalizer direct` : `decoder.decode_cir(dict)` — flux direct sans sérialisation JSON intermédiaire
+
+**`FeatureVocabulary` language-agnostic :**
+- `connector_lemmas` : vide par défaut — le lexique de connecteurs est fourni par l'utilisateur selon sa langue
+- `d_conn` sans lexique = 31 (UPOS + dep_rel + position, universels UD)
+- `d_conn` avec lexique FR = 81 (+ 50 lemmes)
+- `CONNECTOR_LEMMAS` reste disponible : `FeatureVocabulary(connector_lemmas=CONNECTOR_LEMMAS)`
+- `connector_dep_rels` : champ configurable (défaut : UD universels)
+
+**10 correctifs audit codebase :**
+- `engine.py` : code mort supprimé (d_edge calculé deux fois)
+- `gcn-middleend/Cargo.toml` : `rayon` non utilisé retiré
+- `annotator.rs` : `tokens[vi+1..]` → `.get(vi+1..).unwrap_or(&[])` (no-panic)
+- `gcn-annotate/pyproject.toml` : `spacy>=3.7` ajouté comme dépendance
+- `gcn-scraper` : `sys.path.insert` supprimé, `gcn-python` en dépendance déclarée
+- `github_code.py` : `--github-token` optionnel (10 → 30 req/min avec auth)
+- `label_builder.py` : `_nom_cache` borné à 128 entrées (FIFO eviction)
+- `features.py` : `CONNECTOR_LEMMAS` dédupliqué programmatiquement via `dict.fromkeys()`
+- `layer3/interface.py` : contrat `backward_message_pass` documenté dans le Protocol
+- `gcn-datasets/real/` : fichiers root dupliqués supprimés
+
+**Tests :** 206 passent (2 skipped stables)
+
+---
+
 ## [2.1.0] — 2026-09-17
 
 ### Publication — packaging et documentation

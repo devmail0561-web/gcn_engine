@@ -1,7 +1,7 @@
 # gcn-python — GCN Causal Engine
 
 [![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
-[![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-206-passing)](tests/)

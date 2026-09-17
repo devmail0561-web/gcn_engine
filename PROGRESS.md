@@ -26,7 +26,7 @@ Phase BF ████████████████████  100%  Ana
 Phase 15 ████████████████████  100%  Val set, régularisation, suppression gcn_causal_type, pipeline UD
 ```
 
-**Tests Python : 204 / 204 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
+**Tests Python : 206 / 206 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
 **Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
@@ -482,3 +482,25 @@ Tests : **195 Python (2 skipped stables)**, Rust build OK
 | DA-6 | DiGraph vit dans middle-end, pas dans `CausalIR` | CausalIR 100% sérialisable |
 | DA-7 | `NodeOrigin` (Explicit/Inferred/Hypothetical) sur chaque nœud | Traçabilité complète |
 | DA-8 | Causalité implicite détectée avec confidence 0.5, `explicit: false` | Signalement des inférences |
+
+---
+
+## Phase 16 — Spécialisation moteur, audit codebase ✅
+
+**Statut :** ✅ Complet — 2026-09-17
+
+| Correctif | Composant | Statut |
+|-----------|-----------|--------|
+| Suppression gcn-forward (redondant) | `pipeline/cli.py` supprimé | ✅ |
+| Suppression gcn-chat (dérapage LLM) | `chat.py` supprimé | ✅ |
+| `_split_sentences`, `analyze_document`, `stream_documents` retirés de `engine.py` | `engine.py` | ✅ |
+| Création `gcn-discuss` — session interactive + /analyze + Q&A | `discuss.py` (nouveau) | ✅ |
+| Création `gcn-index` — indexation batch corpus | `index.py` (nouveau) | ✅ |
+| `QueryVerbalizer` — rapports multi-lignes avec sources | `verbalizer/query_report.py` (nouveau) | ✅ |
+| CIR → verbalizer direct (sans fichier intermédiaire) | `discuss.py`, `decoder.py` | ✅ |
+| `FeatureVocabulary` language-agnostic | `layer1/features.py` | ✅ |
+| `connector_lemmas` : vide par défaut, configurable | `layer1/features.py` | ✅ |
+| 10 correctifs audit codebase | divers | ✅ |
+| Monitoring `--log` dans gcn-discuss | `discuss.py` | ✅ |
+
+**Tests :** 206 Python (2 skipped stables), Rust build OK

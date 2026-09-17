@@ -363,7 +363,7 @@ done
 - RGCNLayerGAT + message passing bidirectionnel (Phase 11)
 - Edge classification closed-loop + backward edges (Phase 13)
 - 6 bugs critiques/moyens corrigés, aucun string literal sémantique dans le moteur (Phase BF)
-- 195 tests Python (195 ok, 2 skipped), Rust build OK
+- 206 tests Python (206 ok, 2 skipped), Rust build OK
 
 ### **Bootstrap (Auxiliaire)**
 
@@ -412,5 +412,5 @@ Le moteur continuerait à fonctionner normalement pour training, inférence, et 
 
 - **Moteur** : `gcn-python/src/gcn_python/{layer1,layer2,layer3,pipeline}/`
 - **Bootstrap** : `gcn-python/src/gcn_python/training/bootstrap.py`
-- **Tests moteur** : 195 tests Python (195 ok, 2 skipped), Rust build OK
+- **Tests moteur** : 206 tests Python (206 ok, 2 skipped), Rust build OK
 - **Tests bootstrap** : 10 tests isolés

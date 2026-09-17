@@ -10,7 +10,7 @@
 
 | Composant | État | Détail vérifié |
 |-----------|------|----------------|
-| Pipeline ML (layers 1–3, training) | ✅ Fonctionnel | 195 tests Python |
+| Pipeline ML (layers 1–3, training) | ✅ Fonctionnel | 206 tests Python |
 | Tests Rust | ✅ Fonctionnel | 137 tests, build OK |
 | gcn-scraper (6 sources) | ✅ Fonctionnel | Wikipedia FR/EN, HAL, Python/Rust docs |
 | gcn-annotate (LLM) | ✅ Fonctionnel | Anthropic/OpenAI, retry, validation |
@@ -23,8 +23,10 @@
 ```
 d_clause            = 79   (18 UPOS + 38 DEP + 5 SUBJ_POS + 5 TENSE + 4 ASPECT + 5 MOOD + 1 POL + 3 FLAGS)
                            inchangé après Phase 5 — causal_pattern n'est PAS une feature
-d_conn              = 85
-d_edge actuel       = 247  (2×79 + 85 + 4)
+d_conn (sans lexique)   = 31   (18 UPOS + 0 lemmes + 11 dep_rel + 2 position)
+d_conn (lexique FR)    = 81   (18 + 50 + 11 + 2)
+d_edge (sans lexique)   = 193  (2×79 + 31 + 4)
+d_edge (lexique FR)    = 243  (2×79 + 81 + 4)
 NODE_TYPES          = 7
 RELATION_TYPES      = 11   ["cause","enable","prevent","condition","concession","sequence",
                              "motivation","filter","opposition","data_dependency","control_dependency"]
@@ -1369,5 +1371,5 @@ def test_morph_tense_change_vecteur():
 | `val_graph_exact_match` (réel) | N/A | > 0.20 | Phase 6.2 — objectif initial réaliste |
 | Baseline triviale edge (réel) | 59.3 % accuracy | — | Prédire toujours "cause" |
 | Taille dataset réel utilisable | 0 | 5 000+ | Phase 4 |
-| Tests Python | 195 | ≥ 195 | Chaque phase |
+| Tests Python | 206 | ≥ 206 | Chaque phase |
 | Tests robustesse | 0 | 4 | Phase 6.4 |

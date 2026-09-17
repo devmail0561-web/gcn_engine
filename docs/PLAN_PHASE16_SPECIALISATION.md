@@ -1,7 +1,7 @@
 # Plan Phase 16 — Spécialisation GCN sur ses cas d'usage réels
 
 **Date :** 2026-09-17  
-**Statut :** À implémenter  
+**Statut :** ✅ Terminé — 2026-09-17  
 **Objectif :** Retirer tous les dérapages LLM du moteur et le recentrer sur
 ses vrais cas d'usage : cybersécurité, audit, investigation, analyse de code,
 recherche scientifique.
