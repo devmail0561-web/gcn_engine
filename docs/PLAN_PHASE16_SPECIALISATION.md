@@ -153,14 +153,75 @@ class CausalGraph:
 
 ---
 
-### C4 — Renommer `_verbalize` → `dump` dans `InstructionHandler`
+### C4 — Intégrer le verbalizer dans la sortie de `gcn-query`
 
-**Fichier :** `gcn-python/src/gcn_python/verbalizer/instructions.py`
+**Problème :** Le plan initial a `gcn-query` qui retourne des résultats JSON bruts.
+Ce n'est pas suffisant. Une requête sur un corpus de 1000 documents peut trouver
+47 relations causales avec des sources, des niveaux de confiance et des contradictions
+différents. Le verbalizer doit formater ce rapport complet.
 
-`_verbalize()` produit une sérialisation structurée du CIR — pas une
-verbalisation en langage naturel. Renommer en `dump` pour être honnête
-sur ce que ça fait. La vraie verbalisation (CIR → texte naturel) est
-le rôle du `TrainableDecoder` entraîné sur des paires (CIR, texte).
+**Architecture de la sortie :**
+
+```
+gcn-query --graph cti_graph.json --causes-of "data_exfiltration"
+```
+
+**Sortie verbalisée (pas une seule phrase) :**
+```
+causes_of: data_exfiltration
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. [authentication_bypass]  --[enable]-->  [data_exfiltration]
+     sources: APT28_report.txt:47, Mandiant_2024.pdf:12
+     confidence: 0.91 (23 occurrences)
+
+  2. [credential_theft]  --[cause]-->  [data_exfiltration]
+     sources: CrowdStrike_Q3.txt:89
+     confidence: 0.87 (8 occurrences)
+
+  3. [sql_injection]  --[enable]-->  [data_exfiltration]
+     sources: OWASP_report.txt:34, NVD_CVE_2024.txt:5
+     confidence: 0.79 (5 occurrences)
+
+  ⚠ CONTRADICTION : [firewall_rule]  --[prevent]-->  [data_exfiltration]
+     sources: SecPolicy_v2.txt:12   (mais 23 sources affirment le contraire)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total : 3 causes, 1 contradiction, 30+ sources analysées
+```
+
+**Ce que le verbalizer produit ici :**
+- Toutes les relations causales trouvées (pas une seule)
+- Chaque relation avec ses sources, sa fréquence, sa confiance
+- Les contradictions flaggées explicitement
+- Un résumé quantitatif en bas
+
+**Rôle de chaque composant :**
+```
+CausalGraph.causes_of("data_exfiltration")
+    → liste de (src_node, dst_node, attrs, sources[])
+
+QueryVerbalizer.format_causes_report(results)
+    → rapport multi-lignes structuré ci-dessus
+```
+
+**Fichier à créer :** `gcn-python/src/gcn_python/verbalizer/query_report.py`
+
+```python
+class QueryVerbalizer:
+    """
+    Formate les résultats de requêtes CausalGraph en rapports lisibles.
+    Pas de langage naturel généré — structure + données du CIR.
+    """
+    def format_causes(self, results, subject: str) -> str: ...
+    def format_effects(self, results, subject: str) -> str: ...
+    def format_path(self, path, kw_from: str, kw_to: str) -> str: ...
+    def format_contradictions(self, results) -> str: ...
+    def format_summary(self, graph) -> str: ...
+    def format_counterfactual(self, results, subject: str) -> str: ...
+```
+
+**Le `ReferenceDecoder._verbalize()` reste** mais renommé en `dump` —
+il sérialise un CIR individuel en texte structuré. La vraie verbalisation
+en langage naturel fluide est le rôle du `TrainableDecoder` entraîné.
 
 ---
 
@@ -196,13 +257,14 @@ Sections à réécrire :
 
 ```toml
 [project.scripts]
-gcn-index   = "gcn_python.query_cli:index_cmd"   # NOUVEAU
-gcn-query   = "gcn_python.query_cli:query_cmd"   # NOUVEAU
+gcn-index   = "gcn_python.query_cli:index_cmd"   # NOUVEAU — indexe un corpus
+gcn-query   = "gcn_python.query_cli:query_cmd"   # NOUVEAU — requêtes + rapport verbalisé
 gcn-forward = "gcn_python.pipeline.cli:forward_cmd"
 gcn-train   = "gcn_python.training.train:train_cmd"
 gcn-eval    = "gcn_python.evaluation.eval_runner:eval_cmd"
-# gcn-chat supprimé
+# gcn-chat supprimé (dérapage LLM)
 # gcn-bootstrap conservé (outil de génération de datasets)
+# gcn-verbalize conservé (TrainableDecoder : CIR → texte naturel entraîné)
 ```
 
 ---
@@ -212,8 +274,10 @@ gcn-eval    = "gcn_python.evaluation.eval_runner:eval_cmd"
 ```
 C1 — engine.py : supprimer méthodes hors scope + réécrire docstrings
 C3 — CausalGraph persistable (save/load/from_cirs)
-C4 — Renommer verbalize → dump
+C4 — verbalizer/query_report.py : QueryVerbalizer (rapports multi-lignes)
+     + renommer _verbalize → dump dans ReferenceDecoder
 C2 — Supprimer chat.py, créer query_cli.py (gcn-index + gcn-query)
+     gcn-query appelle QueryVerbalizer pour formater les résultats
 C5 — Repositionner --text dans gcn-forward
 C6 — Mettre à jour README
 C7 — Mettre à jour pyproject.toml
