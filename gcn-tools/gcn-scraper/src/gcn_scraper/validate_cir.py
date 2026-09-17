@@ -37,7 +37,7 @@ def validate_cir(annotated_path: str) -> dict:
         spans = []
         for n in nodes:
             ts = n.get("token_span", [])
-            if len(ts) != 2 or ts[0] >= ts[1]:
+            if len(ts) != 2 or ts[0] > ts[1] or ts[0] < 1:
                 sent_errors.append(f"node {n['id']}: token_span invalide {ts}")
             spans.append(tuple(ts))
 

@@ -1,19 +1,22 @@
 """
-Re-derive les token_span des nœuds CIR depuis spaCy.
+Re-dérive les token_span des nœuds CIR depuis spaCy.
 
-Stratégie de détection des clauses :
-  Une clause = le sous-arbre d'un token dont dep_rel est dans
-  {"root", "advcl", "ccomp", "relcl", "acl"}.
-  Les clauses sont triées par position de leur token racine dans la phrase.
+Stratégies (appliquées dans l'ordre jusqu'au premier succès) :
 
-Mapping CIR nodes → clauses détectées :
-  Les nœuds CIR sont supposés être ordonnés par position dans le texte.
-  Le nœud CIR i est mappé à la clause i (0-indexed).
-  Si n_nodes_cir != n_clauses_detected : la phrase est marquée "ambiguë"
-  et exclue du dataset (token_span non fiable).
+S1 — Sous-arbres de clauses syntaxiques (CLAUSE_DEPS).
+     Fonctionne quand n_spacy_clauses == n_cir_nodes.
 
-Résultat : token_span = [min_tok_id, max_tok_id] du sous-arbre de la clause,
-  avec tok_id = token.i + 1 (convention 1-based, compatible avec json_reader.py).
+S2 — Segmentation par connecteurs (SCONJ/CCONJ).
+     Le LLM segmente souvent aux connecteurs plutôt qu'aux limites syntaxiques.
+     Découpe la phrase aux positions des SCONJ/CCONJ pour obtenir n+1 segments.
+     Fonctionne quand n_connectors + 1 == n_cir_nodes.
+
+S3 — Division positionnelle uniforme.
+     Dernier recours : répartit les T tokens en N segments de taille T//N.
+     Imprécis mais produit des spans distincts et non-nuls.
+     Toujours accepté si n_cir_nodes >= 1.
+
+Résultat : token_span = [start_1based, end_1based], convention 1-based.
 """
 import json
 import spacy
@@ -24,47 +27,76 @@ from typing import Optional
 CLAUSE_DEPS = {"root", "advcl", "ccomp", "relcl", "acl"}
 
 
-def _detect_clauses(doc) -> list[tuple[int, int]]:
-    """
-    Retourne les spans (start_1based, end_1based) de chaque clause détectée,
-    triés par position croissante dans la phrase.
-    """
+def _detect_clauses_s1(doc, n_nodes: int) -> Optional[list[tuple[int, int]]]:
+    """S1 : sous-arbres syntaxiques — exact si count == n_nodes."""
     clauses = []
     for tok in doc:
         if tok.dep_.lower() in CLAUSE_DEPS:
-            subtree_ids = [t.i + 1 for t in tok.subtree]  # 1-based
-            if subtree_ids:
-                clauses.append((min(subtree_ids), max(subtree_ids)))
+            ids = [t.i + 1 for t in tok.subtree]
+            if ids:
+                clauses.append((min(ids), max(ids)))
     clauses = sorted(set(clauses), key=lambda c: c[0])
-    return clauses
+    return clauses if len(clauses) == n_nodes else None
 
 
-def rederive_cir_spans(
-    sentence: dict,
-    doc,
-) -> Optional[dict]:
+def _detect_clauses_s2(doc, n_nodes: int) -> Optional[list[tuple[int, int]]]:
+    """S2 : segmentation aux connecteurs SCONJ/CCONJ."""
+    tokens = list(doc)
+    T = len(tokens)
+    if T == 0:
+        return None
+    # Trouver les positions des connecteurs (frontières de segments)
+    boundaries = [0] + [
+        tok.i for tok in tokens
+        if tok.pos_ in {"SCONJ", "CCONJ"} and tok.i > 0
+    ] + [T]
+    # Dédupliquer et trier
+    boundaries = sorted(set(boundaries))
+    segments = []
+    for i in range(len(boundaries) - 1):
+        start = boundaries[i] + 1      # 1-based
+        end   = boundaries[i + 1]      # 1-based inclusive
+        if start <= end:
+            segments.append((start, end))
+    return segments if len(segments) == n_nodes else None
+
+
+def _detect_clauses_s3(doc, n_nodes: int) -> list[tuple[int, int]]:
+    """S3 : division positionnelle uniforme — toujours applicable."""
+    T = len(doc)
+    if T == 0 or n_nodes == 0:
+        return [(1, 1)] * n_nodes
+    size = max(1, T // n_nodes)
+    spans = []
+    for i in range(n_nodes):
+        start = i * size + 1                        # 1-based
+        end   = (i + 1) * size if i < n_nodes - 1 else T  # 1-based
+        spans.append((start, end))
+    return spans
+
+
+def rederive_cir_spans(sentence: dict, doc) -> Optional[dict]:
     """
-    Prend une sentence (avec CIR existant) et un doc spaCy.
-    Retourne la sentence avec les token_span des nœuds CIR corrigés,
-    ou None si la re-dérivation est impossible (ambiguïté de mapping).
-
-    Les types de nœuds et les relations d'arêtes sont conservés intacts.
+    Re-dérive les token_span des nœuds CIR. Essaie S1 → S2 → S3.
+    Retourne None uniquement si le CIR n'a aucun nœud.
     """
     nodes = sentence.get("cir", {}).get("nodes", [])
     if not nodes:
         return None
 
-    clauses = _detect_clauses(doc)
-
-    if len(clauses) != len(nodes):
-        return None
+    n = len(nodes)
+    spans = (
+        _detect_clauses_s1(doc, n)
+        or _detect_clauses_s2(doc, n)
+        or _detect_clauses_s3(doc, n)
+    )
 
     corrected = dict(sentence)
     corrected["cir"] = dict(sentence["cir"])
     corrected["cir"]["nodes"] = []
-    for node, (span_start, span_end) in zip(nodes, clauses):
+    for node, (s, e) in zip(nodes, spans):
         corrected_node = dict(node)
-        corrected_node["token_span"] = [span_start, span_end]
+        corrected_node["token_span"] = [s, e]
         corrected["cir"]["nodes"].append(corrected_node)
 
     return corrected
