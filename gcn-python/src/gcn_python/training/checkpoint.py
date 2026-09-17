@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from pathlib import Path
 import numpy as np
 
@@ -9,6 +10,23 @@ from ..layer1.features import FeatureVocabulary
 def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     """Sérialise tous les poids du pipeline dans un fichier .npz."""
     arrays: dict[str, np.ndarray] = {}
+
+    # Métadonnées d'architecture — lues par GCNEngine.from_pretrained()
+    # pour reconstruire le pipeline sans hardcoder les indices de shapes.
+    we = getattr(pipeline, 'word_embedding', None)
+    d_emb = we.d_emb if we is not None else 0
+    d_eff = pipeline.vocabulary.d_clause + d_emb
+    graph0 = pipeline._graph_layers[0]
+    n_rel = getattr(graph0, 'n_relations', len(pipeline.relation_types))
+    arch = {
+        "d_eff":        d_eff,
+        "d_emb":        d_emb,
+        "n_relations":  n_rel,
+        "bidirectional": pipeline.bidirectional,
+        "n_rgcn_layers": pipeline.n_rgcn_layers,
+        "graph_class":  type(graph0).__name__,
+    }
+    arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
     encoder_params = pipeline.encoder.parameters()
     for i, p in enumerate(encoder_params):
@@ -49,7 +67,7 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
 
     # Valider que seules les clés attendues sont présentes (détection de corruption)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_")
-    _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E"}
+    _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E", "_arch_json"}
     unexpected = set(data.files) - _VALID_EXACT
     unexpected = {k for k in unexpected if not any(k.startswith(p) for p in _VALID_PREFIXES)}
     if unexpected:
