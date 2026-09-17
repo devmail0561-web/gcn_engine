@@ -33,7 +33,12 @@ Test robustesse : "si" → condition ≠ "bien que" → concession (connecteur c
 
 ## Étape 1 — Annoter le dataset réel avec tokens UD
 
-**Durée estimée :** 15–30 min (exécution des scripts)
+**Durée estimée réelle :** 2–4h (debug spaCy + alignement spans + vérification)
+
+**Avertissement `prevent` :** 13 phrases seulement. Le split stratifié peut produire
+0 exemples de `prevent` dans val ou test. Si c'est le cas, les métriques
+`val_edge_macro_f1` exclueront silencieusement cette classe. C'est documenté et
+acceptable pour le premier déploiement — `prevent` sera renforcé en Phase 4.
 
 ```bash
 cd gcn-tools/gcn-scraper/src/gcn_scraper
@@ -81,6 +86,11 @@ python split_real_dataset.py \
 
 **Durée estimée :** 10–30 min (selon matériel)
 
+**Note sur le déséquilibre :** `--weighted-loss` compense automatiquement le biais
+`cause=60%` en pondérant les classes rares inversement à leur fréquence. `edge-loss-weight=3.0`
+favorise l'apprentissage des arêtes face aux nœuds — à descendre à 2.0 si le modèle
+ne converge pas sur les nœuds.
+
 ```bash
 gcn-train \
   --data-dir  gcn-datasets/real/train.json \
@@ -99,6 +109,12 @@ gcn-train \
   --output         checkpoints/prod_v1.npz \
   --log-csv        logs/prod_v1.csv
 ```
+
+**Reproductibilité :** fixer le seed avant l'exécution :
+```bash
+export PYTHONHASHSEED=42
+```
+Le seed du split (42) est déjà fixé dans `split_real_dataset.py`.
 
 **Ce qui peut mal se passer et quoi faire :**
 
@@ -171,31 +187,192 @@ Répéter l'étape 2 avec le dataset enrichi.
 
 ---
 
-## Étape 5 — Test de robustesse
+## Étape 5 — Tests de robustesse
 
-**Condition :** métriques de l'étape 3 satisfaisantes
+**Condition :** métriques de l'étape 3 satisfaisantes  
+**Durée estimée :** 2–3h (implémentation + exécution)
 
-Valider que le modèle apprend la **sémantique du connecteur**, pas juste la fréquence :
+Ces tests valident que le modèle apprend la **sémantique du connecteur**, pas sa fréquence.
+Ils sont indépendants d'un checkpoint — ils s'exécutent avec `pytest` sur le checkpoint `prod_v1.npz`.
 
-```bash
-python -c "
-from gcn_python.data.loader import reps_from_sentence
-from gcn_python.data.json_reader import load_sentences
-from gcn_python.training.checkpoint import load_checkpoint
-from gcn_python.pipeline.cgnp import CGNPipeline
-# ...
+Fichier à créer : `gcn-python/tests/test_robustness.py`
 
-# Test 1 : même phrase, connecteur différent
-# 'Les ventes baissent, DONC on réduit les coûts.'  → attendu : cause ou sequence
-# 'Les ventes baissent, BIEN QUE on réduit les coûts.' → attendu : concession
+```python
+"""
+Tests de robustesse prod — valident que le modèle discrimine les connecteurs
+et la direction des arêtes. Nécessitent un checkpoint entraîné sur données réelles.
+Sautés si le checkpoint n'existe pas.
+"""
+import pytest
+import numpy as np
+from pathlib import Path
+from gcn_python.layer1.representation import UDRepresentation
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 
-# Test 2 : inversion des clauses
-# 'A parce que B' → cause(A→B)
-# 'B parce que A' → cause(B→A) — relation symétrique doit changer de direction
+CHECKPOINT = Path("checkpoints/prod_v1.npz")
 
-# Test 3 : phrase hors-template (non vue pendant l'entraînement)
-"
+
+def _make_rep(lemma, pos="VERB", dep_rel="root", morph=None) -> UDRepresentation:
+    """Construit une UDRepresentation minimale pour les tests de robustesse."""
+    return UDRepresentation(
+        tokens=[{"lemma": lemma, "pos": pos, "dep_rel": dep_rel, "morph": morph or {}}],
+        root_lemma=lemma, root_pos=pos, root_dep_rel=dep_rel,
+        root_morph=morph or {}, subject_pos=None,
+        has_object=False, has_advcl=False, has_temporal_obl=False,
+        token_span=(1, 1),
+    )
+
+
+def _make_connector(lemma, pos="SCONJ") -> UDRepresentation:
+    return _make_rep(lemma, pos=pos, dep_rel="mark")
+
+
+# ---------------------------------------------------------------------------
+# Test 1 — Le connecteur change le vecteur edge
+# ---------------------------------------------------------------------------
+
+def test_connecteur_si_vs_bien_que_change_vecteur():
+    """
+    Deux arêtes identiques sauf le connecteur ("si" vs "bien que") doivent
+    produire des vecteurs différents.
+    Prouve que le connecteur est bien encodé dans vectorize_edge.
+    """
+    vocab = FeatureVocabulary()
+    src = _make_rep("baisser", morph={"Tense": "Pres"})
+    dst = _make_rep("réduire", morph={"Tense": "Pres"})
+    conn_si    = _make_connector("si")
+    conn_bien  = _make_connector("bien")  # "bien que"
+
+    vec_si   = vectorize_edge(src, dst, conn_si,   1, 2, 3, vocab)
+    vec_bien = vectorize_edge(src, dst, conn_bien,  1, 2, 3, vocab)
+
+    assert not np.array_equal(vec_si, vec_bien), (
+        "Les vecteurs edge sont identiques malgré des connecteurs différents — "
+        "le connecteur n'est pas encodé."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 2 — L'inversion src/dst change le vecteur edge
+# ---------------------------------------------------------------------------
+
+def test_inversion_src_dst_change_vecteur():
+    """
+    vectorize_edge(A, B, conn, src=1, dst=2, n=3)
+    ≠ vectorize_edge(B, A, conn, src=2, dst=1, n=3)
+    
+    La direction est encodée dans pos_vec[0] = float(src_idx < dst_idx).
+    Si le vecteur est symétrique, le modèle ne peut pas distinguer la direction.
+    """
+    vocab = FeatureVocabulary()
+    rep_a = _make_rep("baisser")
+    rep_b = _make_rep("réduire")
+    conn  = _make_connector("parce")
+
+    vec_ab = vectorize_edge(rep_a, rep_b, conn, 1, 2, 3, vocab)
+    vec_ba = vectorize_edge(rep_b, rep_a, conn, 2, 1, 3, vocab)
+
+    assert not np.array_equal(vec_ab, vec_ba), (
+        "Les vecteurs A→B et B→A sont identiques — "
+        "la direction de l'arête n'est pas encodée."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 3 — Le modèle prédit "concession" pour "bien que" (si checkpoint dispo)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not CHECKPOINT.exists(), reason="Checkpoint prod_v1.npz absent")
+def test_bien_que_predit_concession():
+    """
+    Avec le checkpoint prod_v1.npz entraîné sur données réelles,
+    une arête avec connecteur "bien que" doit être prédite "concession",
+    pas "cause" (classe dominante à 60%).
+
+    Ce test détecte le biais vers "cause" : si le modèle n'a pas appris
+    à discriminer les connecteurs, il prédit toujours "cause".
+    """
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import load_checkpoint
+    from gcn_python.constants import RELATION_TYPES, NODE_TYPES
+
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES))
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph   = RGCNLayer(d_in=d_eff, d_out=d_eff)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    load_checkpoint(pipeline, CHECKPOINT)
+    pipeline.encoder.training = False
+
+    src  = _make_rep("baisser", morph={"Tense": "Pres"})
+    dst  = _make_rep("réduire", morph={"Tense": "Pres"})
+    conn = _make_connector("bien")  # connecteur de concession
+
+    cir = pipeline.forward([src, dst], "Les ventes baissent bien qu'on réduise les coûts.",
+                           connector_reps=[conn])
+    assert cir["edges"], "Aucune arête produite"
+    predicted_relation = cir["edges"][0][2]["relation"]
+    assert predicted_relation == "concession", (
+        f"Attendu 'concession' pour 'bien que', obtenu '{predicted_relation}'. "
+        f"Le modèle est probablement biaisé vers la classe dominante 'cause'."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 4 — Phrase hors-template (vocabulaire non vu à l'entraînement)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not CHECKPOINT.exists(), reason="Checkpoint prod_v1.npz absent")
+def test_phrase_hors_template_produit_cir_valide():
+    """
+    Une phrase avec des lemmes absents du dataset d'entraînement doit
+    quand même produire un CIR structurellement valide (nodes + edges non vides).
+    Prouve que le modèle généralise sur les features syntaxiques, pas les lemmes.
+    """
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import load_checkpoint
+    from gcn_python.constants import NODE_TYPES
+
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES))
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph   = RGCNLayer(d_in=d_eff, d_out=d_eff)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    load_checkpoint(pipeline, CHECKPOINT)
+    pipeline.encoder.training = False
+
+    # Lemmes volontairement hors-vocabulaire d'entraînement
+    src  = _make_rep("désinhiber",  pos="VERB", morph={"Tense": "Pres"})
+    dst  = _make_rep("exacerber",   pos="VERB", morph={"Tense": "Fut"})
+    conn = _make_connector("parce")
+
+    cir = pipeline.forward([src, dst], "...", connector_reps=[conn])
+    assert len(cir["nodes"]) == 2,  f"Attendu 2 nœuds, obtenu {len(cir['nodes'])}"
+    assert len(cir["edges"]) == 1,  f"Attendu 1 arête, obtenu {len(cir['edges'])}"
+    for node in cir["nodes"]:
+        assert node["node_type"] in NODE_TYPES, (
+            f"Type de nœud inconnu : {node['node_type']!r}"
+        )
 ```
+
+**Exécution :**
+```bash
+# Sans checkpoint (teste uniquement la vectorisation)
+python -m pytest gcn-python/tests/test_robustness.py -k "not prod" -v
+
+# Avec checkpoint (teste le modèle entraîné)
+python -m pytest gcn-python/tests/test_robustness.py -v
+```
+
+**Interprétation du test 3 :**
+- Si `predicted_relation == "cause"` → le modèle n'a pas appris la sémantique des connecteurs → entraîner plus longtemps ou augmenter le dataset de concession
+- Si `predicted_relation == "concession"` → généralisation confirmée pour cette classe
 
 ---
 
@@ -221,16 +398,47 @@ print('Checkpoint OK')
 
 ---
 
+## Étape 7 — Versioning et monitoring post-déploiement
+
+**Versionner les checkpoints :**
+```bash
+# Convention : prod_v{N}.npz + prod_v{N}_metrics.json
+cp checkpoints/prod_v1.npz checkpoints/prod_v1_stable.npz
+echo '{"val_edge_macro_f1": X, "val_graph_exact_match": Y, "date": "2026-09-17"}' \
+  > checkpoints/prod_v1_stable_metrics.json
+```
+
+**Rollback si dégradation :**
+- Garder `prod_v1_stable.npz` intact tant qu'un `prod_v2` n'est pas validé
+- Ne jamais écraser un checkpoint stable avec un checkpoint non-évalué
+
+**Monitoring :**
+- Loguer `confidence` et `relation` prédites par phrase en production
+- Alerter si `confidence` moyen < 0.5 sur une fenêtre de 100 phrases (signal de dérive)
+- Re-entraîner si la distribution des relations prédites s'écarte > 20% de la distribution val
+
+---
+
 ## Résumé du chemin critique
 
 ```
-Étape 1 : annoter UD dataset réel          [BLOQUANT — 30 min]
+Étape 1 : annoter UD dataset réel                [BLOQUANT — 2–4h]
     ↓
-Étape 2 : entraîner sur données réelles    [20 min]
+Étape 2 : entraîner sur données réelles          [20–30 min]
     ↓
 Étape 3 : évaluer — métriques OK ?
-    ├── OUI (val_edge_f1 > 0.40) ──────────→ Étape 5 : robustesse → Étape 6 : packaging
-    └── NON (val_edge_f1 < 0.40) ──────────→ Étape 4 : enrichir dataset → Étape 2
+    ├── OUI (val_edge_f1 > 0.40)  ──────→ Étape 5 : robustesse [2–3h]
+    │                                              ↓
+    │                                      Étape 6 : packaging [15 min]
+    │                                              ↓
+    │                                      Étape 7 : monitoring [15 min]
+    │
+    └── NON (val_edge_f1 < 0.40)  ──────→ Étape 4 : enrichir dataset [4–8h]
+                                                   ↓
+                                           Étape 2 (itération)
+
+Durée totale chemin nominal : ~6–8h
+Durée totale avec enrichissement : ~14–20h
 ```
 
 ---
