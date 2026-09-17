@@ -111,6 +111,8 @@ class CGNPipeline:
         self._accum_node_grads = None
         self._accum_edge_grads = None
         self._accum_rgcn_grads = None
+        self._accum_dec_grads = None
+        self._accum_dec_attn = None
 
     def forward(
         self,
@@ -199,12 +201,9 @@ class CGNPipeline:
                 [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
                 dtype=np.int64,
             ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
-            # Types d'arêtes : utiliser la prédiction du premier passage comme approximation
-            edge_type_idxs_rgcn = np.array(
-                [int(np.argmax(node_logits[max(s, 0)] + node_logits[min(d, len(node_logits)-1)]))
-                 for s, d in _edge_pairs_rgcn],
-                dtype=np.int64,
-            ) if _edge_pairs_rgcn else np.array([], dtype=np.int64)
+            # Types d'arêtes : type 0 uniforme (proxy neutre — les logits nœuds
+            # n'indexent pas les relations, argmax en ferait un bug sémantique)
+            edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
 
             self._cached_edge_index = edge_index_rgcn
             self._cached_edge_type_idxs = edge_type_idxs_rgcn
@@ -405,6 +404,8 @@ class CGNPipeline:
         gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
         edge_loss_weight: float = 1.0,  # pondération relative edge_loss / node_loss
         gold_surface: np.ndarray | None = None,  # (T,) int — tokens gold pour le décodeur
+        node_class_weights: np.ndarray | None = None,  # (7,) float — poids par classe nœud
+        edge_class_weights: np.ndarray | None = None,  # (11,) float — poids par classe arête
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -419,14 +420,14 @@ class CGNPipeline:
             raise ValueError(
                 f"Désalignement node_logits/gold_node : {len(node_logits)} logits vs {len(gold_node)} labels"
             )
-        node_loss, d_node = _cross_entropy(node_logits, gold_node)
+        node_loss, d_node = _cross_entropy(node_logits, gold_node, node_class_weights)
 
         if edge_logits is not None and gold_edge is not None and len(edge_logits) > 0:
             if len(edge_logits) != len(gold_edge):
                 raise ValueError(
                     f"Désalignement edge_logits/gold_edge : {len(edge_logits)} logits vs {len(gold_edge)} labels"
                 )
-            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge)
+            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights)
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
@@ -665,6 +666,21 @@ class CGNPipeline:
                     for i in range(len(acc_g)):
                         acc_g[i] += new_g[i]
 
+        # --- Décodeur backward accumulation (B3) ---
+        if (self.decoder is not None
+                and self._cached_decode_gradient is not None
+                and hasattr(self.decoder, 'backward_decode')):
+            _d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(
+                self._cached_decode_gradient
+            )
+            if self._accum_dec_grads is None:
+                self._accum_dec_grads = [g.copy() for g in dec_grads]
+                self._accum_dec_attn = d_attn_vec.copy()
+            else:
+                for i in range(len(self._accum_dec_grads)):
+                    self._accum_dec_grads[i] += dec_grads[i]
+                self._accum_dec_attn += d_attn_vec
+
         # --- Word embedding backward accumulation (S2) ---
         if (self.word_embedding is not None
                 and self._cached_reps is not None
@@ -685,9 +701,15 @@ class CGNPipeline:
         if self._accum_rgcn_grads is not None:
             for _layer, acc_g in self._accum_rgcn_grads:
                 _layer.update([g / n_samples for g in acc_g], lr)
+        if self._accum_dec_grads is not None and self.decoder is not None:
+            norm_grads = [g / n_samples for g in self._accum_dec_grads]
+            norm_attn = self._accum_dec_attn / n_samples
+            self.decoder.update(norm_grads, norm_attn, lr)
         self._accum_node_grads = None
         self._accum_edge_grads = None
         self._accum_rgcn_grads = None
+        self._accum_dec_grads = None
+        self._accum_dec_attn = None
 
         # --- Word embedding update (S2) ---
         if self.word_embedding is not None:
@@ -702,8 +724,12 @@ def _softmax(x: np.ndarray) -> np.ndarray:
 def _cross_entropy(
     logits: np.ndarray,   # (N, C)
     labels: np.ndarray,   # (N,) int
+    class_weights: np.ndarray | None = None,  # (C,) float — poids par classe
 ) -> tuple[float, np.ndarray]:
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
+
+    Si class_weights est fourni, pondère la loss par le poids de la classe gold.
+    Utile pour rééquilibrer les classes rares (ex: edge classification).
 
     Lève ValueError si labels contient des valeurs négatives (sentinelle -1 non filtrée)
     ou hors-bornes (>= n_classes).
@@ -722,9 +748,15 @@ def _cross_entropy(
         )
     N = len(logits)
     probs = _softmax(logits)                               # (N, C)
-    loss = float(-np.log(probs[np.arange(N), labels] + 1e-9).mean())
+    per_sample_loss = -np.log(probs[np.arange(N), labels] + 1e-9)
+    if class_weights is not None:
+        weights = class_weights[labels]                     # (N,)
+        per_sample_loss *= weights
+    loss = float(per_sample_loss.mean())
     d_logits = probs.copy()
     d_logits[np.arange(N), labels] -= 1.0
+    if class_weights is not None:
+        d_logits *= class_weights[labels][:, np.newaxis]    # (N, 1) — poids gold par sample
     d_logits /= N
     return loss, d_logits
 

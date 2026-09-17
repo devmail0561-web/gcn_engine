@@ -323,3 +323,49 @@ def test_rep_nominal_clause_root_pos():
     )
     assert root_tok.pos == "NOUN"
     assert root_tok.lemma == "hausse"
+
+
+# ---------------------------------------------------------------------------
+# Tests gradient _cross_entropy avec class_weights (B1)
+# ---------------------------------------------------------------------------
+
+def test_cross_entropy_uniform_weights_same_as_no_weights():
+    """Gradient avec poids uniformes == gradient sans poids."""
+    from gcn_python.pipeline.cgnp import _cross_entropy
+    rng = np.random.default_rng(0)
+    logits = rng.standard_normal((8, 7)).astype(np.float32)
+    labels = rng.integers(0, 7, size=8).astype(np.int64)
+    _, grad_none = _cross_entropy(logits, labels, class_weights=None)
+    uniform = np.ones(7, dtype=np.float32)
+    _, grad_uniform = _cross_entropy(logits, labels, class_weights=uniform)
+    np.testing.assert_allclose(grad_none, grad_uniform, rtol=1e-5)
+
+
+def test_cross_entropy_zero_weight_zeroes_gradient_for_that_class():
+    """Gradient gold-class 0 → gradient nul pour tous les samples de classe 0."""
+    from gcn_python.pipeline.cgnp import _cross_entropy
+    n_classes = 4
+    # Tous les samples ont label=0 ; w[0]=0 → gradient global doit être 0
+    logits = np.ones((5, n_classes), dtype=np.float32)
+    labels = np.zeros(5, dtype=np.int64)
+    weights = np.array([0.0, 1.0, 1.0, 1.0], dtype=np.float32)
+    _, grad = _cross_entropy(logits, labels, class_weights=weights)
+    np.testing.assert_allclose(grad, np.zeros_like(grad), atol=1e-6)
+
+
+def test_cross_entropy_weighted_gradient_scales_by_gold_weight():
+    """Gradient pondéré = w[y_n] * gradient_standard, par ligne."""
+    from gcn_python.pipeline.cgnp import _cross_entropy
+    rng = np.random.default_rng(1)
+    N, C = 6, 5
+    logits = rng.standard_normal((N, C)).astype(np.float32)
+    labels = rng.integers(0, C, size=N).astype(np.int64)
+    weights = rng.uniform(0.5, 2.0, size=C).astype(np.float32)
+    _, grad_w = _cross_entropy(logits, labels, class_weights=weights)
+    _, grad_0 = _cross_entropy(logits, labels, class_weights=None)
+    # Chaque ligne i doit être mise à l'échelle par w[labels[i]]
+    for i in range(N):
+        np.testing.assert_allclose(
+            grad_w[i], grad_0[i] * weights[labels[i]], rtol=1e-5,
+            err_msg=f"ligne {i}: poids attendu w[{labels[i]}]={weights[labels[i]]:.4f}"
+        )
