@@ -14,8 +14,12 @@ class CausalGraph(Protocol):
     Formule R-GCN :
       h_i^(l+1) = σ( Σ_r Σ_{j∈N_r(i)} (1/c_{i,r}) W_r^(l) h_j^(l) + W_0^(l) h_i^(l) )
 
-    Note : backward_message_pass est optionnel (vérifié via hasattr dans le pipeline).
-    Les couches qui supportent l'entraînement end-to-end l'implémentent.
+    backward_message_pass est optionnel — vérifié via hasattr() dans CGNPipeline.
+    Sans lui, les poids R-GCN ne sont pas mis à jour (poids gelés).
+    - RGCNLayer (NumPy)    : implémente backward_message_pass ✅
+    - RGCNLayerGAT         : implémente backward_message_pass via autograd ✅
+    - RGCNLayerPT (PyTorch): pas de backward_message_pass — utiliser un
+      optimizer PyTorch externe sur torch_parameters() à la place.
     """
 
     d_out: int

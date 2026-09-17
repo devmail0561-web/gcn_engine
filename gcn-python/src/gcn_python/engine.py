@@ -117,9 +117,6 @@ class GCNEngine:
         if "_vocab_json" in data:
             vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
 
-        # Dimension edge : lire depuis le checkpoint via le vocab
-        d_edge = vocab.d_edge_closed_loop(d_eff, len(vocab.upos_tags) - 11, d_emb)
-        # Recalcul propre depuis le vocab et les dimensions connues
         from .constants import NODE_TYPES
         d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
 

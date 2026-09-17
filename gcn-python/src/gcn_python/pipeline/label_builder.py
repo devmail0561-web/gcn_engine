@@ -11,7 +11,8 @@ _NT_ETAT_SYS   = NODE_TYPES[6]   # "etat_systemique"
 _NT_ACTION     = NODE_TYPES[1]   # "action"
 _NT_TRANSITION = NODE_TYPES[2]   # "transition"
 
-_nom_cache: dict[str, dict[str, str]] = {}
+_nom_cache: dict[str, dict[str, str]] = {}   # max ~100 répertoires en pratique
+_NOM_CACHE_MAXSIZE = 128
 
 
 def build_label(
@@ -90,6 +91,8 @@ def _nominalize(lemma: str, taxonomies_dir: Path | None) -> str:
         return lemma
     cache_key = str(taxonomies_dir)
     if cache_key not in _nom_cache:
+        if len(_nom_cache) >= _NOM_CACHE_MAXSIZE:
+            _nom_cache.pop(next(iter(_nom_cache)))  # FIFO eviction
         _nom_cache[cache_key] = _load_nominalizations(taxonomies_dir)
     return _nom_cache[cache_key].get(lemma, lemma)
 

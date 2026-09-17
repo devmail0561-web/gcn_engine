@@ -584,7 +584,7 @@ fn extract_object(
         Some(i) => i,
         None => return (None, None),
     };
-    let post_verb = &tokens[vi + 1..];
+    let post_verb = tokens.get(vi + 1..).unwrap_or(&[]);
     let mut noun: Option<String> = None;
     for t in post_verb {
         if matches!(t.pos, Pos::Noun) {

@@ -13,6 +13,7 @@ dependencies = [
     "wikipedia-api>=0.6",
     "requests>=2.0",
     "spacy>=3.7,<4.0",
+    "gcn-python>=2.1.0",
 ]
 
 [project.scripts]

@@ -13,7 +13,6 @@ gcn-knowledge = { path = "../gcn-knowledge", version = "2.1.0" }
 petgraph = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-rayon = { workspace = true }
 
 [dev-dependencies]
 smallvec = { workspace = true }

@@ -3,10 +3,8 @@ Validation post-annotation : vérifie que reps_from_sentence retourne des reps n
 pour le dataset réel annoté avec les tokens UD.
 """
 import sys
-import os
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "gcn-python", "src"))
 
 from gcn_python.data.json_reader import load_sentences
 from gcn_python.data.loader import reps_from_sentence

@@ -9,10 +9,8 @@ Produit un rapport : nb phrases valides, invalides, exemples d'erreurs.
 """
 import json
 import sys
-import os
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "gcn-python", "src"))
 
 from gcn_python.constants import RELATION_TYPES as _RELATION_TYPES_LIST
 

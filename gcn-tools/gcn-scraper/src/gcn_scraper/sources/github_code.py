@@ -32,9 +32,18 @@ class GitHubCodeScraper:
         "causes panic", "prevents undefined",
     ]
 
-    def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)"):
+    def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)",
+                 github_token: str | None = None):
+        """
+        github_token : Personal Access Token GitHub (optionnel).
+        Sans token : 10 req/min (rate limit public).
+        Avec token  : 30 req/min (rate limit authentifié).
+        Obtenir un token sur https://github.com/settings/tokens
+        """
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
+        if github_token:
+            self.session.headers["Authorization"] = f"token {github_token}"
 
     def search_code(self, query: str, language: str, max_results: int = 50) -> list[dict]:
         """Recherche du code sur GitHub."""
