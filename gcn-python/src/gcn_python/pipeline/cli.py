@@ -11,7 +11,7 @@ from ..data.loader import reps_from_sentence
 
 @click.command("gcn-forward")
 @click.option("--text", default=None,
-              help="Texte brut à analyser (mode texte direct).")
+              help="[DEBUG] Analyser une seule phrase. Pour les corpus, utiliser --file.")
 @click.option("--file", "input_file", default=None,
               type=click.Path(path_type=Path, exists=True),
               help="Fichier texte : une phrase par ligne (mode batch).")

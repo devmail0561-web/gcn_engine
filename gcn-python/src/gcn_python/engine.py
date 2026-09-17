@@ -1,12 +1,30 @@
 """
-GCNEngine — API haut niveau, même usage qu'un LLM.
+GCNEngine — moteur de requêtes causales sur corpus.
+
+Charge un checkpoint et expose l'extraction causale sur un corpus
+de textes ou de code. Chaque résultat est tracé jusqu'à sa source.
+
+Ce que GCN fait :
+  - Analyser une phrase pré-segmentée → CausalIR
+  - Analyser un corpus (batch) → liste de CausalIR
+  - Charger un checkpoint sans connaître l'architecture
+
+Ce que GCN ne fait PAS :
+  - Segmenter du texte brut (→ frontends Rust via gcn-cli)
+  - Générer du texte libre (→ LLMs)
+  - Suivre des instructions générales (→ LLMs)
 
 Usage :
     from gcn_python import GCNEngine
 
     engine = GCNEngine.from_pretrained("model.npz")
-    cir    = engine.analyze("Les ventes baissent car la demande recule.")
-    cirs   = engine.analyze_batch(["phrase 1", "phrase 2"])
+
+    # Une phrase pré-segmentée
+    cir = engine.analyze("The vulnerability enables remote code execution.")
+
+    # Un corpus
+    cirs = engine.analyze_batch(corpus_lines)
+    graph = CausalGraph.from_cirs(cirs)
 """
 from __future__ import annotations
 
@@ -22,22 +40,19 @@ import numpy as np
 
 class GCNEngine:
     """
-    Interface haut niveau du moteur GCN Causal Engine.
+    Interface du moteur GCN Causal Engine.
 
-    Équivalent de `pipeline("text")` chez HuggingFace :
-      - Un seul point d'entrée : texte brut → CausalIR
-      - Le checkpoint encode l'architecture — pas besoin de la connaître
-      - Mode évaluation activé automatiquement
+    Charge un checkpoint et expose l'extraction causale sur des phrases
+    pré-segmentées. La segmentation du texte brut est la responsabilité
+    des frontends (gcn-cli Rust) ou de l'appelant.
 
     Exemples
     --------
     >>> engine = GCNEngine.from_pretrained("model.npz")
-    >>> cir = engine.analyze("Les ventes baissent car la demande recule.")
+    >>> cir = engine.analyze("The auth bypass enables data exfiltration.")
     >>> cir["edges"][0][2]["relation"]
-    'cause'
-
-    >>> for cir in engine.stream(open("corpus.txt")):
-    ...     print(cir["source_text"], "→", len(cir["edges"]), "relations")
+    'enable'
+    >>> cirs = engine.analyze_batch(open("corpus.txt").readlines())
     """
 
     def __init__(self, pipeline, text_parser=None):
@@ -146,43 +161,16 @@ class GCNEngine:
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # Segmentation en phrases (interne)
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _split_sentences(text: str) -> list[str]:
-        """
-        Segmente un texte en phrases individuelles.
-
-        Utilise une règle simple : découpe sur '.', '!', '?' suivis d'un
-        espace et d'une majuscule, ou en fin de texte. Suffisant pour la
-        majorité des textes FR/EN. Chaque phrase est nettoyée et filtrée
-        si elle est trop courte (< 3 mots) pour être analysable.
-        """
-        import re
-        # Découpe sur ponctuation forte suivie d'espace + majuscule ou fin
-        raw = re.split(r'(?<=[.!?])\s+(?=[A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ])', text.strip())
-        sentences = []
-        for s in raw:
-            s = s.strip()
-            if s and len(s.split()) >= 3:
-                sentences.append(s)
-        return sentences if sentences else [text.strip()]
-
-    # ------------------------------------------------------------------
     # Inférence
     # ------------------------------------------------------------------
 
     def analyze(self, text: str) -> dict:
         """
-        Une phrase → CausalIR dict.
+        Une phrase pré-segmentée → CausalIR dict.
 
-        Traite **une seule phrase**. Pour un paragraphe ou un document,
-        utiliser analyze_document() qui segmente automatiquement.
-
-        Parameters
-        ----------
-        text : une phrase en langage naturel (FR ou EN)
+        La segmentation du texte brut en phrases est la responsabilité
+        des frontends (gcn-cli) ou de gcn-discuss. Le moteur reçoit
+        une phrase et produit un CIR.
 
         Returns
         -------
@@ -191,8 +179,6 @@ class GCNEngine:
             "source_text": str,
             "nodes": [{"node_type": str, "label": str, ...}],
             "edges": [[src_id, dst_id, {"relation": str, "confidence": float, ...}]],
-            "cycles": [],
-            "unresolved": [],
           }
         """
         return self._pipeline.analyze(
@@ -200,93 +186,30 @@ class GCNEngine:
             text_parser=self._text_parser,
         )
 
-    def analyze_document(self, text: str) -> list[dict]:
-        """
-        Paragraphe ou document multi-phrases → liste de CausalIR, une par phrase.
-
-        Segmente automatiquement le texte en phrases, analyse chacune
-        indépendamment et retourne la liste des CIR dans l'ordre du texte.
-        Les phrases sans relation causale retournent un CIR avec edges=[].
-
-        Parameters
-        ----------
-        text : paragraphe ou document (plusieurs phrases)
-
-        Returns
-        -------
-        Liste de dicts CausalIR — un par phrase détectée.
-
-        Exemple
-        -------
-        >>> cirs = engine.analyze_document(
-        ...     "Les ventes baissent car la demande recule. "
-        ...     "Si les coûts augmentent, les marges s'effondrent. "
-        ...     "La direction a décidé de réduire les effectifs."
-        ... )
-        >>> len(cirs)
-        3
-        >>> cirs[0]["edges"][0][2]["relation"]
-        'cause'
-        >>> cirs[1]["edges"][0][2]["relation"]
-        'condition'
-        >>> cirs[2]["edges"]   # pas de relation causale détectée
-        []
-        """
-        sentences = self._split_sentences(text)
-        return [self.analyze(s) for s in sentences]
-
     def analyze_batch(self, texts: list[str]) -> list[dict]:
         """
-        Liste de phrases → liste de CausalIR (une phrase par élément).
+        Liste de phrases pré-segmentées → liste de CausalIR.
 
-        Pour des documents multi-phrases, utiliser analyze_document() sur
-        chaque document ou stream() sur un fichier.
-
-        Parameters
-        ----------
-        texts : liste de phrases (une phrase par élément, pas des paragraphes)
-
-        Returns
-        -------
-        Liste de dicts CausalIR dans le même ordre que texts.
+        Chaque élément est une phrase individuelle (pas un paragraphe).
+        La segmentation est la responsabilité de l'appelant.
         """
-        return [self.analyze(t) for t in texts]
+        return [self.analyze(t) for t in texts if t.strip()]
 
     def stream(self, source) -> Iterator[dict]:
         """
-        Itérateur paresseux sur un fichier ou une liste de textes.
+        Itérateur paresseux — une ligne = une phrase pré-segmentée.
 
-        Chaque ligne est traitée comme une phrase. Pour des fichiers dont
-        chaque ligne est un paragraphe, utiliser stream_documents().
+        Convient aux grands corpus. Ne charge pas tout en mémoire.
 
         Usage :
             for cir in engine.stream(open("corpus.txt")):
                 if cir["edges"]:
                     process(cir)
-
-        Ne charge pas tout en mémoire — convient aux grands corpus.
         """
         for line in source:
             text = line.strip() if hasattr(line, "strip") else str(line).strip()
             if text:
                 yield self.analyze(text)
-
-    def stream_documents(self, source) -> Iterator[list[dict]]:
-        """
-        Itérateur paresseux sur un fichier de paragraphes (une par ligne).
-
-        Chaque ligne est segmentée en phrases et retourne une liste de CIR.
-
-        Usage :
-            for sentence_cirs in engine.stream_documents(open("docs.txt")):
-                for cir in sentence_cirs:
-                    if cir["edges"]:
-                        store(cir)
-        """
-        for line in source:
-            text = line.strip() if hasattr(line, "strip") else str(line).strip()
-            if text:
-                yield self.analyze_document(text)
 
     # ------------------------------------------------------------------
     # Introspection

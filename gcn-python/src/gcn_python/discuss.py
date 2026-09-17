@@ -22,6 +22,7 @@ from typing import Optional
 import click
 
 from .verbalizer.instructions import InstructionHandler, CausalGraph, parse_command
+from .verbalizer.query_report import QueryVerbalizer
 
 
 # ---------------------------------------------------------------------------
@@ -79,52 +80,51 @@ def _split_lines(text: str) -> list[str]:
 
 def _format_response(handler: InstructionHandler, question: str) -> str:
     """
-    Détermine le type de question et retourne le rapport verbalisé.
-    Utilise parse_command pour les commandes formelles,
-    sinon détecte l'intent depuis la structure de la question.
+    Répond à une question sur le graphe accumulé via QueryVerbalizer.
+    Détecte le type de requête depuis la structure (pas la langue).
     """
-    # Essayer parse_command (commandes formelles sans préfixe /)
+    vb = QueryVerbalizer(handler.graph)
+    q  = question.lower().strip().rstrip("?.,!")
+
+    # Commandes formelles (explain:, effects:, chain:, counterfactual:)
     cmd, arg = parse_command(question)
-    if cmd != "text":
-        result = handler.execute(question)
-        if result:
-            return result
-
-    # Détection d'intent depuis la structure de la question
-    q = question.lower().strip()
-
-    # Contient un mot-clé de requête causale ?
-    if any(w in q for w in ["summar", "overview", "résumé", "aperçu"]):
-        return handler.execute("summarize")
-
-    if any(w in q for w in ["contradict", "conflict", "opposite", "contradict"]):
-        # Pas encore dans l'handler — fallback sur summarize
-        return handler.execute("summarize")
-
-    if any(w in q for w in ["verbalize", "dump", "show all", "list all"]):
+    if cmd == "explain" and arg:
+        return vb.causes(arg)
+    if cmd == "effects" and arg:
+        return vb.effects(arg)
+    if cmd == "chain" and arg:
+        parts = arg.split()
+        if len(parts) >= 2:
+            return vb.path(parts[0], parts[-1])
+    if cmd == "counterfactual" and arg:
+        return vb.counterfactual(arg)
+    if cmd == "summarize":
+        return vb.summarize()
+    if cmd == "verbalize":
         return handler.execute("verbalize")
 
-    # Question générale → essayer d'extraire un sujet et chercher dans le graphe
-    # Heuristique : dernier mot significatif comme sujet potentiel
-    words = [w.strip("?.,!") for w in question.split() if len(w) > 3]
-    if words:
-        subject = words[-1]
-        # Chercher causes et effets pour ce sujet
-        causes  = handler.graph.find_causes(subject)
-        effects = handler.graph.find_effects(subject)
+    # Heuristique structurelle : dernier mot non-vide = sujet probable
+    words = [w.strip("?.,!()") for w in question.split() if len(w.strip("?.,!()")) > 2]
+    if not words:
+        return vb.summarize()
 
-        if causes or effects:
-            lines = []
-            if causes:
-                lines.append(handler.execute(f"explain: {subject}"))
-            if effects:
-                lines.append(handler.execute(f"effects: {subject}"))
-            return "\n\n".join(l for l in lines if l)
+    subject = words[-1]
 
-    # Rien trouvé dans le graphe
+    # Chercher dans le graphe
+    causes  = handler.graph.find_causes(subject)
+    effects = handler.graph.find_effects(subject)
+
+    if causes and effects:
+        return vb.causes(subject) + "\n\n" + vb.effects(subject)
+    if causes:
+        return vb.causes(subject)
+    if effects:
+        return vb.effects(subject)
+
+    # Rien trouvé
     return (
-        f"  Aucune structure causale sur ce sujet dans le corpus soumis.\n"
-        f"  Utilisez /analyze <fichier> pour ajouter des documents au corpus."
+        f"  No causal structure found for {subject!r} in the submitted corpus.\n"
+        f"  Use /analyze <file> to add documents."
     )
 
 
