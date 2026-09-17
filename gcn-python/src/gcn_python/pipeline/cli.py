@@ -4,72 +4,113 @@ import sys
 from pathlib import Path
 import click
 
-from ..layer1.features import FeatureVocabulary
-from ..layer2.reference import MLPEncoder
-from ..layer3.reference import RGCNLayer
-from .cgnp import CGNPipeline
+from ..engine import GCNEngine
 from ..data.json_reader import load_sentences
 from ..data.loader import reps_from_sentence
 
 
 @click.command("gcn-forward")
-@click.argument("dataset_path", type=click.Path(path_type=Path, exists=True))
-@click.option("--sentence-id", default=None,
-              help="ID de la sentence dans le fichier (défaut : première)")
-@click.option("--pretty/--compact", default=True, help="JSON indenté ou compact")
-@click.option(
-    "--model-path", type=click.Path(path_type=Path), default=None,
-    help="Checkpoint .npz (produit par gcn-train). Sans ce flag : poids aléatoires.",
-)
+@click.option("--text", default=None,
+              help="Texte brut à analyser (mode texte direct).")
+@click.option("--file", "input_file", default=None,
+              type=click.Path(path_type=Path, exists=True),
+              help="Fichier texte : une phrase par ligne (mode batch).")
+@click.option("--dataset", "dataset_path", default=None,
+              type=click.Path(path_type=Path, exists=True),
+              help="Fichier JSON annoté au format gcn-nl (mode dataset).")
+@click.option("--checkpoint", "model_path", default=None,
+              type=click.Path(path_type=Path),
+              help="Checkpoint .npz produit par gcn-train.")
+@click.option("--gcn-bin", default="gcn", show_default=True,
+              help="Chemin vers le binaire gcn-cli Rust.")
+@click.option("--pretty/--compact", default=True, show_default=True,
+              help="JSON indenté ou compact.")
 def forward_cmd(
-    dataset_path: Path,
-    sentence_id: str | None,
-    pretty: bool,
+    text: str | None,
+    input_file: Path | None,
+    dataset_path: Path | None,
     model_path: Path | None,
+    gcn_bin: str,
+    pretty: bool,
 ) -> None:
     """
-    Run the CGNP forward pass: dataset JSON annoté → CausalIR JSON → stdout.
+    Analyse du texte et produit un CausalIR JSON sur stdout.
 
-    DATASET_PATH doit être un fichier au format dataset GCN-NL (tokens + cir).
+    Trois modes d'entrée :
+
+    \b
+      Texte brut  : gcn-forward --text "phrase" --checkpoint model.npz
+      Fichier     : gcn-forward --file corpus.txt --checkpoint model.npz
+      Dataset JSON: gcn-forward --dataset data.json --checkpoint model.npz
     """
-    records = load_sentences(dataset_path)
-    if not records:
-        raise click.ClickException(f"Aucune sentence chargée depuis {dataset_path}")
+    indent = 2 if pretty else None
 
-    if sentence_id:
-        rec = next((r for r in records if r.id == sentence_id), None)
-        if rec is None:
+    # --- Mode texte brut ou fichier : utilise GCNEngine ---
+    if text is not None or input_file is not None:
+        if model_path is None:
             raise click.ClickException(
-                f"Sentence {sentence_id!r} introuvable dans {dataset_path}. "
-                f"IDs disponibles : {[r.id for r in records]}"
+                "--checkpoint requis en mode texte. "
+                "Exemple : gcn-forward --text \"...\" --checkpoint model.npz"
             )
-    else:
+        engine = GCNEngine.from_pretrained(model_path, gcn_bin=gcn_bin)
+
+        if text is not None:
+            result = engine.analyze(text)
+            click.echo(json.dumps(result, ensure_ascii=False, indent=indent))
+
+        else:
+            lines = [l.strip() for l in input_file.read_text("utf-8").splitlines() if l.strip()]
+            results = []
+            for line in lines:
+                cir = engine.analyze(line)
+                results.append(cir)
+                if not pretty:
+                    click.echo(json.dumps(cir, ensure_ascii=False))
+            if pretty:
+                click.echo(json.dumps(results, ensure_ascii=False, indent=indent))
+        return
+
+    # --- Mode dataset JSON annoté (rétrocompatibilité) ---
+    if dataset_path is not None:
+        from ..layer1.features import FeatureVocabulary
+        from ..layer2.reference import MLPEncoder
+        from ..layer3.reference import RGCNLayer
+        from ..pipeline.cgnp import CGNPipeline
+
+        records = load_sentences(dataset_path)
+        if not records:
+            raise click.ClickException(f"Aucune sentence chargée depuis {dataset_path}")
+
         rec = records[0]
+        reps, valid_clause_idxs, connector_reps = reps_from_sentence(rec)
+        if not reps:
+            raise click.ClickException(
+                f"La sentence {rec.id!r} ne contient pas de tokens annotés."
+            )
 
-    reps, valid_clause_idxs, connector_reps = reps_from_sentence(rec)
-    if not reps:
-        raise click.ClickException(
-            f"La sentence {rec.id!r} ne contient pas de tokens annotés "
-            f"(format paper_examples non supporté ici — utiliser un fichier dataset avec tokens)."
+        vocab = FeatureVocabulary()
+        encoder = MLPEncoder(d_clause=vocab.d_clause,
+                             d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+        graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+        pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+
+        if model_path is not None:
+            from ..training.checkpoint import load_checkpoint
+            load_checkpoint(pipeline, model_path)
+        else:
+            click.echo("Avertissement : poids aléatoires (pas de --checkpoint)", file=sys.stderr)
+
+        result = pipeline.forward(
+            reps, rec.text,
+            clause_positions=valid_clause_idxs,
+            n_total_clauses=len(rec.clauses),
+            connector_reps=connector_reps,
         )
+        click.echo(json.dumps(result, ensure_ascii=False, indent=indent))
+        return
 
-    vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
-
-    if model_path is not None:
-        from ..training.checkpoint import load_checkpoint
-        if not model_path.exists():
-            raise click.ClickException(f"Checkpoint introuvable : {model_path}")
-        load_checkpoint(pipeline, model_path)
-    else:
-        click.echo("Avertissement : poids aléatoires (pas de --model-path)", file=sys.stderr)
-
-    result = pipeline.forward(
-        reps, rec.text,
-        clause_positions=valid_clause_idxs,
-        n_total_clauses=len(rec.clauses),
-        connector_reps=connector_reps,
+    raise click.UsageError(
+        "Fournir --text, --file, ou --dataset.\n"
+        "Exemple : gcn-forward --text \"Les ventes baissent car la demande recule.\" "
+        "--checkpoint model.npz"
     )
-    click.echo(json.dumps(result, ensure_ascii=False, indent=2 if pretty else None))
