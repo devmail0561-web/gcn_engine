@@ -1,0 +1,2822 @@
+{
+  "document": {
+    "id": "real_val",
+    "lang": "fr",
+    "sentences": [
+      {
+        "id": "s1697",
+        "text": "La persistance de problèmes sociaux, et notamment du chômage, entraînent en 1993 une nouvelle cohabitation, avec Édouard Balladur comme premier ministre.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "persistance",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "problèmes",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "sociaux",
+              "token_span": [
+                0,
+                20
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4316",
+        "text": "After thousands of studies, the scientific consensus is that it is \"unequivocal that human influence has warmed the atmosphere, ocean and land since pre-industrial times.\" This consensus is supported by around 200 scientific organizations worldwide.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "thousands",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "studies",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "scientific",
+              "token_span": [
+                0,
+                34
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4460",
+        "text": "Defending a compatibilist interpretation, Ned Markosian proposed a situation in which a person's actions, caused by nothing other than their own agency, have shaped their moral character over their lifetime to compel them to always do the right thing.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "defending",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "compatibilist",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "interpretation",
+              "token_span": [
+                0,
+                38
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0036",
+        "text": "Toute variation de l'albédo modifie la température :ainsi, la fonte de la banquise arctique diminue l'albédo, donc augmente les températures dans la région arctique.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "toute",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "variation",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "albédo",
+              "token_span": [
+                0,
+                23
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4639",
+        "text": "La disparition du marqueur de causalité parce que dans le manuscrit final de Bouvard et Pécuchet a été remarquée et discutée par Florence Pellegrini dans sa thèse et plusieurs de ses articles (Pellegrini 2007, 2010, 2013).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "disparition",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "marqueur",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "causalité",
+              "token_span": [
+                0,
+                35
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1463",
+        "text": "L'imprécision des textes permet les deux interprétations.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "imprécision",
+              "token_span": [
+                0,
+                6
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "textes",
+              "token_span": [
+                0,
+                6
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                6
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3720",
+        "text": "Cette critique reproche à la psychologie de faire des classifications instinctives et non basées sur des critères objectifs, ou tout du moins explicitées sur des critères qui permettront de donner des groupes homogènes (exemple de la classification émotion/cognition ou de l'intelligence).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "critique",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "reproche",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "psychologie",
+              "token_span": [
+                0,
+                40
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4706",
+        "text": "Sont responsables le conducteur ainsi que le propriétaire gardien du tracteur.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "responsables",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "conducteur",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "propriétaire",
+              "token_span": [
+                0,
+                10
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4986",
+        "text": "It provides conclusive evidence that such multivariate conjunctions are treated as full fledged causal entities by the mind; it also emphasizes influences of the logic form of causal rules on subjects' judgments that a narrow focus on singular cause judgments might otherwise overlook.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "provides",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "conclusive",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "evidence",
+              "token_span": [
+                0,
+                42
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4887",
+        "text": "In contrast, the size of the labour market, defined as the number of jobs reachable in a specific time, is not determined by the degree of the presence of public transport enhancement.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "contrast",
+              "token_span": [
+                0,
+                31
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "size",
+              "token_span": [
+                0,
+                31
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "labour",
+              "token_span": [
+                0,
+                31
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4624",
+        "text": "En montrant le rôle de principe régulateur de la causalité en général, et donc aussi de la causalité efficiente en physique, ce travail attribue un statut de principe spécifique, au sens transcendantal et a priori, à la téléologie.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "montrant",
+              "token_span": [
+                0,
+                37
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "rôle",
+              "token_span": [
+                0,
+                37
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "principe",
+              "token_span": [
+                0,
+                37
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4789",
+        "text": "Cet article à pour objectifs d'analyser empiriquement l'impact des exportations sur la croissance économique au Togo ainsi que l'existence d'une relation de causalité entre ces exportations et la croissance économique en utilisant un modèle qui repose sur une fonction de production de type néoclassique.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "article",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "objectifs",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "analyser",
+              "token_span": [
+                0,
+                43
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1092",
+        "text": "Si les années 1730 et 1740 sont celles du développement relatif du commerce atlantique et d'une longue paix avec la Grande-Bretagne, propice à la croissance économique et à la stabilité sociale, la Louisiane reste sous-développée et le Canada sous-peuplé face aux concurrents anglais.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "années",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "celles",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "développement",
+              "token_span": [
+                0,
+                42
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0073",
+        "text": "En revanche, ils connaissent une vraie saison froide, même si celle-ci est modérée, sous l'influence de masses d'air polaire.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "revanche",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "connaissent",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "vraie",
+              "token_span": [
+                0,
+                18
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2277",
+        "text": "Par conséquent, elle ne lie juridiquement que ceux qui s’y soumettent, la contrainte est d’ordre social et économique.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "conséquent",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "elle",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "juridiquement",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4379",
+        "text": "The 1.5-degree target (also known as the 1.5-degree limit) is the climate goal of limiting the man-made global temperature increase caused by the greenhouse effect to 1.5 °C on a 20-year average, calculated from the beginning of industrialization to the year 2100.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "degree",
+              "token_span": [
+                0,
+                41
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "target",
+              "token_span": [
+                0,
+                41
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "also",
+              "token_span": [
+                0,
+                41
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3871",
+        "text": "Réplication directe : Répéter une étude en utilisant les mêmes méthodes et conditions pour vérifier si les résultats sont identiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "réplication",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "directe",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "répéter",
+              "token_span": [
+                0,
+                19
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3280",
+        "text": "Selon N Akbulut et A Zick et O Razum dans le journal European Journal of Public Health (2020), bien que très mobilisé dans certains champs de recherche, ce concept reste peu intégré aux modèles explicatifs des inégalités sociales de santé, faute d'investigations théoriques et empiriques systématiques et faute d'un cadre conceptuel unifié.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "selon",
+              "token_span": [
+                0,
+                51
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "akbulut",
+              "token_span": [
+                0,
+                51
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "zick",
+              "token_span": [
+                0,
+                51
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3287",
+        "text": "Malgré les recommandations de l'OMS, la protection des droits humains — accès équitable aux thérapies, respect de la vie privée, non‑discrimination génétique, inclusion du handicap — reste insuffisamment intégrée dans les systèmes nationaux, notamment dans les pays pauvres ou intermédiaire.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "malgré",
+              "token_span": [
+                0,
+                39
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "recommandations",
+              "token_span": [
+                0,
+                39
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "protection",
+              "token_span": [
+                0,
+                39
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0676",
+        "text": "Son baptême catholique par l'évêque Remi de Reims entre 496 et 508 (le débat est toujours d'actualité) permet la collaboration des Francs avec les élites gallo-romaines.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "baptême",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "catholique",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "évêque",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4890",
+        "text": "Summary : Does a (regional) phenomenon occur because another phenomenon (crisis) occurs, therefore in causal relation to the latter?",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "summary",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "does",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "regional",
+              "token_span": [
+                0,
+                18
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4891",
+        "text": "Or does this phenomenon (multi-regionalisation) occur when a new context arises, where old imperatives (of conflict regulation) fit into new mechanisms (inter-sovereign ones)?",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "does",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "phenomenon",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "multi",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1423",
+        "text": "Ils inventent une démocratie participative en permettant aux citoyens d'intervenir dans les affaires de la commune.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "inventent",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "démocratie",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "participative",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1050",
+        "text": "Les impôts ne sont pas perçus de la même manière dans tout le pays, même si les intendants en supervisent la répartition et la levée.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "impôts",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "perçus",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "manière",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0415",
+        "text": "Pour cela, et pour agir vertueusement, les collectivités doivent disposer d'un cadastre d'émission ou d'un bilan des émissions de GES assez complet, précis et fiable pour leur permettre de bien connaître leurs impacts-carbone et sur le climat, selon le principe « Compter pour savoir, Savoir pour agir, Agir pour réduire ».",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cela",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "agir",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "vertueusement",
+              "token_span": [
+                0,
+                50
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0909",
+        "text": "Si les avantages sont évidents, procurer aux rois des rentrées d'argent rapides, les inconvénients le sont aussi.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "avantages",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "évidents",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "procurer",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4258",
+        "text": "Les années 1840-1880 marquent un tournant, avec l'adoption d'un armement de plus en plus sophistiqué (canon rayé, coups à répétition permettant de tirer une salve, comme avec une mitrailleuse).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "années",
+              "token_span": [
+                0,
+                28
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "marquent",
+              "token_span": [
+                0,
+                28
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "tournant",
+              "token_span": [
+                0,
+                28
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4330",
+        "text": "External forcings include natural phenomena such as volcanic eruptions and variations in the sun's output.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "external",
+              "token_span": [
+                0,
+                14
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "forcings",
+              "token_span": [
+                0,
+                14
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "include",
+              "token_span": [
+                0,
+                14
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1263",
+        "text": "La Restauration, qui semble bien partie malgré quelques obstacles, est abrégée par le retour de Napoléon en mars 1815, qui oblige Louis XVIII à fuir à Gand.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "restauration",
+              "token_span": [
+                0,
+                26
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "semble",
+              "token_span": [
+                0,
+                26
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "partie",
+              "token_span": [
+                0,
+                26
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4567",
+        "text": "Celle-ci permet de développer des schémas causaux généraux qui sont ensuite instanciés via des modules comme la physique naïve, pour aboutir aux liens entre schémas causaux instanciés et catégories puis à la lexicalisation de ces liens.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "celle",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "développer",
+              "token_span": [
+                0,
+                35
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4704",
+        "text": "This is because volatility, being a macroscopicquantity, aggregates the behaviour of all types of traders,thereby hiding the causality structure of minor players.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "volatility",
+              "token_span": [
+                0,
+                21
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "being",
+              "token_span": [
+                0,
+                21
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "macroscopicquantity",
+              "token_span": [
+                0,
+                21
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3416",
+        "text": "Elle s'appuie donc sur les notions de travail nécessaire et de reproduction de la force de travail pour proposer une théorie « unitaire » (c'est-à-dire qui intègre l'oppression des femmes et la domination capitaliste à un même système théorique, sans les séparer).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "elle",
+              "token_span": [
+                0,
+                41
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "appuie",
+              "token_span": [
+                0,
+                41
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "notions",
+              "token_span": [
+                0,
+                41
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3635",
+        "text": "Elle permet aussi de mener des expériences qui ne seraient pas possibles sur l'humain pour des raisons éthiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "elle",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "mener",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2347",
+        "text": "Ainsi, une des utilisations est l’agriculture de précision où l’apport des intrants (produits phytosanitaires, engrais, irrigation, semences, alimentation animale, traitements pharmaceutiques) est piloté - en quantité, en qualité - selon des caractéristiques spatiales et temporelles mesurées.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "utilisations",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "agriculture",
+              "token_span": [
+                0,
+                35
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "précision",
+              "token_span": [
+                0,
+                35
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4408",
+        "text": "As such, it is a basic concept, and one might expect it to be more apt as an explanation of other concepts of progression than as something to be explained by yet more fundamental ideas.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "basic",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "concept",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "expect",
+              "token_span": [
+                0,
+                34
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4913",
+        "text": "The purpose of this thesis is to enable the discovery of multi-step attacks through logged events analysis.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "purpose",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "thesis",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "enable",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2269",
+        "text": "Parallèlement, les vecteurs mobiles (drone, tracteur, moissonneuse, robot…) sont des technologies qui s’améliorent permettant d’embarquer de plus en plus de capteurs (imagerie, Lidar, GPS RTK).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "parallèlement",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "vecteurs",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "mobiles",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4976",
+        "text": "When an outcome has multiple causes, people typically assign different degrees of responsibility to each cause.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "outcome",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "multiple",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "causes",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2364",
+        "text": "Grâce à Internet, à la vidéo et aux simulateurs 3D, de nouvelles offres de formations se développent.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "grâce",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "internet",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "vidéo",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1309",
+        "text": "Le 22 février 1848, le pouvoir interdit la tenue d'un banquet.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "février",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "pouvoir",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "interdit",
+              "token_span": [
+                0,
+                10
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3833",
+        "text": "L’étude d’échantillons occidentaux mène à un problème de généralisation.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "étude",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "échantillons",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "occidentaux",
+              "token_span": [
+                0,
+                8
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3361",
+        "text": "Le maire de Liège, Willy Demeyer, décrit l'explosion comme un acte antisémite et déclare : « Nous ne pouvons pas permettre que des conflits étrangers soient importés dans notre ville ».",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "maire",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "liège",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "willy",
+              "token_span": [
+                0,
+                30
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4293",
+        "text": "L'expérience partagée des soldats français renforce ainsi la distance avec les civils, qui n'ont jamais vécu les combats.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "expérience",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "partagée",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "soldats",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2153",
+        "text": "Bien que l'histoire des sciences nouvelles reste encore à écrire, on peut déjà mentionner la parution officielle de l'actigramme, en France, au BO spécial du 24.09.1992., du MJENR (ministère de la jeunesse, de l'éducation nationale de la recherche)- conformément à l'appellation en vigueur à cette même date.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "histoire",
+              "token_span": [
+                0,
+                46
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "sciences",
+              "token_span": [
+                0,
+                46
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "nouvelles",
+              "token_span": [
+                0,
+                46
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2745",
+        "text": "Plus récemment[C'est-à-dire ?], la meilleure compréhension des espèces animales a permis la création des corridors biologiques, qui permettent de relier des milieux naturels entre eux, favorisant ainsi la migration et la dispersion des espèces.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "récemment",
+              "token_span": [
+                0,
+                33
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "dire",
+              "token_span": [
+                0,
+                33
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "meilleure",
+              "token_span": [
+                0,
+                33
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4491",
+        "text": "Cette proposition appelle donc à une collaboration étendue entre didactique des sciences et didactique du français sur objectif universitaire afin de proposer des outils permettant d'élucider le malentendu discursif lié à la perspective donnée à la causalité.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "proposition",
+              "token_span": [
+                0,
+                36
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "appelle",
+              "token_span": [
+                0,
+                36
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "collaboration",
+              "token_span": [
+                0,
+                36
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2118",
+        "text": "La technologie procure ce dont on ignore avoir besoin.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "technologie",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "procure",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "dont",
+              "token_span": [
+                0,
+                8
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0690",
+        "text": "Beaucoup de paysans perdent leur liberté car ils se « donnent » aux puissants en échange de leur protection.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "beaucoup",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "paysans",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "perdent",
+              "token_span": [
+                0,
+                18
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2380",
+        "text": "Le numérique permet d’automatiser certaines entrées de données de traçabilité, de les rassembler, les organiser, les sauvegarder.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "numérique",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "automatiser",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3419",
+        "text": "Elle soutient ainsi que la condition féminine est due à cette position spécifique au sein des rapports de production, qui crée une forme particulière de contradiction du capitalisme : la tendance de ce dernier est de réduire le travail domestique, qui est un adversaire au travail salarié, source de profit, ce qui risque d'entraîner une crise de reproduction de la main-d'œuvre.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "elle",
+              "token_span": [
+                0,
+                60
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "soutient",
+              "token_span": [
+                0,
+                60
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "condition",
+              "token_span": [
+                0,
+                60
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2772",
+        "text": "Pour beaucoup, adopter un modèle économique différent permettrait de réduire nos impacts : les deux modèles les plus couramment évoqués sont celui du développement durable et celui de la décroissance.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "beaucoup",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "adopter",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "modèle",
+              "token_span": [
+                0,
+                29
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4944",
+        "text": "La relation entre nombre d’enfants et activité est complexe car les décisions de fécondité et d’activité ont des déterminants communs, et s’influencent mutuellement.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "relation",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "nombre",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "enfants",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2211",
+        "text": "Les outils décisionnels construits à partir des données collectées permettent de contrôler et d’optimiser la quantité des intrants, en accord avec les récentes orientations législatives et environnementales de réduction des produits phytosanitaires.[réf.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "outils",
+              "token_span": [
+                0,
+                31
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "décisionnels",
+              "token_span": [
+                0,
+                31
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "construits",
+              "token_span": [
+                0,
+                31
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0579",
+        "text": "Il permet de labourer les terres lourdes du centre et du nord de la France actuelle.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "permet",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "labourer",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "terres",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2862",
+        "text": "L'économie de l'environnement est souvent considérée comme une sous-discipline de l'économie, qui s'intéresse aux relations entre l'environnement et l'économie, c'est-à-dire aux coûts des atteintes à l'environnement, de la protection et de la connaissance de l'environnement, ainsi qu'à l'efficacité et à la conception d'instruments économiques pour changer les comportements à l'égard de l'environnement.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "économie",
+              "token_span": [
+                0,
+                51
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "environnement",
+              "token_span": [
+                0,
+                51
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "souvent",
+              "token_span": [
+                0,
+                51
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2176",
+        "text": "L’agriculture de précision est rendue possible grâce à l'essor des capteurs numériques, leur coût étant par ailleurs devenu plus abordable (c’est la première phase, l’observation).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "agriculture",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "précision",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "rendue",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4448",
+        "text": "If they possess it, they may be morally responsible for performing it or for failing to do so.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "they",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "possess",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "they",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2382",
+        "text": "Ainsi, numérique et gain de temps ne sont pas toujours associés.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "numérique",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "gain",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "temps",
+              "token_span": [
+                0,
+                10
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3274",
+        "text": "Selon elle, cette dichotomie, loin de décrire fidèlement la positionalité des chercheurs, impose une reformulation du rapport de pouvoir entre sujet et objet de recherche et conduit à des formes d'essentialisation, de stéréotypes et de « mise à distance », une « distanciation » qui peut nuire à la compréhension des enjeux et invisibiliser des dimensions structurelles (par exemple liées à la race, classe, statut migratoire ou de minorité, appartenance nationale...).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "selon",
+              "token_span": [
+                0,
+                70
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "elle",
+              "token_span": [
+                0,
+                70
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "dichotomie",
+              "token_span": [
+                0,
+                70
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3846",
+        "text": "Les participants américains étaient donc relativement peu affectés par le contexte.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "participants",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "américains",
+              "token_span": [
+                0,
+                10
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "étaient",
+              "token_span": [
+                0,
+                10
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1482",
+        "text": "Jules Ferry fait voter toute une série de lois portant sur la question scolaire : création de lycées publics pour jeunes filles par Camille Sée en 1880 (même si ceux-ci ne permettent pas de passer le baccalauréat), instauration de l'école gratuite laïque et de l'instruction obligatoire par les lois Ferry de 1881-1882, laïcisation du personnel enseignant des écoles publiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "jules",
+              "token_span": [
+                0,
+                58
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "ferry",
+              "token_span": [
+                0,
+                58
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "voter",
+              "token_span": [
+                0,
+                58
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4981",
+        "text": "First, SCMs encourage an overly narrow focus on individual variables as the basic \"moving parts\" of a causal structure, by upholding a ''one-equation-per-variable'' constraint and relying on a normative, possible-world semantics.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "first",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "scms",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "encourage",
+              "token_span": [
+                0,
+                30
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4389",
+        "text": "According to the United Nations Environment Programme (UNEP), the international community is heading towards dangerous global warming of up to 2.9 °C if it fully implements its current climate protection commitments, which are not dependent on preconditions.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "according",
+              "token_span": [
+                0,
+                36
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "united",
+              "token_span": [
+                0,
+                36
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "nations",
+              "token_span": [
+                0,
+                36
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1580",
+        "text": "Si la France est plus tardivement et moins profondément touchée par la crise, elle commence plus tard à en sortir, contrairement aux États-Unis ou au Royaume-Uni.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "france",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "tardivement",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "moins",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0759",
+        "text": "Sur le plan intérieur, Philippe-Auguste augmente les ressources royales par une bonne administration, ce qui lui permet de rétribuer des mercenaires, de construire des nouveaux remparts autour de Paris, de paver la ville et d'édifier la forteresse du Louvre.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "plan",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "intérieur",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "philippe",
+              "token_span": [
+                0,
+                38
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2370",
+        "text": "Le numérique peut permettre de mettre en relations les agriculteurs entre eux et notamment permettre le partage de connaissances, d’expériences et de services entre agriculteurs.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "numérique",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "peut",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "permettre",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2086",
+        "text": "Les premiers métaux ainsi travaillés étaient l'or, le cuivre, l'argent et le plomb.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "premiers",
+              "token_span": [
+                0,
+                12
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "métaux",
+              "token_span": [
+                0,
+                12
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "travaillés",
+              "token_span": [
+                0,
+                12
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

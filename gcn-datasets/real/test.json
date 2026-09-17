@@ -1,0 +1,2906 @@
+{
+  "document": {
+    "id": "real_test",
+    "lang": "fr",
+    "sentences": [
+      {
+        "id": "s3088",
+        "text": "Sa façon d'analyser les changements sociaux et politiques qu'il a observés dans le Maghreb, l'Espagne et l’Egypte de son époque a conduit à le considérer comme un précurseur de la sociologie et démographie moderne bien qu'il fût inconnu des principaux fondateurs de ces disciplines.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "façon",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "analyser",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "changements",
+              "token_span": [
+                0,
+                43
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3221",
+        "text": "Observation détaillée, description de situation, c'est-à-dire une analyse de discours, un outil de codage qui permettent de faire ressortir les typologies, des tendances générales, etc.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "observation",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "détaillée",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "description",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1478",
+        "text": "Jules Ferry joue un rôle central dans la mise en œuvre de ces évolutions, lui qui poursuit trois objectifs : étendre les libertés, soustraire l'école à l'emprise de l'Église catholique et « relever » la France de la défaite grâce à la colonisation.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "jules",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "ferry",
+              "token_span": [
+                0,
+                42
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "joue",
+              "token_span": [
+                0,
+                42
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3171",
+        "text": "Comme la sociologie a pour objet des éléments historiques qui se déroulent dans le temps, dans des contextes et lors d'interactions sociales, comme le processus d'évolution en biologie, la faculté de reproduire ces événements, donc la reproductibilité, n'est pas possible.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "sociologie",
+              "token_span": [
+                0,
+                39
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "objet",
+              "token_span": [
+                0,
+                39
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "éléments",
+              "token_span": [
+                0,
+                39
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3806",
+        "text": "Un exemple de ceci est avec l'étude des différences culturelles dans les émotions: il pourrait être problématique de commencer avec les termes émotionnels anglais et d’essayer d’identifier leurs équivalents dans une autre culture, car les équivalents sont possiblement non-existant et ceci peuvent créer un biais immédiate envers ce qu’on souhaite trouver.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "exemple",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "ceci",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "étude",
+              "token_span": [
+                0,
+                50
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4880",
+        "text": "Nevertheless, no one study has taken into account the degree to which each area of a city benefits from the latest improvements to public transport.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "nevertheless",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "study",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "taken",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4848",
+        "text": "Nous observerons également si les différentes disciplines privilégient certaines structures causatives au détriment d'autres et, si oui, pourquoi.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "nous",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "observerons",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "également",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0993",
+        "text": "Des échanges de places fortes permettent de régulariser la frontière au nord.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "échanges",
+              "token_span": [
+                0,
+                11
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "places",
+              "token_span": [
+                0,
+                11
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "fortes",
+              "token_span": [
+                0,
+                11
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4933",
+        "text": "Customer acquisition cost can be five to six times that of customer retention, hence investing in customers with churn risk is wise.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "customer",
+              "token_span": [
+                0,
+                21
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "acquisition",
+              "token_span": [
+                0,
+                21
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "cost",
+              "token_span": [
+                0,
+                21
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0792",
+        "text": "Pourtant le XIIIe siècle est celui des chartes d'affranchissement qui permettent aux paysans d'améliorer grandement leur condition juridique et fiscale.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "pourtant",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "xiiie",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "siècle",
+              "token_span": [
+                0,
+                19
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2566",
+        "text": "Pouvant avoir pour cause certaines techniques d'agriculture comme la monoculture, l'agriculture intensive ou l'irrigation sur certains types de sols, des techniques d'élevage comme le surpâturage, ou la déforestation (les racines contribuent souvent à stabiliser le sol et à empêcher l'érosion), elle peut avoir comme effet des glissements de terrain, favoriser la désertification, l'aridification ou des menaces pour la biodiversité ;",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "pouvant",
+              "token_span": [
+                0,
+                59
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "cause",
+              "token_span": [
+                0,
+                59
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "certaines",
+              "token_span": [
+                0,
+                59
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2207",
+        "text": "Cela permettrait aussi d’offrir une véritable transparence sur ces aspects à destination des consommateurs.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cela",
+              "token_span": [
+                0,
+                13
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permettrait",
+              "token_span": [
+                0,
+                13
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "offrir",
+              "token_span": [
+                0,
+                13
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0411",
+        "text": "Il existe aussi des bilans gratuits : par exemple EGES proposé par ARVALIS - Institut du végétal, le CETIOM et l'ITB, permet aux agriculteurs de réaliser leur bilan énergie et gaz à effet de serre sur une rotation grandes cultures gratuitement.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "existe",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "bilans",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "gratuits",
+              "token_span": [
+                0,
+                40
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0751",
+        "text": "Enfin, le sacre permet aux Capétiens d'acquérir un caractère divin à travers l'onction, faite grâce à l'huile de la sainte Ampoule, don du Saint-Esprit.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "enfin",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "sacre",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                23
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1845",
+        "text": "Le président de la République Albert Lebrun élit domicile à l’Hôtel de la Préfecture et l'ensemble du gouvernement ainsi que les autres personnages officiels, parmi lesquels le maréchal Pétain et le général de Gaulle, le suivent dans cette ville.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "président",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "république",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "albert",
+              "token_span": [
+                0,
+                38
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4545",
+        "text": "Quant au déterminisme, il ne peut être, dans sa formulation usuelle, que statistique, et reste ainsi très en-deçà des possibilités des perspectives théoriques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "quant",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "déterminisme",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "peut",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3125",
+        "text": "Le fait social est donc un fait extérieur à la volonté des individus, et irréductible à une étude individuelle.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "social",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "extérieur",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "volonté",
+              "token_span": [
+                0,
+                18
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2590",
+        "text": "Les pollutions des eaux douces se retrouvent dans les mers et les océans, de par le cycle de l'eau, et viennent ainsi aggraver la pollution marine.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "pollutions",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "eaux",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "douces",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4440",
+        "text": "So while an expert piano player always has the general ability to play various piano pieces, they lack the corresponding specific ability in a situation where no piano is present.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "expert",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "piano",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "player",
+              "token_span": [
+                0,
+                29
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0791",
+        "text": "Ceci n'empêche pas les campagnes d'être secouées par des révoltes, le plus souvent locales contre les droits féodaux ou la dîme.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "ceci",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "empêche",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "campagnes",
+              "token_span": [
+                0,
+                20
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3272",
+        "text": "Butler souligne toutefois que cette assignation à l'altérité n'est jamais totalement déterminante, car les effets du langage sont réversibles : les sujets peuvent réinscrire et subvertir les mots qui les marginalisent, ouvrant la possibilité d'une reconfiguration de leur identité et de leur pouvoir dans et par le langage pour échapper au piège de l'altérisation.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "butler",
+              "token_span": [
+                0,
+                53
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "souligne",
+              "token_span": [
+                0,
+                53
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "toutefois",
+              "token_span": [
+                0,
+                53
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1170",
+        "text": "L'ensemble de ces mesures d'exception permet de vaincre les révoltes et de dégager les frontières dès l'automne 1793.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "ensemble",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "mesures",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "exception",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4402",
+        "text": "The cause of something may also be described as the reason behind the event or process.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "cause",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "something",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "also",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3835",
+        "text": "Certains psychologues se demandent donc jusqu’à quel point les théories psychologiques élaborées dans des cultures occidentales peuvent s’appliquer aux cultures non-occidentales.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "certains",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "psychologues",
+              "token_span": [
+                0,
+                20
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "demandent",
+              "token_span": [
+                0,
+                20
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0402",
+        "text": "Un logiciel permettant de mieux évaluer la vulnérabilité d'une collectivité au regard des changements climatiques est en cours de développement (2009-2013) sous l'égide de l'Ademe.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "logiciel",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permettant",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "mieux",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2360",
+        "text": "Ne l’oublions pas, le numérique est avant tout un outil qui permet de transférer de l’information.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "oublions",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "numérique",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "avant",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4652",
+        "text": "Il est, avec le fait générateur et le préjudice de la victime, un élément du triptyque permettant d’engager la responsabilité extracontractuelle d’une personne.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "générateur",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "préjudice",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "victime",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3014",
+        "text": "En 2008, alors qu'il recherchait des spécimens pour créer un arbre à fleurs multicolores dans le cadre d'un projet artistique, Van Aken a acquis le verger de 3 acre (1,21 ha) de la Station agricole expérimentale de l'État de New York, qui fermait ses portes en raison de réductions de financement.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "recherchait",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "spécimens",
+              "token_span": [
+                0,
+                50
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "créer",
+              "token_span": [
+                0,
+                50
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3110",
+        "text": "En parallèle des héritiers du saint-simonisme, les fouriéristes également utilisent le terme de sociologie, si bien qu'en 1867 François-Marguerite Barrier dote le mouvement phalanstérien d’une revue, La Science sociale, dont il est avec Charles Pellarin le principal rédacteur, et publie, la même année, Principes de sociologie, qui expose la théorie fouriériste en s’efforçant d’en démontrer le caractère scientifique et en l’adaptant aux acquis les plus récents des sciences.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "parallèle",
+              "token_span": [
+                0,
+                67
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "héritiers",
+              "token_span": [
+                0,
+                67
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "saint",
+              "token_span": [
+                0,
+                67
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0971",
+        "text": "Il réclame de ses secrétaires d'État une stricte obéissance et leur interdit de décider sans lui.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "réclame",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "secrétaires",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "état",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3276",
+        "text": "Elle plaide ainsi pour dépasser le cadre insider/outsider et problématiser le caractère « otherisant » de ces catégories, qui perpétuent des oppositions hiérarchisées et limitent la production de savoirs situés.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "elle",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "plaide",
+              "token_span": [
+                0,
+                29
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "dépasser",
+              "token_span": [
+                0,
+                29
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0924",
+        "text": "De plus les troubles permettent à chacun des partis en présence de s'arroger des parcelles du pouvoir régalien.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "troubles",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permettent",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "chacun",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4974",
+        "text": "the paper examines various sentence patterns with two arguments, including the ergative pattern, and concludes to the non specificity of the ergative pattern, which is simply sensitive to aspectual semantics rather than to the semantics of the predicate itself as other non nominative patterns.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "paper",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "examines",
+              "token_span": [
+                0,
+                43
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "various",
+              "token_span": [
+                0,
+                43
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2960",
+        "text": "Tsing, permet d'approfondir la notion d'alliances inter-espèces.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "tsing",
+              "token_span": [
+                0,
+                6
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                6
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "approfondir",
+              "token_span": [
+                0,
+                6
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2162",
+        "text": "L’agriculture numérique est donc le fruit d’une convergence entre une succession de révolutions technologiques et une profonde nécessité de changement face aux nouveaux enjeux de l’agriculture moderne : remise en question de l’usage des produits phytosanitaires, enjeux alimentaires locaux - avec l’alimentation de proximité - et mondiaux, sécurité alimentaire tout au long des filières, transition agroécologique, etc.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "agriculture",
+              "token_span": [
+                0,
+                56
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "numérique",
+              "token_span": [
+                0,
+                56
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "fruit",
+              "token_span": [
+                0,
+                56
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1458",
+        "text": "Il peut donc avoir sa propre politique et renvoyer les ministres qui n'ont pas sa confiance.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "peut",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "propre",
+              "token_span": [
+                0,
+                15
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "politique",
+              "token_span": [
+                0,
+                15
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4895",
+        "text": "Going into generality from regional cases sheds light on the modern regional phenomenon in Central Asia : not as specific but as common, contributing to avoid the trap of a sui generis specificity.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "going",
+              "token_span": [
+                0,
+                32
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "into",
+              "token_span": [
+                0,
+                32
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "generality",
+              "token_span": [
+                0,
+                32
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2975",
+        "text": "Les non-humains constituent ainsi dans ces alliances de véritables acteurs des luttes politiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "humains",
+              "token_span": [
+                0,
+                12
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "constituent",
+              "token_span": [
+                0,
+                12
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "alliances",
+              "token_span": [
+                0,
+                12
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4945",
+        "text": "Il est donc difficile de dire a priori si le choix de travailler ou non est une cause ou une conséquence du fait d’avoir un certain nombre d’enfants.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "difficile",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "dire",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "priori",
+              "token_span": [
+                0,
+                27
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1468",
+        "text": "Son successeur, le républicain Jules Grévy renonce volontairement à exercer ses prérogatives constitutionnelles (principalement le droit de dissolution) et s'interdit d'intervenir contre les vœux de l'Assemblée.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "successeur",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "républicain",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "jules",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "prevent"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0047",
+        "text": "Il se caractérise par une seule saison, de fortes précipitations, ainsi qu'une température élevée quasiment constante toute l'année, dont la moyenne est de 28 °C.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "caractérise",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "seule",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "saison",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2443",
+        "text": "L'environnement est compris comme l'ensemble des composants naturels de la planète Terre, comme l'air, l'eau, l'atmosphère, les roches, les végétaux, les animaux, et l'ensemble des phénomènes et interactions qui s'y déploient, c'est-à-dire tout ce qui entoure l'Homme et ses activités ; bien que cette position centrale de l'être humain soit précisément un objet de controverse dans le champ de l'écologie.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "environnement",
+              "token_span": [
+                0,
+                59
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "compris",
+              "token_span": [
+                0,
+                59
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "ensemble",
+              "token_span": [
+                0,
+                59
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "concession"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4599",
+        "text": "Grâce à l'examen des solutions adoptées en droit public, il est apparu, en second lieu, que la causalité était divisible, qu'elle pouvait être fractionnée.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "grâce",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "examen",
+              "token_span": [
+                0,
+                23
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "solutions",
+              "token_span": [
+                0,
+                23
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3785",
+        "text": "On manque les variations cruciales et nuances quand les échantillons sont limités à populations « WEIRD » et donc limitent les connaissances envers plusieurs phénomènes psychologiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "manque",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "variations",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "cruciales",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2190",
+        "text": "Amélioration du bien-être des producteurs : les producteurs qui peuvent tirer parti de la certification environnementale pourraient vendre leurs produits à un prix supérieur, car les technologies de la chaîne de production pourraient permettre une plus grande confiance dans les labels tels que « durable », « biologique » ou « commerce équitable ».",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "amélioration",
+              "token_span": [
+                0,
+                53
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "producteurs",
+              "token_span": [
+                0,
+                53
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "producteurs",
+              "token_span": [
+                0,
+                53
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3579",
+        "text": "La méthode d'échantillonnage temporel consiste à ne traiter que les données de moments prédéterminés (par exemple, si la durée de l'observation porte sur plusieurs jours, ne traiter que les dix premières minutes de chaque heure).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "méthode",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "échantillonnage",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "temporel",
+              "token_span": [
+                0,
+                34
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4968",
+        "text": "La voix causative de l'arabe, qui se caractérise par l'utilisation de formes verbales particulières, permet d'introduire un nouvel argument en position de sujet.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "voix",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "causative",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "arabe",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1920",
+        "text": "En tant que membres de la bourgeoisie, plusieurs d’entre eux ont quitté la France autour de 1685, à la suite de la révocation de l’édit de Nantes, en raison des persécutions religieuses, pour s’établir dans des pays protestants voisins.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "tant",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "membres",
+              "token_span": [
+                0,
+                38
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "bourgeoisie",
+              "token_span": [
+                0,
+                38
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4458",
+        "text": "In Essays on the Active Powers of Man (1788), Reid described an agent as one who has \"power over the determinations of his own will.\" He held that agents are the only beings who have a will, and considered having a will to be a necessary condition of being considered the cause of an event.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "essays",
+              "token_span": [
+                0,
+                54
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "active",
+              "token_span": [
+                0,
+                54
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "powers",
+              "token_span": [
+                0,
+                54
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0237",
+        "text": "Ces résultats impliquent l’existence de rétroactions climatiques complexes, car l’impact principal de l’obliquité sur l’insolation se situe aux hautes latitudes.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "résultats",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "impliquent",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "existence",
+              "token_span": [
+                0,
+                19
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4642",
+        "text": "Dans de ce travail de recherche nous essayons d'étudier la relation de causalité et de cointégration entre la consommation d'énergie et la croissance économique et Sénégal et puis dans l’espace de la CEDEAO, d’une part, et de déterminer la direction de la causalité , d’autre part.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "travail",
+              "token_span": [
+                0,
+                45
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "recherche",
+              "token_span": [
+                0,
+                45
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "nous",
+              "token_span": [
+                0,
+                45
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4323",
+        "text": "Further, the warming per unit of greenhouse gases is also affected by feedbacks, such as the changes in water vapor concentrations or Earth's albedo (reflectivity).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "warming",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "unit",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "greenhouse",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2220",
+        "text": "L’un des principaux enjeux de l’agriculture numérique est d’optimiser le rendement de différents processus agricoles en utilisant le moins possible d'énergie et d'intrants, réduisant ainsi leur empreinte écologique.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "principaux",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "enjeux",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "agriculture",
+              "token_span": [
+                0,
+                27
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2175",
+        "text": "Ainsi, l’agriculture de précision se construit sur un cycle « observation – diagnostic – préconisation – application ».",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "agriculture",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "précision",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "construit",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0926",
+        "text": "L'édit de Beaulieu de 1576 permet aux protestants de célébrer leur culte publiquement partout sauf à Paris.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "édit",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "beaulieu",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "permet",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0241",
+        "text": "Des modèles climatiques globaux couplés atmosphère–océan–glace de mer confirment que la combinaison précession + obliquité peut accroître les précipitations en Afrique du Nord grâce à des rétroactions d’insolation.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "modèles",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "climatiques",
+              "token_span": [
+                0,
+                27
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "globaux",
+              "token_span": [
+                0,
+                27
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0253",
+        "text": "Cette divergence provient du fait que l’hypothèse suppose une réponse quasi instantanée du climat aux variations d’insolation.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "divergence",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "provient",
+              "token_span": [
+                0,
+                16
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "hypothèse",
+              "token_span": [
+                0,
+                16
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s3597",
+        "text": "Skinner écrit ainsi en 1966, que mieux vaut observer un seul rat pendant des milliers d'heures, que des milliers de rats pendant une heure chacun.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "skinner",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "écrit",
+              "token_span": [
+                0,
+                24
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "mieux",
+              "token_span": [
+                0,
+                24
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4616",
+        "text": "Les questions qui se posent aujourd'hui sont donc épistémologiques.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "questions",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "posent",
+              "token_span": [
+                0,
+                8
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "aujourd",
+              "token_span": [
+                0,
+                8
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0873",
+        "text": "Il existe plusieurs facteurs explicatifs : l'attrait des richesses et de la culture des prestigieuses villes italiennes, la volonté d'avoir le contrôle de passages qui permettent de menacer les intérêts de Habsbourg par le Sud.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "existe",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "plusieurs",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "facteurs",
+              "token_span": [
+                0,
+                34
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4422",
+        "text": "But he did not have the understanding that came with knowledge of Minkowski geometry and the special theory of relativity, that the notion of causality can be used as a prior foundation from which to construct notions of time and space.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "understanding",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "came",
+              "token_span": [
+                0,
+                40
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "knowledge",
+              "token_span": [
+                0,
+                40
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1003",
+        "text": "Ceci entraîne la guerre de la Ligue d'Augsbourg dirigée par Guillaume d'Orange, Stathouder de Hollande, devenu roi d'Angleterre avec sa femme Marie II.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "ceci",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "entraîne",
+              "token_span": [
+                0,
+                22
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "guerre",
+              "token_span": [
+                0,
+                22
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1277",
+        "text": "La publication de ces ordonnances le 27 juillet 1830 provoque une révolution dite des Trois Glorieuses en juillet 1830.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "publication",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "ordonnances",
+              "token_span": [
+                0,
+                18
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "juillet",
+              "token_span": [
+                0,
+                18
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2199",
+        "text": "Les masses de données produites par les équipements d’observation, les capteurs installés dans les parcelles agricoles, au sein des troupeaux ou dans les bâtiments permettent une meilleure caractérisation des systèmes agricoles.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "masses",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "données",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "produites",
+              "token_span": [
+                0,
+                30
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2267",
+        "text": "L’acquisition de ces informations est possible grâce à l’utilisation d’objets connectés (stations météo, smartphones) et de capteurs (imagerie, Lidar, etc.).",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "acquisition",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "informations",
+              "token_span": [
+                0,
+                19
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "possible",
+              "token_span": [
+                0,
+                19
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s2407",
+        "text": "La chaire AgroTIC est l’une chaire d’entreprises permettant l’association d’établissements d’enseignement et de recherche (Montpellier SupAgro, Bordeaux Sciences Agro et Irstea) avec des acteurs socio-économiques dans le domaine de l’agriculture numérique.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "chaire",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "agrotic",
+              "token_span": [
+                0,
+                30
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "chaire",
+              "token_span": [
+                0,
+                30
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "enable"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s0217",
+        "text": "Ainsi, la flore et la faune d’un climat de type mousson dépendent principalement de la quantité de pluie tombant pendant la phase estivale de la mousson.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "flore",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "faune",
+              "token_span": [
+                0,
+                25
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "climat",
+              "token_span": [
+                0,
+                25
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s1056",
+        "text": "Si quelque affaire des eaux et forêts le retenait, c'était à la maîtrise d'Avallon qu'il devait se rendre ; s'il avait besoin de la justice consulaire, c'est à Saulieu que son voyage le menait ».",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "quelque",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "affaire",
+              "token_span": [
+                0,
+                34
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "eaux",
+              "token_span": [
+                0,
+                34
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "condition"
+            }
+          ]
+        }
+      },
+      {
+        "id": "s4902",
+        "text": "Nous réexaminerons ainsi, d’un point de vue proprement linguistique centré sur la signification en langue du conditionnel (cf.",
+        "cir": {
+          "nodes": [
+            {
+              "id": "n001",
+              "type": "entite",
+              "label": "nous",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n002",
+              "type": "processus",
+              "label": "réexaminerons",
+              "token_span": [
+                0,
+                17
+              ]
+            },
+            {
+              "id": "n003",
+              "type": "processus",
+              "label": "point",
+              "token_span": [
+                0,
+                17
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "source": "n001",
+              "target": "n002",
+              "relation": "cause"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

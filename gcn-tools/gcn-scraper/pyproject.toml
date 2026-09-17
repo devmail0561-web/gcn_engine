@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gcn-scraper"
+version = "1.0.0"
+description = "Scraper de donnees reelles pour le dataset GCN causal"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "trafilatura>=1.0",
+    "wikipedia-api>=0.6",
+    "requests>=2.0",
+]
+
+[project.scripts]
+gcn-scrape = "gcn_scraper.cli:scrape_cmd"
