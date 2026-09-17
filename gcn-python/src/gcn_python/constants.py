@@ -19,6 +19,7 @@ SCOPE_HINTS_FR: dict[str, str] = {
     "quelques": "partial",
 }
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
+TEMPORAL_REF_DEFAULT = "unresolved"
 AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]
 
 # Universal Dependencies constants

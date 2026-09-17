@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+const EN_INFINITIVE_MARKERS: &[&str] = &["to", "in order to", "so as to"];
+
 use gcn_knowledge::{KnowledgeError, Lexicon};
 use gcn_ir::{AgentType, NodeType, RelationType, Scope};
 
@@ -137,9 +139,7 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
                 for entry in examples {
                     let words = entry.lemma.split_whitespace()
                         .map(|w| w.to_lowercase()).collect();
-                    let requires_infinitive = entry.lemma == "to"
-                        || entry.lemma == "in order to"
-                        || entry.lemma == "so as to";
+                    let requires_infinitive = EN_INFINITIVE_MARKERS.contains(&entry.lemma.as_str());
                     markers.push(CausalMarkerEntry {
                         lemma: entry.lemma.clone(),
                         words,

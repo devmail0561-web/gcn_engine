@@ -6,6 +6,8 @@ from pathlib import Path
 
 import click
 
+from ..constants import NODE_TYPES, RELATION_TYPES, SCOPE_VALUES, NODE_ORIGIN_VALUES
+
 
 @click.command("gcn-bootstrap")
 @click.option("--input", "input_file", required=True, type=click.Path(path_type=Path),
@@ -114,7 +116,7 @@ def _normalize_edge(e) -> dict | None:
         target = str(e.get("target", ""))
     else:
         return None
-    relation = edge_obj.get("relation_type", edge_obj.get("relation", "cause"))
+    relation = edge_obj.get("relation_type", edge_obj.get("relation", RELATION_TYPES[0]))
     return {
         "source": source,
         "target": target,
@@ -133,12 +135,12 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
     doc_nodes = [
         {
             "id": n.get("id", f"n{i+1:03d}"),
-            "type": n.get("node_type", "action"),
+            "type": n.get("node_type", NODE_TYPES[1]),
             "label": n.get("label", ""),
             "token_span": _extract_token_span(n),
-            "scope": n.get("scope", "specific"),
+            "scope": n.get("scope", SCOPE_VALUES[4]),
             "temporal_index": n.get("temporal_index", 0),
-            "origin": n.get("origin", "explicit"),
+            "origin": n.get("origin", NODE_ORIGIN_VALUES[0]),
         }
         for i, n in enumerate(nodes)
     ]

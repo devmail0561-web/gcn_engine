@@ -3,6 +3,13 @@ import json
 from pathlib import Path
 
 from ..layer1.representation import UDRepresentation
+from ..constants import NODE_TYPES
+
+_NT_CONDITION  = NODE_TYPES[4]   # "condition"
+_NT_ENTITE     = NODE_TYPES[5]   # "entite"
+_NT_ETAT_SYS   = NODE_TYPES[6]   # "etat_systemique"
+_NT_ACTION     = NODE_TYPES[1]   # "action"
+_NT_TRANSITION = NODE_TYPES[2]   # "transition"
 
 _nom_cache: dict[str, dict[str, str]] = {}
 
@@ -26,11 +33,11 @@ def build_label(
     entity = _find_entity_lemma(rep)
     nom = _nominalize(rep.root_lemma, taxonomies_dir)
 
-    if node_type == "condition":
+    if node_type == _NT_CONDITION:
         label = "hidden_cause(?)"
-    elif node_type in ("entite", "etat_systemique"):
+    elif node_type in (_NT_ENTITE, _NT_ETAT_SYS):
         label = entity or rep.root_lemma
-    elif node_type == "action":
+    elif node_type == _NT_ACTION:
         label = f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
     else:
         # etat, transition, processus
@@ -43,7 +50,7 @@ def build_label(
 
     attributes = {
         "entity": entity,
-        "agent": subject if node_type in ("action", "transition") else None,
+        "agent": subject if node_type in (_NT_ACTION, _NT_TRANSITION) else None,
         "patient": _find_patient_lemma(rep),
         "quality": None,
         "agent_type": None,

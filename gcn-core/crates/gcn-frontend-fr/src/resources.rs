@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+const FR_INFINITIVE_MARKERS: &[&str] = &["pour"];
+
 use gcn_knowledge::{Lexicon, KnowledgeError};
 use gcn_ir::{NodeType, RelationType, Scope, AgentType};
 
@@ -171,7 +173,7 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
                         .map(|w| w.to_lowercase())
                         .collect();
                     // "pour" requires infinitive
-                    let requires_infinitive = entry.lemma == "pour";
+                    let requires_infinitive = FR_INFINITIVE_MARKERS.contains(&entry.lemma.as_str());
                     markers.push(CausalMarkerEntry {
                         lemma: entry.lemma.clone(),
                         words,

@@ -33,6 +33,7 @@ import warnings
 from pathlib import Path
 
 from ..layer1.representation import UDRepresentation
+from ..constants import NODE_TYPES
 
 
 class GCNBridgeError(RuntimeError):
@@ -43,24 +44,24 @@ class GCNBridgeError(RuntimeError):
 # Publics pour tests directs.
 
 NODE_TYPE_TO_POS: dict[str, str] = {
-    "action":          "VERB",
-    "transition":      "VERB",
-    "processus":       "NOUN",
-    "etat":            "NOUN",
-    "etat_systemique": "NOUN",
-    "entite":          "NOUN",
-    "condition":       "SCONJ",
+    NODE_TYPES[1]: "VERB",   # action
+    NODE_TYPES[2]: "VERB",   # transition
+    NODE_TYPES[3]: "NOUN",   # processus
+    NODE_TYPES[0]: "NOUN",   # etat
+    NODE_TYPES[6]: "NOUN",   # etat_systemique
+    NODE_TYPES[5]: "NOUN",   # entite
+    NODE_TYPES[4]: "SCONJ",  # condition
 }
 _DEFAULT_POS = "NOUN"
 
 NODE_TYPE_TO_DEP: dict[str, str] = {
-    "action":          "root",
-    "transition":      "root",
-    "processus":       "root",
-    "etat":            "nsubj",
-    "etat_systemique": "nsubj",
-    "entite":          "nsubj",
-    "condition":       "advcl",
+    NODE_TYPES[1]: "root",   # action
+    NODE_TYPES[2]: "root",   # transition
+    NODE_TYPES[3]: "root",   # processus
+    NODE_TYPES[0]: "nsubj",  # etat
+    NODE_TYPES[6]: "nsubj",  # etat_systemique
+    NODE_TYPES[5]: "nsubj",  # entite
+    NODE_TYPES[4]: "advcl",  # condition
 }
 _DEFAULT_DEP = "root"
 
@@ -141,7 +142,7 @@ def _rep_from_cir_node(node: dict) -> UDRepresentation:
     root_pos et root_dep_rel sont dérivés de node_type via les mappings
     NODE_TYPE_TO_POS / NODE_TYPE_TO_DEP. root_morph est toujours {}.
     """
-    node_type = (node.get("node_type") or "action").lower()
+    node_type = (node.get("node_type") or NODE_TYPES[1]).lower()
     label = node.get("label") or ""
     root_lemma = _extract_lemma(label)
     root_pos = NODE_TYPE_TO_POS.get(node_type, _DEFAULT_POS)

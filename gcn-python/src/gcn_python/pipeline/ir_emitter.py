@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ..constants import NODE_ORIGIN_VALUES, TEMPORAL_REF_DEFAULT
 
 
 def emit(
@@ -19,7 +20,7 @@ def emit(
     node_attributes : list de dicts {entity, agent, patient, quality, agent_type, reversible}
     """
     if node_origins is None:
-        node_origins = ["explicit"] * len(node_types)
+        node_origins = [NODE_ORIGIN_VALUES[0]] * len(node_types)
 
     nodes = []
     for i, (nt, label, span, scope, origin) in enumerate(
@@ -40,7 +41,7 @@ def emit(
             "source_span": {"token_span": {"start": span[0], "end": span[1]}},
             "scope": scope,
             "modifiers": [],
-            "temporal_ref": "unresolved",
+            "temporal_ref": TEMPORAL_REF_DEFAULT,
             "temporal_index": i,
             "origin": origin,
             "attributes": attrs,

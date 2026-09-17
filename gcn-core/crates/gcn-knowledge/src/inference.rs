@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+const DELTA_STRONG_CAUSAL: f32 = 0.15;
+const DELTA_CAUSAL: f32 = 0.10;
+const DELTA_ADVERSATIVE: f32 = -0.10;
+
 use gcn_ir::{
     ir::CausalIR,
     node::{NodeId, NodeOrigin, NodeType},
@@ -96,11 +100,11 @@ impl InferenceEngine {
         let base: f32 = if explicit { 1.0 } else { 0.5 };
         let delta: f32 = match (from, to, rel) {
             (NodeType::Action, NodeType::Etat, RelationType::Cause)
-            | (NodeType::Action, NodeType::Transition, RelationType::Cause) => 0.15,
-            (NodeType::Processus, NodeType::Etat, RelationType::Cause) => 0.10,
-            (NodeType::Transition, _, RelationType::Cause) => 0.10,
-            (NodeType::EtatSystemique, _, RelationType::Filter) => 0.15,
-            (_, _, RelationType::Concession | RelationType::Opposition) => -0.10,
+            | (NodeType::Action, NodeType::Transition, RelationType::Cause) => DELTA_STRONG_CAUSAL,
+            (NodeType::Processus, NodeType::Etat, RelationType::Cause) => DELTA_CAUSAL,
+            (NodeType::Transition, _, RelationType::Cause) => DELTA_CAUSAL,
+            (NodeType::EtatSystemique, _, RelationType::Filter) => DELTA_STRONG_CAUSAL,
+            (_, _, RelationType::Concession | RelationType::Opposition) => DELTA_ADVERSATIVE,
             _ => 0.0,
         };
         (base + delta).clamp(0.1, 1.0)

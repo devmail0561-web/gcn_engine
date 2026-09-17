@@ -3,6 +3,9 @@ use crate::rules::{MarkerDir, nominalize_with_table, is_infinitive, is_imparfait
 use crate::tagger::{TaggedToken, Pos};
 use gcn_ir::{AgentType, NodeOrigin, NodeType, RelationType, Scope};
 
+const FR_UNIVERSAL_SUBJECT_LEMMAS: &[&str] = &["on"];
+const FR_DURATIVE_MARKERS: &[&str] = &["depuis"];
+
 // ---------------------------------------------------------------------------
 // Clause and edge annotations produced by the annotator
 // ---------------------------------------------------------------------------
@@ -438,7 +441,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     let subject = extract_subject(tokens, main_verb_idx);
 
     // "on" as subject → universal scope
-    if subject.as_deref() == Some("on") {
+    if subject.as_deref().map_or(false, |s| FR_UNIVERSAL_SUBJECT_LEMMAS.contains(&s)) {
         scope = Scope::Universal;
     }
 
@@ -446,7 +449,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     let neg_on_node = has_negation_in_clause(tokens);
 
     // --- depuis flag ---
-    let has_depuis = tokens.iter().any(|t| t.token.lower == "depuis");
+    let has_depuis = tokens.iter().any(|t| FR_DURATIVE_MARKERS.contains(&t.token.lower.as_str()));
 
     // --- Main verb analysis ---
     let (node_type, verb_lemma, quality) = if let Some(vi) = main_verb_idx {
