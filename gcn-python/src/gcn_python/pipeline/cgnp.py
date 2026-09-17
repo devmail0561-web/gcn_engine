@@ -4,7 +4,7 @@ import numpy as np
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPES, RELATION_TYPES, SCOPE_HINTS_FR
 from .label_builder import build_label
 from .ir_emitter import emit
 
@@ -777,14 +777,6 @@ def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
     return False
 
 
-_SCOPE_HINTS: dict[str, str] = {
-    "tous": "universal", "toutes": "universal", "chaque": "universal",
-    "tout": "universal", "aucun": "null", "aucune": "null",
-    "certains": "existential", "certaines": "existential",
-    "quelques": "partial",
-}
-
-
 def _infer_scope(rep) -> str:
     """Dérive le scope depuis les déterminants/pronoms du span (français uniquement).
 
@@ -792,7 +784,7 @@ def _infer_scope(rep) -> str:
     """
     for tok in rep.tokens:
         if tok.get("dep_rel") in {"det", "nsubj"} and tok.get("pos") in {"DET", "PRON"}:
-            hint = _SCOPE_HINTS.get(tok["lemma"].lower())
+            hint = SCOPE_HINTS_FR.get(tok["lemma"].lower())
             if hint:
                 return hint
     return "specific"

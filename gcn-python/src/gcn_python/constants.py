@@ -8,6 +8,16 @@ RELATION_TYPES = ["cause", "enable", "prevent", "condition", "concession", "sequ
 RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
 ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types
 SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unknown"]
+
+# Mapping lemme quantificateur → valeur de scope (français)
+# Sync avec gcn-core/crates/gcn-frontend-fr — exporté ici pour éviter
+# de hardcoder ces lemmes dans la logique du pipeline.
+SCOPE_HINTS_FR: dict[str, str] = {
+    "tous": "universal", "toutes": "universal", "chaque": "universal",
+    "tout": "universal", "aucun": "null", "aucune": "null",
+    "certains": "existential", "certaines": "existential",
+    "quelques": "partial",
+}
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
 AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]
 

@@ -4,6 +4,7 @@ from typing import Any
 import json
 import warnings
 from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
+from ..constants import RELATION_TYPES
 
 
 def load_sentences(path: Path) -> list[SentenceRecord]:
@@ -132,10 +133,10 @@ def _parse_edge(e: dict) -> EdgeRecord:
     if not relation:
         warnings.warn(
             f"Arête {e.get('source', '?')}→{e.get('target', '?')} sans champ 'relation' "
-            f"— défaut 'cause' appliqué.",
+            f"— défaut '{RELATION_TYPES[0]}' appliqué.",
             UserWarning, stacklevel=3,
         )
-        relation = "cause"
+        relation = RELATION_TYPES[0]
     return EdgeRecord(
         source=e.get("source", ""),
         target=e.get("target", ""),
