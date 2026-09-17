@@ -76,21 +76,32 @@ pip install "gcn-python[torch]"
 
 ## Usage
 
-### 1. Inférence depuis du texte brut
+### 1. Inférence depuis du texte brut — API haut niveau
 
 ```python
-from gcn_python.pipeline.cgnp import CGNPipeline
+from gcn_python import GCNEngine
 
-# Charger un pipeline avec checkpoint pré-entraîné
-pipeline = CGNPipeline.from_checkpoint("model.npz")
+# Charger depuis un checkpoint — l'architecture est déduite automatiquement
+engine = GCNEngine.from_pretrained("model.npz")
 
-# Analyser du texte (via gcn-cli Rust pour le parsing UD)
-cir = pipeline.analyze("Les ventes baissent car la demande recule.")
-
-# Résultat : graphe causal structuré
+# Analyser une phrase
+cir = engine.analyze("Les ventes baissent car la demande recule.")
 print(cir["nodes"][0]["node_type"])        # "processus"
 print(cir["edges"][0][2]["relation"])      # "cause"
 print(cir["edges"][0][2]["confidence"])    # 0.87
+
+# Analyser plusieurs phrases
+cirs = engine.analyze_batch([
+    "Les prix augmentent car la demande dépasse l'offre.",
+    "Si les températures montent, la banquise fond.",
+    "Bien que les coûts soient élevés, la production continue.",
+])
+
+# Itérer sur un fichier (mémoire constante)
+with open("corpus.txt") as f:
+    for cir in engine.stream(f):
+        if cir["edges"]:
+            print(cir["source_text"], "→", cir["edges"][0][2]["relation"])
 ```
 
 ### 2. Interroger le CIR via GCN-QL (gcn-backend)
