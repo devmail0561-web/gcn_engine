@@ -18,7 +18,7 @@ from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
 @pytest.fixture
 def pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
     return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
@@ -196,7 +196,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
 
     # Nouveau pipeline avec seed différent (poids différents)
     vocab = FeatureVocabulary()
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=99)
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=99)
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
     p2 = CGNPipeline(enc2, gr2, vocab)
 
@@ -348,7 +348,7 @@ def test_invalid_node_type_warns_not_crashes():
 
 
 def test_backward_edge_not_supervised():
-    """M1 : arête gold backward (src > tgt) non supervisée — lookup strict retourne -1."""
+    """M1 : arête gold backward (src > tgt) stockée comme arête inversée (tgt→src)."""
     import warnings
     from gcn_python.data.loader import GCNDataLoader
     from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
@@ -372,10 +372,11 @@ def test_backward_edge_not_supervised():
         warnings.simplefilter("always")
         sample = loader._to_sample(rec)
 
-    # L'arête backward (1, 0) n'est pas insérée dans edge_map
-    assert (1, 0) not in sample.edge_map
-    assert (0, 1) not in sample.edge_map
-    # Un warning signale l'arête non-supervisable
+    # L'arête backward est stockée comme arête inversée (0, 1) avec même relation
+    from gcn_python.constants import RELATION_TYPES
+    assert (0, 1) in sample.edge_map
+    assert sample.edge_map[(0, 1)] == RELATION_TYPES.index("cause")
+    # Un warning signale l'arête inversée
     assert any(issubclass(x.category, UserWarning) and "direction inverse" in str(x.message) for x in w)
 
 

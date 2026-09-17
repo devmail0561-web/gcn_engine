@@ -9,6 +9,25 @@ from ..constants import (
 )
 from .representation import UDRepresentation
 
+# Lemmes de connecteurs causaux les plus fréquents en français
+CONNECTOR_LEMMAS = [
+    "parce", "car", "puisque", "comme", "si", "bien", "quoique",
+    "quoique", "malgré", "pour", "afin", "donc", "alors", "ensuite",
+    "puis", "mais", "or", "pourtant", "cependant", "néanmoins",
+    "cependant", "pourvu", "seulement", "lorsque", "dès", "tant",
+    "si", "non", "jamais", "ni", "plutôt", "au lieu",
+    "en revanche", "en raison", "grâce", "sous", "condition",
+    "contrairement", "selon", "à cause", "devant", "chez",
+    "vers", "après", "avant", "depuis", "pendant", "durant",
+    "chez", "entre", "parmi", "hors", "outre", "faute",
+]
+
+# Relations de dépendance UD typiques des connecteurs
+CONNECTOR_DEP_RELS = [
+    "mark", "case", "fixed", "cc", "advmod", "obl", "nmod",
+    "conj", "ccomp", "xcomp", "_unk",
+]
+
 
 @dataclass
 class FeatureVocabulary:
@@ -40,11 +59,26 @@ class FeatureVocabulary:
 
     @property
     def d_conn(self) -> int:
-        return len(self.upos_tags) + 2
+        return (
+            len(self.upos_tags)       # 19 : UPOS du connecteur
+            + len(CONNECTOR_LEMMAS)   # 51 : lemma du connecteur
+            + len(CONNECTOR_DEP_RELS) # 11 : dep_rel du connecteur
+            + 2                       #  2 : direction + distance
+        )
+
+    N_INTERACTION_FEATURES = 4  # shared_pos, shared_subject, clause_distance, obj_xor
 
     @property
     def d_edge(self) -> int:
-        return 2 * self.d_clause + self.d_conn
+        return 2 * self.d_clause + self.d_conn + self.N_INTERACTION_FEATURES
+
+    def d_edge_closed_loop(self, d_effective: int, n_node_types: int, d_emb: int = 0) -> int:
+        """Dimension du edge MLP en closed-loop (avec enriched vectors + node probs).
+
+        d_effective : dimension effective des clause vectors (d_clause + d_emb).
+        d_emb : dimension des word embeddings (0 si pas d'embeddings).
+        """
+        return self.d_edge + 2 * d_emb + 2 * d_effective + 2 * n_node_types
 
     def to_json(self) -> str:
         return json.dumps({
@@ -107,14 +141,18 @@ def vectorize_connector(
     """Connector features between two clauses → np.ndarray[d_conn]"""
     if marker_rep is not None:
         upos_vec = _one_hot(marker_rep.root_pos, vocab.upos_tags)
+        lemma_vec = _one_hot(marker_rep.root_lemma, CONNECTOR_LEMMAS)
+        dep_vec = _one_hot(marker_rep.root_dep_rel, CONNECTOR_DEP_RELS)
     else:
         upos_vec = np.zeros(len(vocab.upos_tags), dtype=np.float32)
+        lemma_vec = np.zeros(len(CONNECTOR_LEMMAS), dtype=np.float32)
+        dep_vec = np.zeros(len(CONNECTOR_DEP_RELS), dtype=np.float32)
 
     pos_vec = np.array(
         [float(src_idx < dst_idx), abs(dst_idx - src_idx) / max(n_clauses, 1)],
         dtype=np.float32,
     )
-    return np.concatenate([upos_vec, pos_vec])
+    return np.concatenate([upos_vec, lemma_vec, dep_vec, pos_vec])
 
 
 def vectorize_edge(
@@ -127,9 +165,31 @@ def vectorize_edge(
     vocab: FeatureVocabulary,
     word_embedding=None,
 ) -> np.ndarray:
-    """Two clauses + connector → np.ndarray[d_edge (+ 2*d_emb si word_embedding)]"""
+    """Two clauses + connector + interaction features → np.ndarray[d_edge (+ 2*d_emb)]"""
+    interaction = _interaction_features(src, dst, src_idx, dst_idx, n_clauses)
     return np.concatenate([
         vectorize_clause(src, vocab, word_embedding),
         vectorize_clause(dst, vocab, word_embedding),
         vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
+        interaction,
     ])
+
+
+def _interaction_features(
+    src: UDRepresentation,
+    dst: UDRepresentation,
+    src_idx: int,
+    dst_idx: int,
+    n_clauses: int,
+) -> np.ndarray:
+    """Features d'interaction entre deux clauses (4 dims)."""
+    shared_pos = float(src.root_pos == dst.root_pos)
+    shared_subject = float(
+        src.subject_pos is not None
+        and dst.subject_pos is not None
+        and src.subject_pos == dst.subject_pos
+    )
+    clause_dist = abs(dst_idx - src_idx) / max(n_clauses, 1)
+    obj_xor = float(src.has_object != dst.has_object)
+    return np.array([shared_pos, shared_subject, clause_dist, obj_xor],
+                    dtype=np.float32)

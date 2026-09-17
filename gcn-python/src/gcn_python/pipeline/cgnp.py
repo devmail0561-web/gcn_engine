@@ -172,7 +172,7 @@ class CGNPipeline:
         # S3 : chemin batch si forward_batch disponible et pas de snapshots requis
         _has_batch = hasattr(self.encoder, 'forward_batch')
 
-        # Couche 2 — prédiction des types de nœuds (snapshot par nœud pour backward)
+        # Couche 2 — prédiction des types de nœuds (premier passage)
         node_snapshots: list = []
         if _has_batch and not _snap:
             node_logits = self.encoder.forward_batch(clause_vecs)
@@ -183,11 +183,64 @@ class CGNPipeline:
                 if _snap:
                     node_snapshots.append(self.encoder.snapshot_node_cache())
             node_logits = np.stack(node_logits_list)
+
+        # Couche 3 — R-GCN message passing (AVANT edge classification)
+        enriched = clause_vecs
+        edge_triples: list[tuple[int, int, str, float, bool, int | None]] = []
+        if len(reps) > 1:
+            # Paires d'arêtes pour le R-GCN (toutes les paires si all_pairs, sinon adjacentes)
+            _edge_pairs_rgcn = (
+                [(i, j) for i in range(len(reps)) for j in range(i + 1, len(reps))]
+                if self.all_pairs
+                else [(i, i + 1) for i in range(len(reps) - 1)]
+            )
+            # Pour le R-GCN, on a besoin d'arêtes même sans gold — utiliser la prédiction courante
+            edge_index_rgcn = np.array(
+                [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
+                dtype=np.int64,
+            ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
+            # Types d'arêtes : utiliser la prédiction du premier passage comme approximation
+            edge_type_idxs_rgcn = np.array(
+                [int(np.argmax(node_logits[max(s, 0)] + node_logits[min(d, len(node_logits)-1)]))
+                 for s, d in _edge_pairs_rgcn],
+                dtype=np.int64,
+            ) if _edge_pairs_rgcn else np.array([], dtype=np.int64)
+
+            self._cached_edge_index = edge_index_rgcn
+            self._cached_edge_type_idxs = edge_type_idxs_rgcn
+
+            # Message passing bidirectionnel
+            if self.bidirectional and edge_index_rgcn.shape[1] > 0:
+                rev_index = edge_index_rgcn[[1, 0], :]
+                rev_types = edge_type_idxs_rgcn + len(self.relation_types)
+                edge_index_mp = np.concatenate([edge_index_rgcn, rev_index], axis=1)
+                edge_types_mp = np.concatenate([edge_type_idxs_rgcn, rev_types])
+            else:
+                edge_index_mp = edge_index_rgcn
+                edge_types_mp = edge_type_idxs_rgcn
+
+            for _layer in self._graph_layers:
+                enriched = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
+
+        # Deuxième passage nœuds sur les vecteurs enrichis
+        if len(reps) > 1:
+            node_snapshots = []
+            if _has_batch and not _snap:
+                node_logits2 = self.encoder.forward_batch(enriched)
+            else:
+                node_logits2_list: list[np.ndarray] = []
+                for v in enriched:
+                    node_logits2_list.append(self.encoder.forward_node(v))
+                    if _snap:
+                        node_snapshots.append(self.encoder.snapshot_node_cache())
+                node_logits2 = np.stack(node_logits2_list)
+            node_logits = node_logits2
+
         node_type_idxs = np.argmax(node_logits, axis=1)
         node_types = [self.node_types[i] for i in node_type_idxs]
+        self._cached_enriched_vecs = enriched
 
-        # Prédiction des arêtes entre clauses adjacentes
-        edge_triples: list[tuple[int, int, str, float, bool, int | None]] = []
+        # --- Edge classification CLOSED-LOOP : utilise enriched_vecs + node_logits ---
         edge_vecs: list[np.ndarray] = []
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
@@ -198,20 +251,30 @@ class CGNPipeline:
                 if self.all_pairs
                 else [(i, i + 1) for i in range(len(reps) - 1)]
             )
+            # Softmax des logits nœuds comme features d'arête
+            node_type_probs = _softmax(node_logits)
             for src_i, dst_i in _edge_pairs:
                 real_src = clause_positions[src_i] if clause_positions else src_i
                 real_dst = clause_positions[dst_i] if clause_positions else dst_i
-                # Le connecteur n'existe que pour les paires adjacentes (len = len(reps)-1)
                 connector = (connector_reps[src_i]
                              if connector_reps and src_i < len(connector_reps) and dst_i == src_i + 1
                              else None)
-                edge_vec = vectorize_edge(
+                # Vectorizer avec les reps originales pour les features syntaxiques
+                edge_vec_base = vectorize_edge(
                     reps[src_i], reps[dst_i], connector,
                     real_src, real_dst, real_n,
                     self.vocabulary, self.word_embedding,
                 )
-                edge_vecs.append(edge_vec)
-                edge_logit = self.encoder.forward_edge(edge_vec)
+                # Enrichir avec les representations R-GCN + node type predictions
+                enriched_edge = np.concatenate([
+                    edge_vec_base,
+                    enriched[src_i],      # representation R-GCN du source
+                    enriched[dst_i],      # representation R-GCN du destination
+                    node_type_probs[src_i],  # proba types nœud source (7 dims)
+                    node_type_probs[dst_i],  # proba types nœud destination (7 dims)
+                ])
+                edge_vecs.append(enriched_edge)
+                edge_logit = self.encoder.forward_edge(enriched_edge)
                 all_edge_logits.append(edge_logit)
                 if _snap:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
@@ -226,45 +289,6 @@ class CGNPipeline:
             self._cached_edge_logits = np.stack(all_edge_logits)
             if _snap:
                 self._cached_edge_snapshots = edge_snapshots
-
-        # Couche 3 — R-GCN message passing
-        if len(reps) > 1 and edge_triples:
-            edge_index = np.array(
-                [[e[0] for e in edge_triples], [e[1] for e in edge_triples]], dtype=np.int64
-            )
-            edge_type_idxs = np.array(
-                [self.relation_types.index(e[2]) if e[2] in self.relation_types else 0
-                 for e in edge_triples],
-                dtype=np.int64,
-            )
-            self._cached_edge_index = edge_index
-            self._cached_edge_type_idxs = edge_type_idxs
-            # Message passing bidirectionnel : duplication des arêtes avec relations inverses
-            if self.bidirectional and edge_index.shape[1] > 0:
-                rev_index = edge_index[[1, 0], :]                          # (2, E) — sens inverse
-                rev_types = edge_type_idxs + len(self.relation_types)      # indices 11–21
-                edge_index_mp = np.concatenate([edge_index, rev_index], axis=1)
-                edge_types_mp = np.concatenate([edge_type_idxs, rev_types])
-            else:
-                edge_index_mp = edge_index
-                edge_types_mp = edge_type_idxs
-            enriched = clause_vecs.copy()
-            for _layer in self._graph_layers:
-                enriched = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
-            node_snapshots = []
-            if _has_batch and not _snap:
-                node_logits2 = self.encoder.forward_batch(enriched)
-            else:
-                node_logits2_list: list[np.ndarray] = []
-                for v in enriched:
-                    node_logits2_list.append(self.encoder.forward_node(v))
-                    if _snap:
-                        node_snapshots.append(self.encoder.snapshot_node_cache())
-                node_logits2 = np.stack(node_logits2_list)
-            node_type_idxs = np.argmax(node_logits2, axis=1)
-            node_types = [self.node_types[i] for i in node_type_idxs]
-            node_logits = node_logits2
-            self._cached_enriched_vecs = enriched
 
         self._cached_node_logits = node_logits
         if _snap:

@@ -24,7 +24,8 @@ def make_rep() -> UDRepresentation:
 
 def make_pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
@@ -99,7 +100,7 @@ def test_forward_connector_slot_nonzero():
 def test_forward_rgcn_dout_mismatch_raises():
     """Un RGCNLayer avec d_out ≠ d_clause doit lever ValueError dès la construction."""
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
     with pytest.raises(ValueError, match="d_out=.*≠.*d_clause"):
         CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
@@ -176,7 +177,7 @@ def test_backward_with_pt_graph_does_not_crash():
 
         graph = _StubGraph()
 
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge, seed=0)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
     rep1, rep2 = make_rep(), make_rep()
@@ -225,7 +226,7 @@ def test_negated_edge_detected():
     vocab = FeatureVocabulary()
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     rep1 = make_rep()
@@ -291,7 +292,7 @@ def test_label_nominalized():
     vocab = FeatureVocabulary()
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     g = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p = CGNPipeline(enc, g, vocab, taxonomies_dir=None)
     assert p.taxonomies_dir is None

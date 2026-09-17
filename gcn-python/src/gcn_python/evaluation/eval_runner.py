@@ -27,7 +27,7 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
     node_macro_f1, edge_accuracy, edge_macro_f1.
     """
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     load_checkpoint(pipeline, model_path)

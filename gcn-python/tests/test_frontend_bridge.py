@@ -387,7 +387,7 @@ def _make_pipeline():
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
     return CGNPipeline(
-        encoder=MLPEncoder(vocab.d_clause, vocab.d_edge),
+        encoder=MLPEncoder(vocab.d_clause, vocab.d_edge_closed_loop(vocab.d_clause, 7)),
         graph=RGCNLayer(vocab.d_clause, vocab.d_clause),
         vocabulary=vocab,
     )

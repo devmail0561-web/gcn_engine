@@ -91,7 +91,10 @@ def train_cmd(
                 click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
 
     d_effective = vocab.d_clause + d_emb
-    encoder = MLPEncoder(d_clause=d_effective, d_edge=vocab.d_edge + 2 * d_emb)
+    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
+    n_node_types = len(NODE_TYPES)
+    d_edge_closed = vocab.d_edge + 2 * d_emb + 2 * d_effective + 2 * n_node_types
+    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed)
 
     # Couche 3 : choix du graph selon les flags
     n_rel = 22 if bidirectional else len(RELATION_TYPES)

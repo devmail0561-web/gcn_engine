@@ -136,3 +136,44 @@ L'expérience confirme que :
 4. Le **edge classification** reste un problème ouvert — nécessite une architecture dédiée
 
 Le dataset de 990 phrases est un banc d'essai valide pour tester ces améliorations.
+
+---
+
+## Phase 13 — Résolution du plafond edge classification
+
+### Modifications apportées
+
+6 causes structurelles identifiées et traitées (voir `plan_phase13.md`) :
+
+| Étape | Fichier | Modification |
+|-------|---------|-------------|
+| 1 | `features.py` | 51 connecteur lemmes + 11 dep_rels → 86 dim connecteur |
+| 2 | `features.py` | 4 features d'interaction (shared_pos, shared_subject, clause_distance, obj_xor) |
+| 3 | `reference.py` | Dropout p=0.3 + MLP élargi (128→64 → 256→128) |
+| 4 | `cgnp.py` | Closed-loop : edge MLP après R-GCN avec enriched vectors + node probs |
+| 5 | `loader.py` | Backward edges stockées comme (tgt→src) avec même relation |
+
+### Résultats intermédiaires
+
+| Modèle | Split | Node Acc | Edge Acc | Edge F1 |
+|--------|-------|----------|----------|---------|
+| GAT cl (sans bwd) | train | 99.3% | 22.8% | 18.5% |
+| GAT cl (sans bwd) | test  | 100% | 18.1% | 13.8% |
+| GAT cl + bwd      | train | 99.3% | 27.1% | 21.4% |
+| GAT cl + bwd      | test  | 100% | 21.5% | 16.9% |
+
+### Analyse
+
+**Le closed-loop n'a pas amélioré les résultats.** Raison probable :
+- La dimension d'entrée de l'edge MLP est passée de 173 à 619 (+258%)
+- La capacité du MLP n'a pas augmenté proportionnellement
+- Les features enrichies (enriched vectors + node probs) ajoutent du bruit plus que du signal
+
+**Les backward edges ont aidé** : +3% edge accuracy sur test (21.5% vs 18.1%).
+
+### Pistes restantes
+
+1. **MLP plus profond** : 3 couches cachées (256→128→64→11)
+2. **Weighted loss** : pénaliser les classes rares
+3. **Curriculum learning** : nœuds d'abord, arêtes ensuite
+4. **Contrastive learning** : embeddings de paires causales proches

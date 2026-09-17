@@ -56,10 +56,13 @@ class MLPEncoder:
         seed: int = 42,
         n_node_types: int = len(NODE_TYPES),
         n_relation_types: int = len(RELATION_TYPES),
+        edge_dropout: float = 0.3,
     ):
         rng = np.random.default_rng(seed)
         self.n_node_types = n_node_types
         self.n_relation_types = n_relation_types
+        self.edge_dropout = edge_dropout
+        self.training = True
 
         # Node MLP : d_clause → 128 → 64 → n_node_types
         self._node_layers = [
@@ -68,7 +71,7 @@ class MLPEncoder:
             _LinearLayer(64, n_node_types, rng),
         ]
 
-        # Edge MLP : d_edge → 256 → 128 → n_relation_types
+        # Edge MLP : d_edge → 256 → 128 → n_relation_types (plus grand pour closed-loop)
         self._edge_layers = [
             _LinearLayer(d_edge, 256, rng),
             _LinearLayer(256, 128, rng),
@@ -77,16 +80,25 @@ class MLPEncoder:
 
         self._node_cache: list = []
         self._edge_cache: list = []
+        self._edge_dropout_masks: list = []
 
     def _forward_mlp(
-        self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list
+        self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list,
+        dropout: float = 0.0, dropout_masks: list | None = None,
     ) -> np.ndarray:
         cache_out.clear()
+        if dropout_masks is not None:
+            dropout_masks.clear()
         h = x
         for i, layer in enumerate(layers):
             z = layer.forward(h)
             if i < len(layers) - 1:
                 h = _relu(z)
+                if dropout > 0.0 and self.training:
+                    mask = (np.random.random(h.shape) > dropout).astype(np.float32)
+                    h = h * mask / (1.0 - dropout)
+                    if dropout_masks is not None:
+                        dropout_masks.append(mask)
                 cache_out.append((z, h))
             else:
                 h = z
@@ -108,10 +120,15 @@ class MLPEncoder:
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
         self._edge_cache = []
-        return self._forward_mlp(x, self._edge_layers, self._edge_cache)
+        self._edge_dropout_masks = []
+        return self._forward_mlp(
+            x, self._edge_layers, self._edge_cache,
+            dropout=self.edge_dropout, dropout_masks=self._edge_dropout_masks,
+        )
 
     def _backward_mlp(
-        self, d_logits: np.ndarray, layers: list[_LinearLayer], cache: list
+        self, d_logits: np.ndarray, layers: list[_LinearLayer], cache: list,
+        dropout_masks: list | None = None,
     ) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
         """Retourne (grads, d_input) où d_input est le gradient vers l'entrée."""
         grads = []
@@ -120,6 +137,8 @@ class MLPEncoder:
             z, _ = cache[i]
             if i < len(layers) - 1:
                 d = d * _relu_grad(z)
+                if dropout_masks is not None and i < len(dropout_masks):
+                    d = d * dropout_masks[i] / (1.0 - self.edge_dropout)
             dx, dW, db = layers[i].backward(d)
             grads.insert(0, (dW, db))
             d = dx
@@ -134,7 +153,10 @@ class MLPEncoder:
         return self._backward_mlp(d_logits, self._node_layers, self._node_cache)
 
     def backward_edge(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
-        grads, _ = self._backward_mlp(d_logits, self._edge_layers, self._edge_cache)
+        grads, _ = self._backward_mlp(
+            d_logits, self._edge_layers, self._edge_cache,
+            dropout_masks=self._edge_dropout_masks,
+        )
         return grads
 
     def snapshot_node_cache(self) -> list:

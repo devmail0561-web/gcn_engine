@@ -101,11 +101,13 @@ class GCNDataLoader:
                 if hasattr(self, '_total_long_distance'):
                     self._total_long_distance += 1
                 continue
+            rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
                 n_backward += 1
-                continue  # arête backward non-supervisable, ne pas insérer dans edge_map
-            rel_idx = _relation_idx(e.relation, rec.id)
-            edge_map[(src_idx, tgt_idx)] = rel_idx
+                # Stocker en tant que arête inverse (tgt→src) avec même relation
+                edge_map[(tgt_idx, src_idx)] = rel_idx
+            else:
+                edge_map[(src_idx, tgt_idx)] = rel_idx
         if n_long_distance and not getattr(self, 'all_pairs', False):
             warnings.warn(
                 f"[{rec.id}] {n_long_distance} arête(s) longue distance ignorées (gap > 1) "
@@ -115,9 +117,9 @@ class GCNDataLoader:
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse "
-                f"(src > tgt) — non supervisées (le forward prédit uniquement la "
-                f"direction consécutive croissante).",
-                UserWarning, stacklevel=2,
+                f"(src > tgt) — stockées comme arêtes inversées (tgt→src) avec même relation.",
+                UserWarning,
+                stacklevel=2,
             )
         return TrainingSample(rec, node_labels, edge_map)
 
