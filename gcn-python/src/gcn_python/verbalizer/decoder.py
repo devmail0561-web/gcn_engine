@@ -4,35 +4,63 @@ import json
 
 class ReferenceDecoder:
     """
-    Reference verbalizer decoder — format-agnostic linearization placeholder.
+    Reference verbalizer decoder — linearisation structurée d'un CausalIR.
 
-    Implements the VerbalizerDecoder protocol.
-    Replace with a trained model: the trained model learns what to produce
-    from its training data — no output format is presupposed here.
+    Deux points d'entrée :
+      - decode_cir(cir: dict)  : flux direct depuis le moteur (aucun fichier)
+      - decode(ir_json: str)   : depuis un fichier JSON (pipeline batch)
 
-    This reference produces a structural linearization of the CausalIR graph:
-    one fragment per edge, joined by newlines. It makes no assumption about
-    whether the output should be natural language, code, or any other form.
+    Le CIR produit par engine.analyze() passe directement ici —
+    pas de sérialisation/désérialisation intermédiaire.
+
+    À remplacer par un TrainableDecoder entraîné pour produire
+    du texte naturel dans le domaine cible.
     """
 
-    def decode(self, ir_json: str) -> str:
-        ir = json.loads(ir_json)
-        nodes: list[dict] = ir.get("nodes", [])
-        edges: list[list] = ir.get("edges", [])
+    def decode_cir(self, cir: dict) -> str:
+        """
+        CausalIR dict → texte structuré lisible.
 
-        node_map: dict[int, str] = {n["id"]: n["label"] for n in nodes}
+        Flux direct depuis engine.analyze() sans fichier intermédiaire.
+        """
+        nodes: list[dict] = cir.get("nodes", [])
+        edges = cir.get("edges", [])
+        source_text: str = cir.get("source_text", "")
 
-        fragments: list[str] = []
+        if not nodes:
+            return ""
+
+        node_map: dict = {n["id"]: (n.get("label", ""), n.get("node_type", "?"))
+                          for n in nodes}
+
+        lines = []
+        if source_text:
+            lines.append(f'  "{source_text[:90]}"')
+
+        if not edges:
+            labels = [n.get("label", "") for n in nodes if n.get("label")]
+            lines.append("  → " + "  |  ".join(labels))
+            return "\n".join(lines)
+
         for edge_tuple in edges:
-            src_id, dst_id, edge = edge_tuple
-            src = node_map.get(src_id, str(src_id))
-            dst = node_map.get(dst_id, str(dst_id))
-            relation: str = edge.get("relation", "?")
-            negated: bool = edge.get("negated", False)
-            neg = "¬" if negated else ""
-            fragments.append(f"{src} -{neg}[{relation}]-> {dst}")
+            if not (isinstance(edge_tuple, (list, tuple)) and len(edge_tuple) == 3):
+                continue
+            src_id, dst_id, attrs = edge_tuple
+            src_lbl, src_type = node_map.get(src_id, (str(src_id), "?"))
+            dst_lbl, dst_type = node_map.get(dst_id, (str(dst_id), "?"))
+            relation: str = attrs.get("relation", "?")
+            confidence: float = attrs.get("confidence", 0.0)
+            negated: bool = attrs.get("negated", False)
+            neg = " [negated]" if negated else ""
+            lines.append(
+                f"  {src_lbl} [{src_type}]"
+                f"  →[{relation}{neg}]→"
+                f"  {dst_lbl} [{dst_type}]"
+                f"  ({confidence:.0%})"
+            )
 
-        if not fragments:
-            return " | ".join(n["label"] for n in nodes)
+        return "\n".join(lines)
 
-        return "\n".join(fragments)
+    def decode(self, ir_json: str) -> str:
+        """Depuis un fichier JSON (pipeline batch). Délègue à decode_cir."""
+        return self.decode_cir(json.loads(ir_json))

@@ -23,6 +23,7 @@ import click
 
 from .verbalizer.instructions import InstructionHandler, CausalGraph, parse_command
 from .verbalizer.query_report import QueryVerbalizer
+from .verbalizer.decoder import ReferenceDecoder
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +196,7 @@ def run_discuss(
 
     # Charger ou créer le graphe de session
     handler = InstructionHandler()
+    decoder = ReferenceDecoder()   # CIR → texte, flux direct sans fichier
     if graph_path and graph_path.exists():
         try:
             handler.graph = CausalGraph.load(graph_path)
@@ -255,6 +257,11 @@ def run_discuss(
                         try:
                             cir = engine.analyze(line)
                             if cir.get("edges"):
+                                # CIR → verbalizer directement, sans fichier
+                                verbalized = decoder.decode_cir(cir)
+                                if verbalized:
+                                    print(verbalized)
+                                # Aussi stocké dans le graphe pour les requêtes
                                 handler.add_cir(cir)
                                 n_new += len(cir["edges"])
                         except Exception:

@@ -67,7 +67,7 @@ def test_negated_edge_marked():
                    "temporal_gap": None, "explicit": True,
                    "negated": True, "marker_token": None, "in_cycle": None}]
     result = ReferenceDecoder().decode(_make_ir(FR_LANG, NODES, [edge]))
-    assert "¬" in result
+    assert "negated" in result
 
 
 def test_empty_edges_falls_back_to_node_labels():
