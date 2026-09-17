@@ -100,31 +100,82 @@ Exemples
 
 ---
 
-### C2 — Supprimer `chat.py` et le remplacer par `gcn-query` CLI
+### C2 — Supprimer `chat.py` et le remplacer par `gcn-index` + `gcn-discuss`
 
 **Fichier actuel :** `gcn-python/src/gcn_python/chat.py` → **supprimer**
 
-**Ce que ça devient :** un outil d'exploration analytique en ligne de commande,
-pas un REPL conversationnel. L'analyste soumet un corpus, obtient un graphe,
-l'interroge avec des requêtes formelles.
+**Ce que ça devient :** deux outils distincts avec des rôles séparés :
 
-**Nouveau fichier :** `gcn-python/src/gcn_python/query_cli.py`
+#### `gcn-index` — indexer un corpus (hors-ligne, une fois)
 
-Interface :
 ```bash
-# Indexer un corpus → graphe persistant
-gcn-index --corpus dir/ --checkpoint model.npz --output graph.json
-
-# Requêtes sur le graphe
-gcn-query --graph graph.json --causes-of "data_exfiltration"
-gcn-query --graph graph.json --effects-of "authentication_bypass"
-gcn-query --graph graph.json --path "vulnerability" "data_breach"
-gcn-query --graph graph.json --contradictions
-gcn-query --graph graph.json --summarize
-gcn-query --graph graph.json --counterfactual "patch_applied"
+gcn-index \
+  --corpus threat_reports/ \
+  --checkpoint model.npz \
+  --output cti_graph.json
 ```
 
-Sortie : JSON structuré (pas de prose), avec source et confiance par résultat.
+Construit le graphe causal depuis un corpus. Résultat persistant sur disque.
+Ne nécessite pas d'interaction utilisateur.
+
+#### `gcn-discuss` — discussion sur le corpus indexé
+
+```bash
+gcn-discuss --graph cti_graph.json
+```
+
+Session interactive de **questions-réponses causales** sur le graphe pré-indexé.
+Différence fondamentale avec `gcn-chat` supprimé :
+- Le graphe est **persistant** (chargé depuis `cti_graph.json`), pas une session volatile
+- La discussion porte sur le **corpus déjà analysé**, pas sur du texte saisi en direct
+- Répond uniquement aux **questions causales** — pas à des instructions générales
+- Si la question est hors corpus ou hors causalité : "pas de structure causale sur ce sujet"
+
+**Comportement de la session :**
+```
+  GCN Causal Engine — Discussion
+  Corpus : cti_graph.json (1 247 relations, 89 documents)
+  ────────────────────────────────────────────
+  > What causes data exfiltration?
+
+  causes_of: data exfiltration
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    1. authentication_bypass  --[enable]-->  data_exfiltration
+       sources: APT28_report.txt:47, Mandiant_2024.pdf:12
+       confidence: 0.91  (23 occurrences)
+
+    2. credential_theft  --[cause]-->  data_exfiltration
+       sources: CrowdStrike_Q3.txt:89
+       confidence: 0.87  (8 occurrences)
+
+    ⚠ CONTRADICTION : firewall_rule --[prevent]--> data_exfiltration
+       sources: SecPolicy_v2.txt:12  (contredit par 23 sources)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  > How does phishing lead to ransomware?
+
+  chain: phishing → ransomware
+    [entite] phishing_email
+    → [enable] → [action] credential_harvest
+    → [cause]  → [processus] lateral_movement
+    → [enable] → [transition] ransomware_deployment
+    sources : 3 rapports
+
+  > What about quantum physics?
+
+  Aucune structure causale sur ce sujet dans le corpus.
+
+  > quit
+```
+
+**Nouveau fichier :** `gcn-python/src/gcn_python/discuss.py`
+
+La session comprend :
+- Chargement du graphe persistant au démarrage
+- Détection du type de question (causes / effets / chemin / contrefactuel / résumé)
+- Appel à `CausalGraph` pour la requête
+- Appel à `QueryVerbalizer` pour le rapport multi-lignes
+- Réponse "hors corpus" si aucune structure trouvée
 
 ---
 
@@ -257,8 +308,8 @@ Sections à réécrire :
 
 ```toml
 [project.scripts]
-gcn-index   = "gcn_python.query_cli:index_cmd"   # NOUVEAU — indexe un corpus
-gcn-query   = "gcn_python.query_cli:query_cmd"   # NOUVEAU — requêtes + rapport verbalisé
+gcn-index   = "gcn_python.query_cli:index_cmd"   # NOUVEAU — indexe un corpus → graphe persistant
+gcn-discuss = "gcn_python.discuss:discuss_cmd"   # NOUVEAU — discussion causale sur corpus indexé
 gcn-forward = "gcn_python.pipeline.cli:forward_cmd"
 gcn-train   = "gcn_python.training.train:train_cmd"
 gcn-eval    = "gcn_python.evaluation.eval_runner:eval_cmd"
@@ -276,8 +327,8 @@ C1 — engine.py : supprimer méthodes hors scope + réécrire docstrings
 C3 — CausalGraph persistable (save/load/from_cirs)
 C4 — verbalizer/query_report.py : QueryVerbalizer (rapports multi-lignes)
      + renommer _verbalize → dump dans ReferenceDecoder
-C2 — Supprimer chat.py, créer query_cli.py (gcn-index + gcn-query)
-     gcn-query appelle QueryVerbalizer pour formater les résultats
+C2 — Supprimer chat.py, créer query_cli.py (gcn-index) + discuss.py (gcn-discuss)
+     gcn-discuss charge le graphe persistant + discussion causale + QueryVerbalizer
 C5 — Repositionner --text dans gcn-forward
 C6 — Mettre à jour README
 C7 — Mettre à jour pyproject.toml
@@ -288,21 +339,36 @@ C7 — Mettre à jour pyproject.toml
 ## Interface cible après Phase 16
 
 ```bash
-# 1. Indexer un corpus de rapports CTI
+# 1. Indexer un corpus (une fois, hors-ligne)
 gcn-index \
   --corpus threat_reports/ \
   --checkpoint model.npz \
   --output cti_graph.json
 
-# 2. Interroger le graphe
-gcn-query --graph cti_graph.json --causes-of "data_exfiltration"
-# → JSON : [{source: "APT28_report.txt:47", cause: "auth_bypass", conf: 0.91}, ...]
+# 2. Ouvrir une session de discussion sur le corpus indexé
+gcn-discuss --graph cti_graph.json
+```
 
-gcn-query --graph cti_graph.json --path "phishing" "ransomware"
-# → JSON : chemin causal avec sources
+**Dans la session :**
+```
+  GCN Causal Engine — Discussion
+  Corpus : cti_graph.json (1 247 relations, 89 documents analysés)
+  ─────────────────────────────────────────────────────────────────
 
-gcn-query --graph cti_graph.json --contradictions
-# → JSON : claims contradictoires entre sources
+  > What causes data exfiltration?
+  [rapport multi-lignes avec sources et contradictions]
+
+  > How does phishing lead to ransomware?
+  [chaîne causale tracée]
+
+  > Any contradictions in the corpus?
+  [liste des claims contradictoires entre sources]
+
+  > Without authentication_bypass, what changes?
+  [raisonnement contrefactuel Pearl niveau 2]
+
+  > What about climate change?
+  Aucune structure causale sur ce sujet dans le corpus.
 ```
 
 ---
