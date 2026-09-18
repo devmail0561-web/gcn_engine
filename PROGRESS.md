@@ -683,3 +683,50 @@ gcn-train \
 Tokens UD auto-générés par spaCy fr_core_news_sm. Validation humaine recommandée avant prod.
 
 **Entraînement en cours :** GAT+bidi+lr=0.0005 sur 818 phrases → résultats attendus.
+
+---
+
+## Phase D — Robustesse moteur ✅
+
+**Date :** 2026-09-18
+
+| Correctif | Fichier | Résultat |
+|-----------|---------|---------|
+| D1 : 14 `assert` → `ValueError`/`RuntimeError` | layer2/reference.py, layer3/gat.py, layer3/reference.py, verbalizer/trainable.py | ✅ 0 assert restants |
+| D2 : `_extract_token_span` — `int()` + validation longueur (#4-5) | training/bootstrap.py | ✅ crash JSON malformé corrigé |
+| D3 : 8 tests e2e (phrase simple/complexe/sans causalité) | tests/test_e2e_pipeline.py | ✅ 8/8 verts |
+| D4 : Limitations GCNBridgeParser dans README | gcn-python/README.md | ✅ table + exemples |
+
+**Tests : 231 passent (4 skipped stables)**
+
+---
+
+## Phase E — Packaging checkpoint v2.4.0 (en cours)
+
+**Date :** 2026-09-18
+
+| Étape | Statut |
+|-------|--------|
+| E1 : entraînement final sur train_final/ (849 phrases, 92ep) | ✅ |
+| E2 : métriques versionnées (model_v2.4.0_metrics.json) | ✅ |
+| E3 : procédure de chargement dans README | ✅ |
+| E4 : bump version 2.3.0 → 2.4.0 | ✅ |
+
+**Dataset final :** `gcn-datasets/real/train_final/train.json` — 849 phrases
+  = train_c1_oversampled (735) + val (114) fusionnés
+
+**Config d'entraînement :**
+```bash
+gcn-train --data-dir gcn-datasets/real/train_final/ \
+  --epochs 92 --lr 0.0005 \
+  --weighted-loss --use-attention --bidirectional
+```
+
+**Métriques de référence** (mesurées sur val, run gat_bidi_oversamp_lr5e4) :
+
+| Métrique | Valeur | Cible | Statut |
+|---------|--------|-------|--------|
+| `val_edge_macro_f1` | **0.468** | > 0.40 | ✅ |
+| `val_node_macro_f1` | 0.274 | > 0.60 | ✗ bloquant données |
+| `val_graph_exact_match` | 0.123 | > 0.20 | ✗ bloqué par node |
+| gap train−val (edge) | 0.069 | < 0.15 | ✅ |

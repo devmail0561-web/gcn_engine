@@ -1,7 +1,7 @@
 # gcn-python — GCN Causal Engine
 
 [![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-206-passing)](tests/)
@@ -133,15 +133,55 @@ Utile pour pré-indexer avant une session `gcn-discuss --graph graph.json`.
 ### 3. Entraîner sur votre corpus
 
 ```bash
+# Configuration de référence (v2.4.0) — val_edge_macro_f1 = 0.468
 gcn-train \
-  --data-dir  corpus/train/ \
-  --val-dir   corpus/val/ \
-  --epochs    100 \
-  --use-attention \
-  --bidirectional \
-  --embedding-dim 50 \
-  --output    model.npz
+  --data-dir gcn-datasets/real/train_c1_oversampled/ \
+  --val-dir  gcn-datasets/real/val/ \
+  --epochs 100 --lr 0.0005 \
+  --weighted-loss --use-attention --bidirectional \
+  --output model.npz
 ```
+
+Voir `gcn-train --help` pour toutes les options (label smoothing, dropout R-GCN, etc.).
+
+### 3b. Charger un checkpoint
+
+```python
+from gcn_python import GCNEngine
+
+# Chargement automatique — l'architecture est encodée dans le .npz
+engine = GCNEngine.from_pretrained("model.npz")
+
+# Ou charger manuellement dans un pipeline existant
+from gcn_python.training.checkpoint import load_checkpoint
+from gcn_python.pipeline.cgnp import CGNPipeline
+# (pipeline déjà construit avec la même architecture)
+load_checkpoint(pipeline, "model.npz")
+```
+
+Le checkpoint `.npz` contient :
+- Tous les poids (`encoder_*`, `graph_0`, `graph_extra_*`)
+- Les métadonnées d'architecture (`_arch_json`) : dimensions, bidirectionnel, n_relations
+- Le vocabulaire de features (`_vocab_json`) pour reconstruire `FeatureVocabulary`
+
+**Compatibilité** : `GCNEngine.from_pretrained()` reconstruit l'architecture depuis `_arch_json`
+— aucun paramètre à passer manuellement. Requiert `gcn-python >= 2.1.0`.
+
+### 3c. Inférence sur texte brut (sans annotation UD)
+
+```python
+from gcn_python import GCNEngine
+
+engine = GCNEngine.from_pretrained("model.npz", gcn_bin="gcn")
+# gcn_bin="gcn" : chemin vers le binaire gcn-cli Rust (doit être dans le PATH)
+# Sans gcn_bin : passe en mode heuristique GCNBridgeParser (~80-85% qualité)
+
+cir = engine.analyze("Le gel détruit les cultures, provoquant des pénuries.")
+print(cir)  # dict CausalIR JSON-serializable
+```
+
+> **Note** : pour la qualité maximale, utiliser des données pré-annotées via `GCNDataLoader`
+> plutôt que le bridge heuristique. Voir section [Limitations connues](#limitations-connues--gcnbridgeparser).
 
 ### 4. API Python
 

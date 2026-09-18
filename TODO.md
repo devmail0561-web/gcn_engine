@@ -75,11 +75,11 @@
 
 ## Phase E — Packaging checkpoint et déploiement
 
-- [ ] **E1** — Entraîner le checkpoint final sur dataset complet (train + val fusionnés)
+- [x] **E1** — Entraîner le checkpoint final sur dataset complet (train + val fusionnés)
   une fois les métriques cibles atteintes en Phase C
-- [ ] **E2** — Versionner le checkpoint (`model_v2.3.0.npz`) avec ses métriques associées
-- [ ] **E3** — Documenter la procédure de chargement checkpoint dans le README
-- [ ] **E4** — Bump version → 2.4.0 (premier checkpoint prod documenté)
+- [x] **E2** — Versionner le checkpoint (`model_v2.3.0.npz`) avec ses métriques associées
+- [x] **E3** — Documenter la procédure de chargement checkpoint dans le README
+- [x] **E4** — Bump version → 2.4.0 (premier checkpoint prod documenté)
 
 **Critère de sortie :** checkpoint publié, métriques reproductibles depuis zéro.
 

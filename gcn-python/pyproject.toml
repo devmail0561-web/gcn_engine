@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-python"
-version = "2.3.0"
+version = "2.4.0"
 description = "GCN Causal Engine — extract, model and reason over causal structure in natural language and code"
 readme = "README.md"
 requires-python = ">=3.10"
