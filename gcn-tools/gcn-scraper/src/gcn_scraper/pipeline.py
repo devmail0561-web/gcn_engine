@@ -51,7 +51,25 @@ class ScrapingPipeline:
 
         total_written = 0
 
-        with open(output_file, "a", encoding="utf-8") as out:
+        # Ouvrir le fichier global + les fichiers par source en mode append
+        _src_files: dict[str, object] = {}
+        _source_keys = [
+            ("wikipedia_fr", "wikipedia_fr"),
+            ("wikipedia_en", "wikipedia_en"),
+            ("hal",          "hal"),
+            ("arxiv",        "arxiv"),
+            ("news",         "news_rss"),
+            ("github",       "github"),
+            ("doc",          "doc"),
+        ]
+        _mode = "a" if resume else "w"
+        for cfg_key, file_key in _source_keys:
+            if config.get(cfg_key):
+                _src_files[cfg_key] = open(
+                    self.output_dir / f"{file_key}.jsonl", _mode, encoding="utf-8"
+                )
+
+        with open(output_file, _mode, encoding="utf-8") as out:
 
             # --- Wikipedia FR ---
             if config.get("wikipedia_fr") and not tracker.is_globally_full():
@@ -64,7 +82,8 @@ class ScrapingPipeline:
                     from .sources.wikipedia_fr import WikipediaFRScraper
                     scraper = WikipediaFRScraper(self.user_agent)
                     articles = scraper.scrape_all(config["wikipedia_fr"].get("max_per_category", 50))
-                    n = self._process_texts(articles, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(articles, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -81,7 +100,8 @@ class ScrapingPipeline:
                     scraper = WikipediaENScraper(self.user_agent)
                     _mpc = config["wikipedia_en"].get("max_per_category", 50)
                     articles = scraper.scrape(max_per_query=_mpc, max_per_category=_mpc)
-                    n = self._process_texts(articles, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(articles, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -97,7 +117,8 @@ class ScrapingPipeline:
                     from .sources.hal_scientific import HALScraper
                     scraper = HALScraper(self.user_agent)
                     papers = scraper.scrape(max_per_query=config["hal"].get("max_per_query", 100))
-                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -113,7 +134,8 @@ class ScrapingPipeline:
                     from .sources.arxiv import ArXivScraper
                     scraper = ArXivScraper(self.user_agent)
                     papers = scraper.scrape(max_per_query=config["arxiv"].get("max_per_query", 100))
-                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -130,7 +152,8 @@ class ScrapingPipeline:
                     scraper = NewsRSSScraper(self.user_agent)
                     langs = config["news"].get("langs", ["fr", "en"])
                     items = scraper.scrape(langs=langs)
-                    n = self._process_texts(items, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(items, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -151,9 +174,8 @@ class ScrapingPipeline:
                     languages = config["github"].get("languages", ["python", "rust"])
                     items = scraper.scrape(languages=languages,
                                           max_per_query=config["github"].get("max_per_query", 30))
-                    # GitHub retourne des snippets courts — pas de split
                     n = self._process_texts(items, out, scorer, dedup, tracker, min_score,
-                                            skip_split=True)
+                                            skip_split=True, source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} extraits retenus | {tracker.progress_bar()}")
@@ -169,10 +191,15 @@ class ScrapingPipeline:
                     from .sources.doc_scrape import DocScraper
                     scraper = DocScraper(self.user_agent)
                     docs = scraper.scrape()
-                    n = self._process_texts(docs, out, scorer, dedup, tracker, min_score)
+                    n = self._process_texts(docs, out, scorer, dedup, tracker, min_score,
+                                            source_out=_src_files.get(key))
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+
+        # Fermer les fichiers par source
+        for f in _src_files.values():
+            f.close()
 
         print("\n=== Résumé final ===")
         balance = tracker.summary()
@@ -200,6 +227,7 @@ class ScrapingPipeline:
         tracker: BalanceTracker,
         min_score: float,
         skip_split: bool = False,
+        source_out=None,
     ) -> int:
         """
         Pour chaque item, split → score → filtre → écrit en JSONL.
@@ -236,7 +264,10 @@ class ScrapingPipeline:
                     "relation_hints": hints,
                     "score": round(score, 4),
                 }
-                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+                line = json.dumps(record, ensure_ascii=False) + "\n"
+                out.write(line)
+                if source_out is not None:
+                    source_out.write(line)
                 tracker.add(hints)
                 written += 1
         return written
