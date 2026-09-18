@@ -259,9 +259,11 @@ gcn-train \
   --output model.npz
 
 # Charger un checkpoint entraîné
-# (GCNEngine reconstruit l'architecture depuis les métadonnées du .npz)
+# (GCNEngine reconstruit l'architecture depuis les métadonnées du .npz :
+#  dimensions, bidirectional, all_pairs, couches R-GCN, word embeddings.
+#  trusted=True requis — le .npz exige allow_pickle, ne charger qu'un fichier local.)
 from gcn_python import GCNEngine
-engine = GCNEngine.from_pretrained("model.npz")
+engine = GCNEngine.from_pretrained("model.npz", trusted=True)
 ```
 
 > **Voir [BENCHMARK.md](BENCHMARK.md) pour le benchmark complet de toutes les configurations testées.**

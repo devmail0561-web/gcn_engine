@@ -125,6 +125,7 @@ class GCNEngine:
         d_emb        = arch["d_emb"]
         n_rel        = arch["n_relations"]
         bidirectional = arch["bidirectional"]
+        all_pairs = bool(arch.get("all_pairs", False))
         n_rgcn_layers = int(arch.get("n_rgcn_layers", 1))
         graph_class  = arch.get("graph_class", "RGCNLayer")
 
@@ -167,6 +168,7 @@ class GCNEngine:
         pipeline = CGNPipeline(
             encoder=encoder, graph=graph, vocabulary=vocab,
             word_embedding=word_embedding, bidirectional=bidirectional,
+            all_pairs=all_pairs,
             n_rgcn_layers=n_rgcn_layers,
         )
         load_checkpoint(pipeline, checkpoint, trusted=True)

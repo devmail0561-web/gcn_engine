@@ -23,6 +23,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "d_emb":        d_emb,
         "n_relations":  n_rel,
         "bidirectional": pipeline.bidirectional,
+        "all_pairs": pipeline.all_pairs,
         "n_rgcn_layers": pipeline.n_rgcn_layers,
         "graph_class":  type(graph0).__name__,
     }

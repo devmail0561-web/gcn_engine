@@ -704,7 +704,13 @@ class CGNPipeline:
                 and d_enriched is not None
                 and d_enriched.shape[1] > self.vocabulary.d_clause):
             d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
-            for i in range(min(len(self._cached_reps), len(d_emb_slice))):
+            if len(self._cached_reps) != len(d_emb_slice):
+                raise ValueError(
+                    f"backward word_embedding : {len(d_emb_slice)} gradients pour "
+                    f"{len(self._cached_reps)} reps (cache stale — appelez forward() "
+                    "avant backward())."
+                )
+            for i in range(len(self._cached_reps)):
                 self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
             self.word_embedding.update(lr)
 
@@ -847,7 +853,12 @@ class CGNPipeline:
                 and self._cached_reps is not None
                 and d_enriched.shape[1] > self.vocabulary.d_clause):
             d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
-            for i in range(min(len(self._cached_reps), len(d_emb_slice))):
+            if len(self._cached_reps) != len(d_emb_slice):
+                raise ValueError(
+                    f"backward_accumulate word_embedding : {len(d_emb_slice)} gradients "
+                    f"pour {len(self._cached_reps)} reps (cache stale)."
+                )
+            for i in range(len(self._cached_reps)):
                 self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
             # update() appelé dans apply_accumulated_gradients() avec normalisation
 
