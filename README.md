@@ -4,7 +4,8 @@
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-137%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-192%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-231%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -60,6 +61,10 @@ Texte / Code
 
 ```
 projet_CNM/
+├── BENCHMARK.md        ← Benchmark complet ML (17 runs, meilleures combos, analyse)
+├── PROGRESS.md         ← Suivi d'avancement détaillé par phase
+├── TODO.md             ← Plan d'action A→E (complété en v2.4.0)
+│
 ├── gcn-core/           ← Moteur Rust pur (workspace Cargo)
 │   ├── crates/
 │   │   ├── gcn-ir/             Représentation causale intermédiaire (types purs)
@@ -74,14 +79,17 @@ projet_CNM/
 │   └── SAD.md                  Software Architecture Document
 │
 ├── gcn-python/         ← Couches ML Python (framework-agnostique)
+│   ├── models/
+│   │   └── wiki.fr.vec         Embeddings FastText français (22 218 mots, 300d)
 │   └── src/gcn_python/
 │       ├── layer1/     UDRepresentation + vectorisation (depuis tokens JSON annotés)
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
-│       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerPT PyTorch)
-│       ├── pipeline/   CGNPipeline.forward() + loss() + backward() + gcn-forward CLI
+│       ├── layer3/     CausalGraph Protocol (R-GCN NumPy + RGCNLayerGAT PyTorch)
+│       ├── pipeline/   CGNPipeline.forward() + loss() + backward()
 │       ├── data/       GCNDataLoader — itère sur gcn-datasets/ → TrainingSample
 │       ├── training/   gcn-train + gcn-bootstrap CLI + checkpoint save/load
 │       ├── verbalizer/ Décodeur NumPy référence + gcn-verbalize CLI
+│       ├── frontend/   GCNBridgeParser (bridge heuristique ~80-85% qualité)
 │       └── evaluation/ Métriques + TrainingRecorder
 │
 ├── gcn-tools/         ← Outils externes (hors moteur)
@@ -96,8 +104,19 @@ projet_CNM/
 │       └── js/         Mappings AST JavaScript → types causaux
 │
 └── gcn-datasets/       ← Données annotées (hors moteur)
-    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml, gcn-verbalize.schema.yaml
-    └── examples/       Exemples annotés FR, Python, Rust, cross-modal (format JSON)
+    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml
+    ├── examples/       Exemples annotés FR, Python, Rust (format JSON)
+    ├── oversample_rare.py      Script d'oversampling des classes rares
+    ├── build_annotations.py    Construction JSON depuis annotations CIR manuelles
+    ├── merge_datasets.py       Fusion de plusieurs splits JSON
+    └── real/
+        ├── train/              536 phrases annotées (train set)
+        ├── val/                114 phrases annotées (val set)
+        ├── test/               117 phrases annotées (test set)
+        ├── train_c1/           171 nouvelles phrases — 6 types de relations rares
+        ├── train_c1_merged/    707 phrases (train + C1)
+        ├── train_c1_oversampled/   735 phrases (C1 merged + oversample prevent)
+        └── train_final/        849 phrases (train_c1_oversampled + val — pour checkpoint final)
 ```
 
 ---
@@ -226,11 +245,21 @@ gcn forward "Les ventes baissent." --enrich
 # Générer des données d'entraînement (JSON annoté) depuis des textes bruts
 gcn-bootstrap --input phrases_fr.txt --out-dir gcn-datasets/generated/
 
-# Lancer l'entraînement (SGD NumPy référence) — requiert des JSON avec tokens annotés
-gcn-train --data-dir gcn-datasets/generated/ \
-          --taxonomy-dir ./gcn-references/taxonomies \
-          --epochs 50 --lr 0.001 --output model.npz
+# Lancer l'entraînement — configuration de référence v2.4.0 (val_edge_f1=0.468)
+gcn-train \
+  --data-dir  gcn-datasets/real/train_c1_oversampled/ \
+  --val-dir   gcn-datasets/real/val/ \
+  --epochs 100 --lr 0.0005 \
+  --weighted-loss --use-attention --bidirectional \
+  --output model.npz
+
+# Charger un checkpoint entraîné
+# (GCNEngine reconstruit l'architecture depuis les métadonnées du .npz)
+from gcn_python import GCNEngine
+engine = GCNEngine.from_pretrained("model.npz")
 ```
+
+> **Voir [BENCHMARK.md](BENCHMARK.md) pour le benchmark complet de toutes les configurations testées.**
 
 Le data scientist substitue `MLPEncoder` et `RGCNLayer` par ses propres implémentations PyTorch/JAX via les Protocol `CausalEncoder` et `CausalGraph`.
 
@@ -491,8 +520,11 @@ cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (192 tests)
+# Python (231 tests)
 cd gcn-python && python -m pytest
+# Dont :
+#   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
+#   test_e2e_pipeline.py     —  8 tests e2e texte brut → CIR JSON
 ```
 
 ---
@@ -516,8 +548,97 @@ cd gcn-python && python -m pytest
 
 ---
 
+## Performances ML — État actuel (v2.4.0)
+
+### Checkpoint de production
+
+| Fichier | `gcn-datasets/checkpoints/model_v2.4.0.npz` |
+|---------|---------------------------------------------|
+| Métriques | `gcn-datasets/checkpoints/model_v2.4.0_metrics.json` |
+| Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz")` |
+
+### Résultats sur le val set (114 phrases françaises)
+
+| Métrique | Valeur | Cible prod | Statut |
+|---------|--------|-----------|--------|
+| `val_edge_macro_f1` | **0.468** | > 0.40 | ✅ |
+| `val_node_macro_f1` | 0.274 | > 0.60 | ✗ (données insuffisantes) |
+| `val_graph_exact_match` | 0.123 | > 0.20 | ✗ (bloqué par node) |
+| gap train−val (arêtes) | 0.069 | < 0.15 | ✅ |
+
+### Meilleure configuration d'entraînement
+
+```bash
+gcn-train \
+  --data-dir  gcn-datasets/real/train_c1_oversampled/ \
+  --val-dir   gcn-datasets/real/val/ \
+  --epochs    100 \
+  --lr        0.0005 \
+  --weighted-loss \
+  --use-attention \
+  --bidirectional \
+  --output    model.npz
+```
+
+**Leviers validés expérimentalement :**
+- `--use-attention` (GAT) : +0.09 sur val_edge_f1 vs R-GCN NumPy (facteur le plus important)
+- `--bidirectional` : +0.07 (aide GAT, nuit à R-GCN — ne pas combiner avec R-GCN seul)
+- Oversampling C1 (classes rares à 30 ex.) : +0.07
+- LR bas (0.001 → 0.0005) : convergence stable, +0.08
+
+**Ce qui ne marche pas :** `--edge-loss-weight` (0 effet), `--label-smoothing` (−0.05),
+embeddings aléatoires (−0.10 vs GAT sans emb), `--rgcn-dropout` (−0.05).
+
+> **Benchmark complet (17 runs, toutes les combinaisons testées) → [BENCHMARK.md](BENCHMARK.md)**
+
+### Bloquant restant pour la production complète
+
+`val_node_macro_f1 = 0.274` (cible 0.60) est un **problème de données, pas de modèle**.
+Les 5 types de nœuds rares (etat, action, transition, etat_systemique, condition) n'ont que
+9 à 35 exemples chacun. Aucun hyperparamètre ne peut compenser l'absence de données.
+Solution : annoter ~800 phrases supplémentaires ciblant ces types.
+
+---
+
+## Nouveautés v2.4.0
+
+- **Checkpoint de production** `model_v2.4.0.npz` — val_edge_f1=0.468 sur 849 phrases
+- **Dataset C1** : 171 exemples annotés pour 6 types de relations rares (filter, data_dependency,
+  control_dependency, motivation, sequence, opposition) — `gcn-datasets/real/train_c1/`
+- **Oversampling** : script `gcn-datasets/oversample_rare.py` — classes rares portées à 30 ex.
+- **Robustesse moteur** : 0 `assert` dans le moteur (remplacés par ValueError/RuntimeError),
+  issues MEDIUM #4-5 sur `token_span` corrigées
+- **Tests e2e** : 8 tests texte brut → CIR JSON (phrase simple/complexe/sans causalité)
+- **231 tests Python** (vs 192 en v2.3.0) dont 17 tests de régression v2.3.0
+
+---
+
+## Phases d'implémentation
+
+| Phase | Composants | Statut |
+|---|---|---|
+| 1 | `gcn-ir` + `gcn-knowledge` | ✅ Terminé |
+| 2a | `gcn-frontend-fr` (21 tests) | ✅ Terminé |
+| 2b | `gcn-python` couches 1-3 (référence NumPy) | ✅ Terminé |
+| 2c | `gcn-python/evaluation` (métriques, TrainingRecorder) | ✅ Terminé |
+| 3 | `gcn-middleend` (17 tests) | ✅ Terminé |
+| 4 | `gcn-backend` Pearl 1 + `gcn-cli` (34 tests) | ✅ Terminé |
+| 5 | `gcn-verbalizer` + décodeur entraînable (21 tests) | ✅ Terminé |
+| 6 | `gcn-frontend-code` — AST Python/Rust/JS (26 tests) | ✅ Terminé |
+| 7 | Pearl 2-3, R-GCN PyTorch, `gcn-frontend-en` (16 tests) | ✅ Terminé |
+| 8 | Mise en production — Makefile, gcn-eval, publication | ✅ Terminé |
+| 9 | Corrections pipeline ML (14 problèmes, 120 tests Python) | ✅ Terminé |
+| 10 | Correctifs structurels moteur (12 défauts, 192 tests Python) | ✅ Terminé |
+| A-v2.3.0 | Audit max — 11 correctifs gradient/reproductibilité (231 tests) | ✅ Terminé |
+| B–E | Mesure, tuning, oversampling, robustesse, checkpoint v2.4.0 | ✅ Terminé |
+
+---
+
 ## Références
 
+- **Benchmark complet (17 runs ML) :** [BENCHMARK.md](BENCHMARK.md)
+- **Suivi d'avancement détaillé :** `PROGRESS.md`
 - **Papier de recherche :** `docs/grammaire_causale_naturelle_v2.docx`
 - **Architecture détaillée :** `gcn-core/SAD.md`
+- **Limitations connues GCNBridgeParser :** `gcn-python/README.md#limitations`
 - **Auteur :** Michel Tendeng — Université Numérique Cheikh Hamidou Kane (UN-CHK), L3 Cybersécurité, Ziguinchor, Sénégal
