@@ -3,12 +3,15 @@ from __future__ import annotations
 import time
 import requests
 from ._net import retry_get as _retry_get
+from ..config.loader import get_source_config
 
 
 class HALScraper:
     """Extrait des résumés de papiers scientifiques FR+EN depuis HAL."""
 
-    BASE_URL = "https://api.archives-ouvertes.fr/search/"
+    @property
+    def BASE_URL(self) -> str:
+        return get_source_config("hal").get("api_url", "https://api.archives-ouvertes.fr/search/")
 
     QUERIES_FR: list[str] = [
         "causalité", "relation causale", "cause effet",
@@ -41,7 +44,7 @@ class HALScraper:
             "start": start,
             "fl": "docid,label_s,abstract_s,language_s,uri_s",
         }
-        resp = _retry_get(self.session, self.BASE_URL, params,
+        resp = _retry_get(self.session, self.BASE_URL, params,  # noqa: B009
                           user_agent=self.user_agent)
         if resp is None:
             print(f"  HAL '{query}': toutes tentatives échouées, skip")

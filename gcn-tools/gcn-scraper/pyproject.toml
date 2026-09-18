@@ -9,10 +9,15 @@ description = "Scraper avancé bilingue FR/EN pour le dataset GCN causal (50k ph
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
-    "trafilatura>=1.0",
+    "trafilatura>=1.6",
     "wikipedia-api>=0.6",
     "requests>=2.0",
+    "pyyaml>=6.0",
+    "ddgs>=0.1",
 ]
+
+[project.optional-dependencies]
+dev = []
 
 [project.scripts]
 gcn-scrape = "gcn_scraper.cli:scrape_cmd"

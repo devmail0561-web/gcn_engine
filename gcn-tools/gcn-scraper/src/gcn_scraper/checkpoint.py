@@ -30,6 +30,11 @@ class ScrapingCheckpoint:
     def get_count(self, source_key: str) -> int:
         return self.state.get(source_key, {}).get("count", 0)
 
+    def _save(self) -> None:
+        """Sauvegarde l'état courant (utilisé pour persister session_timestamp)."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.state, indent=2, ensure_ascii=False), encoding="utf-8")
+
     def reset(self) -> None:
         self.state = {}
         if self.path.exists():

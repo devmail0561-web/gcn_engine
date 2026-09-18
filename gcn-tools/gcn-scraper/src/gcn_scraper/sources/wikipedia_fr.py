@@ -1,91 +1,58 @@
-"""Scraper Wikipedia FR — dynamique par API Search + fallback catégories."""
+"""Scraper Wikipedia FR — dynamique : requêtes dérivées du CausalScorer, pagination, expansion."""
 from __future__ import annotations
 import time
 import requests
 from ._net import retry_get as _retry_get
+from ..filters.causal_scorer import RELATION_KEYWORDS
+from ..config.loader import get_source_config
 
 
-# Requêtes ciblées par type de relation (FR)
-RELATION_QUERIES: dict[str, list[str]] = {
-    "cause": [
-        "causalité épidémiologie maladie", "effets pollution environnement",
-        "conséquences économiques crise", "mécanisme pathologique cause",
-        "facteurs déclencheurs risque", "impact changement climatique",
-    ],
-    "enable": [
-        "facteurs favorisant croissance", "conditions permettant développement",
-        "mécanisme activation cellulaire", "catalyseur réaction chimique",
-        "technologies permettant innovation",
-    ],
-    "prevent": [
-        "prévention traitement médical", "inhibition croissance bactérienne",
-        "facteurs protection immunité", "mesures préventives risque",
-        "barrières protection environnement",
-    ],
-    "condition": [
-        "conditions nécessaires application loi", "règlement juridique condition",
-        "critères admissibilité procédure", "exigences réglementaires contrat",
-        "dispositions légales françaises",
-    ],
-    "concession": [
-        "bien que résultats contradictoires", "malgré progrès difficultés persistantes",
-        "paradoxe économique social", "controverse scientifique débat",
-        "limites méthode scientifique",
-    ],
-    "sequence": [
-        "protocole expérimental étapes", "processus chronologique historique",
-        "déroulement procédure médicale", "synthèse chimique étapes",
-        "algorithme instructions séquence",
-    ],
-    "motivation": [
-        "objectifs politique économique", "raisons décision gouvernement",
-        "motivations comportement psychologie", "stratégie entreprise objectifs",
-        "enjeux transition écologique",
-    ],
-    "opposition": [
-        "opposition théories scientifiques", "débat philosophique contradictions",
-        "controverse historique interprétation", "courants opposés sociologie",
-    ],
-    "data_dependency": [
-        "apprentissage automatique données entraînement", "algorithme réseau neuronal",
-        "modèle statistique paramètres", "traitement données informatique",
-        "intelligence artificielle jeu de données",
-    ],
-    "control_dependency": [
-        "architecture logicielle systèmes", "gestion processus informatique",
-        "contrôle exécution programme", "système embarqué temps réel",
-        "orchestration microservices",
-    ],
-}
+def _build_queries(lang: str) -> dict[str, list[str]]:
+    """Construit les requêtes de recherche depuis les mots-clés du CausalScorer.
 
-# Catégories de secours (fallback phase 2)
-FALLBACK_CATEGORIES: list[str] = [
-    "Épidémiologie", "Médecine", "Chimie", "Informatique",
-    "Économie", "Psychologie", "Algorithme", "Droit_français",
-    "Sciences_sociales", "Géologie",
-]
-
-WIKI_API = "https://fr.wikipedia.org/w/api.php"
+    Combine des paires de mots-clés pour former des requêtes précises — pas de listes dupliquées.
+    """
+    queries: dict[str, list[str]] = {}
+    for relation, kw_dict in RELATION_KEYWORDS.items():
+        kws = kw_dict.get(lang, [])
+        if not kws:
+            continue
+        q_list: list[str] = []
+        for i in range(0, len(kws), 2):
+            if i + 1 < len(kws):
+                q_list.append(f"{kws[i]} {kws[i + 1]}")
+            else:
+                q_list.append(kws[i])
+        queries[relation] = q_list[:6]
+    return queries
 
 
 class WikipediaFRScraper:
-    """Scraper Wikipedia FR — dynamique par API Search + fallback catégories."""
+    """Scraper Wikipedia FR — dynamique par API Search + expansion catégories + pagination."""
 
     def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+        self._cfg = get_source_config("wikipedia_fr")
+        self._api_url: str = self._cfg.get("api_url", "https://fr.wikipedia.org/w/api.php")
+        self._article_base: str = self._cfg.get("article_base_url", "https://fr.wikipedia.org/wiki/")
+        self._cat_prefix: str = self._cfg.get("category_prefix", "Catégorie")
+        self._delay: float = float(self._cfg.get("rate_limit_delay", 0.3))
+        self._max_chars: int = int(self._cfg.get("max_chars_per_article", 5000))
+        self._page_limit: int = int(self._cfg.get("pagination_limit", 50))
+        self._fallback_cats: list[str] = self._cfg.get("fallback_categories", [])
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
+    def _article_url(self, title: str) -> str:
+        return self._article_base + title.replace(" ", "_")
+
     def search_articles(self, query: str, max_results: int = 30) -> list[str]:
-        """Recherche d'articles via l'API search Wikipedia FR."""
+        """Recherche simple (une page)."""
         params = {
-            "action": "query",
-            "list": "search",
-            "srsearch": query,
-            "srlimit": min(max_results, 50),
-            "srnamespace": 0,
-            "format": "json",
+            "action": "query", "list": "search",
+            "srsearch": query, "srlimit": min(max_results, 50),
+            "srnamespace": 0, "format": "json",
         }
-        resp = _retry_get(self.session, WIKI_API, params)
+        resp = _retry_get(self.session, self._api_url, params)
         if resp is None:
             return []
         try:
@@ -93,27 +60,75 @@ class WikipediaFRScraper:
         except Exception:
             return []
 
-    def get_article_text(self, title: str, max_chars: int = 5000) -> str | None:
-        """Récupère le texte extrait d'un article Wikipedia FR."""
+    def search_articles_paginated(self, query: str, max_total: int = 60) -> list[str]:
+        """Recherche paginée — parcourt plusieurs pages de résultats."""
+        titles: list[str] = []
+        offset = 0
+        limit = min(self._page_limit, max_total)
+        while len(titles) < max_total:
+            params = {
+                "action": "query", "list": "search",
+                "srsearch": query, "srlimit": limit,
+                "sroffset": offset, "srnamespace": 0, "format": "json",
+            }
+            resp = _retry_get(self.session, self._api_url, params)
+            if resp is None:
+                break
+            try:
+                data = resp.json()
+                hits = data.get("query", {}).get("search", [])
+                if not hits:
+                    break
+                titles.extend(h["title"] for h in hits)
+                if "continue" not in data:
+                    break
+                offset += len(hits)
+            except Exception:
+                break
+            time.sleep(self._delay)
+        return titles[:max_total]
+
+    def get_article_text(self, title: str, max_chars: int | None = None) -> str | None:
+        """Récupère le texte extrait d'un article."""
+        chars = max_chars or self._max_chars
         params = {
-            "action": "query",
-            "titles": title,
-            "prop": "extracts",
-            "explaintext": True,
-            "exsectionformat": "plain",
-            "format": "json",
+            "action": "query", "titles": title,
+            "prop": "extracts", "explaintext": True,
+            "exsectionformat": "plain", "format": "json",
         }
-        resp = _retry_get(self.session, WIKI_API, params)
+        resp = _retry_get(self.session, self._api_url, params)
         if resp is None:
             return None
         try:
             for page in resp.json().get("query", {}).get("pages", {}).values():
                 text = page.get("extract", "")
                 if text and len(text) > 100:
-                    return text[:max_chars]
+                    return text[:chars]
         except Exception:
             pass
         return None
+
+    def get_article_categories(self, title: str) -> list[str]:
+        """Récupère les catégories d'un article — pour l'expansion dynamique."""
+        params = {
+            "action": "query", "titles": title,
+            "prop": "categories", "cllimit": 10, "format": "json",
+        }
+        resp = _retry_get(self.session, self._api_url, params)
+        if resp is None:
+            return []
+        try:
+            for page in resp.json().get("query", {}).get("pages", {}).values():
+                return [
+                    c["title"].split(":")[-1]
+                    for c in page.get("categories", [])
+                    if "stub" not in c["title"].lower()
+                    and "maintenance" not in c["title"].lower()
+                    and "portail" not in c["title"].lower()
+                ]
+        except Exception:
+            pass
+        return []
 
     def get_category_articles(self, category: str, max_articles: int = 30) -> list[str]:
         """Articles d'une catégorie ; descend dans les sous-catégories (niveau 1) si vide."""
@@ -121,7 +136,7 @@ class WikipediaFRScraper:
         if not titles:
             subcats = self._category_members(category, 20, ns=14)
             for subcat in subcats[:5]:
-                name = subcat.replace("Catégorie:", "").replace("Category:", "")
+                name = subcat.replace(f"{self._cat_prefix}:", "").replace("Category:", "")
                 titles.extend(self._category_members(name, 10, ns=0))
                 if len(titles) >= max_articles:
                     break
@@ -129,14 +144,11 @@ class WikipediaFRScraper:
 
     def _category_members(self, category: str, limit: int, ns: int) -> list[str]:
         params = {
-            "action": "query",
-            "list": "categorymembers",
-            "cmtitle": f"Catégorie:{category}",
-            "cmlimit": min(limit, 500),
-            "cmnamespace": ns,
-            "format": "json",
+            "action": "query", "list": "categorymembers",
+            "cmtitle": f"{self._cat_prefix}:{category}",
+            "cmlimit": min(limit, 500), "cmnamespace": ns, "format": "json",
         }
-        resp = _retry_get(self.session, WIKI_API, params)
+        resp = _retry_get(self.session, self._api_url, params)
         if resp is None:
             return []
         try:
@@ -148,17 +160,63 @@ class WikipediaFRScraper:
         except Exception:
             return []
 
-    def scrape(self, max_per_query: int = 20, max_per_category: int = 20) -> list[dict]:
-        """Scrape dynamique : API Search par relation type + fallback catégories."""
+    def scrape(
+        self,
+        max_per_query: int | None = None,
+        max_per_category: int | None = None,
+        tracker=None,
+    ) -> list[dict]:
+        """
+        Scraping dynamique : requêtes dérivées du CausalScorer + expansion catégories.
+
+        tracker : BalanceTracker optionnel — s'arrête automatiquement quand quota atteint.
+        """
+        cfg_max = int(self._cfg.get("max_results_per_query", 20))
+        mq = max_per_query or cfg_max
+        mc = max_per_category or cfg_max
+
+        queries = _build_queries("fr")
         seen: set[str] = set()
+        discovered_cats: set[str] = set()
         results: list[dict] = []
 
-        # Phase 1 — recherche par type de relation
-        for relation, queries in RELATION_QUERIES.items():
-            for query in queries:
-                print(f"  FR/search [{relation}]: '{query[:40]}'...", end=" ", flush=True)
+        # Phase 1 — recherche paginée par type de relation
+        for relation, query_list in queries.items():
+            if tracker and tracker.is_full([relation]):
+                print(f"  FR/{relation}: quota atteint, skip")
+                continue
+            for query in query_list:
+                print(f"  FR/search [{relation}]: '{query[:42]}'...", end=" ", flush=True)
+                titles = self.search_articles_paginated(query, max_total=mq * 2)
                 count = 0
-                for title in self.search_articles(query, max_per_query):
+                for title in titles:
+                    if title in seen:
+                        continue
+                    if tracker and tracker.is_full([relation]):
+                        break
+                    seen.add(title)
+                    text = self.get_article_text(title)
+                    if text:
+                        for cat in self.get_article_categories(title)[:3]:
+                            discovered_cats.add(cat)
+                        results.append({
+                            "title": title, "text": text, "lang": "fr",
+                            "source": f"wikipedia_fr:{relation}",
+                            "url": self._article_url(title),
+                            "relation_hint": relation,
+                        })
+                        count += 1
+                    time.sleep(self._delay)
+                print(f"{count} articles")
+                time.sleep(self._delay * 2)
+
+        # Phase 2 — expansion dynamique depuis les catégories découvertes
+        if discovered_cats and (tracker is None or not tracker.is_globally_full()):
+            print(f"  FR/expansion: {len(discovered_cats)} catégories découvertes...")
+            for cat in list(discovered_cats)[:20]:
+                if tracker and tracker.is_globally_full():
+                    break
+                for title in self.get_category_articles(cat, max_articles=8):
                     if title in seen:
                         continue
                     seen.add(title)
@@ -166,31 +224,31 @@ class WikipediaFRScraper:
                     if text:
                         results.append({
                             "title": title, "text": text, "lang": "fr",
-                            "source": f"wikipedia_fr:{relation}",
-                            "url": f"https://fr.wikipedia.org/wiki/{title.replace(' ', '_')}",
-                            "relation_hint": relation,
+                            "source": f"wikipedia_fr:expanded:{cat}",
+                            "url": self._article_url(title),
                         })
-                        count += 1
-                    time.sleep(0.3)
-                print(f"{count} articles")
-                time.sleep(0.5)
+                    time.sleep(self._delay)
+                time.sleep(self._delay * 2)
 
-        # Phase 2 — fallback catégories
-        print("  FR/fallback catégories...")
-        for cat in FALLBACK_CATEGORIES:
-            for title in self.get_category_articles(cat, max_per_category):
-                if title in seen:
-                    continue
-                seen.add(title)
-                text = self.get_article_text(title)
-                if text:
-                    results.append({
-                        "title": title, "text": text, "lang": "fr",
-                        "source": f"wikipedia_fr:cat:{cat}",
-                        "url": f"https://fr.wikipedia.org/wiki/{title.replace(' ', '_')}",
-                    })
-                time.sleep(0.3)
-            time.sleep(0.5)
+        # Phase 3 — fallback catégories de config
+        if not tracker or not tracker.is_globally_full():
+            print("  FR/fallback catégories...")
+            for cat in self._fallback_cats:
+                if tracker and tracker.is_globally_full():
+                    break
+                for title in self.get_category_articles(cat, mc):
+                    if title in seen:
+                        continue
+                    seen.add(title)
+                    text = self.get_article_text(title)
+                    if text:
+                        results.append({
+                            "title": title, "text": text, "lang": "fr",
+                            "source": f"wikipedia_fr:cat:{cat}",
+                            "url": self._article_url(title),
+                        })
+                    time.sleep(self._delay)
+                time.sleep(self._delay * 2)
 
         print(f"  FR total: {len(results)} articles ({len(seen)} uniques)")
         return results

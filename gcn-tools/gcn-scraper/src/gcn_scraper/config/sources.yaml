@@ -1,0 +1,113 @@
+# Configuration des sources de scraping — aucune URL dans le code source
+sources:
+  wikipedia_fr:
+    api_url: "https://fr.wikipedia.org/w/api.php"
+    article_base_url: "https://fr.wikipedia.org/wiki/"
+    lang: "fr"
+    category_prefix: "Catégorie"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    enabled: true
+    fallback_categories:
+      - "Épidémiologie"
+      - "Médecine"
+      - "Chimie"
+      - "Informatique"
+      - "Économie"
+      - "Psychologie"
+      - "Algorithme"
+      - "Droit_français"
+      - "Sciences_sociales"
+      - "Géologie"
+      - "Pharmacologie"
+      - "Biologie"
+
+  wikipedia_en:
+    api_url: "https://en.wikipedia.org/w/api.php"
+    article_base_url: "https://en.wikipedia.org/wiki/"
+    lang: "en"
+    category_prefix: "Category"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    enabled: true
+    fallback_categories:
+      - "Epidemiology"
+      - "Medicine"
+      - "Chemistry"
+      - "Computer_science"
+      - "Economics"
+      - "Psychology"
+      - "Algorithms"
+      - "Law"
+      - "Ecology"
+      - "Physics"
+      - "Pharmacology"
+      - "Biology"
+
+  hal:
+    api_url: "https://api.archives-ouvertes.fr/search/"
+    lang: "fr"
+    max_per_query: 100
+    rate_limit_delay: 1.0
+    enabled: true
+
+  arxiv:
+    api_url: "http://export.arxiv.org/api/query"
+    lang: "en"
+    max_per_query: 100
+    rate_limit_delay: 3.0
+    enabled: true
+
+  news_rss:
+    rate_limit_delay: 1.0
+    enabled: true
+    feeds:
+      fr:
+        - name: "lemonde_sciences"
+          url: "https://www.lemonde.fr/sciences/rss_full.xml"
+        - name: "lemonde_planete"
+          url: "https://www.lemonde.fr/planete/rss_full.xml"
+        - name: "lemonde_economie"
+          url: "https://www.lemonde.fr/economie/rss_full.xml"
+        - name: "lemonde_politique"
+          url: "https://www.lemonde.fr/politique/rss_full.xml"
+        - name: "liberation_societe"
+          url: "https://www.liberation.fr/arc/outboundfeeds/rss/?outputType=xml"
+        - name: "lefigaro_sante"
+          url: "https://www.lefigaro.fr/rss/figaro_sante.xml"
+        - name: "lefigaro_sciences"
+          url: "https://www.lefigaro.fr/rss/figaro_sciences.xml"
+      en:
+        - name: "guardian_science"
+          url: "https://www.theguardian.com/science/rss"
+        - name: "guardian_environment"
+          url: "https://www.theguardian.com/environment/rss"
+        - name: "guardian_technology"
+          url: "https://www.theguardian.com/technology/rss"
+        - name: "guardian_world"
+          url: "https://www.theguardian.com/world/rss"
+        - name: "bbc_science"
+          url: "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+        - name: "bbc_technology"
+          url: "http://feeds.bbci.co.uk/news/technology/rss.xml"
+        - name: "reuters_science"
+          url: "https://feeds.reuters.com/reuters/scienceNews"
+        - name: "reuters_technology"
+          url: "https://feeds.reuters.com/reuters/technologyNews"
+
+  web_search:
+    enabled: true
+    max_results_per_query: 15
+    max_chars_per_page: 5000
+    rate_limit_delay: 1.0
+    engines:
+      - duckduckgo
+      - openalex
+      - pubmed
+    openalex_url: "https://api.openalex.org/works"
+    pubmed_search_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    pubmed_fetch_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"

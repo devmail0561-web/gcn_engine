@@ -4,10 +4,13 @@ import time
 import xml.etree.ElementTree as ET
 import requests
 from ._net import retry_get as _retry_get
+from ..config.loader import get_source_config
 
 
 class ArXivScraper:
-    BASE_URL = "http://export.arxiv.org/api/query"
+    @property
+    def BASE_URL(self) -> str:
+        return get_source_config("arxiv").get("api_url", "http://export.arxiv.org/api/query")
 
     QUERIES: dict[str, list[str]] = {
         "cause": [

@@ -5,28 +5,20 @@ import time
 import xml.etree.ElementTree as ET
 import requests
 from ._net import retry_get as _retry_get
+from ..config.loader import get_source_config
 
-RSS_SOURCES: dict[str, list[tuple[str, str]]] = {
-    "fr": [
-        ("lemonde_science",  "https://www.lemonde.fr/sciences/rss_full.xml"),
-        ("lemonde_planete",  "https://www.lemonde.fr/planete/rss_full.xml"),
-        ("lemonde_economie", "https://www.lemonde.fr/economie/rss_full.xml"),
-        ("lemonde_politique","https://www.lemonde.fr/politique/rss_full.xml"),
-        ("lefigaro_sante",   "https://www.lefigaro.fr/rss/figaro_sante.xml"),
-        ("lefigaro_sciences","https://www.lefigaro.fr/rss/figaro_sciences.xml"),
-        ("liberation_societe","https://www.liberation.fr/arc/outboundfeeds/rss/?outputType=xml"),
-    ],
-    "en": [
-        ("guardian_science",     "https://www.theguardian.com/science/rss"),
-        ("guardian_environment", "https://www.theguardian.com/environment/rss"),
-        ("guardian_technology",  "https://www.theguardian.com/technology/rss"),
-        ("guardian_world",       "https://www.theguardian.com/world/rss"),
-        ("bbc_science",          "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml"),
-        ("bbc_technology",       "http://feeds.bbci.co.uk/news/technology/rss.xml"),
-        ("reuters_science",      "https://feeds.reuters.com/reuters/scienceNews"),
-        ("reuters_tech",         "https://feeds.reuters.com/reuters/technologyNews"),
-    ],
-}
+
+def _load_rss_sources() -> dict[str, list[tuple[str, str]]]:
+    """Charge les URLs RSS depuis la config — aucune URL hardcodée."""
+    cfg = get_source_config("news_rss")
+    feeds_cfg = cfg.get("feeds", {})
+    return {
+        lang: [(f["name"], f["url"]) for f in feeds]
+        for lang, feeds in feeds_cfg.items()
+    }
+
+
+RSS_SOURCES: dict[str, list[tuple[str, str]]] = _load_rss_sources()
 
 _TAG_RE = re.compile(r'<[^>]+>')
 _SPACE_RE = re.compile(r'\s+')
