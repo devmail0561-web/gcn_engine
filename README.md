@@ -619,6 +619,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
   issues MEDIUM #4-5 sur `token_span` corrigées
 - **Tests e2e** : 8 tests texte brut → CIR JSON (phrase simple/complexe/sans causalité)
 - **231 tests Python** (vs 192 en v2.3.0) dont 17 tests de régression v2.3.0
+- **Audit 1** : 7 correctifs scripts post-restructuration — `build_annotations.py`, `oversample_rare.py`, `generate_dataset.py`, `make_verbalize_pairs.py`, `merge_datasets.py`
 
 ---
 
@@ -640,6 +641,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 | 10 | Correctifs structurels moteur (12 défauts, 192 tests Python) | ✅ Terminé |
 | A-v2.3.0 | Audit max — 11 correctifs gradient/reproductibilité (231 tests) | ✅ Terminé |
 | B–E | Mesure, tuning, oversampling, robustesse, checkpoint v2.4.0 | ✅ Terminé |
+| Audit 1 | 7 correctifs scripts post-restructuration (paths, spans, edges) | ✅ Terminé |
 
 ---
 

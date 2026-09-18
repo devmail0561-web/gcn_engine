@@ -271,5 +271,16 @@ Par ordre de priorité et impact attendu :
 3. **[TECHNIQUE — MOYEN]** Tester embeddings wiki.fr.vec 50d (troncature ou PCA depuis 300d).
    Impact attendu si les pré-entraînés généralisent mieux que les aléatoires : val_edge_f1 0.468 → 0.52+.
 
-4. **[TECHNIQUE — FAIBLE]** Binding PyO3 pour remplacer GCNBridgeParser subprocess.
+4. **[TECHNIQUE — MOYEN]** Entraîner le `TrainableDecoder` (CIR → texte) via `gcn-train --train-decoder`.
+   La feature est planifiée (plan approuvé) ; les données existent déjà dans `--data-dir`.
+
+5. **[TECHNIQUE — FAIBLE]** Binding PyO3 pour remplacer GCNBridgeParser subprocess.
    Impact : latence d'inférence, pas les métriques ML.
+
+---
+
+## 8. Historique des audits
+
+| Audit | Date | Scope | Findings | Corrigés |
+|-------|------|-------|----------|---------|
+| Audit 1 | 2026-09-18 | Diff de session (scripts, tests, moteur) | 7 (2 critiques, 2 médium, 2 bas, 1 info) | ✅ 7/7 |

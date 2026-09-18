@@ -27,9 +27,12 @@ Phase 15 ████████████████████  100%  Val
 Phase A2 ████████████████████  100%  Audit max — 11 correctifs gradient, reproductibilité, perf (v2.3.0)
 Phase B  ████████████████████  100%  Mesure d'impact des correctifs v2.3.0 (référence prod)
 Phase C  ████████████████████  100%  Hyperparameter tuning + oversampling → val_edge_f1 > 0.40
+Phase D  ████████████████████  100%  Robustesse moteur (assert→exceptions, spans, e2e, docs)
+Phase E  ████████████████████  100%  Checkpoint v2.4.0 — val_edge_f1=0.468, 849 phrases
+Audit 1  ████████████████████  100%  7 correctifs scripts post-restructuration
 ```
 
-**Tests Python : 223 / 223 passent** (`pytest gcn-python/tests/`, 4 skipped stables)
+**Tests Python : 231 / 231 passent** (`pytest gcn-python/tests/`, 4 skipped stables)
 **Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
@@ -730,3 +733,25 @@ gcn-train --data-dir gcn-datasets/real/train_final/ \
 | `val_node_macro_f1` | 0.274 | > 0.60 | ✗ bloquant données |
 | `val_graph_exact_match` | 0.123 | > 0.20 | ✗ bloqué par node |
 | gap train−val (edge) | 0.069 | < 0.15 | ✅ |
+
+---
+
+## Audit 1 — Correctifs scripts post-restructuration ✅
+
+**Date :** 2026-09-18
+**Déclencheur :** `/code-review --level max` sur le diff de session.
+**Scope audité :** fichiers modifiés/créés dans la session (scripts gcn-datasets/, tests Python, moteur).
+
+### Findings et correctifs
+
+| Priorité | Fichier | Ligne | Défaut | Correctif |
+|----------|---------|-------|--------|-----------|
+| CRITIQUE | `build_annotations.py` | 30, 35 | `parents[1]` → `gcn-datasets/` après déplacement dans `scripts/` → ImportError | `parents[2]` (×2) |
+| HAUTE | `oversample_rare.py` | 87–90 | `__main__` hardcodé avec chemins obsolètes → FileNotFoundError | Remplacé par `argparse --input/--output` |
+| MÉDIUM | `generate_dataset.py` | 921 | n003 créé avec `VERB_c_token_id or 1` → span=[1,1] pour enable/prevent (40% des cas) | Conditionnel sur `VERB_c_token_id is not None` |
+| MÉDIUM | `make_verbalize_pairs.py` | 29 | `node_id_map.get(..., 0)` → arête silencieusement corrompue si endpoint inconnu | Retourne `None`, filtré dans l'appelant |
+| BASSE | `oversample_rare.py` | 54 | `max(factors)` → overshoot pour les relations moins rares co-présentes | `min(factors)` par-relation |
+| BASSE | `generate_dataset.py` | 996 | Span inversée `[5,3]` passe la validation | Ajout du contrôle `span[0] > span[1]` |
+| INFO | `merge_datasets.py` | 7 | Docstring référençant les anciens chemins pré-restructuration | Chemins mis à jour vers `augmented/` |
+
+**0 régression** — 231 tests verts après correctifs.
