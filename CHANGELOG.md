@@ -5,6 +5,31 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.3.0] — 2026-09-18
+
+### Audit max — 11 correctifs gradient, reproductibilité, performance
+
+**Correctifs critiques (gradient silencieusement incorrect) :**
+- `cgnp.py` + `reference.py` : `backward_edge_dx` ajouté — gradient de la loss arête propagé vers `d_enriched[src_i]`/`d_enriched[dst_i]` ; R-GCN reçoit enfin le signal arête (closed-loop réel, pas ouvert)
+- `cgnp.py` : offsets `_cached_d_edge_base`/`_cached_d_eff` mesurés à la construction du vecteur dans `forward()` au lieu d'être recalculés dans `backward()` par formule (hardcoding fragile supprimé)
+- `gat.py` : `.detach()` retiré du dénominateur softmax — gradient d'attention correct (terme −α α^T restauré)
+- `gat.py` : `requires_grad=True` retiré du tensor zeros avant `scatter_add` — nœud autograd parasite supprimé
+- `reference.py` : dropout edge utilise `self._rng` (instance isolée) au lieu du RNG global NumPy — reproductibilité garantie par seed
+- `train.py` : `_set_training_mode` appelle `.train(mode)` sur les `nn.Module` (propagation récursive + hooks) au lieu de l'assignation directe `obj.training = mode`
+- `cgnp.py` : fallback re-run `forward_node`/`forward_edge` désactive `training` — activations déterministes
+
+**Correctifs structurels :**
+- `train.py` : `n_edge_classes = encoder.n_relation_types` — cohérent avec `--bidirectional` (11 ou 22 classes)
+- `features.py` : 4 lemmes dupliqués supprimés de `_CONNECTOR_LEMMAS_RAW` (`"quoique"`, `"cependant"`, `"si"`, `"chez"`)
+
+**Performance :**
+- `layer3/reference.py` : agrégation R-GCN forward vectorisée avec `np.add.at` — symétrique au backward, ~10–100× plus rapide sur grands datasets
+- `train.py` : deux passes dataset (class weights + vocab embeddings) fusionnées en une seule itération
+
+**Tests :** 206 passent (4 skipped stables)
+
+---
+
 ## [2.2.0] — 2026-09-17
 
 ### Phase 16 — Spécialisation moteur, suppression dérapages LLM

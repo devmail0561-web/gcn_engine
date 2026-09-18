@@ -24,9 +24,10 @@ Phase 12 ████████████████████  100%  Sup
 Phase 13 ████████████████████  100%  Edge classification closed-loop + backward edges
 Phase BF ████████████████████  100%  Analyse profonde + correctifs bugs + conformité arch
 Phase 15 ████████████████████  100%  Val set, régularisation, suppression gcn_causal_type, pipeline UD
+Phase A2 ████████████████████  100%  Audit max — 11 correctifs gradient, reproductibilité, perf (v2.3.0)
 ```
 
-**Tests Python : 206 / 206 passent** (`pytest gcn-python/tests/`, 2 skipped stables)
+**Tests Python : 206 / 206 passent** (`pytest gcn-python/tests/`, 4 skipped stables)
 **Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
