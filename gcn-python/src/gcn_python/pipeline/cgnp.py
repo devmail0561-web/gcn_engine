@@ -219,18 +219,21 @@ class CGNPipeline:
             # n'indexent pas les relations, argmax en ferait un bug sémantique)
             edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
 
-            self._cached_edge_index = edge_index_rgcn
-            self._cached_edge_type_idxs = edge_type_idxs_rgcn
-
             # Message passing bidirectionnel
             if self.bidirectional and edge_index_rgcn.shape[1] > 0:
                 rev_index = edge_index_rgcn[[1, 0], :]
-                rev_types = edge_type_idxs_rgcn + len(self.relation_types)
+                rev_types = edge_type_idxs_rgcn.copy()  # même type, direction inversée — évite débordement n_relations
                 edge_index_mp = np.concatenate([edge_index_rgcn, rev_index], axis=1)
                 edge_types_mp = np.concatenate([edge_type_idxs_rgcn, rev_types])
             else:
                 edge_index_mp = edge_index_rgcn
                 edge_types_mp = edge_type_idxs_rgcn
+
+            # Cache la version message-passing (avec inverses si bidirectionnel) :
+            # c'est elle que le R-GCN a vue au forward, donc elle que le
+            # backward doit rejouer (asymétrie forward/backward corrigée).
+            self._cached_edge_index = edge_index_mp
+            self._cached_edge_type_idxs = edge_types_mp
 
             for _layer in self._graph_layers:
                 enriched = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
@@ -443,6 +446,14 @@ class CGNPipeline:
         Si gold_surface est fourni et que le décodeur a produit des logits (forward()),
         la loss décodeur est ajoutée au total et son gradient est caché pour backward().
         """
+        if not np.isfinite(edge_loss_weight) or edge_loss_weight < 0:
+            raise ValueError(
+                f"edge_loss_weight doit être un nombre fini >= 0 (reçu {edge_loss_weight!r})."
+            )
+        if not (0.0 <= label_smoothing < 1.0) or not np.isfinite(label_smoothing):
+            raise ValueError(
+                f"label_smoothing doit être dans [0, 1[ (reçu {label_smoothing!r})."
+            )
         if len(node_logits) != len(gold_node):
             raise ValueError(
                 f"Désalignement node_logits/gold_node : {len(node_logits)} logits vs {len(gold_node)} labels"
@@ -462,6 +473,16 @@ class CGNPipeline:
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
 
         total_loss = node_loss + edge_loss_weight * edge_loss
+        # Le gradient arêtes suit la même pondération que la loss affichée
+        # (sans quoi edge_loss_weight=0 afficherait 0 tout en entraînant).
+        d_edge = d_edge * edge_loss_weight
+        if not np.isfinite(total_loss):
+            import warnings as _w3
+            _w3.warn(
+                f"loss non finie ({total_loss!r}) — vérifiez les logits/labels "
+                "(overflow softmax, labels corrompus ?).",
+                UserWarning, stacklevel=2,
+            )
 
         # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
@@ -484,6 +505,8 @@ class CGNPipeline:
         d_node_logits: np.ndarray,  # (N, 7)
         d_edge_logits: np.ndarray,  # (E, 11)
         lr: float = 0.01,
+        weight_decay: float = 0.0,
+        max_grad_norm: float | None = None,
     ) -> None:
         """
         Rétropropagation + SGD sur l'implémentation de référence NumPy.
@@ -497,7 +520,38 @@ class CGNPipeline:
         Contrainte d'interface : si l'encodeur n'implémente pas backward_node_dx,
         les poids R-GCN ne peuvent pas être mis à jour (d_enriched provient du
         backward de l'encodeur). Un UserWarning est émis dans ce cas.
+
+        Les gradients doivent aligner exactement le cache du forward —
+        aucun tronquage silencieux.
         """
+        if not (np.isfinite(lr) and lr > 0):
+            raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
+        if not (np.isfinite(weight_decay) and weight_decay >= 0):
+            raise ValueError(f"weight_decay doit être >= 0 et fini (reçu {weight_decay!r}).")
+        if max_grad_norm is not None and not (np.isfinite(max_grad_norm) and max_grad_norm > 0):
+            raise ValueError(f"max_grad_norm doit être > 0 et fini (reçu {max_grad_norm!r}).")
+        if not np.all(np.isfinite(d_node_logits)):
+            import warnings as _wf
+            _wf.warn(
+                "backward() : d_node_logits non finis — mise à jour annulée.",
+                UserWarning, stacklevel=2,
+            )
+            return
+        if d_edge_logits is not None and len(d_edge_logits) > 0 and not np.all(np.isfinite(d_edge_logits)):
+            import warnings as _wf2
+            _wf2.warn(
+                "backward() : d_edge_logits non finis — mise à jour annulée.",
+                UserWarning, stacklevel=2,
+            )
+            return
+        if max_grad_norm is not None:
+            _nn = float(np.linalg.norm(d_node_logits))
+            if _nn > max_grad_norm:
+                d_node_logits = d_node_logits * (max_grad_norm / _nn)
+            if d_edge_logits is not None and len(d_edge_logits) > 0:
+                _en = float(np.linalg.norm(d_edge_logits))
+                if _en > max_grad_norm:
+                    d_edge_logits = d_edge_logits * (max_grad_norm / _en)
         if not hasattr(self.encoder, 'backward_node_dx'):
             import warnings
             warnings.warn(
@@ -516,7 +570,12 @@ class CGNPipeline:
             return
 
         N = len(vecs)
-        n = min(len(d_node_logits), N)
+        if len(d_node_logits) != N:
+            raise ValueError(
+                f"backward : {len(d_node_logits)} gradients nœuds pour {N} vecteurs "
+                "(cache stale ou mismatch — appelez forward() avant backward())."
+            )
+        n = N
         _has_node_snap = (
             hasattr(self.encoder, 'restore_node_cache')
             and self._cached_node_snapshots is not None
@@ -627,6 +686,9 @@ class CGNPipeline:
             for _layer in reversed(self._graph_layers):
                 if hasattr(_layer, 'backward_message_pass'):
                     d_curr, graph_grads = _layer.backward_message_pass(d_curr)
+                    if weight_decay > 0.0:
+                        params = _layer.parameters()
+                        graph_grads = [g + weight_decay * p for g, p in zip(graph_grads, params)]
                     _layer.update(graph_grads, lr)
                 else:
                     _w2.warn(
@@ -653,6 +715,12 @@ class CGNPipeline:
     ) -> None:
         """S10 : accumule les gradients sans appeler update. Utiliser avec apply_accumulated_gradients()."""
         if not hasattr(self.encoder, 'backward_node_dx'):
+            import warnings as _w4
+            _w4.warn(
+                "CGNPipeline.backward_accumulate() : encodeur sans backward_node_dx — "
+                "accumulation ignorée.",
+                UserWarning, stacklevel=2,
+            )
             return
 
         vecs = (self._cached_enriched_vecs
@@ -662,7 +730,12 @@ class CGNPipeline:
             return
 
         N = len(vecs)
-        n = min(len(d_node_logits), N)
+        if len(d_node_logits) != N:
+            raise ValueError(
+                f"backward_accumulate : {len(d_node_logits)} gradients nœuds pour "
+                f"{N} vecteurs (cache stale ou mismatch)."
+            )
+        n = N
         _has_node_snap = (
             hasattr(self.encoder, 'restore_node_cache')
             and self._cached_node_snapshots is not None
@@ -778,8 +851,17 @@ class CGNPipeline:
                 self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
             # update() appelé dans apply_accumulated_gradients() avec normalisation
 
-    def apply_accumulated_gradients(self, lr: float, n_samples: int = 1) -> None:
+    def apply_accumulated_gradients(self, lr: float, n_samples: int = 1, weight_decay: float = 0.0) -> None:
         """S10 : applique les gradients accumulés normalisés par n_samples."""
+        if not (np.isfinite(lr) and lr > 0):
+            raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
+        if not (np.isfinite(weight_decay) and weight_decay >= 0):
+            raise ValueError(f"weight_decay doit être >= 0 et fini (reçu {weight_decay!r}).")
+        if not isinstance(n_samples, (int, np.integer)) or int(n_samples) < 1:
+            raise ValueError(
+                f"n_samples doit être un entier >= 1 (reçu {n_samples!r})."
+            )
+        n_samples = int(n_samples)
         if self._accum_node_grads is not None and hasattr(self.encoder, 'update_node'):
             norm = [(dW / n_samples, db / n_samples) for dW, db in self._accum_node_grads]
             self.encoder.update_node(norm, lr)
@@ -788,7 +870,11 @@ class CGNPipeline:
             self.encoder.update_edge(norm, lr)
         if self._accum_rgcn_grads is not None:
             for _layer, acc_g in self._accum_rgcn_grads:
-                _layer.update([g / n_samples for g in acc_g], lr)
+                normed = [g / n_samples for g in acc_g]
+                if weight_decay > 0.0:
+                    params = _layer.parameters()
+                    normed = [g + weight_decay * p for g, p in zip(normed, params)]
+                _layer.update(normed, lr)
         if self._accum_dec_grads is not None and self.decoder is not None:
             norm_grads = [g / n_samples for g in self._accum_dec_grads]
             norm_attn = self._accum_dec_attn / n_samples
@@ -805,7 +891,10 @@ class CGNPipeline:
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - x.max(axis=-1, keepdims=True))
+    # Clip anti-overflow : logits ≳ 89 donnaient inf/inf → NaN qui empoisonnait
+    # node_type_probs → features d'arêtes → loss NaN.
+    shifted = np.clip(x - x.max(axis=-1, keepdims=True), -50.0, 50.0)
+    e = np.exp(shifted)
     return e / e.sum(axis=-1, keepdims=True)
 
 

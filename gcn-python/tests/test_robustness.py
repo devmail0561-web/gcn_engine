@@ -93,7 +93,7 @@ def test_bien_que_predit_concession():
     encoder  = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
     graph    = RGCNLayer(d_in=d_eff, d_out=d_eff)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
-    load_checkpoint(pipeline, CHECKPOINT)
+    load_checkpoint(pipeline, CHECKPOINT, trusted=True)
     pipeline.encoder.training = False
 
     src  = _make_rep("baisser", morph={"Tense": "Pres"})
@@ -134,7 +134,7 @@ def test_phrase_hors_template_produit_cir_valide():
     encoder  = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
     graph    = RGCNLayer(d_in=d_eff, d_out=d_eff)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
-    load_checkpoint(pipeline, CHECKPOINT)
+    load_checkpoint(pipeline, CHECKPOINT, trusted=True)
     pipeline.encoder.training = False
 
     src  = _make_rep("désinhiber", pos="VERB", morph={"Tense": "Pres"})

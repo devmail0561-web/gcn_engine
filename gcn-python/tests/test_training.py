@@ -200,7 +200,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
     p2 = CGNPipeline(enc2, gr2, vocab)
 
-    load_checkpoint(p2, ckpt)
+    load_checkpoint(p2, ckpt, trusted=True)
     params_loaded = p2.encoder.parameters()
 
     for orig, loaded in zip(params_orig, params_loaded):
@@ -456,4 +456,140 @@ def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipel
     p2 = CGNPipeline(enc2, gr2, vocab2)
 
     with pytest.raises(ValueError, match="Incompatibilité"):
-        load_checkpoint(p2, ckpt)
+        load_checkpoint(p2, ckpt, trusted=True)
+
+
+# ---------------------------------------------------------------------------
+# Item 5 : validation lr / isfinite / gradient clipping / weight_decay
+# ---------------------------------------------------------------------------
+
+def _make_reps_2():
+    from gcn_python.layer1.representation import UDRepresentation
+    return [
+        UDRepresentation(
+            tokens=[{"lemma": "a", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma="a", root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(0, 1),
+        ),
+        UDRepresentation(
+            tokens=[{"lemma": "b", "pos": "VERB", "dep_rel": "advcl", "morph": {}}],
+            root_lemma="b", root_pos="VERB", root_dep_rel="advcl",
+            root_morph={}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(2, 3),
+        ),
+    ]
+
+
+def test_backward_lr_validation(pipeline: CGNPipeline):
+    reps = _make_reps_2()
+    pipeline.forward(reps, "a b")
+    nl = pipeline._cached_node_logits
+    el = pipeline._cached_edge_logits
+    gn = np.zeros(len(nl), dtype=np.int64)
+    ge = np.zeros(len(el), dtype=np.int64) if el is not None else None
+    _, dn, de = pipeline.loss(nl, el, gn, ge)
+
+    with pytest.raises(ValueError, match="lr"):
+        pipeline.backward(dn, de, lr=0.0)
+    with pytest.raises(ValueError, match="lr"):
+        pipeline.backward(dn, de, lr=-1.0)
+    with pytest.raises(ValueError, match="lr"):
+        pipeline.backward(dn, de, lr=float("nan"))
+
+
+def test_backward_nonfinite_grad_warns(pipeline: CGNPipeline):
+    from gcn_python.layer1.representation import UDRepresentation
+    reps = [
+        UDRepresentation(
+            tokens=[{"lemma": "a", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma="a", root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos="NOUN",
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(0, 1),
+        ),
+    ]
+    pipeline.forward(reps, "a")
+    nl = pipeline._cached_node_logits
+    d_nan = np.full_like(nl, float("nan"))
+    d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
+
+    with pytest.warns(UserWarning, match="non finis"):
+        pipeline.backward(d_nan, d_edge, lr=0.01)
+
+
+def test_backward_grad_clip(pipeline: CGNPipeline):
+    reps = _make_reps_2()
+    pipeline.forward(reps, "x y")
+    nl = pipeline._cached_node_logits
+    el = pipeline._cached_edge_logits
+    gn = np.zeros(len(nl), dtype=np.int64)
+    ge = np.zeros(len(el), dtype=np.int64) if el is not None else None
+    _, dn, de = pipeline.loss(nl, el, gn, ge)
+
+    params_before = [p.copy() for p in pipeline.encoder.parameters()]
+    pipeline.backward(dn, de, lr=0.01, max_grad_norm=1e-6)
+    params_after = pipeline.encoder.parameters()
+    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
+
+
+def test_backward_weight_decay_changes_rgcn(pipeline: CGNPipeline):
+    reps = _make_reps_2()
+    pipeline.forward(reps, "p q")
+    nl = pipeline._cached_node_logits
+    el = pipeline._cached_edge_logits
+    gn = np.zeros(len(nl), dtype=np.int64)
+    ge = np.zeros(len(el), dtype=np.int64) if el is not None else None
+    _, dn, de = pipeline.loss(nl, el, gn, ge)
+
+    graph = pipeline._graph_layers[0]
+    pipeline.backward(dn, de, lr=0.01, weight_decay=0.1)
+
+    vocab = pipeline.vocabulary
+    pipeline2 = CGNPipeline(
+        encoder=MLPEncoder(d_clause=vocab.d_clause,
+                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0),
+        graph=RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0),
+        vocabulary=vocab,
+    )
+    pipeline2.forward(reps, "p q")
+    nl2 = pipeline2._cached_node_logits
+    el2 = pipeline2._cached_edge_logits
+    gn2 = np.zeros(len(nl2), dtype=np.int64)
+    ge2 = np.zeros(len(el2), dtype=np.int64) if el2 is not None else None
+    _, dn2, de2 = pipeline2.loss(nl2, el2, gn2, ge2)
+    pipeline2.backward(dn2, de2, lr=0.01, weight_decay=0.0)
+
+    assert not np.allclose(graph.W_r, pipeline2._graph_layers[0].W_r), \
+        "weight_decay=0.1 doit produire une mise à jour différente de weight_decay=0.0"
+
+
+# ---------------------------------------------------------------------------
+# Item 6 : backward bidirectionnel
+# ---------------------------------------------------------------------------
+
+def test_backward_bidirectional_no_crash():
+    """backward() avec bidirectional=True ne doit pas crasher."""
+    vocab = FeatureVocabulary()
+    D = vocab.d_clause
+    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    graph = RGCNLayer(d_in=D, d_out=D, seed=0)
+    p = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, bidirectional=True)
+
+    reps = _make_reps_2()
+    p.forward(reps, "r s")
+    nl = p._cached_node_logits
+    el = p._cached_edge_logits
+    gn = np.zeros(len(nl), dtype=np.int64)
+    ge = np.zeros(len(el), dtype=np.int64) if el is not None else None
+    _, dn, de = p.loss(nl, el, gn, ge)
+    p.backward(dn, de, lr=0.01)
+
+
+def test_apply_accumulated_lr_validation(pipeline: CGNPipeline):
+    with pytest.raises(ValueError, match="lr"):
+        pipeline.apply_accumulated_gradients(lr=0.0)
+    with pytest.raises(ValueError, match="lr"):
+        pipeline.apply_accumulated_gradients(lr=-0.1)

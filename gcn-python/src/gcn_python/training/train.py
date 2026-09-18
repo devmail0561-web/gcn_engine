@@ -154,7 +154,7 @@ def train_cmd(
 
     if encoder_checkpoint is not None:
         from .checkpoint import load_checkpoint
-        load_checkpoint(pipeline, encoder_checkpoint)
+        load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
     loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True)

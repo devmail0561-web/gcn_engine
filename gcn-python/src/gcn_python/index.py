@@ -48,7 +48,7 @@ def index_cmd(
 
     # Charger le moteur
     click.echo(f"Chargement du modèle depuis {checkpoint.name}...")
-    engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin)
+    engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
     engine._pipeline.encoder.training = False
 
     # Charger ou créer le graphe

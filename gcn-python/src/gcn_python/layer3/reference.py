@@ -38,6 +38,23 @@ class RGCNLayer:
         edge_index: np.ndarray,     # (2, E)
         edge_types: np.ndarray,     # (E,) int
     ) -> np.ndarray:                # (N, D_out)
+        if node_features.ndim != 2 or node_features.shape[1] != self.d_in:
+            raise ValueError(
+                f"RGCNLayer.message_pass : node_features.shape={node_features.shape} "
+                f"incompatible avec d_in={self.d_in}."
+            )
+        if edge_index.shape[0] != 2:
+            raise ValueError(
+                f"RGCNLayer.message_pass : edge_index.shape={edge_index.shape} "
+                "(attendu (2, E))."
+            )
+        if edge_index.shape[1] > 0 and (
+            edge_types.min() < 0 or edge_types.max() >= self.n_relations
+        ):
+            raise ValueError(
+                f"RGCNLayer.message_pass : edge_types hors bornes [0, {self.n_relations}[ "
+                f"(min={edge_types.min()}, max={edge_types.max()})."
+            )
         N = node_features.shape[0]
 
         # Dropout sur les features d'entrée

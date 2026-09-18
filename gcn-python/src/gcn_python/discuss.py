@@ -188,7 +188,7 @@ def run_discuss(
     engine = None
     if checkpoint and checkpoint.exists():
         try:
-            engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin)
+            engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
             engine._pipeline.encoder.training = False
         except Exception as e:
             print(f"\n  Erreur de chargement du checkpoint : {e}")

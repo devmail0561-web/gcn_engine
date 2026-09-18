@@ -310,7 +310,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
-    load_checkpoint(p2, ckpt)
+    load_checkpoint(p2, ckpt, trusted=True)
 
     assert p2.decoder is not None
     assert len(p2.decoder.parameters()) == len(dec.parameters())

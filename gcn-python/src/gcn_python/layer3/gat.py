@@ -161,6 +161,21 @@ class RGCNLayerGAT(nn.Module):
         edge_types: np.ndarray,
     ) -> np.ndarray:
         """Passe les messages avec attention et retourne les représentations enrichies."""
+        if node_features.ndim != 2 or node_features.shape[1] != self.d_in:
+            raise ValueError(
+                f"RGCNLayerGAT.message_pass : node_features.shape={node_features.shape} "
+                f"incompatible avec d_in={self.d_in}."
+            )
+        if edge_index.shape[0] != 2:
+            raise ValueError(
+                f"RGCNLayerGAT.message_pass : edge_index.shape={edge_index.shape} (attendu (2, E))."
+            )
+        if edge_index.shape[1] > 0 and (
+            int(edge_types.min()) < 0 or int(edge_types.max()) >= self.n_relations
+        ):
+            raise ValueError(
+                f"RGCNLayerGAT.message_pass : edge_types hors bornes [0, {self.n_relations}[."
+            )
         H_in = torch.as_tensor(node_features, dtype=torch.float32, device=self._device)
 
         # Dropout sur les features d'entrée

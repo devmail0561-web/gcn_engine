@@ -74,6 +74,7 @@ class GCNEngine:
         *,
         gcn_bin: str = "gcn",
         device: str = "cpu",
+        trusted: bool = False,
     ) -> "GCNEngine":
         """
         Charge un modèle depuis un checkpoint .npz et retourne un GCNEngine prêt.
@@ -81,11 +82,16 @@ class GCNEngine:
         Le checkpoint encode toute l'architecture (dimensions, bidirectionnel,
         word embeddings…) — pas besoin de spécifier l'architecture manuellement.
 
+        Sécurité : `trusted=False` par défaut refuse le chargement (le .npz
+        exige `allow_pickle=True` → exécution de pickle). Passez `trusted=True`
+        uniquement pour un checkpoint local de confiance.
+
         Parameters
         ----------
         checkpoint : chemin vers un fichier .npz produit par gcn-train
         gcn_bin    : chemin vers le binaire gcn-cli Rust (pour le parsing UD)
         device     : "cpu" ou "cuda" (pour RGCNLayerGAT PyTorch)
+        trusted    : opt-in explicite pour un fichier local de confiance
         """
         from .training.checkpoint import load_checkpoint
         from .layer1.features import FeatureVocabulary
@@ -97,6 +103,12 @@ class GCNEngine:
         checkpoint = Path(checkpoint)
         if not checkpoint.exists():
             raise FileNotFoundError(f"Checkpoint introuvable : {checkpoint}")
+        if not trusted:
+            raise RuntimeError(
+                f"Refus de charger {checkpoint.name} : checkpoint .npz non fiable par défaut "
+                "(allow_pickle requis → exécution de pickle). Relancez avec trusted=True "
+                "pour un fichier local de confiance."
+            )
 
         data = np.load(checkpoint, allow_pickle=True)
 
@@ -157,7 +169,7 @@ class GCNEngine:
             word_embedding=word_embedding, bidirectional=bidirectional,
             n_rgcn_layers=n_rgcn_layers,
         )
-        load_checkpoint(pipeline, checkpoint)
+        load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : gcn-cli si disponible, sinon bridge heuristique
         import shutil

@@ -47,11 +47,18 @@ def emit(
             "attributes": attrs,
         })
 
+    import math
     edges = []
     for src, dst, relation, confidence, negated, marker_token in edge_triples:
+        conf = float(confidence)
+        if not math.isfinite(conf):
+            raise ValueError(
+                f"emit : confidence non finie ({confidence!r}) pour l'arête "
+                f"{src}->{dst} — JSON refusé par serde Rust."
+            )
         edges.append([src, dst, {
             "relation": relation,
-            "confidence": float(confidence),
+            "confidence": conf,
             "temporal_gap": None,
             "explicit": marker_token is not None,
             "negated": negated,

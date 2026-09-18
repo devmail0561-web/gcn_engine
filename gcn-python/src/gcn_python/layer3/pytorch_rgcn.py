@@ -101,6 +101,21 @@ class RGCNLayerPT(nn.Module):
         edge_types: np.ndarray,     # (E,) int
     ) -> np.ndarray:                # (N, D_out)
         """Passe les messages sur le graphe causal et retourne les représentations enrichies."""
+        if node_features.ndim != 2 or node_features.shape[1] != self.d_in:
+            raise ValueError(
+                f"RGCNLayerPT.message_pass : node_features.shape={node_features.shape} "
+                f"incompatible avec d_in={self.d_in}."
+            )
+        if edge_index.shape[0] != 2:
+            raise ValueError(
+                f"RGCNLayerPT.message_pass : edge_index.shape={edge_index.shape} (attendu (2, E))."
+            )
+        if edge_index.shape[1] > 0 and (
+            int(edge_types.min()) < 0 or int(edge_types.max()) >= self.n_relations
+        ):
+            raise ValueError(
+                f"RGCNLayerPT.message_pass : edge_types hors bornes [0, {self.n_relations}[."
+            )
         H = torch.as_tensor(node_features, dtype=torch.float32, device=self._device)
         out = self._forward_pt(H, edge_index, edge_types)
         return out.detach().cpu().numpy()

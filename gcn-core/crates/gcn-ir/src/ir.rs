@@ -46,6 +46,9 @@ pub enum NaturalLanguage {
     Wolof,
     Arabic,
     English,
+    /// Langue indéterminée — émise par le pipeline ML Python (language-agnostic).
+    /// Le moteur ML ne reçoit jamais la langue, même à l'entraînement.
+    Und,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

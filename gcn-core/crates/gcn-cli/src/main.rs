@@ -17,8 +17,8 @@ use gcn_middleend::process as middleend_process;
                   gcn analyze  — French text → CausalIR via symbolic rules\n\
                   gcn query    — GCN-QL queries on a CausalIR\n\
                   gcn export   — Export CausalIR to JSON/DOT\n\
-                  \nML inference (trained model, production):\n\
-                  gcn forward  — text → CausalIR via trained ML pipeline (gcn-python)"
+                  \nML inference: via l'API Python (GCNEngine) ou `gcn-discuss` \
+                  (`gcn forward` retiré avec le binaire `gcn-forward`)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -58,19 +58,11 @@ enum Commands {
         #[arg(long, default_value = "dot")]
         format: ExportFormat,
     },
-    /// Run the Python ML pipeline (gcn-python) on text — Rust↔Python interface
+    /// Retirée : le binaire `gcn-forward` n'existe plus (utilisez l'API Python
+    /// `GCNEngine` ou `gcn-discuss`). Conservée pour un message d'erreur clair.
     Forward {
         /// Text to process
         text: String,
-        /// Language code
-        #[arg(long, default_value = "fr")]
-        lang: String,
-        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
-        #[arg(long, env = "GCN_TAXONOMY_DIR")]
-        taxonomy_dir: Option<PathBuf>,
-        /// Apply middleend processing on the result
-        #[arg(long)]
-        enrich: bool,
     },
 }
 
@@ -125,33 +117,16 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             println!("{output}");
         }
 
-        Commands::Forward { text, lang, taxonomy_dir, enrich } => {
-            let bin = std::env::var("GCN_PYTHON_BIN")
-                .unwrap_or_else(|_| "gcn-forward".into());
-            let mut cmd = std::process::Command::new(&bin);
-            cmd.arg("--lang").arg(&lang);
-            if let Some(dir) = &taxonomy_dir {
-                cmd.arg("--taxonomy-dir").arg(dir);
-            }
-            cmd.arg(&text);
-
-            let output = cmd.output().map_err(|e| {
-                format!("failed to run gcn-forward (is gcn-python installed?): {e}")
-            })?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(format!("gcn-forward failed: {stderr}").into());
-            }
-
-            let ir: CausalIR = serde_json::from_slice(&output.stdout)?;
-
-            if enrich {
-                let result = middleend_process(ir)?;
-                println!("{}", to_json(&result.ir)?);
-            } else {
-                println!("{}", to_json(&ir)?);
-            }
+        Commands::Forward { .. } => {
+            // `gcn-forward` a été supprimé de gcn-python (redondant avec
+            // `gcn-discuss` et l'API Python `GCNEngine`). Ne plus tenter
+            // d'exécuter un binaire inexistant (anciennement via GCN_PYTHON_BIN).
+            return Err(
+                "gcn forward a été retiré : le binaire `gcn-forward` n'existe plus. \
+                 Utilisez l'API Python (GCNEngine.from_pretrained(..., trusted=True)) \
+                 ou `gcn-discuss` pour l'inférence ML."
+                    .into(),
+            );
         }
     }
     Ok(())

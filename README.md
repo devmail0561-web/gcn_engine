@@ -231,21 +231,17 @@ gcn analyze "..." --data-dir ./gcn-references/taxonomies --format dot | dot -Tpn
 Le moteur ne dépend pas de spaCy. Il opère sur des `UDRepresentation` construites depuis des fichiers JSON annotés (format GCN-NL). La CLI prend un fichier dataset en entrée.
 
 ```bash
-# Inférence depuis un fichier JSON annoté (poids aléatoires sans --model-path)
-gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --taxonomy-dir ./gcn-references/taxonomies
+# Inférence ML via l'API Python (le binaire `gcn-forward` a été supprimé,
+# tout comme la sous-commande `gcn forward` — redondants avec `gcn-discuss`)
+python3 -c "
+from gcn_python import GCNEngine
+engine = GCNEngine.from_pretrained('model.npz', trusted=True)
+cir = engine.analyze('Les ventes baissent.')
+print(cir)
+"
 
-# Cibler une sentence spécifique
-gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --sentence-id s001
-
-# Inférence avec un modèle entraîné
-gcn-forward gcn-datasets/examples/fr_causal_basic.json \
-    --taxonomy-dir ./gcn-references/taxonomies \
-    --model-path model.npz
-
-# Via gcn-cli (interface Rust↔Python)
-gcn forward "Les ventes baissent." --enrich
+# Session interactive sur corpus
+gcn-discuss --checkpoint model.npz
 ```
 
 ### Entraîner un modèle

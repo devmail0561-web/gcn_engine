@@ -40,6 +40,10 @@ pub fn decode(ir: &CausalIR) -> Result<String, VerbalizerError> {
     stdin
         .write_all(ir_json.as_bytes())
         .map_err(VerbalizerError::ProcessSpawn)?;
+    // Fermer stdin AVANT wait : l'enfant lit jusqu'à EOF (`gcn-verbalize -`
+    // fait `sys.stdin.read()`). Sans ce drop, parent et enfant s'attendent
+    // mutuellement → deadlock systématique.
+    drop(stdin);
 
     let output = child.wait_with_output().map_err(VerbalizerError::ProcessSpawn)?;
 

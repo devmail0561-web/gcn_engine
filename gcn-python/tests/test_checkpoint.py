@@ -28,10 +28,34 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr2 = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
-    load_checkpoint(p2, ckpt)
+    load_checkpoint(p2, ckpt, trusted=True)
 
     # Vérifier que les poids PyTorch ont bien été restaurés
     W_r_after = gr2.W_r.detach().cpu().numpy()
     W_0_after = gr2.W_0.detach().cpu().numpy()
     assert np.allclose(W_r_before, W_r_after), "W_r restauré correctement"
     assert np.allclose(W_0_before, W_0_after), "W_0 restauré correctement"
+
+
+def test_checkpoint_untrusted_refused(tmp_path: Path):
+    """Sécurité : load_checkpoint refuse par défaut (pickle non fiable)."""
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
+    with pytest.raises(RuntimeError, match="non fiable"):
+        load_checkpoint(p2, ckpt)
+    # Opt-in explicite : charge normalement.
+    load_checkpoint(p2, ckpt, trusted=True)

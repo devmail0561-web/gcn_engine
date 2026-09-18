@@ -59,7 +59,21 @@ class MLPEncoder:
         n_relation_types: int = len(RELATION_TYPES),
         edge_dropout: float = 0.3,
         weight_decay: float = 0.0,
+        grad_clip: float | None = None,
     ):
+        if not (0.0 <= edge_dropout < 1.0):
+            raise ValueError(
+                f"edge_dropout doit être dans [0, 1[ (reçu {edge_dropout!r})."
+            )
+        if not np.isfinite(weight_decay) or weight_decay < 0:
+            raise ValueError(
+                f"weight_decay doit être un nombre fini >= 0 (reçu {weight_decay!r})."
+            )
+        if grad_clip is not None and (not np.isfinite(grad_clip) or grad_clip <= 0):
+            raise ValueError(
+                f"grad_clip doit être > 0 ou None (reçu {grad_clip!r})."
+            )
+        self.grad_clip = grad_clip
         rng = np.random.default_rng(seed)
         self._rng = np.random.default_rng(seed)
         self.n_node_types = n_node_types
@@ -204,7 +218,16 @@ class MLPEncoder:
         self, layers: list[_LinearLayer],
         grads: list[tuple[np.ndarray, np.ndarray]], lr: float,
     ) -> None:
+        if not np.isfinite(lr) or lr < 0:
+            raise ValueError(f"lr doit être un nombre fini >= 0 (reçu {lr!r}).")
         for layer, (dW, db) in zip(layers, grads):
+            if self.grad_clip is not None:
+                nW = float(np.linalg.norm(dW))
+                if nW > self.grad_clip:
+                    dW = dW * (self.grad_clip / nW)
+                nb = float(np.linalg.norm(db))
+                if nb > self.grad_clip:
+                    db = db * (self.grad_clip / nb)
             layer.W -= lr * dW + lr * self.weight_decay * layer.W
             layer.b -= lr * db
 

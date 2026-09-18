@@ -57,12 +57,26 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     np.savez(path, **arrays)
 
 
-def load_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
+def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False) -> None:
     """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
 
     Atomique : toutes les shapes sont validées avant toute mutation du pipeline.
     Un ValueError laisse le pipeline intact (vocabulary, encoder et graph inchangés).
+
+    Sécurité : le .npz contient des tableaux `object` (JSON d'architecture/vocab)
+    qui exigent `allow_pickle=True`, soit une exécution de pickle au chargement.
+    `trusted=False` par défaut refuse le chargement ; passez `trusted=True`
+    uniquement pour un checkpoint local de confiance (produit par votre
+    `gcn-train`). Les CLI (`gcn-train --encoder-checkpoint`, `gcn-eval`,
+    `gcn-discuss`, `gcn-index`) le passent explicitement — l'invocation vaut
+    opt-in.
     """
+    if not trusted:
+        raise RuntimeError(
+            f"Refus de charger {Path(path).name} : checkpoint .npz non fiable par défaut "
+            "(allow_pickle requis → exécution de pickle). Relancez avec trusted=True "
+            "pour un fichier local de confiance."
+        )
     data = np.load(path, allow_pickle=True)
 
     # Valider que seules les clés attendues sont présentes (détection de corruption)
