@@ -1,4 +1,8 @@
 # Configuration des sources de scraping — aucune URL dans le code source
+scraping:
+  target_total: 50000
+  min_quality: 0.3
+
 sources:
   wikipedia_fr:
     api_url: "https://fr.wikipedia.org/w/api.php"
@@ -9,6 +13,7 @@ sources:
     max_chars_per_article: 5000
     rate_limit_delay: 0.3
     pagination_limit: 50
+    budget_weight: 2.0
     enabled: true
     fallback_categories:
       - "Épidémiologie"
@@ -33,6 +38,7 @@ sources:
     max_chars_per_article: 5000
     rate_limit_delay: 0.3
     pagination_limit: 50
+    budget_weight: 2.0
     enabled: true
     fallback_categories:
       - "Epidemiology"
@@ -99,7 +105,271 @@ sources:
         - name: "reuters_technology"
           url: "https://feeds.reuters.com/reuters/technologyNews"
 
+  github:
+    api_url: "https://api.github.com/search/code"
+    api_repos_url: "https://api.github.com/search/repositories"
+    rate_limit_delay: 0.5
+    max_per_query: 30
+    enabled: true
+    languages:
+      - python
+      - rust
+      - javascript
+      - typescript
+      - java
+      - go
+    queries:
+      python:
+        - "if error raise"
+        - "if result then"
+        - "because error"
+        - "therefore return"
+        - "thus we can"
+        - "since the function"
+        - "when the value"
+        - "enables the user"
+        - "causes the error"
+        - "prevents the access"
+        - "if condition then"
+      rust:
+        - "if let Some"
+        - "match result"
+        - "unwrap because"
+        - "expect because"
+        - "therefore we"
+        - "thus the compiler"
+        - "since the trait"
+        - "when the error"
+        - "enables safety"
+        - "causes panic"
+        - "prevents undefined"
+      javascript:
+        - "if condition returns"
+        - "because callback"
+        - "therefore async"
+        - "enables the component"
+        - "causes memory leak"
+        - "prevents default"
+        - "when event fires"
+        - "since the promise"
+        - "thus the function"
+        - "if null throws"
+      typescript:
+        - "if type error"
+        - "because interface"
+        - "therefore generic"
+        - "enables type safety"
+        - "causes type mismatch"
+        - "prevents runtime error"
+        - "when undefined check"
+        - "since the type"
+        - "thus we infer"
+        - "if optional returns"
+      java:
+        - "if exception throw"
+        - "because null pointer"
+        - "therefore override"
+        - "enables polymorphism"
+        - "causes stack overflow"
+        - "prevents concurrent"
+        - "when synchronized"
+        - "since the interface"
+        - "thus we extend"
+        - "if null check"
+      go:
+        - "if err return"
+        - "because goroutine"
+        - "therefore defer"
+        - "enables concurrency"
+        - "causes deadlock"
+        - "prevents race condition"
+        - "when channel closed"
+        - "since the interface"
+        - "thus we handle"
+        - "if nil check"
+
+  doc:
+    rate_limit_delay: 0.5
+    enabled: true
+    urls:
+      python:
+        - "https://docs.python.org/3/faq/programming.html"
+        - "https://docs.python.org/3/faq/design.html"
+        - "https://docs.python.org/3/howto/functional.html"
+        - "https://docs.python.org/3/library/exceptions.html"
+        - "https://realpython.com/python-conditional-structures/"
+        - "https://realpython.com/python-errors-exceptions/"
+        - "https://realpython.com/python-thinking-processes/"
+        - "https://realpython.com/python-data-structures/"
+        - "https://realpython.com/defining-your-own-python-function/"
+        - "https://realpython.com/python-inheritance/"
+      rust:
+        - "https://doc.rust-lang.org/book/ch03-03-how-functions-work.html"
+        - "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html"
+        - "https://doc.rust-lang.org/book/ch13-01-closures.html"
+        - "https://doc.rust-lang.org/book/ch05-01-defining-structs.html"
+        - "https://doc.rust-lang.org/book/ch10-01-syntax.html"
+        - "https://doc.rust-lang.org/book/ch15-01-smart-pointers.html"
+        - "https://doc.rust-lang.org/book/ch17-01-what-is-oo.html"
+        - "https://rustbyexample.com/error.html"
+        - "https://doc.rust-lang.org/std/error/trait.Error.html"
+      javascript:
+        - "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Control_flow_and_error_handling"
+        - "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Functions"
+        - "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises"
+        - "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function"
+        - "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Loops_and_iteration"
+        - "https://javascript.info/error-handling"
+        - "https://javascript.info/async-await"
+      typescript:
+        - "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html"
+        - "https://www.typescriptlang.org/docs/handbook/2/narrowing.html"
+        - "https://www.typescriptlang.org/docs/handbook/2/functions.html"
+        - "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html"
+        - "https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html"
+      java:
+        - "https://docs.oracle.com/javase/tutorial/essential/exceptions/index.html"
+        - "https://docs.oracle.com/javase/tutorial/java/IandI/polymorphism.html"
+        - "https://docs.oracle.com/javase/tutorial/collections/intro/index.html"
+        - "https://docs.oracle.com/javase/tutorial/essential/concurrency/index.html"
+        - "https://docs.oracle.com/javase/tutorial/java/generics/index.html"
+      go:
+        - "https://go.dev/doc/effective_go"
+        - "https://go.dev/blog/error-handling-and-go"
+        - "https://go.dev/doc/faq"
+        - "https://go.dev/tour/concurrency/1"
+        - "https://pkg.go.dev/errors"
+      csharp:
+        - "https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/exceptions/"
+        - "https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/"
+        - "https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements"
+
+  wikipedia_es:
+    api_url: "https://es.wikipedia.org/w/api.php"
+    article_base_url: "https://es.wikipedia.org/wiki/"
+    lang: "es"
+    category_prefix: "Categoría"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    budget_weight: 1.0
+    enabled: true
+
+  wikipedia_de:
+    api_url: "https://de.wikipedia.org/w/api.php"
+    article_base_url: "https://de.wikipedia.org/wiki/"
+    lang: "de"
+    category_prefix: "Kategorie"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    budget_weight: 1.0
+    enabled: true
+
+  wikipedia_pt:
+    api_url: "https://pt.wikipedia.org/w/api.php"
+    article_base_url: "https://pt.wikipedia.org/wiki/"
+    lang: "pt"
+    category_prefix: "Categoria"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    budget_weight: 0.8
+    enabled: true
+
+  wikipedia_it:
+    api_url: "https://it.wikipedia.org/w/api.php"
+    article_base_url: "https://it.wikipedia.org/wiki/"
+    lang: "it"
+    category_prefix: "Categoria"
+    max_results_per_query: 20
+    max_chars_per_article: 5000
+    rate_limit_delay: 0.3
+    pagination_limit: 50
+    budget_weight: 0.8
+    enabled: true
+
+  web_search:
+    enabled: true
+    max_results_per_query: 15
+    max_chars_per_page: 5000
+    rate_limit_delay: 1.0
+    engines:
+      - duckduckgo
+      - openalex
+      - pubmed
+    openalex_url: "https://api.openalex.org/works"
+    pubmed_search_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    pubmed_fetch_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
 search_queries:
+  es:
+    - "causalidad epidemiología enfermedad"
+    - "efectos contaminación ambiente"
+    - "consecuencias económicas crisis"
+    - "condiciones necesarias ley jurídica"
+    - "aunque resultados contradictorios"
+    - "protocolo experimental pasos secuencia"
+    - "objetivos política económica"
+    - "oposición teorías científicas"
+    - "algoritmo datos aprendizaje automático"
+    - "arquitectura software sistemas control"
+    - "factores favorecen crecimiento"
+    - "prevención tratamiento médico"
+    - "mecanismos biológicos celulares"
+    - "procesos químicos reacciones síntesis"
+    - "historia eventos cronológicos causas"
+  de:
+    - "Kausalität Epidemiologie Krankheit"
+    - "Auswirkungen Umweltverschmutzung Folgen"
+    - "wirtschaftliche Folgen Krise"
+    - "notwendige Bedingungen Recht Gesetz"
+    - "obwohl Ergebnisse widersprüchlich"
+    - "experimentelles Protokoll Schritte"
+    - "politische Ziele Wirtschaft Strategie"
+    - "Gegensatz wissenschaftliche Theorien"
+    - "Algorithmus Daten maschinelles Lernen"
+    - "Softwarearchitektur Systeme Steuerung"
+    - "fördernde Faktoren Wachstum"
+    - "Prävention medizinische Behandlung"
+    - "biologische Mechanismen zellulär"
+    - "chemische Prozesse Reaktionen"
+    - "Geschichte Ereignisse chronologisch"
+  pt:
+    - "causalidade epidemiologia doença"
+    - "efeitos poluição ambiente"
+    - "consequências económicas crise"
+    - "condições necessárias lei jurídica"
+    - "embora resultados contraditórios"
+    - "protocolo experimental etapas sequência"
+    - "objetivos política económica"
+    - "oposição teorias científicas"
+    - "algoritmo dados aprendizado automático"
+    - "arquitetura software sistemas controle"
+    - "fatores favorecem crescimento"
+    - "prevenção tratamento médico"
+    - "mecanismos biológicos celulares"
+    - "processos químicos reações síntese"
+    - "história eventos cronológicos causas"
+  it:
+    - "causalità epidemiologia malattia"
+    - "effetti inquinamento ambiente"
+    - "conseguenze economiche crisi"
+    - "condizioni necessarie legge giuridica"
+    - "sebbene risultati contraddittori"
+    - "protocollo sperimentale passi sequenza"
+    - "obiettivi politica economica"
+    - "opposizione teorie scientifiche"
+    - "algoritmo dati apprendimento automatico"
+    - "architettura software sistemi controllo"
+    - "fattori favoriscono crescita"
+    - "prevenzione trattamento medico"
+    - "meccanismi biologici cellulari"
+    - "processi chimici reazioni sintesi"
+    - "storia eventi cronologici cause"
   fr:
     - "causalité épidémiologie maladie"
     - "effets pollution environnement conséquences"
@@ -143,16 +413,3 @@ search_queries:
     - "chemical processes reactions synthesis"
     - "historical events chronological causes"
 
-sources:
-  web_search:
-    enabled: true
-    max_results_per_query: 15
-    max_chars_per_page: 5000
-    rate_limit_delay: 1.0
-    engines:
-      - duckduckgo
-      - openalex
-      - pubmed
-    openalex_url: "https://api.openalex.org/works"
-    pubmed_search_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-    pubmed_fetch_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"

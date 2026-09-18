@@ -1,4 +1,4 @@
-"""CLI gcn-scrape v3 — scraping avancé bilingue FR+EN, horodaté, multi-sources."""
+"""CLI gcn-scrape v3 — scraping multilingue agnostique, horodaté, multi-sources."""
 from __future__ import annotations
 import click
 from pathlib import Path
@@ -7,88 +7,100 @@ from .pipeline import ScrapingPipeline
 
 @click.command("gcn-scrape")
 @click.option("--output-dir", required=True, type=click.Path(path_type=Path),
-              help="Répertoire de sortie (sentences.jsonl)")
+              help="Répertoire de sortie (sentences_<timestamp>.jsonl)")
 @click.option("--target-total", default=50000, show_default=True, type=int,
               help="Nombre de phrases cibles (arrêt dès que le budget global est atteint)")
 @click.option("--resume", is_flag=True, default=False,
               help="Reprend depuis le checkpoint existant (skip les sources déjà faites)")
 @click.option("--langs", default="fr,en", show_default=True,
-              help="Langues à scraper (comma-separated : fr,en)")
+              help="Langues humaines à scraper (codes ISO séparés par virgule). "
+                   "Ex: fr,en ou fr,en,es,de. Utiliser 'all' pour toutes les langues configurées.")
+@click.option("--prog-langs", default="python,rust", show_default=True,
+              help="Langages de programmation pour GitHub/doc. "
+                   "Ex: python,rust,javascript,java,go. 'all' = tous configurés, 'none' = désactiver.")
 @click.option("--min-quality", default=0.3, show_default=True, type=float,
               help="Score de qualité minimum [0-1] pour conserver une phrase")
-@click.option("--max-per-category", default=50, show_default=True, type=int,
-              help="Nb max d'articles par catégorie Wikipedia")
 @click.option("--max-per-query", default=100, show_default=True, type=int,
               help="Nb max de résultats par requête HAL/arXiv")
-@click.option("--wikipedia-fr/--no-wikipedia-fr", default=True, show_default=True)
-@click.option("--wikipedia-en/--no-wikipedia-en", default=True, show_default=True)
 @click.option("--hal/--no-hal", default=True, show_default=True)
 @click.option("--arxiv/--no-arxiv", default=True, show_default=True)
 @click.option("--news/--no-news", default=True, show_default=True)
 @click.option("--github/--no-github", default=False, show_default=True,
-              help="Scraping GitHub (nécessite un token pour dépasser le rate limit public)")
+              help="Scraping GitHub (token recommandé pour éviter le rate-limit public)")
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN",
-              help="Token GitHub (ou variable GITHUB_TOKEN)")
+              help="Token GitHub (ou variable d'env GITHUB_TOKEN)")
 @click.option("--doc/--no-doc", default=True, show_default=True)
 @click.option("--web-search/--no-web-search", default=False, show_default=True,
               help="Recherche web multi-sources (DuckDuckGo + OpenAlex + PubMed)")
-@click.option("--user-agent", default="GCN-Dataset/2.0 (research)", show_default=True)
+@click.option("--user-agent", default="GCN-Dataset/3.0 (research)", show_default=True)
 def scrape_cmd(
-    output_dir, target_total, resume, langs, min_quality,
-    max_per_category, max_per_query,
-    wikipedia_fr, wikipedia_en, hal, arxiv, news, github, github_token, doc,
+    output_dir, target_total, resume, langs, prog_langs, min_quality,
+    max_per_query, hal, arxiv, news, github, github_token, doc,
     web_search, user_agent,
 ):
     """
-    Scrape des données bilingues FR/EN pour le dataset causal GCN.
+    Scrape du texte brut multilingue pour le dataset causal GCN.
 
-    Produit sentences.jsonl dans --output-dir, avec balance automatique
-    sur les 11 types de relations du moteur GCN.
+    Sortie : sentences_<timestamp>.jsonl + un fichier par source.
+    L'annotation causale est faite séparément par le moteur GCN.
 
     Exemples :
       gcn-scrape --output-dir ./raw --target-total 50000
-      gcn-scrape --output-dir ./raw --resume --no-arxiv
-      gcn-scrape --output-dir ./raw --langs fr --no-wikipedia-en --no-arxiv
+      gcn-scrape --output-dir ./raw --resume
+      gcn-scrape --output-dir ./raw --langs fr,en,es --prog-langs python,rust,javascript
+      gcn-scrape --output-dir ./raw --langs fr --prog-langs none
+      gcn-scrape --output-dir ./raw --langs all --prog-langs all --target-total 80000
     """
-    lang_list = [l.strip() for l in langs.split(",") if l.strip()]
+    from .config.loader import get_config
+    cfg = get_config()
+
+    # Résoudre les langues humaines
+    if langs.strip().lower() == "all":
+        selected_langs = [
+            v["lang"] for k, v in cfg.get("sources", {}).items()
+            if k.startswith("wikipedia_") and v.get("enabled", True) and "lang" in v
+        ]
+    else:
+        selected_langs = [l.strip() for l in langs.split(",") if l.strip()]
+    if not selected_langs:
+        selected_langs = ["fr", "en"]
+
+    # Résoudre les langages de programmation
+    if prog_langs.strip().lower() == "none":
+        selected_prog_langs: list[str] = []
+    elif prog_langs.strip().lower() == "all":
+        selected_prog_langs = cfg.get("sources", {}).get("github", {}).get(
+            "languages", ["python", "rust"])
+    else:
+        selected_prog_langs = [l.strip() for l in prog_langs.split(",") if l.strip()]
 
     config: dict = {
         "resume": resume,
         "min_quality": min_quality,
+        "langs": selected_langs,
+        "prog_langs": selected_prog_langs,
+        "target_total": target_total,
     }
-    if wikipedia_fr:
-        config["wikipedia_fr"] = {"max_per_category": max_per_category}
-    if wikipedia_en:
-        config["wikipedia_en"] = {"max_per_category": max_per_category}
     if hal:
         config["hal"] = {"max_per_query": max_per_query}
     if arxiv:
         config["arxiv"] = {"max_per_query": max_per_query}
     if news:
-        config["news"] = {"langs": lang_list}
-    if github:
-        config["github"] = {
-            "languages": ["python", "rust"],
-            "max_per_query": 30,
-            "token": github_token,
-        }
-    if doc:
+        config["news"] = {"langs": [l for l in selected_langs if l in ("fr", "en")]}
+    if github and selected_prog_langs:
+        config["github"] = {"token": github_token}
+    if doc and selected_prog_langs:
         config["doc"] = {}
     if web_search:
         config["web_search"] = {}
-
-    # Budget proportionnel à target_total (50% fr, 50% en)
-    if target_total != 50000:
-        per_lang = max(1, target_total // 2)
-        config["budget"] = {"fr": per_lang, "en": per_lang}
 
     pipeline = ScrapingPipeline(output_dir, user_agent)
     result = pipeline.run(config)
 
     click.echo(f"\nTerminé : {result['total_written']} phrases → {result['output']} (session: {result['timestamp']})")
     click.echo("\nBalance par langue :")
-    for rel, stat in result["balance"].items():
-        click.echo(f"  {rel:<22} {stat}")
+    for lang_key, stat in result["balance"].items():
+        click.echo(f"  {lang_key:<10} {stat}")
 
 
 if __name__ == "__main__":

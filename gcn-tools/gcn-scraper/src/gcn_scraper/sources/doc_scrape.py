@@ -1,72 +1,55 @@
-"""Scraper de doc Python/Rust via trafilatura (pas besoin de token GitHub)."""
-
-import trafilatura
-import requests
+"""Scraper de documentation technique — Python/Rust/JS/TS/Java/Go/C#."""
+from __future__ import annotations
 import time
-
-
-PYTHON_URLS = [
-    "https://docs.python.org/3/faq/programming.html",
-    "https://docs.python.org/3/faq/design.html",
-    "https://docs.python.org/3/howto/functional.html",
-    "https://docs.python.org/3/library/exceptions.html",
-    "https://realpython.com/python-conditional-structures/",
-    "https://realpython.com/python-errors-exceptions/",
-    "https://realpython.com/python-thinking-processes/",
-    "https://realpython.com/python-data-structures/",
-    "https://realpython.com/defining-your-own-python-function/",
-    "https://realpython.com/python-inheritance/",
-]
-
-RUST_URLS = [
-    "https://doc.rust-lang.org/book/ch03-03-how-functions-work.html",
-    "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
-    "https://doc.rust-lang.org/book/ch13-01-closures.html",
-    "https://doc.rust-lang.org/book/ch05-01-defining-structs.html",
-    "https://doc.rust-lang.org/book/ch10-01-syntax.html",
-    "https://doc.rust-lang.org/book/ch15-01-smart-pointers.html",
-    "https://doc.rust-lang.org/book/ch17-01-what-is-oo.html",
-    "https://rustbyexample.com/season2/itertools/why_iter",
-    "https://doc.rust-lang.org/std/error/trait.Error.html",
-]
+import trafilatura
+from ._net import retry_get
+from ..config.loader import get_source_config
 
 
 class DocScraper:
-    """Scrape des pages de doc Python/Rust pour en extraire des explications causales."""
+    """Scrape des pages de documentation via trafilatura.
 
-    def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)"):
+    URLs lues depuis config/sources.yaml — aucun hardcoding.
+    Supporte tous les langages configurés sous doc.urls.
+    """
+
+    def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+        import requests
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
+        cfg = get_source_config("doc")
+        self._delay = cfg.get("rate_limit_delay", 0.5)
 
-    def scrape_urls(self, urls: list[str], source_label: str) -> list[dict]:
-        """Scrape une liste d'URLs."""
-        results = []
-        for url in urls:
-            print(f"  {source_label}: {url.split('/')[-1][:40]}...", end=" ", flush=True)
-            try:
-                resp = self.session.get(url, timeout=30)
-                if resp.status_code == 200:
-                    text = trafilatura.extract(resp.text, include_comments=False)
-                    if text and len(text) > 500:
-                        results.append({
-                            "source": source_label,
-                            "category": "documentation",
-                            "title": url.split("/")[-1],
-                            "text": text,
-                        })
-                        print(f"OK ({len(text)} chars)")
-                    else:
-                        print("vide")
-                else:
-                    print(f"HTTP {resp.status_code}")
-            except Exception as e:
-                print(f"erreur: {e}")
-            time.sleep(0.3)
-        return results
+    def scrape_url(self, url: str, source_label: str) -> dict | None:
+        """Scrape une URL et extrait le texte avec trafilatura."""
+        print(f"  {source_label}: {url.split('/')[-1][:40]}...", end=" ", flush=True)
+        resp, self.session = retry_get(self.session, url, {})
+        if resp is None:
+            print("échec réseau")
+            return None
+        text = trafilatura.extract(resp.text, include_comments=False, include_tables=False)
+        if text and len(text) > 200:
+            print(f"OK ({len(text)} chars)")
+            return {
+                "text": text[:5000],
+                "lang": "code",
+                "source": source_label,
+                "url": url,
+            }
+        print("vide")
+        return None
 
-    def scrape(self) -> list[dict]:
-        """Scrape toute la doc Python + Rust."""
-        results = []
-        results.extend(self.scrape_urls(PYTHON_URLS, "python_doc"))
-        results.extend(self.scrape_urls(RUST_URLS, "rust_doc"))
+    def scrape(self, languages: list[str] | None = None) -> list[dict]:
+        """Scrape la documentation des langages sélectionnés (None = tous)."""
+        cfg = get_source_config("doc")
+        urls_by_lang: dict[str, list[str]] = cfg.get("urls", {})
+        if languages is not None:
+            urls_by_lang = {k: v for k, v in urls_by_lang.items() if k in languages}
+        results: list[dict] = []
+        for lang, urls in urls_by_lang.items():
+            for url in urls:
+                result = self.scrape_url(url, f"{lang}_doc")
+                if result:
+                    results.append(result)
+                time.sleep(self._delay)
         return results

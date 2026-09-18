@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-scraper"
-version = "2.0.0"
-description = "Scraper avancé bilingue FR/EN pour le dataset GCN causal (50k phrases équilibrées)"
+version = "3.0.0"
+description = "Scraper multilingue agnostique pour le dataset GCN causal (50k+ phrases)"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
@@ -14,6 +14,7 @@ dependencies = [
     "requests>=2.0",
     "pyyaml>=6.0",
     "ddgs>=0.1",
+    "langdetect>=1.0.9",
 ]
 
 [project.optional-dependencies]
