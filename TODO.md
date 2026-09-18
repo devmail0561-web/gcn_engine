@@ -45,7 +45,7 @@
 
 > Si `val_edge_macro_f1 < 0.40` après B2, les actions suivantes s'appliquent.
 
-- [ ] **C1** — Enrichir le dataset : 6 relations absentes (motivation, sequence, filter,
+- [x] **C1** — Enrichir le dataset : 6 relations absentes (motivation, sequence, filter,
   opposition, data_*, control_*) — annoter au moins 30 exemples par relation manquante
 - [x] **C2** — Rééquilibrer les classes rares (prevent=2%, concession=6%) via
   sur-échantillonnage ou augmentation de données
