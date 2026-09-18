@@ -61,12 +61,12 @@
 
 > Issues MEDIUM identifiées dans PRODUCTION_READINESS_ASSESSMENT.md (v2.0.0).
 
-- [ ] **D1** — Corriger les `assert` restants dans le moteur (remplacer par ValueError/RuntimeError)
-- [ ] **D2** — Vérifier la cohérence des `token_span` dans les sorties CIR
+- [x] **D1** — Corriger les `assert` restants dans le moteur (remplacer par ValueError/RuntimeError)
+- [x] **D2** — Vérifier la cohérence des `token_span` dans les sorties CIR
   (issue MEDIUM #4-5 spans)
-- [ ] **D3** — Test e2e texte brut → CIR JSON : au moins 3 cas (phrase simple,
+- [x] **D3** — Test e2e texte brut → CIR JSON : au moins 3 cas (phrase simple,
   phrase complexe, phrase sans causalité) via `GCNBridgeParser`
-- [ ] **D4** — Documenter les limitations connues du `GCNBridgeParser` heuristique
+- [x] **D4** — Documenter les limitations connues du `GCNBridgeParser` heuristique
   (~80-85% qualité) dans le README pour les utilisateurs
 
 **Critère de sortie :** 0 assert dans le moteur, 3 tests e2e verts.

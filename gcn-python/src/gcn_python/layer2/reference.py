@@ -26,12 +26,13 @@ class _LinearLayer:
 
     def backward(self, d_out: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         x = self._cache["x"]
-        assert d_out.ndim == 1 and x.ndim == 1, (
-            f"_LinearLayer.backward attend des vecteurs 1-D, "
-            f"reçu d_out.shape={d_out.shape}, x.shape={x.shape}. "
-            f"backward() reçoit des vecteurs 1-D. Utilisez forward_batch() pour "
-            f"l'inférence batch ; le backward reste par nœud."
-        )
+        if d_out.ndim != 1 or x.ndim != 1:
+            raise ValueError(
+                f"_LinearLayer.backward attend des vecteurs 1-D, "
+                f"reçu d_out.shape={d_out.shape}, x.shape={x.shape}. "
+                f"backward() reçoit des vecteurs 1-D. Utilisez forward_batch() pour "
+                f"l'inférence batch ; le backward reste par nœud."
+            )
         dW = np.outer(d_out, x)
         db = d_out.copy()
         dx = d_out @ self.W

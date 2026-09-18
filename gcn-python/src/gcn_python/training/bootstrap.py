@@ -93,7 +93,15 @@ def _extract_token_span(node: dict) -> list[int]:
             end = 0 if end is None else int(end)
             return [start, end]
     flat = node.get("token_span", [0, 0])
-    return list(flat) if flat else [0, 0]
+    if not flat:
+        return [0, 0]
+    try:
+        result = [int(v) for v in flat]
+    except (TypeError, ValueError):
+        return [0, 0]
+    if len(result) < 2:
+        return [result[0], result[0]]
+    return result[:2]
 
 
 def _normalize_edge(e) -> dict | None:

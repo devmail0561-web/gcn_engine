@@ -73,7 +73,8 @@ class RGCNLayer:
         Retourne (d_input, [dW_r, dW_0]) où d_input est le gradient vers
         les features d'entrée (ignoré — pas de paramètres apprenables en amont).
         """
-        assert self._fwd_inputs is not None, "backward_message_pass appelé avant message_pass"
+        if self._fwd_inputs is None:
+            raise RuntimeError("backward_message_pass appelé avant message_pass")
         node_features, edge_index, edge_types = self._fwd_inputs
         h = self._fwd_output
         N = node_features.shape[0]

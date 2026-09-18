@@ -125,7 +125,8 @@ class TrainableDecoder:
         self, context: np.ndarray, h_prev: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """One RNN step. Returns (h_new, rnn_in, z1, logits)."""
-        assert self._layers is not None
+        if self._layers is None:
+            raise RuntimeError("_rnn_step appelé avant l'initialisation des couches")
         rnn_in = np.concatenate([context, h_prev])          # (d_in + d_hidden,)
         z1 = self._layers[0].forward(rnn_in)                 # (d_hidden,)
         h_new = np.tanh(z1)
@@ -149,8 +150,8 @@ class TrainableDecoder:
         d_in = node_embeddings.shape[1]
         self._init_layers(d_in)
 
-        assert self._attn_vec is not None
-        assert self._W_query is not None
+        if self._attn_vec is None or self._W_query is None:
+            raise RuntimeError("forward_decode : état interne non initialisé après _init_layers")
         # Cacher les node embeddings pour backward
         self._cached_node_embs = node_embeddings
         h = np.zeros(self.d_hidden, dtype=np.float32)
@@ -244,10 +245,10 @@ class TrainableDecoder:
         (vs d_mean (D_in,) en mean-pool). Handles 1D d_logits (|V|,) for single-step
         or 2D (T, |V|) for multi-step.
         """
-        assert self._layers is not None, "backward_decode called before forward_decode"
-        assert self._last_d_in is not None
-        assert self._cached_node_embs is not None
-        assert self._W_query is not None
+        if self._layers is None:
+            raise RuntimeError("backward_decode appelé avant forward_decode")
+        if self._last_d_in is None or self._cached_node_embs is None or self._W_query is None:
+            raise RuntimeError("backward_decode : état du cache invalide — forward_decode requis d'abord")
 
         dW0_total = np.zeros_like(self._layers[0].W)
         db0_total = np.zeros_like(self._layers[0].b)
@@ -340,7 +341,8 @@ class TrainableDecoder:
         return params
 
     def update(self, grads: list[tuple[np.ndarray, np.ndarray]], d_attn_vec: np.ndarray, lr: float) -> None:
-        assert self._layers is not None
+        if self._layers is None:
+            raise RuntimeError("update appelé avant l'initialisation — forward_decode requis d'abord")
         # P2d: Mettre à jour attn_vec
         if self._attn_vec is not None:
             self._attn_vec -= lr * d_attn_vec
@@ -379,8 +381,8 @@ class TrainableDecoder:
             return self.vocab.decode(filtered)
 
         # Greedy multi-step decode with S6 per-step attention
-        assert self._attn_vec is not None
-        assert self._W_query is not None
+        if self._attn_vec is None or self._W_query is None:
+            raise RuntimeError("infer : état interne non initialisé — forward_decode requis d'abord")
 
         h = np.zeros(self.d_hidden, dtype=np.float32)
         tokens: list[int] = []

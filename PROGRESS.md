@@ -657,3 +657,29 @@ gcn-train \
 | `val_node_macro_f1 > 0.60` | 0.274 | ✗ bloqué (nécessite C1 annotation) |
 | `val_graph_exact_match > 0.20` | 0.018 | ✗ bloqué par node_f1 |
 | `gap train−val < 0.15` | 0.069 | ✅ |
+
+### Phase C1 — Annotation des 6 relations manquantes
+
+**Date :** 2026-09-18
+**Approche :** génération de phrases françaises synthétiques + tokens UD automatiques (spaCy fr)
+
+| Type | Nouvelles phrases | Stratégie |
+|------|-----------------|-----------|
+| filter | 30 | Phrases "A seulement si/lorsque B" |
+| data_dependency | 30 | Phrases "A s'appuie sur les données de B" |
+| control_dependency | 30 | Phrases "A est déclenché/contrôlé par l'état de B" |
+| motivation | 27 | Complément aux 3 existants |
+| sequence | 28 | Complément aux 2 existants |
+| opposition | 26 | Complément aux 4 existants |
+| **Total** | **171** | |
+
+**Scripts :**
+- `gcn-datasets/annotation_candidates_c1.py` — 171 candidats annotés (text + CIR + spans approx)
+- `gcn-datasets/build_c1_annotations.py` — convertit les candidats → JSON avec tokens UD spaCy
+- `gcn-datasets/real/train_c1/train.json` — 171 phrases annotées
+- `gcn-datasets/real/train_enriched/train.json` — 818 phrases (647 oversamp + 171 c1)
+
+**Note qualité :** Phrases synthétiques générées, non extraites d'un corpus réel.
+Tokens UD auto-générés par spaCy fr_core_news_sm. Validation humaine recommandée avant prod.
+
+**Entraînement en cours :** GAT+bidi+lr=0.0005 sur 818 phrases → résultats attendus.

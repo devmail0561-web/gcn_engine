@@ -269,6 +269,38 @@ from gcn_python.evaluation.metrics import (
 
 ---
 
+## Limitations connues — GCNBridgeParser
+
+`GCNBridgeParser` (dans `gcn_python.frontend.bridge`) permet d'utiliser le pipeline
+sans données pré-annotées en appelant le binaire Rust `gcn` via subprocess. Cette
+approche est **heuristique** et présente les limitations suivantes :
+
+| Limitation | Impact | Contournement |
+|-----------|--------|---------------|
+| `root_morph` toujours `{}` | Tense, Aspect, Mood, Polarity absents (14 dims à zéro) | Utiliser `GCNDataLoader` avec des données annotées UD |
+| `root_pos` / `dep_rel` heuristiques | Approximation depuis le type de nœud CIR | Idem |
+| `is_negative` toujours `False` | Négations non détectées | Idem |
+| Qualité globale ~80-85% | Représentation appauvrie vs annotations manuelles | Annoter des données via `gcn-train` |
+| Requiert le binaire `gcn` dans le PATH | `GCNBridgeError` si absent | Installer `gcn-core` (Rust) et l'ajouter au PATH |
+| Binding PyO3 direct non implémenté | Appel subprocess (latence) | Prévu hors scope v2.x |
+
+**Utilisation recommandée :**
+
+```python
+# Qualité maximale — données annotées
+from gcn_python.data.loader import GCNDataLoader
+loader = GCNDataLoader("gcn-datasets/real/train/")
+
+# Qualité réduite (~80-85%) — texte brut sans annotation
+from gcn_python.frontend.bridge import GCNBridgeParser
+parser = GCNBridgeParser(gcn_bin="gcn")  # gcn doit être dans le PATH
+reps, connectors = parser.parse("Le gel détruit les cultures, provoquant des pénuries.")
+```
+
+Pour la production, privilégier les données annotées via `gcn-train` avec `GCNDataLoader`.
+
+---
+
 ## Stack complète
 
 | Package | Rôle | Langage |

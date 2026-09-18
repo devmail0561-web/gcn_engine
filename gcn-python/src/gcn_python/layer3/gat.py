@@ -185,8 +185,8 @@ class RGCNLayerGAT(nn.Module):
           d/dx sigmoid(x) = sigmoid(x) * (1 - sigmoid(x))
         pour convertir les gradients post-sigmoid en gradients pré-sigmoid.
         """
-        assert self._H_in_retained is not None, "backward_message_pass appelé avant message_pass"
-        assert self._out_retained is not None, "backward_message_pass appelé avant message_pass"
+        if self._H_in_retained is None or self._out_retained is None:
+            raise RuntimeError("backward_message_pass appelé avant message_pass")
 
         out = self._out_retained
         sig = torch.sigmoid(out)
