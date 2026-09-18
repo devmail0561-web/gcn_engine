@@ -1,66 +1,75 @@
-"""Scraper Wikipedia EN pour le dataset causale."""
-
+"""Scraper Wikipedia EN — catégories ciblées sur les 11 types de relations GCN."""
+from __future__ import annotations
 import requests
 import time
-import re
 
 
 class WikipediaENScraper:
-    """Recupere des articles de Wikipedia en anglais."""
+    """Récupère des articles de Wikipedia EN via l'API officielle."""
 
-    CATEGORIES = [
-        "Climate_change", "Causality", "Machine_learning",
-        "Computer_science", "Physics", "Biology",
-        "Economics", "Psychology", "History",
-        "Mathematics", "Engineering", "Medicine",
-        "Ecology", "Genetics", "Neuroscience",
+    CATEGORIES: list[str] = [
+        # cause / enable / prevent
+        "Epidemiology", "Causality", "Pharmacology", "Climate_change",
+        "Toxicology", "Pathophysiology", "Ecology",
+        # condition / filter
+        "Contract_law", "Constitutional_law", "Legal_reasoning",
+        "Formal_methods", "Logic", "Probability_theory",
+        # concession / opposition
+        "Philosophy_of_science", "Critical_thinking", "Debate",
+        "Political_philosophy",
+        # sequence
+        "Algorithms", "Computer_science", "Chemical_engineering",
+        "History", "Protocols_(science)",
+        # motivation
+        "Decision_theory", "Behavioral_economics", "Psychology",
+        # data_dependency / control_dependency
+        "Software_engineering", "Machine_learning", "Operating_systems",
+        "Distributed_computing", "Programming_paradigms",
     ]
 
-    def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)"):
+    API_URL = "https://en.wikipedia.org/w/api.php"
+
+    def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
     def get_category_members(self, category: str, limit: int = 50) -> list[str]:
-        """Recupere les titres d'articles d'une categorie."""
-        titles = []
+        """Récupère les titres d'articles d'une catégorie."""
         params = {
             "action": "query",
             "list": "categorymembers",
             "cmtitle": f"Category:{category}",
             "cmlimit": min(limit, 500),
+            "cmtype": "page",
             "format": "json",
         }
-        url = "https://en.wikipedia.org/w/api.php"
         try:
-            resp = self.session.get(url, params=params, timeout=30)
+            resp = self.session.get(self.API_URL, params=params, timeout=30)
             if resp.status_code != 200:
-                return titles
+                return []
             data = resp.json()
             members = data.get("query", {}).get("categorymembers", [])
+            return [m["title"] for m in members if m.get("ns") == 0]
         except Exception:
-            return titles
-        for m in members:
-            if m.get("ns") == 0:  # Articles only
-                titles.append(m["title"])
-        return titles
+            return []
 
-    def get_article_text(self, title: str, max_chars: int = 3000) -> str | None:
-        """Recupere le texte brut d'un article."""
+    def get_article_text(self, title: str, max_chars: int = 5000) -> str | None:
+        """Récupère le texte brut d'un article via l'API extracts."""
         params = {
             "action": "query",
             "titles": title,
             "prop": "extracts",
             "explaintext": True,
+            "exsectionformat": "plain",
             "format": "json",
         }
-        url = "https://en.wikipedia.org/w/api.php"
         try:
-            resp = self.session.get(url, params=params, timeout=30)
+            resp = self.session.get(self.API_URL, params=params, timeout=30)
             if resp.status_code != 200:
                 return None
             data = resp.json()
             pages = data.get("query", {}).get("pages", {})
-            for page_id, page in pages.items():
+            for page in pages.values():
                 extract = page.get("extract", "")
                 if extract:
                     return extract[:max_chars]
@@ -68,7 +77,7 @@ class WikipediaENScraper:
             pass
         return None
 
-    def scrape(self, categories: list[str] | None = None, max_per_category: int = 30) -> list[dict]:
+    def scrape(self, categories: list[str] | None = None, max_per_category: int = 50) -> list[dict]:
         """Scrape des articles de Wikipedia EN."""
         if categories is None:
             categories = self.CATEGORIES
@@ -82,12 +91,14 @@ class WikipediaENScraper:
                 text = self.get_article_text(title)
                 if text and len(text) > 200:
                     results.append({
-                        "source": "wikipedia_en",
+                        "source": f"wikipedia_en:{cat}",
                         "category": cat,
                         "title": title,
                         "text": text,
+                        "lang": "en",
+                        "url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
                     })
                     count += 1
-                time.sleep(0.1)
+                time.sleep(0.2)
             print(f"{count} articles")
         return results
