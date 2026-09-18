@@ -1,18 +1,23 @@
 # État actuel du moteur GCN vs Vision
 
-**Date :** 2026-09-17  
+**Date :** 2026-09-18  
 **Auteur :** Michel Tendeng
 
 ---
 
 ## La vision
 
-**Même usage que les LLMs/Transformers**, mais avec une sortie vérifiable.
+**GCN est un outil d'analyse causale vérifiable.**
 
-Un LLM prend du texte brut et produit du texte plausible.
-GCN Causal Engine prend du texte brut et produit un graphe causal
-structuré, vérifiable, interrogeable, raisonnable — dans n'importe quel
-domaine, sur n'importe quel corpus.
+Il extrait des structures causales depuis du texte ou du code, construit un graphe causal interrogeable, et répond à des questions sur ce graphe avec traçabilité jusqu'aux sources.
+
+Ce que GCN fait qu'aucun LLM ne garantit :
+- Chaque réponse causale est **tracée jusqu'au document source**
+- Les **contradictions entre sources** sont détectées automatiquement
+- Le raisonnement est **formel** (Pearl niveaux 1-2-3, GCN-QL)
+- Les résultats sont **vérifiables** — pas de texte plausible non fondé
+
+Cas d'usage réels : analyse CTI / SOC, audit de conformité, investigation judiciaire, revue de littérature scientifique, analyse de dépendances dans le code source.
 
 ---
 
@@ -23,16 +28,20 @@ domaine, sur n'importe quel corpus.
 | Composant | État | Détail |
 |-----------|------|--------|
 | Pipeline d'entraînement | ✅ | train/val/test, early stopping, graph_exact_match |
-| Couche 1 — FeatureVocabulary | ✅ | 79-dim, UD syntax, word embeddings optionnels |
-| Couche 2 — MLPEncoder | ✅ | MLP 3 couches, dropout, weight decay |
-| Couche 3 — RGCNLayer | ✅ | message passing, bidirectionnel, 22 relations |
-| Couche 3 — RGCNLayerGAT | ✅ | attention par relation |
-| Loss — cross-entropie pondérée | ✅ | label smoothing, class weights |
-| Backward / SGD | ✅ | mini-batch, accumulation, decoder |
-| Checkpoint save/load | ✅ | validation des shapes, rollback |
+| `FeatureVocabulary` language-agnostic | ✅ | connector_lemmas vide par défaut, configurable |
+| Couche 1 — vectorisation UD | ✅ | 79-dim, universels UD, word embeddings optionnels |
+| Couche 2 — MLPEncoder | ✅ | dropout, weight decay, label smoothing |
+| Couche 3 — RGCNLayer / GAT | ✅ | message passing, bidirectionnel, 22 relations |
+| `GCNEngine.from_pretrained()` | ✅ | architecture déduite depuis `_arch_json` sans hardcoding |
+| `gcn-discuss` | ✅ | /analyze fichier/répertoire, Q&A causale, /save, --log |
+| `gcn-index` | ✅ | indexation batch corpus → graphe JSON persistant |
+| `QueryVerbalizer` | ✅ | rapports multi-lignes avec sources et contradictions |
+| CIR → verbalizer direct | ✅ | `decoder.decode_cir(dict)` sans fichier intermédiaire |
+| `CausalGraph` persistable | ✅ | save/load/from_cirs |
 | Métriques | ✅ | node/edge macro-F1, graph_exact_match, confusion matrix |
 | Interfaces extensibles | ✅ | CausalEncoder, CausalGraph, TextParser |
-| Évaluation correcte | ✅ | val set séparé, pas de fuite train→val |
+| Checkpoints | ✅ | validation shapes, rollback, _arch_json |
+| 206 tests | ✅ | 2 skipped stables |
 
 ### Frontends symboliques (gcn-core — Rust)
 
@@ -41,24 +50,24 @@ domaine, sur n'importe quel corpus.
 | Parser FR | ✅ | tokenisation, POS, annotation causale, taxonomies |
 | Parser EN | ✅ | idem pour l'anglais |
 | Parser code | ✅ | Python/Rust/JS via tree-sitter |
-| gcn-knowledge | ✅ | 11 taxonomies, lexique causal chargé depuis YAML |
-| gcn-middleend | ✅ | construction graphe, cycles, validation |
+| gcn-knowledge | ✅ | 11 taxonomies, lexique causal depuis YAML |
+| gcn-middleend | ✅ | construction graphe, cycles (Tarjan SCC), validation |
 | gcn-backend | ✅ | Pearl 1-2-3, GCN-QL, export JSON/DOT |
-| gcn-cli | ✅ | `gcn analyze`, `gcn query` opérationnels |
+| gcn-cli | ✅ | `gcn analyze`, `gcn query` |
 
 ### Outils (gcn-tools)
 
 | Outil | État | Détail |
 |-------|------|--------|
 | gcn-scraper | ✅ | 6 sources (Wikipedia FR/EN, HAL, Education, GitHub, Docs) |
-| gcn-annotate | ✅ | LLM (Anthropic/OpenAI), retry, validation |
-| Pipeline UD | ✅ | rederive_spans + annotate_real_dataset + split |
+| gcn-annotate | ✅ | LLM (Anthropic/OpenAI), annotation spaCy, retry |
+| Pipeline UD (Phase 1) | ✅ | rederive_spans + annotate_real_dataset + split + validate |
 
 ### Publication
 
 | Package | Version | Plateforme |
 |---------|---------|------------|
-| gcn-python | 2.1.0 | PyPI ✅ |
+| gcn-python | 2.2.0 | PyPI ✅ |
 | gcn-ir, gcn-knowledge, gcn-frontend-*, gcn-middleend, gcn-backend, gcn-verbalizer, gcn-cli | 2.1.0 | crates.io ✅ |
 
 ---
@@ -69,99 +78,74 @@ domaine, sur n'importe quel corpus.
 
 | Aspect | État | Problème |
 |--------|------|---------|
-| Checkpoint existant | ⚠️ | Entraîné sur 767 phrases (678 clima. + 89 divers) |
-| Couverture node types | ⚠️ | Seuls `processus` et `entite` bien appris. `etat`, `action`, `transition`, `etat_systemique`, `condition` : F1 = 0 |
-| Couverture relations | ⚠️ | 5/11 relations représentées. `sequence`, `motivation`, `filter`, `opposition`, `data_dependency`, `control_dependency` : F1 = 0 |
-| Généralisation domaines | ⚠️ | Texte climatique uniquement. Médecine, droit, code : non testés |
-| graph_exact_match (test) | ⚠️ | 0.52 — acceptable mais sur données déséquilibrées |
+| Checkpoint existant | ⚠️ | Entraîné sur 767 phrases (678 climatiques + 89 annotées manuellement) |
+| Couverture node types | ⚠️ | `processus` et `entite` bien appris. 5 autres types : F1 ≈ 0 |
+| Couverture relations | ⚠️ | 5/11 relations représentées. 6 absentes du dataset réel |
+| Généralisation domaines | ⚠️ | Fonctionne sur texte climatique FR. Autres domaines : non testés |
+| graph_exact_match (test) | ⚠️ | 0.52 sur données climatiques déséquilibrées |
+
+**Rappel :** GCN est un moteur — le modèle pré-entraîné est un artefact de test. L'utilisateur entraîne son propre modèle sur son corpus avec `gcn-train`.
 
 ### Frontend bridge Python
 
 | Aspect | État | Problème |
 |--------|------|---------|
-| `pipeline.analyze(text)` | ⚠️ | Disponible via subprocess gcn-cli, mais qualité heuristique |
-| Sans gcn-cli | ⚠️ | `GCNBridgeParser` fonctionne mais approximatif |
+| Sans gcn-cli | ⚠️ | `GCNBridgeParser` heuristique Python (qualité approximative) |
+| Avec gcn-cli | ✅ | Parsing symbolique Rust complet |
 
 ---
 
-## Ce qui est absent ❌
-
-### Ce qui sépare GCN d'un LLM utilisable
+## Ce qui est absent (non-bloquant pour le moteur)
 
 | Manque | Impact | Priorité |
 |--------|--------|---------|
-| **Dataset massif diversifié** | Sans données couvrant médecine, droit, science, code, économie — le modèle ne généralise pas. Un LLM pré-entraîné fonctionne sur tout domaine. GCN ne fonctionne que sur le texte climatique | **Critique** |
-| **Modèle pré-entraîné distribuable** | L'utilisateur ne peut pas faire `load_checkpoint("gcn_v1.npz")` et analyser du texte médical. Il doit entraîner son propre modèle | **Critique** |
-| **API text-in → CIR-out sans friction** | Aujourd'hui l'utilisateur doit connaître l'architecture (MLPEncoder, RGCNLayer, FeatureVocabulary) pour charger un modèle. Un LLM : `model.generate(text)` | **Haute** |
-| **Évaluation sur texte naturel non vu** | Toutes nos métriques sont sur les 117 phrases du test set. Aucune mesure sur texte "sauvage" hors dataset | **Haute** |
-| **Support multilingue étendu** | FR et EN parsés, mais pas de données d'entraînement EN. Le modèle est de facto FR uniquement | **Moyenne** |
+| Dataset 5000+ phrases diversifiées | Améliore le modèle de démonstration, pas le moteur | Données (Phase 4) |
+| Modèle pré-entraîné distribuable | Facilite l'usage out-of-the-box | Données + entraînement |
 
 ---
 
-## Écart quantifié : GCN actuel vs vision
+## Écart vision vs état actuel
 
 ```
-VISION (= LLM niveau)
-  ┌─────────────────────────────────────────────────────────┐
-  │ Texte brut (tout domaine, toute langue)                  │
-  │   → CIR correct, 7 types de nœuds, 11 relations         │
-  │   → graph_exact_match > 0.80 sur texte non vu            │
-  │   → modèle pré-entraîné distribuable, sans réentraîn.   │
-  └─────────────────────────────────────────────────────────┘
+VISION : outil d'analyse causale vérifiable
+  ┌────────────────────────────────────────────────────┐
+  │ Corpus (texte brut, toute langue)                  │
+  │   → CIR extrait, graphe causal construit            │
+  │   → Questions causales avec traçabilité             │
+  │   → Contradictions détectées                        │
+  │   → Raisonnement Pearl                              │
+  └────────────────────────────────────────────────────┘
 
-ÉTAT ACTUEL
-  ┌─────────────────────────────────────────────────────────┐
-  │ Texte brut climatique (FR uniquement)                    │
-  │   → CIR correct sur processus/entite/cause/enable        │
-  │   → graph_exact_match = 0.52 (test set déséquilibré)     │
-  │   → modèle non distribuable (trop spécialisé)            │
-  └─────────────────────────────────────────────────────────┘
+ÉTAT ACTUEL :
+  ┌────────────────────────────────────────────────────┐
+  │ Infrastructure complète ✅                          │
+  │ Interfaces language-agnostic ✅                     │
+  │ gcn-discuss + gcn-index opérationnels ✅            │
+  │                                                    │
+  │ Modèle de démo : limité (767 phrases, 2 domaines)  │
+  │ → Normal pour un moteur — l'utilisateur entraîne   │
+  │   sur son propre corpus                            │
+  └────────────────────────────────────────────────────┘
 
-ÉCART PRINCIPAL : les données
-  Actuel  : ~800 phrases annotées, 2 domaines, 2 node types dominants
-  Nécessaire : 50 000–500 000 phrases, tous domaines, tous types équilibrés
+ÉCART PRINCIPAL : les données (travail d'annotation, pas de dev)
 ```
 
 ---
 
-## Chemin vers la vision
+## Ce que l'utilisateur doit faire pour utiliser GCN en production
 
-### Ce qui fonctionne déjà et n'a pas besoin de changer
-
-- L'architecture ML (MLP + R-GCN) — prouvée à fonctionner avec les bonnes données
-- Le pipeline d'entraînement complet — val set, early stopping, métriques
-- Le stack Rust (frontends, backend, GCN-QL, Pearl)
-- Les outils de scraping et d'annotation
-- L'API d'extensibilité (remplacer encodeur, graphe)
-
-### Ce qui doit être construit
-
-**1. Dataset massif et diversifié**
-Le goulot d'étranglement est les données, pas l'architecture.
-Objectif : 50 000+ phrases annotées couvrant :
-- Médecine, biologie, pharmacologie
-- Droit, réglementation
-- Économie, finance
-- Sciences physiques, chimie
-- Code source (Python, Rust, JavaScript)
-- Histoire, sociologie
-- Techniques et ingénierie
-
-**2. Modèle pré-entraîné de référence**
-Une fois le dataset massif constitué, entraîner un checkpoint de référence
-distribué avec `gcn-python` — équivalent d'un modèle de base.
-
-**3. API simplifiée**
-```python
-# Ce que l'utilisateur devrait pouvoir faire :
-from gcn_python import GCNEngine
-engine = GCNEngine.from_pretrained()      # charge le checkpoint de référence
-cir = engine.analyze("any text here")     # c'est tout
-```
-
-**4. Fine-tuning sur domaine spécifique**
-Comme un LLM peut être fine-tuné, GCN doit pouvoir être adapté à un domaine
-en quelques centaines d'exemples supplémentaires :
 ```bash
-gcn-train --encoder-checkpoint base_model.npz --data-dir medical/ --epochs 20
+# 1. Annoter son corpus (gcn-annotate ou manuel)
+gcn-annotate annotate --input phrases.txt --out corpus/
+
+# 2. Entraîner sur son corpus
+gcn-train --data-dir corpus/train/ --val-dir corpus/val/ \
+          --epochs 100 --output model.npz
+
+# 3. Analyser ses documents
+gcn-discuss --checkpoint model.npz
+> /analyze mes_rapports/
+> What causes X?
 ```
+
+L'infrastructure est prête. Les données sont la seule variable.

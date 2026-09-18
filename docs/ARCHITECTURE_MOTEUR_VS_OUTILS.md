@@ -273,7 +273,7 @@ Frontend Rust                UDRepresentation           CGNPipeline
 │  │  CGNPipeline          → ✅ OK                        │    │
 │  │  GCNDataLoader        → ✅ OK                        │    │
 │  │  gcn-train CLI        → ✅ OK                        │    │
-│  │  gcn-forward CLI      → ✅ OK (si impl.)            │    │
+│  │  gcn-discuss CLI      → ✅ /analyze + Q&A causale    │    │
 │  │  Frontend Rust        → ✅ OK                        │    │
 │  │                                                      │    │
 │  └──────────────────────────────────────────────────────┘    │
