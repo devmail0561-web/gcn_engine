@@ -79,7 +79,8 @@ class ScrapingPipeline:
                     print("=== Wikipedia EN ===")
                     from .sources.wikipedia_en import WikipediaENScraper
                     scraper = WikipediaENScraper(self.user_agent)
-                    articles = scraper.scrape(max_per_category=config["wikipedia_en"].get("max_per_category", 50))
+                    _mpc = config["wikipedia_en"].get("max_per_category", 50)
+                    articles = scraper.scrape(max_per_query=_mpc, max_per_category=_mpc)
                     n = self._process_texts(articles, out, scorer, dedup, tracker, min_score)
                     total_written += n
                     checkpoint.mark_done(key, n)
