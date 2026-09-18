@@ -107,6 +107,8 @@ class CGNPipeline:
         self._cached_decode_gradient: np.ndarray | None = None
         # Cache reps — utilisé par backward pour word_embedding.backward()
         self._cached_reps: list | None = None
+        # Cache paires d'arêtes (src_i, dst_i) — pour router dx edge → d_enriched
+        self._cached_edge_pairs: list[tuple[int, int]] | None = None
         # S10 : accumulateurs de gradients pour mini-batch
         self._accum_node_grads = None
         self._accum_edge_grads = None
@@ -158,6 +160,7 @@ class CGNPipeline:
         self._cached_edge_snapshots = None
         self._cached_decode_gradient = None
         self._cached_reps = None
+        self._cached_edge_pairs = None
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
         if not reps:
@@ -243,6 +246,7 @@ class CGNPipeline:
         edge_vecs: list[np.ndarray] = []
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
+        edge_pairs_cache: list[tuple[int, int]] = []
         if len(reps) >= 2:
             real_n = n_total_clauses if n_total_clauses is not None else len(reps)
             _edge_pairs = (
@@ -273,6 +277,7 @@ class CGNPipeline:
                     node_type_probs[dst_i],  # proba types nœud destination (7 dims)
                 ])
                 edge_vecs.append(enriched_edge)
+                edge_pairs_cache.append((src_i, dst_i))
                 edge_logit = self.encoder.forward_edge(enriched_edge)
                 all_edge_logits.append(edge_logit)
                 if _snap:
@@ -286,6 +291,7 @@ class CGNPipeline:
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)
             self._cached_edge_logits = np.stack(all_edge_logits)
+            self._cached_edge_pairs = edge_pairs_cache
             if _snap:
                 self._cached_edge_snapshots = edge_snapshots
 
@@ -328,6 +334,8 @@ class CGNPipeline:
             self._cached_edge_logits = self._cached_edge_logits[valid_idxs]
         if self._cached_edge_snapshots is not None:
             self._cached_edge_snapshots = [self._cached_edge_snapshots[i] for i in valid_idxs]
+        if self._cached_edge_pairs is not None:
+            self._cached_edge_pairs = [self._cached_edge_pairs[i] for i in valid_idxs]
 
     def get_enriched_vectors(self) -> np.ndarray | None:
         """
@@ -509,7 +517,14 @@ class CGNPipeline:
             if _has_node_snap:
                 self.encoder.restore_node_cache(self._cached_node_snapshots[i])
             else:
-                self.encoder.forward_node(vecs[i])  # fallback sans snapshot
+                # Re-run sans dropout pour que le cache soit déterministe.
+                # Les gradients restent approximatifs si le forward original avait du dropout.
+                _was_tr = getattr(self.encoder, 'training', False)
+                if _was_tr and hasattr(self.encoder, 'training'):
+                    self.encoder.training = False
+                self.encoder.forward_node(vecs[i])
+                if _was_tr and hasattr(self.encoder, 'training'):
+                    self.encoder.training = True
             grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
             d_enriched[i] = dx_i
             if all_node_grads is None:
@@ -525,6 +540,10 @@ class CGNPipeline:
 
         # --- Rétropropagation arêtes ---
         all_edge_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
+        _has_edge_dx = hasattr(self.encoder, 'backward_edge_dx')
+        _d_emb_val = self.word_embedding.d_emb if self.word_embedding is not None else 0
+        _d_base_edge = self.vocabulary.d_edge + 2 * _d_emb_val
+        _d_eff = vecs.shape[1]
         if (d_edge_logits is not None and len(d_edge_logits) > 0
                 and self._cached_edge_vecs is not None):
             e = min(len(d_edge_logits), len(self._cached_edge_vecs))
@@ -532,8 +551,22 @@ class CGNPipeline:
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
                 else:
+                    _was_tr = getattr(self.encoder, 'training', False)
+                    if _was_tr and hasattr(self.encoder, 'training'):
+                        self.encoder.training = False
                     self.encoder.forward_edge(self._cached_edge_vecs[i])
-                grads_i = self.encoder.backward_edge(d_edge_logits[i])
+                    if _was_tr and hasattr(self.encoder, 'training'):
+                        self.encoder.training = True
+                if _has_edge_dx:
+                    grads_i, dx_i = self.encoder.backward_edge_dx(d_edge_logits[i])
+                    if (self._cached_edge_pairs is not None
+                            and i < len(self._cached_edge_pairs)
+                            and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff):
+                        src_i, dst_i = self._cached_edge_pairs[i]
+                        d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff]
+                        d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff:_d_base_edge + 2 * _d_eff]
+                else:
+                    grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
                     all_edge_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
                 else:
@@ -617,7 +650,12 @@ class CGNPipeline:
             if _has_node_snap:
                 self.encoder.restore_node_cache(self._cached_node_snapshots[i])
             else:
+                _was_tr = getattr(self.encoder, 'training', False)
+                if _was_tr and hasattr(self.encoder, 'training'):
+                    self.encoder.training = False
                 self.encoder.forward_node(vecs[i])
+                if _was_tr and hasattr(self.encoder, 'training'):
+                    self.encoder.training = True
             grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
             d_enriched[i] = dx_i
             if all_node_grads is None:
@@ -627,6 +665,10 @@ class CGNPipeline:
                     all_node_grads[j] = (all_node_grads[j][0] + dW_i, all_node_grads[j][1] + db_i)
 
         all_edge_grads = None
+        _has_edge_dx = hasattr(self.encoder, 'backward_edge_dx')
+        _d_emb_val = self.word_embedding.d_emb if self.word_embedding is not None else 0
+        _d_base_edge = self.vocabulary.d_edge + 2 * _d_emb_val
+        _d_eff = vecs.shape[1]
         if (d_edge_logits is not None and len(d_edge_logits) > 0
                 and self._cached_edge_vecs is not None):
             e = min(len(d_edge_logits), len(self._cached_edge_vecs))
@@ -634,8 +676,22 @@ class CGNPipeline:
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
                 else:
+                    _was_tr = getattr(self.encoder, 'training', False)
+                    if _was_tr and hasattr(self.encoder, 'training'):
+                        self.encoder.training = False
                     self.encoder.forward_edge(self._cached_edge_vecs[i])
-                grads_i = self.encoder.backward_edge(d_edge_logits[i])
+                    if _was_tr and hasattr(self.encoder, 'training'):
+                        self.encoder.training = True
+                if _has_edge_dx:
+                    grads_i, dx_i = self.encoder.backward_edge_dx(d_edge_logits[i])
+                    if (self._cached_edge_pairs is not None
+                            and i < len(self._cached_edge_pairs)
+                            and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff):
+                        src_i, dst_i = self._cached_edge_pairs[i]
+                        d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff]
+                        d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff:_d_base_edge + 2 * _d_eff]
+                else:
+                    grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
                     all_edge_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
                 else:

@@ -60,6 +60,7 @@ class MLPEncoder:
         weight_decay: float = 0.0,
     ):
         rng = np.random.default_rng(seed)
+        self._rng = np.random.default_rng(seed)
         self.n_node_types = n_node_types
         self.n_relation_types = n_relation_types
         self.edge_dropout = edge_dropout
@@ -98,7 +99,7 @@ class MLPEncoder:
             if i < len(layers) - 1:
                 h = _relu(z)
                 if dropout > 0.0 and self.training:
-                    mask = (np.random.random(h.shape) > dropout).astype(np.float32)
+                    mask = (self._rng.random(h.shape) > dropout).astype(np.float32)
                     h = h * mask / (1.0 - dropout)
                     if dropout_masks is not None:
                         dropout_masks.append(mask)
@@ -161,6 +162,13 @@ class MLPEncoder:
             dropout_masks=self._edge_dropout_masks,
         )
         return grads
+
+    def backward_edge_dx(self, d_logits: np.ndarray) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
+        """Comme backward_edge mais retourne aussi le gradient vers l'entrée (closed-loop → R-GCN)."""
+        return self._backward_mlp(
+            d_logits, self._edge_layers, self._edge_cache,
+            dropout_masks=self._edge_dropout_masks,
+        )
 
     def snapshot_node_cache(self) -> list:
         """Snapshot du cache node + inputs des couches (pour backward par nœud)."""

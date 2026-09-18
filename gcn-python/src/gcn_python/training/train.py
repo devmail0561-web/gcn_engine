@@ -168,44 +168,43 @@ def train_cmd(
             raise click.ClickException(f"Aucune sentence dans {val_dir}")
         click.echo(f"Val : {len(val_loader)} sentences")
 
-    # Calcul des class weights si --weighted-loss (inversement proportionnel à la fréquence)
+    # Passe unique : class weights + vocab embeddings (évite deux itérations sur le dataset)
     node_class_weights = None
     edge_class_weights = None
-    if weighted_loss:
+    if weighted_loss or word_embedding is not None:
         from collections import Counter
-        node_counts = Counter()
-        edge_counts = Counter()
+        node_counts: Counter = Counter() if weighted_loss else Counter()
+        edge_counts: Counter = Counter() if weighted_loss else Counter()
+        all_lemmas: list[str] = [] if word_embedding is not None else []
         for sample in loader:
-            for label in sample.gold_node_labels:
-                node_counts[int(label)] += 1
-            for (src, tgt), rel in sample.edge_map.items():
-                edge_counts[int(rel)] += 1
-        if node_counts:
-            total_nodes = sum(node_counts.values())
-            n_node_classes = len(NODE_TYPES)
-            node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
-            for c in range(n_node_classes):
-                count = node_counts.get(c, 1)
-                node_class_weights[c] = total_nodes / (n_node_classes * count)
-            click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3)))}")
-        if edge_counts:
-            total_edges = sum(edge_counts.values())
-            n_edge_classes = len(RELATION_TYPES)
-            edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
-            for c in range(n_edge_classes):
-                count = edge_counts.get(c, 1)
-                edge_class_weights[c] = total_edges / (n_edge_classes * count)
-            click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3)))}")
-
-    # S2 : pré-remplir le vocabulaire des embeddings depuis toutes les lemmes
-    if word_embedding is not None:
-        all_lemmas = [
-            r.root_lemma
-            for sample in loader
-            for r in reps_from_sentence(sample.sentence)[0]
-        ]
-        word_embedding.build_vocab(all_lemmas)
-        click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
+            if weighted_loss:
+                for label in sample.gold_node_labels:
+                    node_counts[int(label)] += 1
+                for (src, tgt), rel in sample.edge_map.items():
+                    edge_counts[int(rel)] += 1
+            if word_embedding is not None:
+                reps_s, _, _ = reps_from_sentence(sample.sentence)
+                all_lemmas.extend(r.root_lemma for r in reps_s)
+        if weighted_loss:
+            if node_counts:
+                total_nodes = sum(node_counts.values())
+                n_node_classes = len(NODE_TYPES)
+                node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
+                for c in range(n_node_classes):
+                    count = node_counts.get(c, 1)
+                    node_class_weights[c] = total_nodes / (n_node_classes * count)
+                click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3)))}")
+            if edge_counts:
+                total_edges = sum(edge_counts.values())
+                n_edge_classes = encoder.n_relation_types
+                edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
+                for c in range(n_edge_classes):
+                    count = edge_counts.get(c, 1)
+                    edge_class_weights[c] = total_edges / (n_edge_classes * count)
+                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3)))}")
+        if word_embedding is not None and all_lemmas:
+            word_embedding.build_vocab(all_lemmas)
+            click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 
@@ -234,11 +233,15 @@ def train_cmd(
 
     def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
         """Bascule TOUS les composants avec dropout en mode eval ou train."""
-        if hasattr(pipeline.encoder, 'training'):
-            pipeline.encoder.training = training
+        def _toggle(obj, mode):
+            # nn.Module : appeler .train() pour propager récursivement aux sous-modules
+            if hasattr(obj, 'train') and callable(obj.train):
+                obj.train(mode)
+            elif hasattr(obj, 'training'):
+                obj.training = mode
+        _toggle(pipeline.encoder, training)
         for layer in pipeline._graph_layers:
-            if hasattr(layer, 'training'):
-                layer.training = training
+            _toggle(layer, training)
 
     def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
                        epoch_edge_preds, epoch_edge_gold,

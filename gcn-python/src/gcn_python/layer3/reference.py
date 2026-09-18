@@ -56,8 +56,7 @@ class RGCNLayer:
                 src_r, dst_r = src[mask], dst[mask]
                 counts = np.maximum(np.bincount(dst_r, minlength=N).astype(np.float32), 1.0)
                 msgs = node_features[src_r] @ self.W_r[r].T  # (|E_r|, D_out)
-                for e_idx, d in enumerate(dst_r):
-                    out[d] += msgs[e_idx] / counts[d]
+                np.add.at(out, dst_r, msgs / counts[dst_r, np.newaxis])
 
         h = _sigmoid(out)
         # Copier les tableaux : évite que des mutations externes corrompent le backward

@@ -12,14 +12,14 @@ from .representation import UDRepresentation
 # Lemmes de connecteurs causaux les plus fréquents en français
 _CONNECTOR_LEMMAS_RAW = [
     "parce", "car", "puisque", "comme", "si", "bien", "quoique",
-    "quoique", "malgré", "pour", "afin", "donc", "alors", "ensuite",
+    "malgré", "pour", "afin", "donc", "alors", "ensuite",
     "puis", "mais", "or", "pourtant", "cependant", "néanmoins",
-    "cependant", "pourvu", "seulement", "lorsque", "dès", "tant",
-    "si", "non", "jamais", "ni", "plutôt", "au lieu",
+    "pourvu", "seulement", "lorsque", "dès", "tant",
+    "non", "jamais", "ni", "plutôt", "au lieu",
     "en revanche", "en raison", "grâce", "sous", "condition",
     "contrairement", "selon", "à cause", "devant", "chez",
     "vers", "après", "avant", "depuis", "pendant", "durant",
-    "chez", "entre", "parmi", "hors", "outre", "faute",
+    "entre", "parmi", "hors", "outre", "faute",
 ]
 # Déduplication programmatique — préserve l'ordre, élimine les doublons
 CONNECTOR_LEMMAS = list(dict.fromkeys(_CONNECTOR_LEMMAS_RAW))

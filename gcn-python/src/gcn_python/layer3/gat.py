@@ -38,7 +38,7 @@ def _softmax_per_dst(
     Utilise scatter_reduce (fonctionnel, pas in-place) pour max et sum.
     Le max est détaché du graphe autograd — la soustraction max sert
     uniquement à la stabilité numérique et ne doit pas affecter les gradients.
-    Le dénominateur est également détaché — standard GAT.
+    Le dénominateur reste dans le graphe autograd pour un gradient correct.
     """
     init_max = torch.full((N,), float('-inf'), device=e_ij.device)
     e_max = init_max.scatter_reduce(0, dst, e_ij, reduce='amax', include_self=True)
@@ -46,7 +46,7 @@ def _softmax_per_dst(
     exp_e = torch.exp(e_shifted)
     init_sum = torch.zeros(N, device=e_ij.device)
     sum_exp = init_sum.scatter_reduce(0, dst, exp_e, reduce='sum', include_self=True)
-    return exp_e / sum_exp[dst].detach().clamp(min=1e-9)
+    return exp_e / sum_exp[dst].clamp(min=1e-9)
 
 
 class RGCNLayerGAT(nn.Module):
@@ -73,7 +73,6 @@ class RGCNLayerGAT(nn.Module):
         self.d_out = d_out
         self.n_relations = n_relations or len(RELATION_TYPES)
         self.dropout_rate = dropout
-        self.training = True
 
         if device is None:
             device = (
@@ -142,9 +141,8 @@ class RGCNLayerGAT(nn.Module):
                 # Softmax par nœud destination (stabilité numérique)
                 alpha = _softmax_per_dst(e_ij, dst_r, N)
 
-                # Agrégation pondérée — requires_grad=True pour garder le graphe autograd
                 weighted_msgs = alpha.unsqueeze(1) * msg_src
-                agg = torch.zeros(N, self.d_out, device=self._device, requires_grad=True)
+                agg = torch.zeros(N, self.d_out, device=self._device)
                 agg = agg.scatter_add(0, dst_r.unsqueeze(1).expand_as(weighted_msgs), weighted_msgs)
                 out = out + agg
 
