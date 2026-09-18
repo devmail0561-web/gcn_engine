@@ -1,6 +1,7 @@
 """Pipeline de scraping avancé : balance, dédup, checkpoint, JSONL."""
 from __future__ import annotations
 import json
+import warnings
 from pathlib import Path
 
 from .splitter import split_sentences
@@ -84,6 +85,12 @@ class ScrapingPipeline:
                     articles = scraper.scrape_all(config["wikipedia_fr"].get("max_per_category", 50))
                     n = self._process_texts(articles, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -102,6 +109,12 @@ class ScrapingPipeline:
                     articles = scraper.scrape(max_per_query=_mpc, max_per_category=_mpc)
                     n = self._process_texts(articles, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -119,6 +132,12 @@ class ScrapingPipeline:
                     papers = scraper.scrape(max_per_query=config["hal"].get("max_per_query", 100))
                     n = self._process_texts(papers, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -136,6 +155,12 @@ class ScrapingPipeline:
                     papers = scraper.scrape(max_per_query=config["arxiv"].get("max_per_query", 100))
                     n = self._process_texts(papers, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -154,6 +179,12 @@ class ScrapingPipeline:
                     items = scraper.scrape(langs=langs)
                     n = self._process_texts(items, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
@@ -193,6 +224,12 @@ class ScrapingPipeline:
                     docs = scraper.scrape()
                     n = self._process_texts(docs, out, scorer, dedup, tracker, min_score,
                                             source_out=_src_files.get(key))
+                    if n == 0:
+                        warnings.warn(
+                            f"Source '{key}' : 0 phrases retenues — "
+                            "vérifier la connectivité réseau ou les paramètres de la source.",
+                            UserWarning, stacklevel=2,
+                        )
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")

@@ -4,6 +4,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 import requests
+from ._net import retry_get as _retry_get
 
 RSS_SOURCES: dict[str, list[tuple[str, str]]] = {
     "fr": [
@@ -39,6 +40,7 @@ class NewsRSSScraper:
     """Scrappe des flux RSS de presse FR+EN."""
 
     def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
@@ -87,17 +89,13 @@ class NewsRSSScraper:
         return texts
 
     def scrape_feed(self, name: str, url: str, lang: str) -> list[dict]:
-        try:
-            resp = self.session.get(url, timeout=30)
-            if resp.status_code != 200:
-                print(f"  {name}: HTTP {resp.status_code}")
-                return []
-            items = self._parse_feed(resp.text, lang, name, url)
-            print(f"  {name}: {len(items)} items")
-            return items
-        except Exception as e:
-            print(f"  {name}: erreur {e}")
+        resp = _retry_get(self.session, url, {}, user_agent=self.user_agent)
+        if resp is None:
+            print(f"  {name}: toutes tentatives échouées, skip")
             return []
+        items = self._parse_feed(resp.text, lang, name, url)
+        print(f"  {name}: {len(items)} items")
+        return items
 
     def scrape(self, langs: list[str] | None = None) -> list[dict]:
         """Scrape tous les flux pour les langues demandées."""

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import time
 import requests
+from ._net import retry_get as _retry_get
 
 
 class HALScraper:
@@ -9,7 +10,6 @@ class HALScraper:
 
     BASE_URL = "https://api.archives-ouvertes.fr/search/"
 
-    # Queries ciblées par type de relation, FR et EN
     QUERIES_FR: list[str] = [
         "causalité", "relation causale", "cause effet",
         "condition nécessaire", "si alors", "bien que résultats",
@@ -28,11 +28,12 @@ class HALScraper:
     ]
 
     def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
     def search_papers(self, query: str, max_results: int = 100, start: int = 0) -> list[dict]:
-        """Recherche des papiers sur HAL."""
+        """Recherche des papiers sur HAL avec retry réseau."""
         params = {
             "q": query,
             "wt": "json",
@@ -40,12 +41,15 @@ class HALScraper:
             "start": start,
             "fl": "docid,label_s,abstract_s,language_s,uri_s",
         }
+        resp = _retry_get(self.session, self.BASE_URL, params,
+                          user_agent=self.user_agent)
+        if resp is None:
+            print(f"  HAL '{query}': toutes tentatives échouées, skip")
+            return []
         try:
-            resp = self.session.get(self.BASE_URL, params=params, timeout=30)
-            resp.raise_for_status()
             return resp.json().get("response", {}).get("docs", [])
         except Exception as e:
-            print(f"  Erreur HAL: {e}")
+            print(f"  HAL parse error: {e}")
             return []
 
     def _doc_to_item(self, doc: dict, query: str) -> dict | None:
@@ -54,7 +58,6 @@ class HALScraper:
             if abstract and len(abstract) > 50:
                 langs = doc.get("language_s", [])
                 lang = langs[0] if langs else "fr"
-                # Normalise : 'English' → 'en', 'French' → 'fr'
                 if lang.lower().startswith("en"):
                     lang = "en"
                 elif lang.lower().startswith("fr"):

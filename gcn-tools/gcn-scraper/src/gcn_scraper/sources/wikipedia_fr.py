@@ -2,22 +2,7 @@
 from __future__ import annotations
 import time
 import requests
-
-
-def _retry_get(session, url, params, max_retries=3, base_delay=1.0):
-    """GET avec retry exponentiel sur erreur réseau ou rate-limit (429)."""
-    for attempt in range(max_retries):
-        try:
-            resp = session.get(url, params=params, timeout=30)
-            if resp.status_code == 429:
-                time.sleep(base_delay * (2 ** attempt) + 1.0)
-                continue
-            if resp.status_code == 200:
-                return resp
-            time.sleep(base_delay * (attempt + 1))
-        except requests.RequestException:
-            time.sleep(base_delay * (2 ** attempt))
-    return None
+from ._net import retry_get as _retry_get
 
 
 # Requêtes ciblées par type de relation (FR)

@@ -3,12 +3,12 @@ from __future__ import annotations
 import time
 import xml.etree.ElementTree as ET
 import requests
+from ._net import retry_get as _retry_get
 
 
 class ArXivScraper:
     BASE_URL = "http://export.arxiv.org/api/query"
 
-    # Queries ciblées par type de relation
     QUERIES: dict[str, list[str]] = {
         "cause": [
             "causal inference", "causality machine learning",
@@ -61,21 +61,21 @@ class ArXivScraper:
     }
 
     def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
     def search(self, query: str, max_results: int = 100, start: int = 0) -> list[dict]:
-        """Recherche des papers et retourne leurs abstracts."""
+        """Recherche des papers arXiv avec retry réseau."""
         params = {
             "search_query": f"all:{query}",
             "start": start,
             "max_results": min(max_results, 200),
         }
-        try:
-            resp = self.session.get(self.BASE_URL, params=params, timeout=30)
-            resp.raise_for_status()
-        except Exception as e:
-            print(f"  arXiv erreur: {e}")
+        resp = _retry_get(self.session, self.BASE_URL, params,
+                          user_agent=self.user_agent)
+        if resp is None:
+            print(f"  arXiv '{query}': toutes tentatives échouées, skip")
             return []
 
         results = []
