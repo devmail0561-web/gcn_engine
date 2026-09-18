@@ -12,6 +12,9 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
     // Assign temporal indices from edges (source = earlier in causal order).
     // Propagate max from source so that A→B→C yields 0,1,2 and not 0,1,1.
     for edge in &ann.edges {
+        if edge.src_clause >= n || edge.dst_clause >= n {
+            continue;
+        }
         if temporal_indices[edge.src_clause].is_none() {
             temporal_indices[edge.src_clause] = Some(0);
         }

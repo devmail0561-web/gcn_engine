@@ -61,6 +61,11 @@ class CGNPipeline:
         self.vocabulary = vocabulary
         self.decoder = decoder
         self.taxonomies_dir = taxonomies_dir
+        if float(temperature) <= 0:
+            raise ValueError(
+                f"temperature doit être > 0 (reçu {temperature!r}) — "
+                "temperature=0 provoque une division par zéro dans la confiance softmax."
+            )
         self.temperature = float(temperature)
         self.node_types = list(node_types) if node_types is not None else list(NODE_TYPES)
         self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
@@ -293,6 +298,10 @@ class CGNPipeline:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
                 rel_idx = int(np.argmax(edge_logit))
                 rel_conf = float(_softmax((edge_logit / self.temperature).reshape(1, -1))[0, rel_idx])
+                if not np.isfinite(rel_conf):
+                    rel_conf = 0.0
+                else:
+                    rel_conf = min(1.0, max(0.0, rel_conf))
                 marker_tok_id = connector.token_span[0] if connector is not None else None
                 negated = _detect_negation(reps[src_i], reps[dst_i], connector)
                 edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf, negated, marker_tok_id))
@@ -608,13 +617,24 @@ class CGNPipeline:
                 d_enriched += d_node_embs
 
         # --- Rétropropagation R-GCN (S5 : boucle sur _graph_layers en ordre inverse) ---
+        # C3 : RGCNLayerPT n'implémente pas backward_message_pass — ses poids sont
+        # gelés par ce backward NumPy. Warning explicite (utiliser
+        # torch_parameters() + optimizer PyTorch pour l'entraîner).
         if (self._cached_edge_index is not None
                 and self._cached_enriched_vecs is not None):
+            import warnings as _w2
             d_curr = d_enriched
             for _layer in reversed(self._graph_layers):
                 if hasattr(_layer, 'backward_message_pass'):
                     d_curr, graph_grads = _layer.backward_message_pass(d_curr)
                     _layer.update(graph_grads, lr)
+                else:
+                    _w2.warn(
+                        f"CGNPipeline.backward() : {type(_layer).__name__} sans "
+                        "backward_message_pass — poids R-GCN gelés par ce backward. "
+                        "Utilisez torch_parameters() + optimizer PyTorch.",
+                        UserWarning, stacklevel=2,
+                    )
 
         # --- Word embedding backward (S2) ---
         if (self.word_embedding is not None

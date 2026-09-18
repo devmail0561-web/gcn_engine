@@ -76,16 +76,18 @@ class RGCNLayerPT(nn.Module):
             )
         self._device = torch.device(device)
 
-        torch.manual_seed(seed)
+        # M3 : générateur local — ne pollue plus le seed global torch.
+        _gen = torch.Generator(device="cpu")
+        _gen.manual_seed(seed)
         scale = (2.0 / d_in) ** 0.5
 
         # Relation-specific weights: (R, D_out, D_in)
         self.W_r = nn.Parameter(
-            torch.empty(self.n_relations, d_out, d_in, device=self._device).normal_(0, scale)
+            torch.randn(self.n_relations, d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
         )
         # Self-loop weight: (D_out, D_in)
         self.W_0 = nn.Parameter(
-            torch.empty(d_out, d_in, device=self._device).normal_(0, scale)
+            torch.randn(d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
         )
 
     # ------------------------------------------------------------------

@@ -7,10 +7,25 @@ use crate::graph::CausalGraph;
 const MIN_CONFIDENCE: f32 = 0.3;
 
 pub fn run(ir: &CausalIR, _g: &CausalGraph, diagnostics: &mut Vec<Diagnostic>) {
+    check_dangling_edges(ir, diagnostics);
     check_self_loops(ir, diagnostics);
     check_orphaned_nodes(ir, diagnostics);
     check_low_confidence(ir, diagnostics);
     check_dangling_conditions(ir, diagnostics);
+}
+
+fn check_dangling_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
+    use std::collections::HashSet;
+    let node_set: HashSet<u32> = ir.nodes.iter().map(|n| n.id.0).collect();
+    for (idx, (src, dst, _)) in ir.edges.iter().enumerate() {
+        if !node_set.contains(&src.0) || !node_set.contains(&dst.0) {
+            diagnostics.push(Diagnostic {
+                node_id: None,
+                severity: DiagnosticSeverity::Error,
+                kind: DiagnosticKind::DanglingEdge { src: *src, dst: *dst, index: idx },
+            });
+        }
+    }
 }
 
 fn check_self_loops(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {

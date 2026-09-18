@@ -441,7 +441,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     let subject = extract_subject(tokens, main_verb_idx);
 
     // "on" as subject → universal scope
-    if subject.as_deref().map_or(false, |s| FR_UNIVERSAL_SUBJECT_LEMMAS.contains(&s)) {
+    if subject.as_deref().is_some_and(|s| FR_UNIVERSAL_SUBJECT_LEMMAS.contains(&s)) {
         scope = Scope::Universal;
     }
 

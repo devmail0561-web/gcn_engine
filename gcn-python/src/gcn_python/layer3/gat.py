@@ -82,20 +82,22 @@ class RGCNLayerGAT(nn.Module):
             )
         self._device = torch.device(device)
 
-        torch.manual_seed(seed)
+        # M3 : générateur local — ne pollue plus le seed global torch.
+        _gen = torch.Generator(device="cpu")
+        _gen.manual_seed(seed)
         scale = (2.0 / d_in) ** 0.5
 
         # Poids de message par relation : (R, D_out, D_in)
         self.W_r = nn.Parameter(
-            torch.empty(self.n_relations, d_out, d_in, device=self._device).normal_(0, scale)
+            torch.randn(self.n_relations, d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
         )
         # Poids self-loop : (D_out, D_in)
         self.W_0 = nn.Parameter(
-            torch.empty(d_out, d_in, device=self._device).normal_(0, scale)
+            torch.randn(d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
         )
         # Vecteurs d'attention par relation : (R, 2 * D_out)
         self.a_r = nn.Parameter(
-            torch.empty(self.n_relations, 2 * d_out, device=self._device).normal_(0, scale)
+            torch.randn(self.n_relations, 2 * d_out, generator=_gen, dtype=torch.float32, device=self._device) * scale
         )
         self.leaky_relu = nn.LeakyReLU(0.2)
 
@@ -195,14 +197,19 @@ class RGCNLayerGAT(nn.Module):
         d_out_t = torch.as_tensor(d_output, dtype=torch.float32, device=self._device)
         d_pre_sigmoid = d_out_t * sigmoid_deriv
 
-        grads = torch.autograd.grad(
-            out,
-            [self._H_in_retained, self.W_r, self.W_0, self.a_r],
-            grad_outputs=d_pre_sigmoid,
-            retain_graph=False,
-        )
-        d_input = grads[0].detach().cpu().numpy()
-        return d_input, [g.detach().cpu().numpy() for g in grads[1:]]
+        try:
+            grads = torch.autograd.grad(
+                out,
+                [self._H_in_retained, self.W_r, self.W_0, self.a_r],
+                grad_outputs=d_pre_sigmoid,
+                retain_graph=False,
+            )
+            d_input = grads[0].detach().cpu().numpy()
+            return d_input, [g.detach().cpu().numpy() for g in grads[1:]]
+        finally:
+            # M2 : libère le graphe autograd retenu entre deux forwards.
+            self._H_in_retained = None
+            self._out_retained = None
 
     # ------------------------------------------------------------------
     # CausalGraph Protocol — parameters / update (compatibilité NumPy)
@@ -253,6 +260,9 @@ class RGCNLayerGAT(nn.Module):
 
     def to_device(self, device: str | torch.device) -> "RGCNLayerGAT":
         self._device = torch.device(device)
+        # M2 : les caches retiennent des tenseurs sur l'ancien device — les invalider.
+        self._H_in_retained = None
+        self._out_retained = None
         return self.to(self._device)
 
     def __repr__(self) -> str:

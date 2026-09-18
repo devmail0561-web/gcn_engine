@@ -60,6 +60,8 @@ def emit(
         }])
 
     return {
+        # Moteur language-agnostic : "und" volontaire (la langue n'est jamais
+        # passée au modèle, même à l'entraînement).
         "source_lang": {"natural": {"lang": "und"}},
         "source_text": text,
         "nodes": nodes,

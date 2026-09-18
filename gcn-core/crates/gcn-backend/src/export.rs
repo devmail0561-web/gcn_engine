@@ -56,5 +56,8 @@ fn edge_color(edge: &gcn_ir::CausalEdge) -> &'static str {
 }
 
 fn escape_dot(s: &str) -> String {
-    s.replace('"', "\\\"").replace('\n', "\\n")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }

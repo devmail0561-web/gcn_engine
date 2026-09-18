@@ -106,11 +106,14 @@ class GCNEngine:
                 f"Checkpoint {checkpoint.name} ne contient pas _arch_json. "
                 "Re-entraîner avec gcn-train >= 2.1.0 pour générer ce champ."
             )
+        # M5 : checkpoints .npz = artefacts locaux de confiance (allow_pickle requis
+        # pour _arch_json/_vocab_json). Ne jamais charger un .npz non fiable.
         arch = json.loads(str(data["_arch_json"][0]))
         d_eff        = arch["d_eff"]
         d_emb        = arch["d_emb"]
         n_rel        = arch["n_relations"]
         bidirectional = arch["bidirectional"]
+        n_rgcn_layers = int(arch.get("n_rgcn_layers", 1))
         graph_class  = arch.get("graph_class", "RGCNLayer")
 
         vocab = FeatureVocabulary()
@@ -122,6 +125,12 @@ class GCNEngine:
 
         encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
 
+        # M5 : RGCNLayerPT accepte aussi device (comme GAT).
+        try:
+            from .layer3.pytorch_rgcn import RGCNLayerPT  # noqa: F401
+            _has_pt = True
+        except ImportError:
+            _has_pt = False
         if graph_class == "RGCNLayerGAT":
             try:
                 from .layer3.gat import RGCNLayerGAT
@@ -130,6 +139,10 @@ class GCNEngine:
             except ImportError:
                 warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning)
                 graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
+        elif graph_class == "RGCNLayerPT" and _has_pt:
+            from .layer3.pytorch_rgcn import RGCNLayerPT
+            graph = RGCNLayerPT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
+                                device=device)
         else:
             graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
 
@@ -138,9 +151,11 @@ class GCNEngine:
             from .layer1.embedding import WordEmbedding
             word_embedding = WordEmbedding(d_emb=d_emb)
 
+        # M5 : reconstruit les couches R-GCN extra (n_rgcn_layers>1).
         pipeline = CGNPipeline(
             encoder=encoder, graph=graph, vocabulary=vocab,
             word_embedding=word_embedding, bidirectional=bidirectional,
+            n_rgcn_layers=n_rgcn_layers,
         )
         load_checkpoint(pipeline, checkpoint)
 

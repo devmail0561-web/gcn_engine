@@ -31,10 +31,13 @@ pub fn decode(ir: &CausalIR) -> Result<String, VerbalizerError> {
         .spawn()
         .map_err(VerbalizerError::ProcessSpawn)?;
 
-    child
-        .stdin
-        .take()
-        .expect("stdin piped")
+    let mut stdin = child.stdin.take().ok_or_else(|| {
+        VerbalizerError::ProcessSpawn(std::io::Error::new(
+            std::io::ErrorKind::BrokenPipe,
+            "stdin du décodeur non pipé",
+        ))
+    })?;
+    stdin
         .write_all(ir_json.as_bytes())
         .map_err(VerbalizerError::ProcessSpawn)?;
 

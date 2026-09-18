@@ -6,6 +6,8 @@ pub enum BackendError {
     QueryParseError(String),
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Réservé à l'API stricte `chain_strict` — `execute(CHAIN)` retourne
+    /// `Path { found: false }` au lieu d'erreur pour compatibilité.
     #[error("no path from '{0}' to '{1}'")]
     NoPath(String, String),
 }

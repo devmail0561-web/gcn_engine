@@ -16,6 +16,19 @@ pub struct MiddleendResult {
 }
 
 pub fn process(mut ir: CausalIR) -> Result<MiddleendResult, MiddleendError> {
+    // M4 : rend MiddleendError::GraphBuildError atteignable (ids dupliqués).
+    {
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        for n in &ir.nodes {
+            if !seen.insert(n.id.0) {
+                return Err(MiddleendError::GraphBuildError(format!(
+                    "duplicate node id: {}",
+                    n.id.0
+                )));
+            }
+        }
+    }
     let g = graph::build(&ir);
 
     let (cycles, edge_cycle_map) = cycle::detect_and_classify(&ir, &g);

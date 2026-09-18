@@ -126,11 +126,11 @@ pub struct GapDto {
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     match query {
         Query::Why(label) => {
-            let results = pearl::why(ir, label);
+            let mut results = pearl::why(ir, label);
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (target, links) = results.into_iter().next().expect("results non vide vérifié");
+            let (target, links) = results.drain(..).next().ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             Ok(QueryResult::Causes {
                 target,
                 links: links.iter().map(link_to_dto).collect(),
@@ -138,11 +138,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::What(label) => {
-            let results = pearl::what(ir, label);
+            let mut results = pearl::what(ir, label);
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (source, links) = results.into_iter().next().expect("results non vide vérifié");
+            let (source, links) = results.drain(..).next().ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             Ok(QueryResult::Effects {
                 source,
                 links: links.iter().map(link_to_dto).collect(),
@@ -150,6 +150,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Chain(from, to) => {
+            // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
+            if pearl::find_best(ir, from).is_none() {
+                return Err(BackendError::NodeNotFound(from.clone()));
+            }
+            if pearl::find_best(ir, to).is_none() {
+                return Err(BackendError::NodeNotFound(to.clone()));
+            }
             let links = pearl::chain(ir, from, to);
             let found = links.is_some();
             Ok(QueryResult::Path {
@@ -203,6 +210,20 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             })
         }
     }
+}
+
+/// Variante stricte de CHAIN : erreur `NoPath` si les nœuds existent mais sans
+/// chemin causal (rend `BackendError::NoPath` atteignable).
+pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>, BackendError> {
+    if pearl::find_best(ir, from).is_none() {
+        return Err(BackendError::NodeNotFound(from.to_string()));
+    }
+    if pearl::find_best(ir, to).is_none() {
+        return Err(BackendError::NodeNotFound(to.to_string()));
+    }
+    pearl::chain(ir, from, to)
+        .map(|links| links.iter().map(link_to_dto).collect())
+        .ok_or_else(|| BackendError::NoPath(from.to_string(), to.to_string()))
 }
 
 fn link_to_dto(l: &CausalLink) -> LinkDto {

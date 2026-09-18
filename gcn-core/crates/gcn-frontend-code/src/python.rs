@@ -84,8 +84,7 @@ fn walk_block(
             edges.push((id, body_id, control_edge(edge_rel)));
         }
 
-        if !block_ids.is_empty() {
-            let prev = *block_ids.last().expect("non-empty");
+        if let Some(&prev) = block_ids.last() {
             edges.push((prev, id, control_edge(RelationType::Sequence)));
         }
 

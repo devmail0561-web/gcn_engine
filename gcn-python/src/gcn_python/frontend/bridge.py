@@ -113,25 +113,38 @@ def _parse_edges(edges: list) -> list[tuple[int, int, dict]]:
     Supporte :
       - format tuple [src, dst, obj]  ← sortie ir_emitter.py et gcn analyze Rust
       - format dict {"source": ..., "target": ..., ...}
-    Les entrées invalides sont silencieusement ignorées.
+    Les entrées invalides sont ignorées avec un compteur (warning agrégé).
     """
     result: list[tuple[int, int, dict]] = []
+    n_invalid = 0
     for e in edges:
         if isinstance(e, (list, tuple)) and len(e) == 3:
             src_id, dst_id, edge_obj = e
             if isinstance(edge_obj, dict):
                 try:
                     result.append((int(src_id), int(dst_id), edge_obj))
+                    continue
                 except (TypeError, ValueError):
                     pass
+            n_invalid += 1
         elif isinstance(e, dict):
             src = e.get("source")
             dst = e.get("target")
             if src is not None and dst is not None:
                 try:
                     result.append((int(src), int(dst), e))
+                    continue
                 except (TypeError, ValueError):
                     pass
+            n_invalid += 1
+        else:
+            n_invalid += 1
+    if n_invalid:
+        warnings.warn(
+            f"gcn bridge : {n_invalid} arête(s) CIR invalide(s) ignorée(s).",
+            UserWarning,
+            stacklevel=2,
+        )
     return result
 
 
