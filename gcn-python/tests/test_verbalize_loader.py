@@ -91,3 +91,15 @@ def test_no_yaml_loaded(examples_dir: Path, monkeypatch):
     monkeypatch.setattr(builtins, "open", patched_open)
     VerbalizerDataLoader(examples_dir)
     assert yaml_opens == [], f"YAML files read by loader: {yaml_opens}"
+
+
+def test_node_labels_aligned(examples_dir):
+    """node_labels doit avoir le même nombre d'éléments que les lignes de node_type_embeddings."""
+    loader = VerbalizerDataLoader(examples_dir)
+    for sample in loader:
+        assert isinstance(sample.node_labels, list), "node_labels doit être une list"
+        assert all(isinstance(s, str) for s in sample.node_labels), \
+            "tous les éléments de node_labels doivent être des str"
+        assert len(sample.node_labels) == sample.node_type_embeddings.shape[0], \
+            (f"len(node_labels)={len(sample.node_labels)} != "
+             f"N={sample.node_type_embeddings.shape[0]}")

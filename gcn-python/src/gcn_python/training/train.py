@@ -21,6 +21,22 @@ from ..evaluation.recorder import TrainingRecorder
 from .checkpoint import save_checkpoint
 
 
+def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> list:
+    """UDRepresentation minimaux depuis labels CIR pour le verbalizer (enriched_vecs réels)."""
+    from ..layer1.representation import UDRepresentation
+    reps = []
+    for label, ntype in zip(node_labels, node_types):
+        lemma = label.split()[0] if label.strip() else ntype
+        reps.append(UDRepresentation(
+            tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos=None,
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(0, max(1, len(label.split()))),
+        ))
+    return reps
+
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -470,11 +486,26 @@ def train_cmd(
                 batch_step_count = 0
 
             if verb_loader is not None and pipeline.decoder is not None:
+                from ..verbalizer.trainable import SurfaceVocabulary as _SV
                 for vsample in verb_loader:
                     if len(vsample.gold_tokens) == 0:
                         continue
-                    dec_logits = pipeline.decoder.forward_decode(vsample.node_type_embeddings)
-                    dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, vsample.gold_tokens)
+                    import json as _json
+                    _cir = _json.loads(vsample.ir_json)
+                    _ntypes = [n.get("node_type", "entite") for n in _cir.get("nodes", [])]
+                    _labels = vsample.node_labels if vsample.node_labels else _ntypes
+                    _reps = _minimal_reps_from_labels(_labels, _ntypes)
+                    if not _reps:
+                        continue
+                    pipeline.forward(_reps, vsample.source_text)
+                    _enriched = pipeline.get_enriched_vectors()
+                    if _enriched is None:
+                        continue
+                    _eos = pipeline.decoder.vocab._t2i.get(_SV.EOS, -1)
+                    _gold = (np.append(vsample.gold_tokens, _eos).astype(np.int64)
+                             if _eos >= 0 else vsample.gold_tokens)
+                    dec_logits = pipeline.decoder.forward_decode(_enriched, _gold)
+                    dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, _gold)
                     if not np.isfinite(dec_loss):
                         continue
                     _, dec_grads, d_attn_vec = pipeline.decoder.backward_decode(d_dec)

@@ -134,6 +134,15 @@ def test_checkpoint_roundtrip(tmp_path: Path):
     # shapes must match for weight copy
     for p, p2 in zip(params, params2):
         assert p.shape == p2.shape
+    # to_json/from_json restaure attn_vec et W_query (inline dans le JSON)
+    # Les poids layer0/1 sont random (nécessitent load_checkpoint pour être restaurés)
+    # — ce test vérifie les valeurs sérialisées inline (attn_vec = params[0], W_query = params[-1])
+    if len(params) >= 1:
+        assert np.allclose(params[0], params2[0], atol=1e-6), \
+            "attn_vec non restauré après to_json/from_json"
+    if len(params) >= 2:
+        assert np.allclose(params[-1], params2[-1], atol=1e-6), \
+            "W_query non restauré après to_json/from_json"
 
 
 def test_decode_inference():

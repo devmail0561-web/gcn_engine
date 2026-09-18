@@ -108,13 +108,22 @@ class TrainableDecoder:
         self._d_W_query: np.ndarray | None = None  # S6: accumulated W_query gradient
         self._cached_attn_weights: np.ndarray | None = None  # P2d: for backward (last step)
         self._cached_node_embs: np.ndarray | None = None  # P2d: for backward
+        self._n_wq_steps: int = 0  # accumulation counter for _d_W_query
+        if len(vocab) <= 2:
+            warnings.warn(
+                "TrainableDecoder : vocab contient seulement PAD/UNK — "
+                "appeler vocab.build(surfaces) avant de construire le décodeur.",
+                UserWarning,
+                stacklevel=2,
+            )
         if d_in is not None:
             self._init_layers(d_in)
 
     def _init_layers(self, d_in: int) -> None:
         if self._layers is None:
             self._attn_vec = np.zeros(d_in, dtype=np.float32)       # P2d: attention pooling
-            self._W_query = np.zeros((self.d_hidden, d_in), dtype=np.float32)  # S6: zero-init
+            _scale = np.sqrt(2.0 / (self.d_hidden + d_in))
+            self._W_query = self._rng.normal(0, _scale, (self.d_hidden, d_in)).astype(np.float32)
             self._layers = [
                 _LinearLayer(d_in + self.d_hidden, self.d_hidden, self._rng),  # RNN cell
                 _LinearLayer(self.d_hidden, len(self.vocab), self._rng),        # output
@@ -146,9 +155,16 @@ class TrainableDecoder:
         Training (gold_tokens provided): runs T steps with teacher forcing, returns (T, |V|).
         """
         if len(node_embeddings) == 0:
+            self._rnn_step_cache = []
+            self._cached_node_embs = None
             return np.zeros(len(self.vocab), dtype=np.float32)
         d_in = node_embeddings.shape[1]
         self._init_layers(d_in)
+        if self._last_d_in is not None and node_embeddings.shape[1] != self._last_d_in:
+            raise ValueError(
+                f"forward_decode : d_in={node_embeddings.shape[1]} incompatible "
+                f"avec d_in={self._last_d_in} verrouillé à l'init."
+            )
 
         if self._attn_vec is None or self._W_query is None:
             raise RuntimeError("forward_decode : état interne non initialisé après _init_layers")
@@ -213,7 +229,7 @@ class TrainableDecoder:
                 d_t[t] -= 1.0
                 d_logits += d_t
             N = len(valid)
-            return total_loss / N, d_logits / N
+            return total_loss / N, d_logits
         else:
             # Multi-step (T, |V|): per-step cross-entropy
             T, V = logits.shape
@@ -233,7 +249,7 @@ class TrainableDecoder:
                 valid_steps += 1
             if valid_steps == 0:
                 return 0.0, d_logits
-            return total_loss / valid_steps, d_logits / valid_steps
+            return total_loss / valid_steps, d_logits
 
     def backward_decode(
         self, d_logits: np.ndarray
@@ -319,15 +335,20 @@ class TrainableDecoder:
             d_node_embs_total += step_attn[:, np.newaxis] * d_context_t[np.newaxis, :]
             d_node_embs_total += d_scores_t[:, np.newaxis] * query_vec_t[np.newaxis, :]
 
-        # Stocker d_W_query pour update() — interface rétrocompatible
-        self._d_W_query = d_W_query_total / n_steps
+        # Accumuler d_W_query (mini-batch : plusieurs backward_decode avant update)
+        if self._d_W_query is None:
+            self._d_W_query = d_W_query_total.copy()
+            self._n_wq_steps = n_steps
+        else:
+            self._d_W_query += d_W_query_total
+            self._n_wq_steps += n_steps
 
         grads = [
             (dW0_total / n_steps, db0_total / n_steps),
             (dW1_total / n_steps, db1_total / n_steps),
         ]
         d_attn_vec = d_attn_vec_total / n_steps
-        return d_node_embs_total, grads, d_attn_vec
+        return d_node_embs_total / n_steps, grads, d_attn_vec
 
     def parameters(self) -> list[np.ndarray]:
         if self._layers is None:
@@ -343,13 +364,20 @@ class TrainableDecoder:
     def update(self, grads: list[tuple[np.ndarray, np.ndarray]], d_attn_vec: np.ndarray, lr: float) -> None:
         if self._layers is None:
             raise RuntimeError("update appelé avant l'initialisation — forward_decode requis d'abord")
+        if len(grads) != len(self._layers):
+            raise ValueError(
+                f"update() : {len(grads)} groupes de gradients pour "
+                f"{len(self._layers)} couches."
+            )
         # P2d: Mettre à jour attn_vec
         if self._attn_vec is not None:
             self._attn_vec -= lr * d_attn_vec
         # S6: Mettre à jour W_query depuis le gradient stocké par backward_decode
         if self._W_query is not None and self._d_W_query is not None:
-            self._W_query -= lr * self._d_W_query
+            _nwq = self._n_wq_steps if self._n_wq_steps > 0 else 1
+            self._W_query -= lr * (self._d_W_query / _nwq)
             self._d_W_query = None
+            self._n_wq_steps = 0
         for layer, (dW, db) in zip(self._layers, grads):
             layer.W -= lr * dW
             layer.b -= lr * db
@@ -373,12 +401,7 @@ class TrainableDecoder:
         eos_idx = self.vocab._t2i.get(SurfaceVocabulary.EOS, -1)
         _skip = {0, 1, eos_idx}
         if self._layers is None:
-            # Layers non initialisées — init avec d_in réel
-            logits = self.forward_decode(node_embeddings)
-            top_indices = np.argsort(logits)[-10:][::-1]
-            # H2 correction : pas de troncature [:5], longueur contrôlée par top 10
-            filtered = [int(i) for i in top_indices if int(i) not in _skip]
-            return self.vocab.decode(filtered)
+            self._init_layers(node_embeddings.shape[1])
 
         # Greedy multi-step decode with S6 per-step attention
         if self._attn_vec is None or self._W_query is None:

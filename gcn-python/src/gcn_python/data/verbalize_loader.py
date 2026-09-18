@@ -32,9 +32,10 @@ def _node_type_embeddings(nodes: list[dict]) -> np.ndarray:
 @dataclass
 class VerbalizeSample:
     ir_json: str                      # CausalIR JSON (for inference)
-    node_type_embeddings: np.ndarray  # (N, 7) one-hot — fallback when R-GCN not available
+    node_type_embeddings: np.ndarray  # (N, 7) one-hot — conservé pour rétrocompat
     gold_tokens: np.ndarray           # (T,) int indices in SurfaceVocabulary
     source_text: str                  # used to match encoding dataset samples
+    node_labels: list[str] = None     # NOUVEAU — labels depuis causal_ir.nodes[].label
 
 
 class VerbalizerDataLoader:
@@ -71,12 +72,13 @@ class VerbalizerDataLoader:
             source_text: str = ir.get("source_text", "")
             nodes: list[dict] = ir.get("nodes", [])
             node_embs = _node_type_embeddings(nodes)
+            node_labels = [n.get("label", n.get("node_type", "")) for n in nodes]
             for surf in ex.get("surfaces", []):
                 if surf.get("quality") not in ("gold", "silver"):
                     continue
                 gold_tokens = np.array(vocab.encode(surf["text"]), dtype=np.int64)
                 self._samples.append(
-                    VerbalizeSample(ir_json, node_embs, gold_tokens, source_text)
+                    VerbalizeSample(ir_json, node_embs, gold_tokens, source_text, node_labels)
                 )
 
     @staticmethod

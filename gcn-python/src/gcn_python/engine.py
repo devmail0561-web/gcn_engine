@@ -212,6 +212,27 @@ class GCNEngine:
             text_parser=self._text_parser,
         )
 
+    def verbalize(self, text: str, use_neural: bool = False) -> dict:
+        """
+        Texte brut → CIR prédit + texte verbalisé.
+
+        use_neural=False (défaut) : ReferenceDecoder (templates statiques).
+        use_neural=True : TrainableDecoder si chargé depuis checkpoint, sinon repli template.
+
+        Requiert gcn-cli ou text_parser passé au constructeur.
+        Retourne {"cir": <CausalIR dict>, "text": <str>}.
+
+        Note : le TrainableDecoder est un RNN piloté par pooling attentionnel des nœuds
+        sans réinjection de tokens — qualité de génération limitée (vrai teacher forcing = Phase 3).
+        """
+        cir = self._pipeline.analyze(text, text_parser=self._text_parser)
+        if use_neural and self._pipeline.decoder is not None:
+            enriched = self._pipeline.get_enriched_vectors()
+            if enriched is not None:
+                return {"cir": cir, "text": self._pipeline.decoder.decode(enriched)}
+        from .verbalizer.decoder import ReferenceDecoder
+        return {"cir": cir, "text": ReferenceDecoder().decode_cir(cir) or ""}
+
     def analyze_batch(self, texts: list[str]) -> list[dict]:
         """
         Liste de phrases pré-segmentées → liste de CausalIR.

@@ -264,8 +264,12 @@ def run_discuss(
                                 # Aussi stocké dans le graphe pour les requêtes
                                 handler.add_cir(cir)
                                 n_new += len(cir["edges"])
-                        except Exception:
-                            pass
+                        except Exception as _e:
+                            import warnings as _dw
+                            _dw.warn(
+                                f"discuss: erreur analyse/verbalisation CIR : {_e}",
+                                UserWarning, stacklevel=2,
+                            )
                     total_new += n_new
                     print(f"  {filename} : {n_new} relation(s) extraite(s)")
                     _write_log(log_path, {

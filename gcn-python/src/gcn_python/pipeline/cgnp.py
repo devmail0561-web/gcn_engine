@@ -841,12 +841,20 @@ class CGNPipeline:
                 self._cached_decode_gradient
             )
             if self._accum_dec_grads is None:
-                self._accum_dec_grads = [g.copy() for g in dec_grads]
+                self._accum_dec_grads = [(dW.copy(), db.copy()) for dW, db in dec_grads]
                 self._accum_dec_attn = d_attn_vec.copy()
             else:
-                for i in range(len(self._accum_dec_grads)):
-                    self._accum_dec_grads[i] += dec_grads[i]
+                for i, (dW_new, db_new) in enumerate(dec_grads):
+                    self._accum_dec_grads[i] = (
+                        self._accum_dec_grads[i][0] + dW_new,
+                        self._accum_dec_grads[i][1] + db_new,
+                    )
                 self._accum_dec_attn += d_attn_vec
+            # S11 : propager gradient décodeur → enriched (batch) — miroir de backward()
+            if (_d_node_embs is not None
+                    and d_enriched is not None
+                    and _d_node_embs.shape == d_enriched.shape):
+                d_enriched += _d_node_embs
 
         # --- Word embedding backward accumulation (S2) ---
         if (self.word_embedding is not None
@@ -887,7 +895,7 @@ class CGNPipeline:
                     normed = [g + weight_decay * p for g, p in zip(normed, params)]
                 _layer.update(normed, lr)
         if self._accum_dec_grads is not None and self.decoder is not None:
-            norm_grads = [g / n_samples for g in self._accum_dec_grads]
+            norm_grads = [(dW / n_samples, db / n_samples) for dW, db in self._accum_dec_grads]
             norm_attn = self._accum_dec_attn / n_samples
             self.decoder.update(norm_grads, norm_attn, lr)
         self._accum_node_grads = None
