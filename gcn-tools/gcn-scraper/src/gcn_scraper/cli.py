@@ -14,7 +14,7 @@ from .pipeline import ScrapingPipeline
               help="Reprend depuis le checkpoint existant (skip les sources déjà faites)")
 @click.option("--langs", default="fr,en", show_default=True,
               help="Langues à scraper (comma-separated : fr,en)")
-@click.option("--min-quality", default=0.0, show_default=True, type=float,
+@click.option("--min-quality", default=0.3, show_default=True, type=float,
               help="Score de qualité minimum [0-1] pour conserver une phrase")
 @click.option("--max-per-category", default=50, show_default=True, type=int,
               help="Nb max d'articles par catégorie Wikipedia")
@@ -86,7 +86,7 @@ def scrape_cmd(
     result = pipeline.run(config)
 
     click.echo(f"\nTerminé : {result['total_written']} phrases → {result['output']} (session: {result['timestamp']})")
-    click.echo("\nBalance par type de relation :")
+    click.echo("\nBalance par langue :")
     for rel, stat in result["balance"].items():
         click.echo(f"  {rel:<22} {stat}")
 

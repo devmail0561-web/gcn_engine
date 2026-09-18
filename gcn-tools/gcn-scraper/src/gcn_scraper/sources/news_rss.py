@@ -18,7 +18,22 @@ def _load_rss_sources() -> dict[str, list[tuple[str, str]]]:
     }
 
 
-RSS_SOURCES: dict[str, list[tuple[str, str]]] = _load_rss_sources()
+_RSS_SOURCES: dict[str, list[tuple[str, str]]] | None = None
+
+
+def _get_rss_sources() -> dict[str, list[tuple[str, str]]]:
+    global _RSS_SOURCES
+    if _RSS_SOURCES is None:
+        try:
+            _RSS_SOURCES = _load_rss_sources()
+        except Exception as e:
+            import warnings as _w
+            _w.warn(
+                f"news_rss: impossible de charger sources.yaml ({e}) — source désactivée.",
+                UserWarning,
+            )
+            _RSS_SOURCES = {}
+    return _RSS_SOURCES
 
 _TAG_RE = re.compile(r'<[^>]+>')
 _SPACE_RE = re.compile(r'\s+')
@@ -81,7 +96,7 @@ class NewsRSSScraper:
         return texts
 
     def scrape_feed(self, name: str, url: str, lang: str) -> list[dict]:
-        resp = _retry_get(self.session, url, {}, user_agent=self.user_agent)
+        resp, self.session = _retry_get(self.session, url, {}, user_agent=self.user_agent)
         if resp is None:
             print(f"  {name}: toutes tentatives échouées, skip")
             return []
@@ -95,7 +110,7 @@ class NewsRSSScraper:
             langs = ["fr", "en"]
         results = []
         for lang in langs:
-            for name, url in RSS_SOURCES.get(lang, []):
+            for name, url in _get_rss_sources().get(lang, []):
                 results.extend(self.scrape_feed(name, url, lang))
                 time.sleep(1)
         return results

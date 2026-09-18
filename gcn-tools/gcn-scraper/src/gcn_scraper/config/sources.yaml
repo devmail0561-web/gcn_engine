@@ -99,6 +99,51 @@ sources:
         - name: "reuters_technology"
           url: "https://feeds.reuters.com/reuters/technologyNews"
 
+search_queries:
+  fr:
+    - "causalité épidémiologie maladie"
+    - "effets pollution environnement conséquences"
+    - "conséquences économiques crise"
+    - "mécanisme pathologique cause effet"
+    - "facteurs favorisant croissance développement"
+    - "prévention traitement médical"
+    - "conditions nécessaires loi juridique"
+    - "règlement juridique condition application"
+    - "bien que résultats contradictoires"
+    - "malgré progrès difficultés persistantes"
+    - "protocole expérimental étapes séquence"
+    - "processus chronologique historique"
+    - "objectifs politique économique stratégie"
+    - "opposition théories scientifiques controverse"
+    - "algorithme données apprentissage automatique"
+    - "architecture logicielle systèmes contrôle"
+    - "inhibition croissance facteurs protection"
+    - "mécanismes biologiques cellulaires"
+    - "processus chimiques réactions synthèse"
+    - "histoire événements chronologiques causes"
+  en:
+    - "disease causation epidemiology mechanism"
+    - "climate change effects consequences"
+    - "economic crisis causes consequences"
+    - "pathological mechanism cause effect"
+    - "enabling factors growth development"
+    - "prevention treatment medical conditions"
+    - "necessary conditions logic law requirements"
+    - "legal requirements contract eligibility"
+    - "although results show contradiction limitation"
+    - "despite progress difficulties remain"
+    - "step by step experimental protocol"
+    - "chronological historical process events"
+    - "strategic objectives policy decision"
+    - "opposing theories scientific debate"
+    - "machine learning training dataset algorithm"
+    - "software architecture control flow execution"
+    - "inhibition growth protective factors"
+    - "biological mechanisms cellular"
+    - "chemical processes reactions synthesis"
+    - "historical events chronological causes"
+
+sources:
   web_search:
     enabled: true
     max_results_per_query: 15

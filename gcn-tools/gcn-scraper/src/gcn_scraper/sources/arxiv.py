@@ -75,8 +75,8 @@ class ArXivScraper:
             "start": start,
             "max_results": min(max_results, 200),
         }
-        resp = _retry_get(self.session, self.BASE_URL, params,
-                          user_agent=self.user_agent)
+        resp, self.session = _retry_get(self.session, self.BASE_URL, params,
+                                         user_agent=self.user_agent)
         if resp is None:
             print(f"  arXiv '{query}': toutes tentatives échouées, skip")
             return []

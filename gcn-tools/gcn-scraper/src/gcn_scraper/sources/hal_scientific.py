@@ -44,8 +44,8 @@ class HALScraper:
             "start": start,
             "fl": "docid,label_s,abstract_s,language_s,uri_s",
         }
-        resp = _retry_get(self.session, self.BASE_URL, params,  # noqa: B009
-                          user_agent=self.user_agent)
+        resp, self.session = _retry_get(self.session, self.BASE_URL, params,  # noqa: B009
+                                         user_agent=self.user_agent)
         if resp is None:
             print(f"  HAL '{query}': toutes tentatives échouées, skip")
             return []

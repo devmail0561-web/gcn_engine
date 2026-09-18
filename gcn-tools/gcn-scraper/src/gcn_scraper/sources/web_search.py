@@ -4,22 +4,12 @@ import time
 import requests
 import trafilatura
 from ._net import retry_get as _retry_get
-from ..config.loader import get_source_config
-from ..filters.causal_scorer import RELATION_KEYWORDS
+from ..config.loader import get_source_config, get_config
 
 
-def _build_queries(lang: str) -> dict[str, list[str]]:
-    """Construit les requêtes de recherche depuis les mots-clés du CausalScorer."""
-    queries: dict[str, list[str]] = {}
-    for relation, kw_dict in RELATION_KEYWORDS.items():
-        kws = kw_dict.get(lang, [])
-        if not kws:
-            continue
-        q_list: list[str] = []
-        for i in range(0, len(kws), 2):
-            q_list.append(f"{kws[i]} {kws[i + 1]}" if i + 1 < len(kws) else kws[i])
-        queries[relation] = q_list[:4]
-    return queries
+def _build_queries(lang: str) -> list[str]:
+    """Requêtes de recherche depuis config/sources.yaml — indépendant de la taxonomie causale."""
+    return get_config().get("search_queries", {}).get(lang, [])
 
 
 class WebSearchScraper:
@@ -84,7 +74,7 @@ class WebSearchScraper:
             "per_page": min(max_results, 25),
             "select": "id,doi,title,abstract_inverted_index,language",
         }
-        resp = _retry_get(self.session, self._openalex_url, params)
+        resp, self.session = _retry_get(self.session, self._openalex_url, params)
         if resp is None:
             return []
         try:
@@ -126,7 +116,7 @@ class WebSearchScraper:
             "retmax": min(max_results, 20),
             "retmode": "json",
         }
-        resp = _retry_get(self.session, self._pubmed_search_url, search_params)
+        resp, self.session = _retry_get(self.session, self._pubmed_search_url, search_params)
         if resp is None:
             return []
         try:
@@ -142,7 +132,7 @@ class WebSearchScraper:
             "rettype": "abstract", "retmode": "text",
         }
         time.sleep(self._delay)
-        resp2 = _retry_get(self.session, self._pubmed_fetch_url, fetch_params)
+        resp2, self.session = _retry_get(self.session, self._pubmed_fetch_url, fetch_params)
         if resp2 is None:
             return []
 
@@ -167,7 +157,7 @@ class WebSearchScraper:
 
     def _extract_text(self, url: str) -> str | None:
         """Extrait le texte propre d'une URL avec trafilatura."""
-        resp = _retry_get(self.session, url, {})
+        resp, self.session = _retry_get(self.session, url, {})
         if resp is None:
             return None
         try:
@@ -271,34 +261,35 @@ class WebSearchScraper:
         seen_urls: set[str] = set()
 
         for lang in ("fr", "en"):
-            queries = _build_queries(lang)
-            for relation, query_list in queries.items():
-                if tracker and tracker.is_full([relation]):
-                    continue
-                for query in query_list:
-                    print(f"  web/{lang} [{relation}]: '{query[:42]}'...", end=" ", flush=True)
-                    hits = self.search_multi(query, lang=lang)
-                    count = 0
-                    for hit in hits:
-                        url = hit["url"]
-                        if url in seen_urls:
-                            continue
-                        if tracker and tracker.is_full([relation]):
-                            break
-                        seen_urls.add(url)
-                        results.append({
-                            "title": hit.get("title", ""),
-                            "text": hit["text"],
-                            "lang": hit.get("lang", lang),
-                            "source": f"web_search:{relation}",
-                            "url": url,
-                            "relation_hint": relation,
-                            "relevance_score": hit.get("relevance_score", 1),
-                            "found_by": hit.get("found_by", []),
-                        })
-                        count += 1
-                    print(f"{count} pages")
-                    time.sleep(self._delay)
+            if tracker and tracker.is_full(lang):
+                print(f"  web/{lang}: budget langue atteint, skip")
+                continue
+            query_list = _build_queries(lang)
+            for query in query_list:
+                if tracker and tracker.is_full(lang):
+                    break
+                print(f"  web/{lang}: '{query[:50]}'...", end=" ", flush=True)
+                hits = self.search_multi(query, lang=lang)
+                count = 0
+                for hit in hits:
+                    url = hit["url"]
+                    if url in seen_urls:
+                        continue
+                    if tracker and tracker.is_full(lang):
+                        break
+                    seen_urls.add(url)
+                    results.append({
+                        "title": hit.get("title", ""),
+                        "text": hit["text"],
+                        "lang": hit.get("lang", lang),
+                        "source": "web_search",
+                        "url": url,
+                        "relevance_score": hit.get("relevance_score", 1),
+                        "found_by": hit.get("found_by", []),
+                    })
+                    count += 1
+                print(f"{count} pages")
+                time.sleep(self._delay)
 
         print(f"  web total: {len(results)} pages")
         return results

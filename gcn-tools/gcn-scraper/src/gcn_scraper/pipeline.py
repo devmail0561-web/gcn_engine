@@ -7,6 +7,7 @@ Sortie JSONL horodatée :
   {"text": "...", "lang": "fr", "source": "wikipedia_fr", "url": "...", "quality": 0.85}
 """
 from __future__ import annotations
+import contextlib
 import json
 import warnings
 from datetime import datetime
@@ -53,22 +54,24 @@ class ScrapingPipeline:
         dedup = Deduplicator()
         tracker = BalanceTracker(config.get("budget"))
         checkpoint = ScrapingCheckpoint(self.output_dir / ".checkpoint.json")
-        min_quality: float = config.get("min_quality", 0.0)
+        min_quality: float = config.get("min_quality", 0.3)
         resume: bool = config.get("resume", False)
 
         # Timestamp : réutiliser depuis le checkpoint en mode resume, sinon nouveau
         if resume and checkpoint.state.get("session_timestamp"):
             timestamp: str = checkpoint.state["session_timestamp"]
+            _mode = "a"
             print(f"=== Reprise session {timestamp} ===")
         else:
+            # Pas de session_timestamp (run v2 ou premier run) — démarrer fresh
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            if not resume:
-                checkpoint.reset()
+            _mode = "w"
+            # Ne pas accumuler les compteurs d'une ancienne session incompatible
+            checkpoint.reset()
             checkpoint.state["session_timestamp"] = timestamp
             checkpoint._save()
 
         global_file = self.output_dir / f"sentences_{timestamp}.jsonl"
-        _mode = "a" if resume else "w"
 
         _source_keys = [
             ("wikipedia_fr", f"wikipedia_fr_{timestamp}.jsonl"),
@@ -80,14 +83,17 @@ class ScrapingPipeline:
             ("doc",          f"doc_{timestamp}.jsonl"),
             ("web_search",   f"web_search_{timestamp}.jsonl"),
         ]
-        _src_files: dict[str, object] = {}
-        for cfg_key, fname in _source_keys:
-            if config.get(cfg_key):
-                _src_files[cfg_key] = open(self.output_dir / fname, _mode, encoding="utf-8")
 
         total_written = 0
 
-        with open(global_file, _mode, encoding="utf-8") as out:
+        with contextlib.ExitStack() as stack:
+            out = stack.enter_context(open(global_file, _mode, encoding="utf-8"))
+            _src_files: dict[str, object] = {}
+            for cfg_key, fname in _source_keys:
+                if config.get(cfg_key):
+                    _src_files[cfg_key] = stack.enter_context(
+                        open(self.output_dir / fname, _mode, encoding="utf-8")
+                    )
 
             # --- Wikipedia FR ---
             if config.get("wikipedia_fr") and not tracker.is_globally_full():
@@ -243,9 +249,6 @@ class ScrapingPipeline:
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
-
-        for f in _src_files.values():
-            f.close()
 
         print("\n=== Résumé final ===")
         balance = tracker.summary()
