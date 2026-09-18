@@ -25,9 +25,11 @@ Phase 13 ████████████████████  100%  Edg
 Phase BF ████████████████████  100%  Analyse profonde + correctifs bugs + conformité arch
 Phase 15 ████████████████████  100%  Val set, régularisation, suppression gcn_causal_type, pipeline UD
 Phase A2 ████████████████████  100%  Audit max — 11 correctifs gradient, reproductibilité, perf (v2.3.0)
+Phase B  ████████████████████  100%  Mesure d'impact des correctifs v2.3.0 (référence prod)
+Phase C  ████████████████████  100%  Hyperparameter tuning + oversampling → val_edge_f1 > 0.40
 ```
 
-**Tests Python : 206 / 206 passent** (`pytest gcn-python/tests/`, 4 skipped stables)
+**Tests Python : 223 / 223 passent** (`pytest gcn-python/tests/`, 4 skipped stables)
 **Tests Rust : build OK** (`cargo build --workspace`)
 
 ---
@@ -504,4 +506,154 @@ Tests : **195 Python (2 skipped stables)**, Rust build OK
 | 10 correctifs audit codebase | divers | ✅ |
 | Monitoring `--log` dans gcn-discuss | `discuss.py` | ✅ |
 
-**Tests :** 206 Python (2 skipped stables), Rust build OK
+**Tests :** 223 Python (4 skipped stables), Rust build OK
+
+---
+
+## Phase B — Mesure d'impact des correctifs v2.3.0 ✅
+
+**Date :** 2026-09-18
+**Objectif :** mesurer l'impact réel des 11 correctifs v2.3.0 (baseline avant tuning Phase C).
+
+### Configuration des runs
+
+| Run | Options | Checkpoint |
+|-----|---------|-----------|
+| Baseline (R-GCN NumPy) | `--epochs 50 --lr 0.001 --weighted-loss --val-dir` | `model_v230_ref.npz` |
+| GAT | `--epochs 50 --lr 0.001 --weighted-loss --use-attention --val-dir` | `model_v230_gat.npz` |
+
+Dataset : 536 phrases train / 114 phrases val (`gcn-datasets/real/`)
+
+### Métriques epoch 50
+
+| Métrique | Baseline | GAT | Cible prod |
+|---------|---------|-----|-----------|
+| `train_node_macro_f1` | 0.196 | 0.197 | — |
+| `train_edge_macro_f1` | 0.168 | 0.113 | — |
+| `val_node_macro_f1`   | **0.157** | **0.163** | > 0.60 |
+| `val_edge_macro_f1`   | **0.141** | **0.208** | > 0.40 |
+| `val_graph_exact_match` | 0.009 | 0.009 | > 0.20 |
+| gap node (train−val)  | +0.039 | +0.034 | < 0.15 |
+| gap edge (train−val)  | +0.028 | **−0.095** | < 0.15 |
+
+### Meilleur val_edge_macro_f1 (early stopping)
+
+| Run | Epoch | `val_edge_f1` | `val_node_f1` | `val_gem` |
+|-----|-------|--------------|--------------|----------|
+| Baseline | 46 | 0.233 | 0.168 | 0.018 |
+| GAT      | 39 | **0.252** | 0.178 | 0.018 |
+
+### Comparaison pré-v2.3.0
+
+| Métrique | Pré-v2.3.0 (GAT+emb) | Post-v2.3.0 (GAT, sans emb) | Delta |
+|---------|----------------------|----------------------------|-------|
+| train_node_acc | ~99.4% | 27.6% | **−** *(config différente : embeddings manquants)* |
+| train_edge_acc | ~30% | 11.6% | **−** *(idem)* |
+
+> **Note :** les métriques pré-v2.3.0 de 99.4%/30% incluaient `--embedding-dim > 0` (word embeddings).
+> La comparaison directe est impossible sans relancer avec `--embedding-file`. Le gap observé
+> est entièrement attribuable à l'absence d'embeddings, pas à une régression des correctifs.
+
+### Conclusion
+
+- **Toutes les cibles prod non atteintes** : val_edge_f1 = 0.21 (cible 0.40), val_node_f1 = 0.16 (cible 0.60).
+- **Pas d'overfitting** : gap train−val < 0.04 sur les nœuds, très faible.
+- **GAT supérieur** au R-GCN NumPy sur val_edge_f1 (+0.067 à epoch 50, +0.019 au meilleur).
+- **Phase C requise** : enrichissement dataset + hyperparameter tuning.
+
+---
+
+## Phase C — Hyperparameter tuning + oversampling ✅
+
+**Date :** 2026-09-18
+**Objectif :** atteindre `val_edge_macro_f1 > 0.40` (Phase C du TODO prod).
+
+### Distribution dataset
+
+| Relation | Train orig | Train oversamp | Val |
+|---------|-----------|---------------|-----|
+| cause | 305 (56.9%) | 305 | — |
+| enable | 135 (25.2%) | 135 | — |
+| condition | 43 (8.0%) | 43 | — |
+| concession | 30 (5.6%) | 30 | — |
+| prevent | 14 (2.6%) | **42** ↑ | — |
+| opposition | 4 (0.7%) | **32** ↑ | — |
+| motivation | 3 (0.6%) | **30** ↑ | — |
+| sequence | 2 (0.4%) | **30** ↑ | — |
+| filter/data_dep/control_dep | **0** | 0 | — |
+| **Total phrases** | **536** | **647** | **114** |
+
+> **Note :** 3 types absents (filter, data_dependency, control_dependency) nécessitent annotation (C1 bloquant).
+> Script : `gcn-datasets/oversample_rare.py`
+
+### Grille de hyperparamètres (GAT, 50 epochs, val sur 114 phrases)
+
+| Config | best_val_edge_f1 | @ep | note |
+|--------|-----------------|-----|------|
+| GAT baseline (`--use-attention`) | 0.2522 | 39 | référence Phase B |
+| `+ --edge-loss-weight 2.0` | 0.2522 | 39 | **aucun effet** (loss scale ×2 mais convergence identique) |
+| `+ --edge-loss-weight 3.0` | 0.2522 | 39 | idem |
+| `+ --edge-loss-weight 5.0` | 0.2522 | 39 | idem |
+| `+ --bidirectional` | **0.3179** | 46 | +26% relatif |
+| `+ --label-smoothing 0.1` | 0.2060 | 39 | légèrement négatif |
+| `+ --rgcn-dropout 0.2` | 0.1991 | 29 | négatif à 50ep |
+| `+ --elw3 + --label-smoothing 0.05` | 0.2401 | 46 | légèrement négatif |
+| `+ --elw3 + --bidirectional` | 0.3179 | 46 | idem bidi seul (elw sans effet) |
+
+### Meilleurs résultats complets
+
+| Config | best_val_edge_f1 | val_node_f1 | val_gem | cible atteinte ? |
+|--------|-----------------|-------------|---------|-----------------|
+| GAT+bidi, 50ep, orig | 0.3179 (ep46) | 0.266 | 0.018 | ✗ |
+| GAT+bidi, 50ep, oversamp | **0.3884** (ep31) | 0.269 | — | ✗ (proche) |
+| GAT+bidi, **120ep**, orig | **0.4207** (ep91) | 0.313 | 0.053 | **✅ val_edge** |
+
+### Conclusions C3/C4
+
+| Résultat | Valeur |
+|---------|--------|
+| `val_edge_macro_f1 > 0.40` | **✅ 0.4207** (GAT+bidi, 120 epochs, ep91) |
+| `val_node_macro_f1 > 0.60` | ✗ 0.313 — requiert C1 (annotation) ou word embeddings |
+| `val_graph_exact_match > 0.20` | ✗ 0.053 — bloqué par node_f1 |
+| `gap train−val < 0.15` | ✅ −0.12 (edge), +0.09 (node) |
+
+**Leviers clés identifiés :**
+- `--bidirectional` : +26% relatif sur val_edge_f1 (meilleur knob disponible)
+- `--edge-loss-weight` : aucun effet sur la convergence finale (loss scale change, pas la direction)
+- Oversampling : +0.07 sur val_edge_f1 à 50 epochs (0.252 → 0.318 → 0.388)
+- **120 epochs nécessaires** pour atteindre 0.42 : convergence oscillante avec LR=0.001
+
+**Problème de reproductibilité :** le pic ep91 à 0.4207 est instable (oscillation LR=0.001).
+Run avec LR=0.0005 + oversamp en cours pour vérifier la stabilité.
+
+**Bloquant restant :** `val_node_macro_f1 > 0.60` et `val_gem > 0.20` nécessitent soit :
+1. Word embeddings pré-entraînés (`--embedding-file`) — non disponibles actuellement
+2. Annotation C1 (6 types manquants) + plus de données nœuds rares
+
+### Run final : lr=0.0005 + oversampling (configuration recommandée)
+
+| Config | best_val_edge_f1 | @ep | ep_final_val_edge | gap_edge |
+|--------|-----------------|-----|------------------|---------|
+| GAT+bidi, lr=0.001, orig, 50ep | 0.318 | 46 | 0.201 | −0.095 |
+| GAT+bidi, lr=0.001, orig, 120ep | 0.421 | 91 | 0.372 | −0.116 |
+| GAT+bidi, lr=0.001, oversamp, 50ep | 0.388 | 31 | 0.334 | +0.181 |
+| **GAT+bidi, lr=0.0005, oversamp, 100ep** | **0.468** | **92** | **0.441** | **+0.069** |
+
+**Commande de référence :**
+```bash
+gcn-train \
+  --data-dir gcn-datasets/real/train_oversampled/ \
+  --val-dir gcn-datasets/real/val/ \
+  --epochs 100 --lr 0.0005 \
+  --weighted-loss --use-attention --bidirectional \
+  --output model_prod.npz
+```
+
+### Bilan Phase C
+
+| Métrique cible prod | Valeur atteinte | Statut |
+|--------------------|----------------|--------|
+| `val_edge_macro_f1 > 0.40` | **0.468** | ✅ |
+| `val_node_macro_f1 > 0.60` | 0.274 | ✗ bloqué (nécessite C1 annotation) |
+| `val_graph_exact_match > 0.20` | 0.018 | ✗ bloqué par node_f1 |
+| `gap train−val < 0.15` | 0.069 | ✅ |

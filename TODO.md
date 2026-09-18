@@ -12,15 +12,15 @@
 > Les 11 correctifs sont vérifiés par raisonnement. Aucun test de régression ne les couvre.
 > Sans filet, une future modification peut les régresser silencieusement.
 
-- [ ] **A1** — Test `backward_edge_dx` : vérifier que le gradient de la loss arête
+- [x] **A1** — Test `backward_edge_dx` : vérifier que le gradient de la loss arête
   remonte bien vers `d_enriched[src]` et `d_enriched[dst]` (non-zéro, bonne direction)
-- [ ] **A2** — Test reproductibilité dropout : deux `MLPEncoder(seed=42)` avec les mêmes
+- [x] **A2** — Test reproductibilité dropout : deux `MLPEncoder(seed=42)` avec les mêmes
   inputs produisent les mêmes masques → mêmes sorties
-- [ ] **A3** — Test GAT gradient : `backward_message_pass` produit des gradients non-nuls
+- [x] **A3** — Test GAT gradient : `backward_message_pass` produit des gradients non-nuls
   sur `a_r` (vecteurs attention) — preuve que le dénominateur n'est plus détaché
-- [ ] **A4** — Test `_cached_d_edge_base` / `_cached_d_eff` : vérifier que les offsets
+- [x] **A4** — Test `_cached_d_edge_base` / `_cached_d_eff` : vérifier que les offsets
   cachés correspondent bien à `len(edge_vec_base)` et `len(enriched[src_i])`
-- [ ] **A5** — Test `_set_training_mode` : `RGCNLayerGAT.training` est bien `False`
+- [x] **A5** — Test `_set_training_mode` : `RGCNLayerGAT.training` est bien `False`
   après appel eval, `True` après retour train (via `.train()` PyTorch)
 
 **Critère de sortie :** 5 nouveaux tests verts, aucune régression.
@@ -31,11 +31,11 @@
 
 > L'edge_acc ~30% date d'avant le correctif closed-loop. L'impact est inconnu.
 
-- [ ] **B1** — Lancer un entraînement de référence sur `gcn-datasets/real/train/`
+- [x] **B1** — Lancer un entraînement de référence sur `gcn-datasets/real/train/`
   avec les paramètres standards (50 epochs, lr=0.001, --weighted-loss, --val-dir)
-- [ ] **B2** — Enregistrer les métriques finales : `val_edge_macro_f1`,
+- [x] **B2** — Enregistrer les métriques finales : `val_edge_macro_f1`,
   `val_node_macro_f1`, `val_graph_exact_match`, gap train−val
-- [ ] **B3** — Comparer aux chiffres pré-v2.3.0 et documenter le delta
+- [x] **B3** — Comparer aux chiffres pré-v2.3.0 et documenter le delta
 
 **Critère de sortie :** chiffres mesurés, documentés dans PROGRESS.md.
 
@@ -47,11 +47,11 @@
 
 - [ ] **C1** — Enrichir le dataset : 6 relations absentes (motivation, sequence, filter,
   opposition, data_*, control_*) — annoter au moins 30 exemples par relation manquante
-- [ ] **C2** — Rééquilibrer les classes rares (prevent=2%, concession=6%) via
+- [x] **C2** — Rééquilibrer les classes rares (prevent=2%, concession=6%) via
   sur-échantillonnage ou augmentation de données
-- [ ] **C3** — Hyperparameter tuning : tester `--edge-loss-weight 2.0–5.0`,
+- [x] **C3** — Hyperparameter tuning : tester `--edge-loss-weight 2.0–5.0`,
   `--label-smoothing 0.05–0.1`, `--rgcn-dropout 0.1–0.3`
-- [ ] **C4** — Évaluer le gain du mode `--bidirectional` et `--use-attention` sur val set
+- [x] **C4** — Évaluer le gain du mode `--bidirectional` et `--use-attention` sur val set
 
 **Critère de sortie :** toutes les métriques cibles atteintes sur val set.
 
