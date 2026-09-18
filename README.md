@@ -104,19 +104,28 @@ projet_CNM/
 │       └── js/         Mappings AST JavaScript → types causaux
 │
 └── gcn-datasets/       ← Données annotées (hors moteur)
-    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml
-    ├── examples/       Exemples annotés FR, Python, Rust (format JSON)
-    ├── oversample_rare.py      Script d'oversampling des classes rares
-    ├── build_annotations.py    Construction JSON depuis annotations CIR manuelles
-    ├── merge_datasets.py       Fusion de plusieurs splits JSON
-    └── real/
-        ├── train/              536 phrases annotées (train set)
-        ├── val/                114 phrases annotées (val set)
-        ├── test/               117 phrases annotées (test set)
-        ├── train_c1/           171 nouvelles phrases — 6 types de relations rares
-        ├── train_c1_merged/    707 phrases (train + C1)
-        ├── train_c1_oversampled/   735 phrases (C1 merged + oversample prevent)
-        └── train_final/        849 phrases (train_c1_oversampled + val — pour checkpoint final)
+    ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml, gcn-verbalize.schema.yaml
+    ├── examples/       Exemples illustratifs annotés (FR, Python, Rust)
+    ├── corpus/         Textes bruts pour bootstrap (generated_1000.json, phrases_fr.txt)
+    ├── raw/            Textes bruts non annotés + annotations intermédiaires (phase4/)
+    ├── splits/         Ancien split alternatif (693/148/149 phrases)
+    ├── scripts/        Scripts Python d'annotation et de gestion
+    │   ├── build_annotations.py    Génère JSON complet (CIR + tokens UD) depuis candidats manuels
+    │   ├── candidates_c1.py        171 phrases annotées pour 6 types de relations rares
+    │   ├── generate_dataset.py     Bootstrap depuis textes bruts
+    │   ├── merge_datasets.py       Fusionne plusieurs splits JSON
+    │   └── oversample_rare.py      Oversample les classes rares
+    └── real/           ← Données annotées officielles
+        ├── source/     Fichiers sources originaux (avant split)
+        ├── train/      Split officiel — 536 phrases annotées
+        ├── val/        Split officiel — 114 phrases annotées
+        ├── test/       Split officiel — 117 phrases annotées
+        └── augmented/  Datasets dérivés (construits à partir des splits officiels)
+            ├── c1_annotations/   171 nouvelles phrases (6 types de relations rares)
+            ├── c1_merged/        707 phrases (train + C1)
+            ├── c1_oversampled/   735 phrases ← MEILLEUR DATASET D'ENTRAÎNEMENT ✅
+            ├── final/            849 phrases (c1_oversampled + val — pour checkpoint prod)
+            └── oversampled_v0/   647 phrases (oversampling sans C1 — référence)
 ```
 
 ---
@@ -247,7 +256,7 @@ gcn-bootstrap --input phrases_fr.txt --out-dir gcn-datasets/generated/
 
 # Lancer l'entraînement — configuration de référence v2.4.0 (val_edge_f1=0.468)
 gcn-train \
-  --data-dir  gcn-datasets/real/train_c1_oversampled/ \
+  --data-dir  gcn-datasets/real/augmented/c1_oversampled/ \
   --val-dir   gcn-datasets/real/val/ \
   --epochs 100 --lr 0.0005 \
   --weighted-loss --use-attention --bidirectional \
@@ -570,7 +579,7 @@ cd gcn-python && python -m pytest
 
 ```bash
 gcn-train \
-  --data-dir  gcn-datasets/real/train_c1_oversampled/ \
+  --data-dir  gcn-datasets/real/augmented/c1_oversampled/ \
   --val-dir   gcn-datasets/real/val/ \
   --epochs    100 \
   --lr        0.0005 \
@@ -604,7 +613,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 
 - **Checkpoint de production** `model_v2.4.0.npz` — val_edge_f1=0.468 sur 849 phrases
 - **Dataset C1** : 171 exemples annotés pour 6 types de relations rares (filter, data_dependency,
-  control_dependency, motivation, sequence, opposition) — `gcn-datasets/real/train_c1/`
+  control_dependency, motivation, sequence, opposition) — `gcn-datasets/real/augmented/c1_annotations/`
 - **Oversampling** : script `gcn-datasets/oversample_rare.py` — classes rares portées à 30 ex.
 - **Robustesse moteur** : 0 `assert` dans le moteur (remplacés par ValueError/RuntimeError),
   issues MEDIUM #4-5 sur `token_span` corrigées

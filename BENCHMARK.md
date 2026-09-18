@@ -75,7 +75,7 @@ GAT + bidirectionnel + oversampling C1 + lr=0.0005
 
 ```bash
 gcn-train \
-  --data-dir gcn-datasets/real/train_c1_oversampled/ \
+  --data-dir gcn-datasets/real/augmented/c1_oversampled/ \
   --val-dir  gcn-datasets/real/val/ \
   --epochs 100 --lr 0.0005 \
   --weighted-loss --use-attention --bidirectional
@@ -252,7 +252,7 @@ gcn-train --embedding-file wiki.fr.vec --epochs 100 ...
 | Fichier | `gcn-datasets/checkpoints/model_v2.4.0.npz` |
 | Métriques | `gcn-datasets/checkpoints/model_v2.4.0_metrics.json` |
 | Config entraînement | GAT + bidi + lr=0.0005 + weighted-loss + 92ep |
-| Dataset | `train_final/` (849 phrases = train_c1_oversamp + val fusionnés) |
+| Dataset | `augmented/final/` (849 phrases = train_c1_oversamp + val fusionnés) |
 | `val_edge_macro_f1` (réf.) | 0.468 (mesuré sur le run avec val séparé) |
 | Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz")` |
 
