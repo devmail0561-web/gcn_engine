@@ -917,13 +917,13 @@ class SentenceGenerator:
             "attributes": {"entity": noun2},
         })
 
-        # n003 (optionnel) : verbe action comme nœud si pertinent
-        if vc_type == "action" and self.rng.random() > 0.6:
+        # n003 (optionnel) : verbe action comme nœud si le token est localisé
+        if vc_type == "action" and VERB_c_token_id is not None and self.rng.random() > 0.6:
             nodes.append({
                 "id": "n003",
                 "type": "action",
                 "label": f"{verb_c}({noun1})",
-                "token_span": [VERB_c_token_id or 1, VERB_c_token_id or 1],
+                "token_span": [VERB_c_token_id, VERB_c_token_id],
                 "origin": "explicit",
                 "scope": "specific",
                 "temporal_index": 0,
@@ -993,6 +993,8 @@ def validate_sentence(sent: dict) -> list[str]:
         span = node.get("token_span", [])
         if len(span) != 2:
             errors.append(f"nœud {node['id']}: token_span invalide {span}")
+        elif span[0] > span[1]:
+            errors.append(f"nœud {node['id']}: token_span inversé {span}")
         elif span[0] < 1 or span[1] > len(tokens):
             errors.append(f"nœud {node['id']}: token_span hors bornes {span}")
 

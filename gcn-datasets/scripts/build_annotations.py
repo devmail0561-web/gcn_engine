@@ -27,12 +27,12 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "gcn-tools" / "gcn-scraper" / "src"))
+sys.path.insert(0, str(Path(__file__).parents[2] / "gcn-tools" / "gcn-scraper" / "src"))
 
 try:
     from gcn_scraper.ud_annotator import annotate_ud
 except ImportError:
-    sys.path.insert(0, str(Path(__file__).parents[1] / "gcn-tools" / "gcn-scraper" / "src" / "gcn_scraper"))
+    sys.path.insert(0, str(Path(__file__).parents[2] / "gcn-tools" / "gcn-scraper" / "src" / "gcn_scraper"))
     from ud_annotator import annotate_ud
 
 

@@ -2,10 +2,10 @@
 merge_datasets.py — Fusionne plusieurs fichiers JSON dataset en un seul.
 
 Usage :
-    python3 merge_datasets.py \
+    python3 scripts/merge_datasets.py \
         real/train/train.json \
-        real/train_c1/c1_annotations.json \
-        --output real/train_merged/train.json
+        real/augmented/c1_annotations/train.json \
+        --output real/augmented/c1_merged/train.json
 
 Vérifie la distribution des relations après fusion.
 """

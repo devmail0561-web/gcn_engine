@@ -47,19 +47,25 @@ def oversample(input_path: Path, output_path: Path) -> None:
     for rel, cnt in sorted(edge_counts.items(), key=lambda x: -x[1]):
         print(f"  {rel:<22} {cnt:4d}")
 
-    # Calculer les facteurs de duplication par phrase
+    # Calculer les facteurs de duplication par phrase.
+    # On prend le facteur minimal parmi les relations rares présentes dans la phrase
+    # pour éviter de sur-dupliquer les relations moins rares co-présentes.
     extra: list[dict] = []
     for s in sentences:
         s_edges = count_edges(s)
-        max_factor = 0
+        per_rel_factors = []
         for rel, target in RARE_TARGETS.items():
             if s_edges.get(rel, 0) > 0:
                 current = edge_counts[rel]
-                factor = max(0, target // current - 1)
-                max_factor = max(max_factor, factor)
-        for _ in range(max_factor):
+                factor = max(0, target // max(current, 1) - 1)
+                per_rel_factors.append(factor)
+        if not per_rel_factors:
+            continue
+        # min : ne pas dépasser la cible de la relation la moins rare présente
+        max_factor = min(per_rel_factors)
+        for i in range(max_factor):
             dup = copy.deepcopy(s)
-            dup["id"] = f"{s['id']}_dup{_ + 1}"
+            dup["id"] = f"{s['id']}_dup{i + 1}"
             extra.append(dup)
 
     augmented = sentences + extra
@@ -84,8 +90,9 @@ def oversample(input_path: Path, output_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    base = Path(__file__).parent
-    oversample(
-        base / "real" / "train" / "train.json",
-        base / "real" / "train_oversampled" / "train.json",
-    )
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input",  required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    oversample(args.input, args.output)
