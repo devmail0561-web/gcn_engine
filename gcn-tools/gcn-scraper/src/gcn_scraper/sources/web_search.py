@@ -253,14 +253,21 @@ class WebSearchScraper:
     # Point d'entrée principal
     # ------------------------------------------------------------------
 
-    def scrape(self, tracker=None) -> list[dict]:
+    def scrape(
+        self,
+        tracker=None,
+        langs: list[str] | None = None,
+    ) -> list[dict]:
         """
-        Scrape via recherche web multi-sources pour tous les types de relations FR+EN.
+        Scrape via recherche web multi-sources.
+
+        langs=None → ("fr", "en") historique. Le pipeline passe les langues
+        sélectionnées (audit-2 Fix 6 : es/de/it/pt n'étaient jamais cherchés).
         """
         results: list[dict] = []
         seen_urls: set[str] = set()
 
-        for lang in ("fr", "en"):
+        for lang in langs or ("fr", "en"):
             if tracker and tracker.is_full(lang):
                 print(f"  web/{lang}: budget langue atteint, skip")
                 continue

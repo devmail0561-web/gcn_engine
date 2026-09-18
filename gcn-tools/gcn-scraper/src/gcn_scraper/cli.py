@@ -69,8 +69,11 @@ def scrape_cmd(
     if prog_langs.strip().lower() == "none":
         selected_prog_langs: list[str] = []
     elif prog_langs.strip().lower() == "all":
-        selected_prog_langs = cfg.get("sources", {}).get("github", {}).get(
-            "languages", ["python", "rust"])
+        # Union github.languages + doc.urls : csharp n'existe que côté doc
+        # (audit-2 Fix 8 : "all" l'omettait).
+        _gh_langs = cfg.get("sources", {}).get("github", {}).get("languages", [])
+        _doc_langs = list(cfg.get("sources", {}).get("doc", {}).get("urls", {}).keys())
+        selected_prog_langs = list(dict.fromkeys(_gh_langs + _doc_langs)) or ["python", "rust"]
     else:
         selected_prog_langs = [l.strip() for l in prog_langs.split(",") if l.strip()]
 

@@ -113,22 +113,39 @@ class WikipediaLangScraper:
         return titles[:max_articles]
 
     def _category_members(self, category: str, limit: int, ns: int) -> list[str]:
-        params = {
-            "action": "query", "list": "categorymembers",
-            "cmtitle": f"{self._cat_prefix}:{category}",
-            "cmlimit": min(limit, 500), "cmnamespace": ns, "format": "json",
-        }
-        resp, self.session = retry_get(self.session, self._api_url, params)
-        if resp is None:
-            return []
-        try:
-            return [
-                m["title"]
-                for m in resp.json().get("query", {}).get("categorymembers", [])
-                if m.get("ns") == ns
-            ]
-        except Exception:
-            return []
+        """Membres d'une catégorie, avec pagination cmcontinue (audit-2 Fix 3).
+
+        Sans boucle, seul la première page (cmlimit) était retournée et les
+        catégories de plus de `limit` membres étaient tronquées.
+        """
+        titles: list[str] = []
+        cmcontinue: str | None = None
+        while len(titles) < limit:
+            params = {
+                "action": "query", "list": "categorymembers",
+                "cmtitle": f"{self._cat_prefix}:{category}",
+                "cmlimit": min(limit - len(titles), 500),
+                "cmnamespace": ns, "format": "json",
+            }
+            if cmcontinue:
+                params["cmcontinue"] = cmcontinue
+            resp, self.session = retry_get(self.session, self._api_url, params)
+            if resp is None:
+                break
+            try:
+                data = resp.json()
+                titles.extend(
+                    m["title"]
+                    for m in data.get("query", {}).get("categorymembers", [])
+                    if m.get("ns") == ns
+                )
+                cmcontinue = data.get("continue", {}).get("cmcontinue")
+                if not cmcontinue:
+                    break
+            except Exception:
+                break
+            time.sleep(self._delay)
+        return titles[:limit]
 
     def scrape(self, tracker=None) -> list[dict]:
         """

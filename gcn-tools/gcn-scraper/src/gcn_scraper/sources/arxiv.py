@@ -10,7 +10,8 @@ from ..config.loader import get_source_config
 class ArXivScraper:
     @property
     def BASE_URL(self) -> str:
-        return get_source_config("arxiv").get("api_url", "http://export.arxiv.org/api/query")
+        # audit-2 Fix 9 : HTTPS (le http:// fuit les requêtes en clair + redirect).
+        return get_source_config("arxiv").get("api_url", "https://export.arxiv.org/api/query")
 
     QUERIES: dict[str, list[str]] = {
         "cause": [

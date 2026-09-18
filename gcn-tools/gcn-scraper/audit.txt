@@ -1,0 +1,52 @@
+Audit 2 — gcn-scraper : 9 bugs confirmés au code, corrigés et vérifiés hors-ligne.
+Répertoire : gcn-tools/gcn-scraper/src/gcn_scraper/
+
+Fix 1 — guards config falsy (pipeline.py)
+  cli.py assigne config['doc'] = {} et config['web_search'] = {} ; bool({}) == False
+  désactivait ces sources + empêchait l'ouverture de leurs fichiers par source.
+  Pattern `config.get(k)` → `k in config` appliqué aux 6 guards (hal, arxiv, news,
+  web_search, github, doc) + ouverture des fichiers par source.
+
+Fix 2 — GitHub raw content (sources/github_code.py + sources/_net.py)
+  get_file_content() récupérait l'URL contents-API qui retourne du JSON base64,
+  pas du code source. Préfère désormais download_url (raw) ; en repli, en-tête
+  Accept: application/vnd.github.raw + décodage base64 si l'API ignore l'en-tête.
+  Finalise le changement _net.py en cours : extra_headers est câblé au GET.
+
+Fix 3 — pagination Wikipedia (sources/wikipedia.py)
+  _category_members() ne lisait qu'une page (tronqué au-delà de cmlimit).
+  Boucle cmcontinue jusqu'à `limit`.
+
+Fix 4 — budget code conditionnel (balance_tracker.py + pipeline.py)
+  _compute_budget() réservait toujours 10% au code, même avec --prog-langs none :
+  is_globally_full() devenait inatteignable et 10% du budget texte perdu.
+  Nouveau param include_code=bool(selected_prog_langs).
+
+Fix 5 — ordre wiki par poids (pipeline.py)
+  _wiki_keys trié alphabétiquement (en avant fr...). Tri par budget_weight
+  décroissant, égalités selon l'ordre --langs : fr/en (2.0) en premier.
+
+Fix 6 — web_search multilingue (sources/web_search.py + pipeline.py)
+  scrape() hardcodait ("fr","en") : es/de/it/pt jamais cherchés, tracker ignoré.
+  Nouveau param langs + tracker passé par le pipeline.
+
+Fix 7 — robustesse réseau (sources/_net.py)
+  403 (rate-limit GitHub déguisé) traité comme 429 + honore Retry-After.
+
+Fix 8 — préfixes localisés + --prog-langs all (config + cli.py)
+  Vérifié : category_prefix localisé lu depuis sources.yaml
+  (Catégorie/Categoría/Kategorie/Categoria). "all" = union github.languages +
+  doc.urls (csharp, doc-only, était omis).
+
+Fix 9 — détails (sources/arxiv.py, config/sources.yaml, pipeline.py)
+  arXiv en HTTPS (yaml + défaut) ; _warn_zero() ajouté au bloc github.
+
+Vérification (2026-09-18, hors-ligne, sans réseau) : imports, budget avec/sans
+code (50000/45000+5000), ordre [wikipedia_fr, wikipedia_en], guards {}, préfixes
+×5 langues, signature scrape(langs, tracker), union +csharp, arxiv https,
+extra_headers/403/Retry-After, cmcontinue, download_url/raw/b64decode,
+py_compile des 8 fichiers. ALL CHECKS PASSED.
+
+Écart noté : l'audit d'origine citait un bloc "education" dans pipeline.py —
+il n'existe pas (EducationScraper non câblé, code mort conservé tel quel).
+Pas de changement de périmètre : aucune source ajoutée/retirée.

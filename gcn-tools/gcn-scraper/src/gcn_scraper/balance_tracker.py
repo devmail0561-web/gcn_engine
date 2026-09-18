@@ -7,8 +7,17 @@ from __future__ import annotations
 from collections import defaultdict
 
 
-def _compute_budget(selected_langs: list[str], target_total: int) -> dict[str, int]:
-    """Budget proportionnel aux poids des langues sélectionnées."""
+def _compute_budget(
+    selected_langs: list[str],
+    target_total: int,
+    include_code: bool = True,
+) -> dict[str, int]:
+    """Budget proportionnel aux poids des langues sélectionnées.
+
+    include_code=False (--prog-langs none) : pas de bucket "code" — sinon
+    is_globally_full() ne devient jamais vrai et 10% du budget est perdu
+    (audit-2 Fix 4).
+    """
     try:
         from .config.loader import get_config
         cfg = get_config()
@@ -18,11 +27,12 @@ def _compute_budget(selected_langs: list[str], target_total: int) -> dict[str, i
     for lang in selected_langs:
         source_cfg = cfg.get("sources", {}).get(f"wikipedia_{lang}", {})
         weights[lang] = float(source_cfg.get("budget_weight", 1.0))
-    code_budget = max(int(target_total * 0.10), 500)
+    code_budget = max(int(target_total * 0.10), 500) if include_code else 0
     text_budget = target_total - code_budget
     total_weight = sum(weights.values()) or 1.0
     budget = {lang: max(100, int(text_budget * w / total_weight)) for lang, w in weights.items()}
-    budget["code"] = code_budget
+    if include_code:
+        budget["code"] = code_budget
     return budget
 
 

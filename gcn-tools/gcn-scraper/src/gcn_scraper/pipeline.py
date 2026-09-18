@@ -59,9 +59,12 @@ class ScrapingPipeline:
         selected_prog_langs: list[str] = config.get("prog_langs", ["python", "rust"])
         target_total: int = config.get("target_total", 50000)
 
-        # Budget calculé sur les langues sélectionnées uniquement
+        # Budget calculé sur les langues sélectionnées uniquement ;
+        # bucket "code" seulement si des prog-langs sont actifs (audit-2 Fix 4).
         from .balance_tracker import _compute_budget
-        budget = config.get("budget") or _compute_budget(selected_langs, target_total)
+        budget = config.get("budget") or _compute_budget(
+            selected_langs, target_total, include_code=bool(selected_prog_langs)
+        )
         tracker = BalanceTracker(budget)
 
         # Timestamp : réutiliser depuis le checkpoint en mode resume, sinon nouveau
@@ -80,14 +83,27 @@ class ScrapingPipeline:
 
         global_file = self.output_dir / f"sentences_{timestamp}.jsonl"
 
-        # Découvrir dynamiquement les sources Wikipedia pour les langues sélectionnées
+        # Découvrir dynamiquement les sources Wikipedia pour les langues sélectionnées,
+        # triées par budget_weight décroissant (audit-2 Fix 5 : fr/en en premier,
+        # pas en ordre alphabétique) puis par ordre des --langs pour départager.
         from .config.loader import get_config as _get_cfg
         _all_cfg = _get_cfg()
+        _lang_rank = {lang: i for i, lang in enumerate(selected_langs)}
         _wiki_keys = sorted(
-            k for k, v in _all_cfg.get("sources", {}).items()
-            if k.startswith("wikipedia_")
-            and v.get("enabled", True)
-            and v.get("lang", k.replace("wikipedia_", "")) in selected_langs
+            (
+                k for k, v in _all_cfg.get("sources", {}).items()
+                if k.startswith("wikipedia_")
+                and v.get("enabled", True)
+                and v.get("lang", k.replace("wikipedia_", "")) in selected_langs
+            ),
+            key=lambda k: (
+                -float(_all_cfg["sources"][k].get("budget_weight", 1.0)),
+                _lang_rank.get(
+                    _all_cfg["sources"][k].get("lang", k.replace("wikipedia_", "")),
+                    len(selected_langs),
+                ),
+                k,
+            ),
         )
 
         _fixed_source_keys = [
@@ -107,7 +123,10 @@ class ScrapingPipeline:
             out = stack.enter_context(open(global_file, _mode, encoding="utf-8"))
             _src_files: dict[str, object] = {}
             for cfg_key, fname in _source_keys:
-                if config.get(cfg_key) or cfg_key in _wiki_keys:
+                # NOTE (audit-2 Fix 1) : tester la présence de la clé, pas sa
+                # valeur — cli.py assigne config['doc'] = {} / config['web_search'] = {}
+                # et bool({}) == False désactiverait ces sources.
+                if cfg_key in config or cfg_key in _wiki_keys:
                     _src_files[cfg_key] = stack.enter_context(
                         open(self.output_dir / fname, _mode, encoding="utf-8")
                     )
@@ -137,7 +156,7 @@ class ScrapingPipeline:
 
             # --- HAL (FR + EN) ---
             _hal_langs = ("fr" in selected_langs or "en" in selected_langs)
-            if config.get("hal") and not tracker.is_globally_full() and _hal_langs:
+            if "hal" in config and not tracker.is_globally_full() and _hal_langs:
                 key = "hal"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
@@ -155,7 +174,7 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- arXiv (EN uniquement) ---
-            if config.get("arxiv") and not tracker.is_globally_full() and "en" in selected_langs:
+            if "arxiv" in config and not tracker.is_globally_full() and "en" in selected_langs:
                 key = "arxiv"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
@@ -173,7 +192,7 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- News RSS ---
-            if config.get("news") and not tracker.is_globally_full():
+            if "news" in config and not tracker.is_globally_full():
                 key = "news"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
@@ -192,7 +211,7 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- Recherche web multi-sources ---
-            if config.get("web_search") and not tracker.is_globally_full():
+            if "web_search" in config and not tracker.is_globally_full():
                 key = "web_search"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
@@ -201,7 +220,7 @@ class ScrapingPipeline:
                     print("=== Recherche web (DuckDuckGo + OpenAlex + PubMed) ===")
                     from .sources.web_search import WebSearchScraper
                     scraper = WebSearchScraper(self.user_agent)
-                    items = scraper.scrape()
+                    items = scraper.scrape(tracker=tracker, langs=selected_langs)
                     n = self._process_texts(
                         items, out, scorer, dedup, tracker, min_quality,
                         source_out=_src_files.get(key),
@@ -213,7 +232,7 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- GitHub Code ---
-            if config.get("github") and selected_prog_langs and not tracker.is_globally_full():
+            if "github" in config and selected_prog_langs and not tracker.is_globally_full():
                 key = "github"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
@@ -232,12 +251,13 @@ class ScrapingPipeline:
                     n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
                                             skip_split=True, default_lang="code",
                                             source_out=_src_files.get(key))
+                    self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} extraits retenus | {tracker.progress_bar()}")
 
             # --- Documentation ---
-            if config.get("doc") and selected_prog_langs and not tracker.is_globally_full():
+            if "doc" in config and selected_prog_langs and not tracker.is_globally_full():
                 key = "doc"
                 if resume and checkpoint.is_done(key):
                     print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")

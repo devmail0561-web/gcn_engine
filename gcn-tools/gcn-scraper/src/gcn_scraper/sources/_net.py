@@ -22,6 +22,7 @@ def retry_get(
     max_retries: int = 5,
     base_delay: float = 2.0,
     user_agent: str = "GCN-Dataset/2.0 (research)",
+    extra_headers: dict | None = None,
 ) -> tuple:
     """
     GET robuste avec retry exponentiel.
@@ -35,10 +36,17 @@ def retry_get(
     """
     for attempt in range(max_retries):
         try:
-            resp = session.get(url, params=params, timeout=30)
-            if resp.status_code == 429:
-                wait = base_delay * (2 ** attempt)
-                print(f"    rate-limit 429, attente {wait:.0f}s...")
+            resp = session.get(url, params=params, timeout=30, headers=extra_headers)
+            if resp.status_code == 429 or resp.status_code == 403:
+                # 403 = souvent rate-limit déguisé (GitHub search sans token).
+                # Honorer Retry-After si présent, sinon backoff exponentiel
+                # (audit-2 Fix 7).
+                retry_after = resp.headers.get("Retry-After")
+                try:
+                    wait = float(retry_after) if retry_after else base_delay * (2 ** attempt)
+                except (TypeError, ValueError):
+                    wait = base_delay * (2 ** attempt)
+                print(f"    HTTP {resp.status_code}, attente {wait:.0f}s...")
                 time.sleep(wait)
                 continue
             if resp.status_code == 200:

@@ -43,12 +43,40 @@ class GitHubCodeScraper:
         except Exception:
             return []
 
-    def get_file_content(self, url: str) -> str | None:
-        """Récupère le contenu brut d'un fichier GitHub."""
-        resp, self.session = retry_get(self.session, url, {})
+    def get_file_content(self, url: str, download_url: str | None = None) -> str | None:
+        """Récupère le contenu brut d'un fichier GitHub.
+
+        L'URL contents-API (api.github.com/repos/.../contents/...) retourne
+        du JSON avec contenu base64 — pas du code source (audit-2 Fix 2).
+        On préfère download_url (raw.githubusercontent.com) ; en repli,
+        on demande le format brut via l'en-tête Accept.
+        """
+        if download_url:
+            resp, self.session = retry_get(self.session, download_url, {})
+            if resp is None:
+                return None
+            return resp.text[:5000]
+        resp, self.session = retry_get(
+            self.session, url, {},
+            extra_headers={"Accept": "application/vnd.github.raw"},
+        )
         if resp is None:
             return None
-        return resp.text[:5000]
+        text = resp.text
+        # Garde-fou : si l'API a ignoré l'en-tête, on reçoit du JSON base64.
+        stripped = text.lstrip()
+        if stripped.startswith("{"):
+            try:
+                import base64
+                import json as _json
+                payload = _json.loads(text)
+                b64 = payload.get("content", "")
+                if b64:
+                    return base64.b64decode(b64).decode("utf-8", errors="replace")[:5000]
+            except Exception:
+                pass
+            return None
+        return text[:5000]
 
     def extract_comments(self, content: str, language: str) -> list[str]:
         """Extrait les commentaires/docstrings d'un fichier source."""
@@ -108,7 +136,9 @@ class GitHubCodeScraper:
                 for item in items:
                     content_url = item.get("url")
                     if content_url:
-                        content = self.get_file_content(content_url)
+                        content = self.get_file_content(
+                            content_url, item.get("download_url")
+                        )
                         if content:
                             comments = self.extract_comments(content, lang)
                             for comment in comments:

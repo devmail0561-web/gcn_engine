@@ -62,7 +62,7 @@ sources:
     enabled: true
 
   arxiv:
-    api_url: "http://export.arxiv.org/api/query"
+    api_url: "https://export.arxiv.org/api/query"
     lang: "en"
     max_per_query: 100
     rate_limit_delay: 3.0
