@@ -88,14 +88,17 @@ class BalanceTracker:
         self.counts: dict[str, int] = defaultdict(int)
 
     def add(self, lang: str) -> None:
-        """Enregistre une phrase pour la langue détectée."""
-        key = lang if lang in self.budget else next(iter(self.budget), "en")
-        self.counts[key] += 1
+        """Enregistre une phrase pour la langue détectée.
+        Les langues hors budget sont ignorées — elles ne corrompent pas les compteurs."""
+        if lang in self.budget:
+            self.counts[lang] += 1
 
     def is_full(self, lang: str) -> bool:
-        """True si le budget pour cette langue est atteint."""
-        key = lang if lang in self.budget else next(iter(self.budget), "en")
-        return self.counts[key] >= self.budget.get(key, 10000)
+        """True si le budget pour cette langue est atteint.
+        Une langue hors budget retourne True pour bloquer les phrases non budgétées."""
+        if lang not in self.budget:
+            return True
+        return self.counts.get(lang, 0) >= self.budget[lang]
 
     def is_globally_full(self) -> bool:
         """True si toutes les langues ont atteint leur budget."""

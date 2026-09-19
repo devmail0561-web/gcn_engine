@@ -19,6 +19,7 @@ class GitHubCodeScraper:
         github_token: str | None = None,
     ):
         import requests
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
         self.session.headers["Accept"] = "application/vnd.github+json"
@@ -32,24 +33,39 @@ class GitHubCodeScraper:
         configured = float(cfg.get("rate_limit_delay", 0.5))
         self._delay = max(configured, 2.0 if self._has_token else 6.0)
         self._queries_by_lang: dict = cfg.get("queries", {})
+        self._max_chars: int = int(cfg.get("max_chars_per_file", 5000))
 
     def search_code(self, query: str, language: str, max_results: int = 30) -> list[dict]:
-        """Recherche du code sur GitHub Search API."""
-        params = {
-            "q": f"{query} language:{language}",
-            "per_page": min(max_results, 100),
-        }
-        resp, self.session = retry_get(
-            self.session, self._api_url, params,
-            min_interval=self._delay, base_delay=2.0,
-        )
-        if resp is None:
-            return []
-        try:
-            data = resp.json()
-            return data.get("items", [])
-        except Exception:
-            return []
+        """Recherche du code sur GitHub Search API, avec pagination."""
+        items: list[dict] = []
+        page = 1
+        remaining = max(0, max_results)
+        while remaining > 0:
+            per_page = min(remaining, 100)
+            params = {
+                "q": f"{query} language:{language}",
+                "per_page": per_page,
+                "page": page,
+            }
+            resp, self.session = retry_get(
+                self.session, self._api_url, params,
+                user_agent=self.user_agent,
+                min_interval=self._delay, base_delay=2.0,
+            )
+            if resp is None:
+                break
+            try:
+                page_items = resp.json().get("items", [])
+            except Exception:
+                break
+            if not page_items:
+                break
+            items.extend(page_items)
+            if len(page_items) < per_page:
+                break  # dernière page
+            page += 1
+            remaining -= len(page_items)
+        return items[:max_results]
 
     def get_file_content(self, url: str, download_url: str | None = None) -> str | None:
         """Récupère le contenu brut d'un fichier GitHub.
@@ -62,13 +78,16 @@ class GitHubCodeScraper:
         if download_url:
             resp, self.session = retry_get(
                 self.session, download_url, {},
+                user_agent=self.user_agent,
                 min_interval=self._delay, base_delay=2.0,
             )
             if resp is None:
                 return None
-            return resp.text[:5000]
+            return resp.text[:self._max_chars]
         resp, self.session = retry_get(
             self.session, url, {},
+            user_agent=self.user_agent,
+            min_interval=self._delay, base_delay=2.0,
             extra_headers={"Accept": "application/vnd.github.raw"},
         )
         if resp is None:
@@ -83,43 +102,77 @@ class GitHubCodeScraper:
                 payload = _json.loads(text)
                 b64 = payload.get("content", "")
                 if b64:
-                    return base64.b64decode(b64).decode("utf-8", errors="replace")[:5000]
+                    return base64.b64decode(b64).decode("utf-8", errors="replace")[:self._max_chars]
             except Exception:
                 pass
             return None
-        return text[:5000]
+        return text[:self._max_chars]
 
     def extract_comments(self, content: str, language: str) -> list[str]:
         """Extrait les commentaires/docstrings d'un fichier source."""
         lines = content.split('\n')
         results = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            if language == "python":
-                if line.startswith('#'):
-                    c = line[1:].strip()
-                    if len(c) > 20:
-                        results.append(c)
-                elif '"""' in line or "'''" in line:
-                    c = line.strip('"\' ')
-                    if len(c) > 20:
-                        results.append(c)
-            elif language == "rust":
-                if line.startswith('//'):
-                    c = line.lstrip('/').strip()
-                    if len(c) > 20:
-                        results.append(c)
-            elif language in ("javascript", "typescript", "java", "go", "csharp"):
-                if line.startswith('//'):
-                    c = line[2:].strip()
-                    if len(c) > 20:
-                        results.append(c)
-                elif line.startswith('*') and not line.startswith('*/'):
-                    c = line.lstrip('*').strip()
-                    if len(c) > 20:
-                        results.append(c)
+        if language == "python":
+            in_docstring = False
+            docstring_marker: str | None = None
+            docstring_lines: list[str] = []
+            for raw_line in lines:
+                stripped = raw_line.strip()
+                if not in_docstring:
+                    if stripped.startswith('#'):
+                        c = stripped[1:].strip()
+                        if len(c) > 20:
+                            results.append(c)
+                    else:
+                        for marker in ('"""', "'''"):
+                            if stripped.startswith(marker):
+                                rest = stripped[3:]
+                                close = rest.find(marker)
+                                if close >= 0:
+                                    # docstring sur une seule ligne
+                                    c = rest[:close].strip()
+                                    if len(c) > 20:
+                                        results.append(c)
+                                else:
+                                    in_docstring = True
+                                    docstring_marker = marker
+                                    docstring_lines = [rest] if rest.strip() else []
+                                break
+                else:
+                    assert docstring_marker is not None
+                    close = stripped.find(docstring_marker)
+                    if close >= 0:
+                        last = stripped[:close].strip()
+                        if last:
+                            docstring_lines.append(last)
+                        text = " ".join(docstring_lines).strip()
+                        if len(text) > 20:
+                            results.append(text)
+                        in_docstring = False
+                        docstring_lines = []
+                        docstring_marker = None
+                    else:
+                        if stripped:
+                            docstring_lines.append(stripped)
+        else:
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                if language == "rust":
+                    if line.startswith('//'):
+                        c = line.lstrip('/').strip()
+                        if len(c) > 20:
+                            results.append(c)
+                elif language in ("javascript", "typescript", "java", "go", "csharp"):
+                    if line.startswith('//'):
+                        c = line[2:].strip()
+                        if len(c) > 20:
+                            results.append(c)
+                    elif line.startswith('*') and not line.startswith('*/'):
+                        c = line.lstrip('*').strip()
+                        if len(c) > 20:
+                            results.append(c)
         return results
 
     def scrape(
@@ -127,6 +180,7 @@ class GitHubCodeScraper:
         languages: list[str] | None = None,
         max_per_query: int | None = None,
         seed: int | None = None,
+        tracker=None,
     ) -> list[dict]:
         """Scrape du code commenté depuis GitHub."""
         cfg = get_source_config("github")
@@ -141,23 +195,27 @@ class GitHubCodeScraper:
             print("  GitHub: pas de token → quota 10 req/min, délais 6s imposés (export GITHUB_TOKEN recommandé).")
         if seed is not None:
             languages = _shuffled(languages, seed, "github-langs")
-        consecutive_failures = 0
         for lang in languages:
+            if tracker is not None and tracker.is_globally_full():
+                break
             queries = self._queries_by_lang.get(lang, [])
             if not queries:
                 print(f"  GitHub/{lang}: aucune requête configurée, skip")
                 continue
             if seed is not None:
                 queries = _shuffled(queries, seed, f"github-{lang}")
+            consecutive_failures = 0  # par langage : un langage en panne n'annule pas les autres
             for query in queries:
+                if tracker is not None and tracker.is_globally_full():
+                    break
                 print(f"  GitHub/{lang}: '{query[:40]}'...", end=" ", flush=True)
                 items = self.search_code(query, lang, max_per_query)
                 if not items:
                     consecutive_failures += 1
                     print("0 extrait (rate-limit/échec)")
                     if consecutive_failures >= 3:
-                        print("  GitHub: 3 échecs consécutifs, arrêt (cooldown actif).")
-                        return results
+                        print(f"  GitHub/{lang}: 3 échecs consécutifs, langage suivant (cooldown actif).")
+                        break
                     continue
                 consecutive_failures = 0
                 count = 0

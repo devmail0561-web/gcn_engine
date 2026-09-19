@@ -15,6 +15,7 @@ class DocScraper:
 
     def __init__(self, user_agent: str = DEFAULT_USER_AGENT):
         import requests
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
         cfg = get_source_config("doc")
@@ -22,9 +23,11 @@ class DocScraper:
 
     def scrape_url(self, url: str, source_label: str) -> dict | None:
         """Scrape une URL et extrait le texte avec trafilatura."""
-        print(f"  {source_label}: {url.split('/')[-1][:40]}...", end=" ", flush=True)
+        label = url.rstrip("/").split("/")[-1][:40] or url[:40]
+        print(f"  {source_label}: {label}...", end=" ", flush=True)
         resp, self.session = retry_get(
             self.session, url, {},
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
         )
         if resp is None:
@@ -42,7 +45,7 @@ class DocScraper:
         print("vide")
         return None
 
-    def scrape(self, languages: list[str] | None = None, seed: int | None = None) -> list[dict]:
+    def scrape(self, languages: list[str] | None = None, seed: int | None = None, tracker=None) -> list[dict]:
         """Scrape la documentation des langages sélectionnés (None = tous).
 
         Liste d'URLs fixe (44 pages) : l'ordre est mélangé si seed, mais le
@@ -60,6 +63,8 @@ class DocScraper:
         if seed is not None:
             items = _shuffled(items, seed, "doc")
         for lang, url in items:
+            if tracker is not None and tracker.is_globally_full():
+                break
             result = self.scrape_url(url, f"{lang}_doc")
             if result:
                 results.append(result)

@@ -13,7 +13,7 @@ _ABBREV = re.compile(
 )
 
 _SPACE_NORM = re.compile(r'\s+')
-_MARKER = "⟨ABBR⟩"
+_MARKER = "\x00ABBR\x00"  # null bytes : ne peut pas apparaître dans du texte scraped
 
 
 def split_sentences(text: str, min_length: int = 30, max_length: int = 600) -> list[str]:

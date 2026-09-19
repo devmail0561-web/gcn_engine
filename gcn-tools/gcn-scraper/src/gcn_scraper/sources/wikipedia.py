@@ -17,6 +17,7 @@ class WikipediaLangScraper:
 
     def __init__(self, lang: str, user_agent: str = DEFAULT_USER_AGENT):
         self.lang = lang
+        self.user_agent = user_agent
         cfg = get_source_config(f"wikipedia_{lang}")
         self._api_url: str = cfg.get("api_url", f"https://{lang}.wikipedia.org/w/api.php")
         self._article_base: str = cfg.get("article_base_url", f"https://{lang}.wikipedia.org/wiki/")
@@ -36,17 +37,18 @@ class WikipediaLangScraper:
         """Recherche paginée sur l'API MediaWiki search."""
         titles: list[str] = []
         offset = 0
-        limit = min(self._page_limit, max_total)
         fails = 0
         while len(titles) < max_total:
+            # Reliquat recalculé à chaque page (pas de sur-fetch, Audit 3 M19).
             params = {
                 "action": "query", "list": "search",
-                "srsearch": query, "srlimit": limit,
+                "srsearch": query, "srlimit": min(self._page_limit, max_total - len(titles)),
                 "sroffset": offset, "srnamespace": 0, "format": "json",
                 "formatversion": 2, "maxlag": 5,
             }
             resp, self.session = retry_get(
                 self.session, self._api_url, params,
+                user_agent=self.user_agent,
                 min_interval=self._delay, base_delay=1.0,
             )
             if resp is None:
@@ -62,9 +64,11 @@ class WikipediaLangScraper:
                 if not hits:
                     break
                 titles.extend(h["title"] for h in hits)
-                if "continue" not in data:
+                cont = data.get("continue", {})
+                if "continue" not in data and "sroffset" not in cont:
                     break
-                offset += len(hits)
+                # Offset officiel retourné par l'API, pas len(hits) (Audit 3 M19).
+                offset = cont.get("sroffset", offset + len(hits))
             except Exception:
                 break
             time.sleep(self._delay)
@@ -80,12 +84,16 @@ class WikipediaLangScraper:
         }
         resp, self.session = retry_get(
             self.session, self._api_url, params,
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0,
         )
         if resp is None:
             return None
         try:
-            for page in resp.json().get("query", {}).get("pages", {}).values():
+            # formatversion=2 → query.pages est une LISTE, pas un dict.
+            pages = resp.json().get("query", {}).get("pages", [])
+            items = pages.values() if isinstance(pages, dict) else pages
+            for page in items:
                 text = page.get("extract", "")
                 if text and len(text) > 100:
                     return text[:self._max_chars]
@@ -102,12 +110,16 @@ class WikipediaLangScraper:
         }
         resp, self.session = retry_get(
             self.session, self._api_url, params,
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0,
         )
         if resp is None:
             return []
         try:
-            for page in resp.json().get("query", {}).get("pages", {}).values():
+            # formatversion=2 → query.pages est une LISTE, pas un dict.
+            pages = resp.json().get("query", {}).get("pages", [])
+            items = pages.values() if isinstance(pages, dict) else pages
+            for page in items:
                 return [
                     c["title"].split(":")[-1]
                     for c in page.get("categories", [])
@@ -150,6 +162,7 @@ class WikipediaLangScraper:
                 params["cmcontinue"] = cmcontinue
             resp, self.session = retry_get(
                 self.session, self._api_url, params,
+                user_agent=self.user_agent,
                 min_interval=self._delay, base_delay=1.0,
             )
             if resp is None:

@@ -1,11 +1,15 @@
 """Scraper arXiv via l'API Atom/REST — gratuit, sans token."""
 from __future__ import annotations
 import time
-import xml.etree.ElementTree as ET
 import requests
 import trafilatura
 from ._net import retry_get as _retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config
+
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET  # type: ignore[no-redef]
 
 
 class ArXivScraper:
@@ -71,12 +75,12 @@ class ArXivScraper:
         self.session.headers["User-Agent"] = user_agent
         self._delay = float(get_source_config("arxiv").get("rate_limit_delay", 3.0))
 
-    def search(self, query: str, max_results: int = 100, start: int = 0) -> list[dict]:
-        """Recherche des papers arXiv avec retry réseau."""
+    def _search_page(self, query: str, start: int, per_page: int) -> list[dict]:
+        """Une page de résultats Atom (sans fetch des pages abs)."""
         params = {
             "search_query": f"all:{query}",
             "start": start,
-            "max_results": min(max_results, 200),
+            "max_results": min(per_page, 200),
         }
         resp, self.session = _retry_get(self.session, self.BASE_URL, params,
                                          user_agent=self.user_agent,
@@ -84,8 +88,7 @@ class ArXivScraper:
         if resp is None:
             print(f"  arXiv '{query}': toutes tentatives échouées, skip")
             return []
-
-        results = []
+        entries = []
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         try:
             root = ET.fromstring(resp.text)
@@ -95,22 +98,41 @@ class ArXivScraper:
                 link_el = entry.find("atom:id", ns)
                 url = link_el.text.strip() if link_el is not None and link_el.text else ""
                 summary = summary_el.text.strip().replace("\n", " ") if summary_el is not None and summary_el.text else ""
+                title = title_el.text.strip().replace("\n", " ") if title_el is not None and title_el.text else ""
+                entries.append({"title": title, "summary": summary, "url": url})
+        except ET.ParseError as e:
+            print(f"  arXiv '{query}': flux Atom invalide ({e}), skip")
+        return entries
+
+    def search(self, query: str, max_results: int = 100, start: int = 0) -> list[dict]:
+        """Recherche des papers arXiv avec retry réseau + vraie pagination."""
+        results = []
+        offset = max(0, start)
+        remaining = max(0, max_results)
+        while remaining > 0:
+            per_page = min(remaining, 200)
+            page = self._search_page(query, offset, per_page)
+            if not page:
+                break
+            for entry in page:
                 # Principe : scraper le SITE lié (page abs), pas la sortie du moteur.
-                text = self._fetch_abs_text(url)
+                text = self._fetch_abs_text(entry["url"])
                 time.sleep(self._delay)
                 if not text:
-                    text = summary
+                    text = entry["summary"]
                 if text and len(text) > 50:
                     results.append({
-                        "title": title_el.text.strip() if title_el is not None and title_el.text else "",
+                        "title": entry["title"],
                         "text": text,
-                        "url": url,
+                        "url": entry["url"],
                         "source": f"arxiv:{query}",
                         "lang": "en",
                     })
-        except ET.ParseError:
-            pass
-        return results
+            if len(page) < per_page:
+                break  # dernière page
+            offset += len(page)
+            remaining -= len(page)
+        return results[:max_results]
 
     def _fetch_abs_text(self, url: str) -> str | None:
         """Scrape la page abs arXiv — summary API en fallback appelant."""
@@ -129,7 +151,7 @@ class ArXivScraper:
         except Exception:
             return None
 
-    def scrape(self, max_per_query: int = 100, seed: int | None = None) -> list[dict]:
+    def scrape(self, max_per_query: int = 100, seed: int | None = None, tracker=None) -> list[dict]:
         """Scrape tous les topics, respecte le rate limit arXiv (3s entre requêtes)."""
         from ..diversity import shuffled as _shuffled, page_offset as _offset
         topics = list(self.QUERIES.items())
@@ -141,8 +163,12 @@ class ArXivScraper:
         results = []
         consecutive_failures = 0
         for relation_type, queries in topics:
+            if tracker is not None and tracker.is_globally_full():
+                break
             queries = _shuffled(queries, seed, f"arxiv-{relation_type}") if seed is not None else queries
             for q in queries:
+                if tracker is not None and tracker.is_globally_full():
+                    break
                 print(f"  arXiv [{relation_type}]: '{q}'...", end=" ", flush=True)
                 papers = self.search(q, max_results=max_per_query, start=start)
                 if not papers:
@@ -153,8 +179,6 @@ class ArXivScraper:
                         return results
                     continue
                 consecutive_failures = 0
-                for p in papers:
-                    p["relation_hint"] = relation_type
                 results.extend(papers)
                 print(f"{len(papers)} abstracts")
                 time.sleep(self._delay)

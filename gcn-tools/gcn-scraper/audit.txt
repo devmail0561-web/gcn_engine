@@ -70,3 +70,154 @@ Fix 11 — contact_email câblé CLI → pipeline → web_search (cli.py, pipeli
 Vérification (2026-09-19) : py_compile cli.py, pipeline.py, web_search.py.
 Tests end-to-end avec mocks : contact_email=None → fallback YAML,
 contact_email="moi@example.com" → passé à WebSearchScraper. ALL CHECKS PASSED.
+
+---
+
+Audit 3 — full audit gcn-scraper (2026-09-19, hors-ligne, sans réseau).
+Périmètre : tout gcn-tools/gcn-scraper/src (~3200 lignes) + sources.yaml.
+Méthode : lecture intégrale par 3 passes + vérification personnelle de chaque
+finding CRITIQUE/MAJEUR structurant + preuves d'exécution (py_compile OK ;
+mocks prouvant C1/C4/C6). Aucune correction appliquée.
+
+CRITIQUES (7) :
+C1 — sources/wikipedia.py:88,110 — formatversion=2 incompatible avec .values().
+  params formatversion=2 (l.79,101) mais .get("pages", {}).values() (l.88,110).
+  Or MediaWiki renvoie query.pages en LISTE avec formatversion=2 → AttributeError
+  → avalé par except: pass → get_article_text() toujours None,
+  get_article_categories() toujours []. Preuve mock : list.values() lève
+  AttributeError. Impact : Wikipedia produit 0 article (Phase 1 trouve des
+  titres, chaque extraction échoue, circuit-breaker après 3 queries).
+C2 — pipeline.py:64+91 — seen_urls survit au reset() non-resume.
+  seen_urls copié depuis checkpoint.state (l.64) AVANT checkpoint.reset() (l.91).
+  Impact : un run fresh (sans --resume) skippe les URLs des runs précédents.
+C3 — pipeline.py:79 — BalanceTracker jamais réhydraté en --resume.
+  counts à zéro ; branches resume font total_written += get_count(key) sans
+  tracker.add(). Impact : dépassement target_total, progress_bar sous-évalué.
+C4 — diversity.py:25,35 — hash() Python comme hachage stable.
+  hash(tuple) salé par PYTHONHASHSEED par processus. Preuve : même seed dans
+  2 processus → 629658156214683474 vs -4514410542683803942. Impact : la promesse
+  "même seed = même ordre" (README/note/cli) est fausse inter-runs.
+C5 — filters/deduplicator.py:28-34 — near-dedup O(N²) sans cap.
+  _seen_shingles: list + boucle Jaccard sur tout l'historique par phrase.
+  Impact : à target_total=50000, ~1.2Md comparaisons Jaccard → explosion CPU/mémoire.
+C6 — rederive_spans.py:64-75 — S3 invalide si n_nodes > T.
+  T=2, n=5 → [(1,1),(2,2),(3,3),(4,4),(5,2)] : dernier span start>end.
+  "Toujours applicable" faux. + l.68 : [(1,1)]*n_nodes = spans dupliquées.
+C7 — rederive_spans.py:114-138 — drop silencieuse + rapport mensonger.
+  output["sentences"] = corrected : les phrases "empty" sont jetées sans
+  avertissement ; excluded toujours vide (rederive ne rend None que si 0 nœuds,
+  déjà filtré l.116) → le rapport "ambiguïté" ne peut jamais être non-vide.
+
+MAJEURS (24) :
+M1 — pipeline.py:140,146 — Wikipedia non désactivable, toujours scrapée.
+  `cfg_key in config or cfg_key in _wiki_keys` tautologique ; boucle l.146 sans
+  garde ; cli.py ne pose jamais config["wikipedia_*"]. Aucun --no-wikipedia.
+M2 — pipeline.py:160-287 — tracker câblé à 2 sources sur 7 seulement.
+  Seuls wikipedia (l.160) et web_search (l.238) reçoivent tracker ; HAL/arXiv/
+  news/GitHub/doc scrapent sans budget → sur-fetch API puis discard.
+M3 — config morte : scraping.target_total/min_quality/contact_email (yaml:2-5),
+  hal/arxiv/github max_per_query, web_search.* jamais lus par pipeline.py
+  (défauts en dur l.180,199,265). Éditer le YAML ne change rien au run.
+M4 — cli.py:85-104 + pipeline.py:150 — `enabled:` YAML mort sauf Wikipedia.
+  CLI construit config depuis flags uniquement ; pipeline ne teste enabled que
+  pour wiki. enabled:false ignoré pour hal/arxiv/news/doc (flags défaut True).
+M5 — hal_scientific.py:40-56,104-114 — pagination à une seule page.
+  rows=start en un seul GET, jamais de boucle. max_per_query > 100 impossible.
+M6 — hal_scientific.py:79-90 — hypothèse list non validée.
+  language_s/label_s/abstract_s scalaires → langs[0]=1er caractère ("en"→"e"),
+  itération sur caractères. Corruption silencieuse titre/langue/abstract.
+M7 — arxiv.py:74-83,132-147 — pas de vraie pagination (un seul GET/query,
+  jamais plus de 200/query, start rotatif qui saute au lieu d'explorer).
+M8 — arxiv.py:99-130,160 — amplification sans garde : chaque entry → fetch abs
+  + sleep 3s, 10 topics × N queries sans limite globale. Runs très longs.
+M9 — news_rss.py:56-98 — _parse_feed ignore content:encoded/content/media/guid ;
+  desc.text seul (pas itertext) → texte tronqué si enfants XML.
+M10 — news_rss.py:143-154 — compteur consecutive_failures global inter-langues,
+  return coupe les langues restantes : 5 échecs FR annulent tout EN.
+M11 — web_search.py:51-69,263 — DDG sans locale (lang ignoré) + langue
+  hallucinée : hit DDG-only étiqueté à la langue de la requête (meta._lang
+  posé seulement par openalex/pubmed), pas la langue réelle de la page.
+M12 — sources/_net.py:191 — rebuild session inatteignable à max_retries=2.
+  `if attempt >= 2` jamais vrai pour attempts 0,1 (hal/arxiv/news/web_search/doc).
+  Sessions TCP cassées jamais reconstruites là où c'est le plus utilisé.
+M13 — github_code.py:36-41,158 — pagination absente (page 1 seule, >100 tronqué)
+  + `consecutive_failures >= 3 → return` : 3 queries vides abortent tous les
+  langages restants. + repli raw sans min_interval (rafales 429/403).
+M14 — balance_tracker.py:92,97 — langue inconnue remappée sur la première du
+  budget : phrase ES avec budget {fr,en,code} comptée comme FR. Corrompt la balance.
+M15 — balance_tracker.py:30-33 — budgets à zéro impossibles : target_total=0 →
+  code_budget=500 (plancher), chaque langue max(100, négatif)=100. ~700 phrases
+  pour une cible de 0.
+M16 — checkpoint.py:14-20,38-41 — corruption avalée silencieusement ({} sans
+  log → resume repart fresh en croyant reprendre) ; reset() ne vide que le
+  fichier, état mémoire (seen_urls, counts) divergent (cf C2/C3).
+M17 — config/loader.py:15,19-21 — crash si YAML vide/sans clé sources :
+  safe_load → None → get_config()["sources"] lève TypeError au lieu du dict
+  vide documenté.
+M18 — sources/wikipedia_en.py:10 — signature incompatible avec le parent
+  (scrape(categories, max_per_category) vs scrape(tracker, seed)) : wrapper
+  inutilisable avec kwargs (TypeError). Chemin pipeline actuel utilise la
+  classe parente → pas de crash réel, mais code rétrocompat cassé.
+  (wikipedia_fr.py:10 : param max_per_category mort, seed/tracker perdus.)
+M19 — wikipedia.py:39,48-51 — pagination search figée (limite calculée une fois,
+  offset dérivé de len(hits) au lieu du sroffset retourné) + retry_get sans
+  user_agent (rebuild avec UA défaut au lieu de l'UA injecté).
+M20 — cli.py:93-100 — --github/--doc silencieusement ignorés si
+  --prog-langs none (selected_prog_langs==[] → clés jamais posées, sans warning) ;
+  --max-per-query jamais transmis à GitHub (toujours 30, cf pipeline.py:265) ;
+  news.langs hardcodé fr,en (l.98) → --langs es,de donne langs=[] pour news.
+M21 — scripts auxiliaires hors périmètre / couplages :
+  education_web.py (51 lignes, 0 import — Grep confirmé, code mort ; UA 1.0 en
+  dur jamais envoyé, trafilatura.fetch_url sans timeout/retry, retour sans
+  "lang") ; filters/causal_scorer.py (170 lignes, 0 usage pipeline — Grep
+  confirmé ; marqueurs génériques "car/si/pour/mais" = FP massifs si branché) ;
+  ud_annotator.py fr/en seuls (ValueError sinon) jamais branché au pipeline ;
+  annotate_real_dataset (import relatif cassé en package, défaut lang="fr" pour
+  dataset mixte) ; diagnose/rederive/split/validate : spacy fr_core_news_sm en
+  dur, chemins gcn-datasets en dur CWD-dépendants, validate_cir/reps couplés à
+  gcn_python (scraper non autonome), validate_reps exit 0 même à 100% vides,
+  split_real_dataset garantie val/test fausse pour classes rares (n=3 → test=0).
+M22 — splitter.py:27 + regex : crash si text=None en appel direct ; découpe
+  FR/EN uniquement ([.!?]) incompatible avec le scope es/de/pt/it du YAML ;
+  seuils 30/600 hardcodés non configurables ; regex abréviations
+  sur-protectrice (re.IGNORECASE + tokens courts p/no/st → sous-découpage).
+M23 — diversity.py:25,33 — seed=0 confondu avec None (falsy) : --seed 0
+  désactive page_offset et = seed None dans shuffled ; make_rng traite None en
+  aléatoire mais shuffled/page_offset le traitent en fixe → convention
+  incohérente ; docstring "tirage horodaté" faux (SystemRandom OS).
+M24 — github extract_comments mono-ligne seul (docstrings multi-lignes /* */
+  manqués, rappel faible) ; doc_scrape trafilatura sans favor_recall sur
+  resp.text décodé + coupe à 5000 mid-phrase + pages <200 jetées.
+
+MINEURS notables (non exhaustif, 25+) :
+- user_agent défauts incohérents : pipeline 2.0 vs cli 3.0 vs _net DEFAULT ;
+  web_search/openalex/pubmed ne propagent pas user_agent au retry_get.
+- imports locaux systématiques dans pipeline.py (échec tardif au lieu de fail-fast).
+- checkpoint._save() privée appelée depuis pipeline + try/except:pass sur
+  persistance seen_urls + sorted() O(N log N) tronqué lexicographiquement.
+- except Exception silencieux : wikipedia (4×), arxiv ParseError, hal implicites.
+- total_written resume compté sans vérifier le fichier global (mode a).
+- troncature budget → mark_done partiel figé comme définitif en resume.
+- URLs vides jamais anti-doublonnées ; URLs à 0 phrase re-scrapées chaque run.
+- Deduplicator : seuil strict >0.7, <4 tokens exact-hash seul, seen_count
+  compte tentatives (nom trompeur).
+- quality_scorer falaises 30/600 + <5 mots ; biais longueur (longs toujours gardés).
+- lang_detector : sans dépendance tout → "en" sans log (balance FR corrompue).
+- news : BBC en http://, feeds.reuters.com legacy à valider vivant ; URLs
+  dégénérées (flux sans link → même URL → dédup à tort) ; premier <link> quel
+  que soit rel ; cache _RSS_SOURCES jamais invalidé ; signature sans tracker.
+- cli : aucune validation de bornes (--min-quality 99, --target-total -5
+  acceptés) ; help manquants hal/arxiv/news/doc ; fallback --langs all
+  silencieux ; docstring run() obsolète (clés wikipedia_fr/budget jamais posées).
+- yaml : news_rss vs config["news"] incohérent (get_source_config("news")→{}) ;
+  contact_email tripliqué (3 clés mortes) ; wikipedia es/de/pt/it sans
+  fallback_categories ; github.languages sans csharp alors que doc.urls l'a.
+- __init__.py sans __version__/exports ; config/__init__.py vide.
+- splitter sentinelle ⟨ABBR⟩ collisionnable ; titre doc "" si URL en "/".
+
+Vérification Audit 3 (2026-09-19, hors-ligne) : py_compile des 28 fichiers OK
+(les bugs sont runtime/logiques, pas syntaxiques). Preuves mock : list.values()
+→ AttributeError (C1) ; hash() 629658156214683474 vs -4514410542683803942
+inter-processus (C4) ; S3(T=2,n=5)=[(1,1),(2,2),(3,3),(4,4),(5,2)] (C6).
+Grep câblage : education_web / causal_scorer / ud_annotator = définitions
+seules, 0 import pipeline/cli (morts confirmés).

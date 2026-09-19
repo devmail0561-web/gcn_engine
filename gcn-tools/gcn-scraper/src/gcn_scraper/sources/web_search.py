@@ -5,6 +5,14 @@ import requests
 import trafilatura
 from ._net import retry_get as _retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config, get_config
+from ..filters.lang_detector import detect_lang
+
+
+# Régions DuckDuckGo par langue (sinon les requêtes FR retournent de l'EN).
+_DDG_REGIONS = {
+    "fr": "fr-fr", "en": "en-us", "de": "de-de",
+    "es": "es-es", "it": "it-it", "pt": "pt-pt",
+}
 
 
 def _build_queries(lang: str) -> list[str]:
@@ -41,6 +49,7 @@ class WebSearchScraper:
         )
         self._engines: list[str] = self._cfg.get("engines", ["duckduckgo", "openalex"])
         self._contact_email: str = contact_email or self._cfg.get("contact_email", "gcn-research@example.org")
+        self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
@@ -48,9 +57,8 @@ class WebSearchScraper:
     # Moteurs individuels
     # ------------------------------------------------------------------
 
-    def _search_ddg(self, query: str, max_results: int) -> list[dict]:
+    def _search_ddg(self, query: str, max_results: int, lang: str = "auto") -> list[dict]:
         """Recherche DuckDuckGo — tente ddgs (nouveau nom) puis duckduckgo_search (ancien)."""
-        import time as _time
         DDGS = None
         for mod in ("ddgs", "duckduckgo_search"):
             try:
@@ -63,16 +71,22 @@ class WebSearchScraper:
                 continue
         if DDGS is None:
             return []
+        # Région = langue de la requête, sinon DDG retourne de l'EN générique.
+        region = _DDG_REGIONS.get(lang)
         try:
-            _time.sleep(self._delay)
-            raw = DDGS().text(query, max_results=max_results)
+            time.sleep(self._delay)
+            ddg = DDGS()
+            try:
+                raw = ddg.text(query, max_results=max_results, region=region) if region else ddg.text(query, max_results=max_results)
+            except TypeError:
+                raw = ddg.text(query, max_results=max_results)  # ancienne API sans region
             return list(raw) if raw else []
         except Exception as e:
             # DDG rate-limite agressivement (202/429/Ratelimit) → backoff, pas de boucle.
             msg = str(e).lower()
             if "ratelimit" in msg or "429" in msg or "202" in msg:
                 print(f"    DDG rate-limit, pause {self._delay * 2:.0f}s...")
-                _time.sleep(self._delay * 2)
+                time.sleep(self._delay * 2)
             return []
 
     def _search_openalex(self, query: str, max_results: int) -> list[dict]:
@@ -86,6 +100,7 @@ class WebSearchScraper:
         }
         resp, self.session = _retry_get(
             self.session, self._openalex_url, params,
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
         )
         if resp is None:
@@ -133,6 +148,7 @@ class WebSearchScraper:
         }
         resp, self.session = _retry_get(
             self.session, self._pubmed_search_url, search_params,
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
         )
         if resp is None:
@@ -154,6 +170,7 @@ class WebSearchScraper:
         time.sleep(self._delay)
         resp2, self.session = _retry_get(
             self.session, self._pubmed_fetch_url, fetch_params,
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
         )
         if resp2 is None:
@@ -182,6 +199,7 @@ class WebSearchScraper:
         """Scrape la page cible et extrait le texte propre avec trafilatura."""
         resp, self.session = _retry_get(
             self.session, url, {},
+            user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
         )
         if resp is None:
@@ -215,7 +233,7 @@ class WebSearchScraper:
         url_scores: dict[str, dict] = {}
 
         if "duckduckgo" in self._engines:
-            for r in self._search_ddg(query, n):
+            for r in self._search_ddg(query, n, lang=lang):
                 url = r.get("href", "")
                 if not url:
                     continue
@@ -260,11 +278,15 @@ class WebSearchScraper:
         for url, meta in ranked[:n]:
             # Principe : scraper le SITE lié, pas la sortie du moteur.
             # On fetch la page cible en priorité ; snippet/abstract en fallback.
-            item_lang = meta.get("_lang", lang)
+            # La langue est détectée sur le texte réel (pas hallucinée depuis
+            # la langue de requête pour les hits DDG purs — Audit 3 M11).
             text = self._extract_text(url)
             time.sleep(self._delay)
-            if not text:
+            if text:
+                item_lang = detect_lang(text, default=meta.get("_lang", lang))
+            else:
                 text = meta.get("_text") or meta.get("snippet")
+                item_lang = meta.get("_lang", lang)
             if text and len(text) > 100:
                 results.append({
                     "url": url,

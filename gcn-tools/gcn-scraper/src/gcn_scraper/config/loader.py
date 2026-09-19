@@ -18,7 +18,7 @@ def get_config() -> dict:
 
 def get_source_config(source_name: str) -> dict:
     """Retourne la config d'une source spécifique (dict vide si inconnue)."""
-    return get_config()["sources"].get(source_name, {})
+    return get_config().get("sources", {}).get(source_name, {})
 
 
 def reload_config() -> None:

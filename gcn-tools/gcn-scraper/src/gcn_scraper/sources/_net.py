@@ -60,7 +60,7 @@ def _parse_retry_after(value: str | None) -> float | None:
     value = value.strip()
     try:
         return max(0.0, float(value))
-    except (TypeError, ValueError):
+    except ValueError:
         pass
     try:
         dt = email.utils.parsedate_to_datetime(value)
@@ -181,14 +181,21 @@ def retry_get(
         except (
             requests.ConnectionError,
             requests.Timeout,
-            requests.ChunkedEncodingError,
+            requests.exceptions.ChunkedEncodingError,
             ConnectionResetError,
             OSError,
         ) as exc:
             wait = _backoff(base_delay, attempt, max_wait)
             print(f"    réseau {type(exc).__name__} (tentative {attempt + 1}/{max_retries}), attente {wait:.1f}s...")
             time.sleep(wait)
-            if attempt >= 2:
-                print("    rebuild session TCP...")
+            if attempt >= max_retries - 1:
+                # Reconstruire la session TCP et tenter une dernière fois.
                 session = _rebuild_session(session, user_agent)
+                try:
+                    resp = session.get(url, params=params, timeout=timeout, headers=extra_headers)
+                    _HOST_LAST_CALL[host] = time.time()
+                    if resp.status_code == 200:
+                        return resp, session
+                except Exception:
+                    pass
     return None, session

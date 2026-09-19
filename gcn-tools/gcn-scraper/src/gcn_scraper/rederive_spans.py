@@ -62,16 +62,20 @@ def _detect_clauses_s2(doc, n_nodes: int) -> Optional[list[tuple[int, int]]]:
 
 
 def _detect_clauses_s3(doc, n_nodes: int) -> list[tuple[int, int]]:
-    """S3 : division positionnelle uniforme — toujours applicable."""
+    """S3 : division positionnelle uniforme — toujours applicable, spans valides.
+
+    Les spans sont clampées dans [1, T] : si n_nodes > T, les derniers nœuds
+    reçoivent le dernier token (spans dupliquées mais valides, start <= end).
+    """
     T = len(doc)
     if T == 0 or n_nodes == 0:
-        return [(1, 1)] * n_nodes
+        return [(1, 1)] * max(1, n_nodes)
     size = max(1, T // n_nodes)
     spans = []
     for i in range(n_nodes):
-        start = i * size + 1                        # 1-based
-        end   = (i + 1) * size if i < n_nodes - 1 else T  # 1-based
-        spans.append((start, end))
+        start = min(i * size + 1, T)                      # 1-based
+        end = min((i + 1) * size if i < n_nodes - 1 else T, T)  # 1-based
+        spans.append((start, max(start, end)))
     return spans
 
 
@@ -105,26 +109,30 @@ def rederive_cir_spans(sentence: dict, doc) -> Optional[dict]:
 def rederive_all_spans(annotated_path: str, output_path: str) -> dict:
     """
     Lit annotated.json, re-dérive les token_span, écrit le fichier corrigé.
-    Rapport : nb phrases corrigées, nb exclues (ambiguïté), nb ignorées (0 nœuds).
+    Rapport : nb phrases corrigées, nb exclues (ambiguïté), nb vides (0 nœud,
+    conservées telles quelles dans la sortie).
     """
     nlp = spacy.load("fr_core_news_sm")
-    data = json.loads(Path(annotated_path).read_text())
+    data = json.loads(Path(annotated_path).read_text(encoding="utf-8"))
     sents = data["document"]["sentences"]
 
     corrected, excluded, empty = [], [], []
     for s in sents:
         if not s.get("cir", {}).get("nodes"):
             empty.append(s)
+            corrected.append(s)  # conservée telle quelle, pas jetée (Audit 3 C7)
             continue
         doc = nlp(s["text"])
         result = rederive_cir_spans(s, doc)
         if result is None:
             excluded.append(s.get("id", "?"))
+            corrected.append(s)  # conservée avec spans d'origine
         else:
             corrected.append(result)
 
     report = {
-        "corrected": len(corrected),
+        "corrected": len(corrected) - len(empty) - len(excluded),
+        "preserved": len(empty) + len(excluded),
         "excluded": len(excluded),
         "empty": len(empty),
         "excluded_ids": excluded[:20],
@@ -134,9 +142,10 @@ def rederive_all_spans(annotated_path: str, output_path: str) -> dict:
     if excluded:
         print(f"Phrases exclues (ambiguïté) : {excluded[:10]}")
 
-    output = dict(data)
+    import copy
+    output = copy.deepcopy(data)
     output["document"]["sentences"] = corrected
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
     print(f"Écrit : {output_path}")
 

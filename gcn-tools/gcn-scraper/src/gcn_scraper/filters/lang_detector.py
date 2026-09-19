@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 try:
-    from langdetect import detect, LangDetectException
+    from langdetect import detect, LangDetectException, DetectorFactory
+    DetectorFactory.seed = 0  # détection déterministe (même résultat à chaque run)
     _LANGDETECT_AVAILABLE = True
 except ImportError:
     _LANGDETECT_AVAILABLE = False

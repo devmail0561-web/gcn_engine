@@ -8,8 +8,9 @@ from .pipeline import ScrapingPipeline
 @click.command("gcn-scrape")
 @click.option("--output-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire de sortie (sentences_<timestamp>.jsonl)")
-@click.option("--target-total", default=50000, show_default=True, type=int,
-              help="Nombre de phrases cibles (arrêt dès que le budget global est atteint)")
+@click.option("--target-total", default=50000, show_default=True,
+               type=click.IntRange(min=0),
+               help="Nombre de phrases cibles (arrêt dès que le budget global est atteint)")
 @click.option("--resume", is_flag=True, default=False,
               help="Reprend depuis le checkpoint existant (skip les sources déjà faites)")
 @click.option("--langs", default="fr,en", show_default=True,
@@ -18,18 +19,26 @@ from .pipeline import ScrapingPipeline
 @click.option("--prog-langs", default="python,rust", show_default=True,
               help="Langages de programmation pour GitHub/doc. "
                    "Ex: python,rust,javascript,java,go. 'all' = tous configurés, 'none' = désactiver.")
-@click.option("--min-quality", default=0.3, show_default=True, type=float,
-              help="Score de qualité minimum [0-1] pour conserver une phrase")
-@click.option("--max-per-query", default=100, show_default=True, type=int,
-              help="Nb max de résultats par requête HAL/arXiv")
-@click.option("--hal/--no-hal", default=True, show_default=True)
-@click.option("--arxiv/--no-arxiv", default=True, show_default=True)
-@click.option("--news/--no-news", default=True, show_default=True)
+@click.option("--min-quality", default=0.3, show_default=True,
+               type=click.FloatRange(0.0, 1.0),
+               help="Score de qualité minimum [0-1] pour conserver une phrase")
+@click.option("--max-per-query", default=100, show_default=True,
+               type=click.IntRange(min=1),
+               help="Nb max de résultats par requête (HAL, arXiv, GitHub)")
+@click.option("--wiki/--no-wiki", default=True, show_default=True,
+               help="Activer/désactiver Wikipedia (toutes langues)")
+@click.option("--hal/--no-hal", default=True, show_default=True,
+               help="Activer/désactiver HAL (archives ouvertes scientifiques)")
+@click.option("--arxiv/--no-arxiv", default=True, show_default=True,
+               help="Activer/désactiver arXiv (abstracts scientifiques EN)")
+@click.option("--news/--no-news", default=True, show_default=True,
+               help="Activer/désactiver les flux News RSS (FR/EN)")
 @click.option("--github/--no-github", default=False, show_default=True,
               help="Scraping GitHub (token recommandé pour éviter le rate-limit public)")
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN",
               help="Token GitHub (ou variable d'env GITHUB_TOKEN)")
-@click.option("--doc/--no-doc", default=True, show_default=True)
+@click.option("--doc/--no-doc", default=True, show_default=True,
+               help="Activer/désactiver la documentation officielle des langages")
 @click.option("--web-search/--no-web-search", default=False, show_default=True,
               help="Recherche web multi-sources (DuckDuckGo + OpenAlex + PubMed)")
 @click.option("--user-agent", default="GCN-Dataset/3.0 (research; contact: gcn-research@example.org)", show_default=True)
@@ -38,10 +47,15 @@ from .pipeline import ScrapingPipeline
 @click.option("--seed", default=None, type=int,
               help="Graine de diversité : même seed = même ordre (reproductible), "
                    "seeds différents = requêtes/URLs/offsets différents. Défaut: tirage aléatoire.")
+@click.option("--registry-db", default=None, type=click.Path(path_type=Path),
+              help="Chemin de la DB SQLite des URLs scrapées. "
+                   "Défaut: <output-dir>/../url_registry.db")
+@click.option("--no-registry", is_flag=True, default=False,
+              help="Désactiver le registre URL (pas de déduplication cross-campagnes).")
 def scrape_cmd(
     output_dir, target_total, resume, langs, prog_langs, min_quality,
-    max_per_query, hal, arxiv, news, github, github_token, doc,
-    web_search, user_agent, contact_email, seed,
+    max_per_query, wiki, hal, arxiv, news, github, github_token, doc,
+    web_search, user_agent, contact_email, seed, registry_db, no_registry,
 ):
     """
     Scrape du texte brut multilingue pour le dataset causal GCN.
@@ -66,7 +80,7 @@ def scrape_cmd(
             if k.startswith("wikipedia_") and v.get("enabled", True) and "lang" in v
         ]
     else:
-        selected_langs = [l.strip() for l in langs.split(",") if l.strip()]
+        selected_langs = [_lang.strip() for _lang in langs.split(",") if _lang.strip()]
     if not selected_langs:
         selected_langs = ["fr", "en"]
 
@@ -80,7 +94,7 @@ def scrape_cmd(
         _doc_langs = list(cfg.get("sources", {}).get("doc", {}).get("urls", {}).keys())
         selected_prog_langs = list(dict.fromkeys(_gh_langs + _doc_langs)) or ["python", "rust"]
     else:
-        selected_prog_langs = [l.strip() for l in prog_langs.split(",") if l.strip()]
+        selected_prog_langs = [_lang.strip() for _lang in prog_langs.split(",") if _lang.strip()]
 
     config: dict = {
         "resume": resume,
@@ -95,15 +109,51 @@ def scrape_cmd(
     if arxiv:
         config["arxiv"] = {"max_per_query": max_per_query}
     if news:
-        config["news"] = {"langs": [l for l in selected_langs if l in ("fr", "en")]}
-    if github and selected_prog_langs:
-        config["github"] = {"token": github_token}
-    if doc and selected_prog_langs:
-        config["doc"] = {}
+        news_langs = [l for l in selected_langs if l in ("fr", "en")]
+        dropped = [l for l in selected_langs if l not in ("fr", "en")]
+        if dropped:
+            click.echo(
+                f"Avertissement : pas de flux News pour {dropped} "
+                "(flux FR/EN uniquement).",
+                err=True,
+            )
+        config["news"] = {"langs": news_langs}
+    if github:
+        if not selected_prog_langs:
+            click.echo(
+                "Avertissement : --github ignoré car --prog-langs none "
+                "(aucun langage à scraper).",
+                err=True,
+            )
+        else:
+            config["github"] = {"token": github_token, "max_per_query": max_per_query}
+    if doc:
+        if not selected_prog_langs:
+            click.echo(
+                "Avertissement : --doc ignoré car --prog-langs none "
+                "(aucun langage à scraper).",
+                err=True,
+            )
+        else:
+            config["doc"] = {}
     if web_search:
         config["web_search"] = {}
+    if not wiki:
+        config["wikipedia"] = {"enabled": False}
 
-    pipeline = ScrapingPipeline(output_dir, user_agent, contact_email=contact_email)
+    # Résoudre le chemin du registre URL.
+    if no_registry and registry_db is not None:
+        click.echo("Avertissement : --registry-db ignoré car --no-registry est actif.", err=True)
+    effective_registry_db: Path | None
+    if no_registry:
+        effective_registry_db = None
+    elif registry_db is not None:
+        effective_registry_db = registry_db
+    else:
+        effective_registry_db = Path(output_dir).parent / "url_registry.db"
+
+    pipeline = ScrapingPipeline(output_dir, user_agent, contact_email=contact_email,
+                                registry_db=effective_registry_db)
     result = pipeline.run(config)
 
     click.echo(f"\nTerminé : {result['total_written']} phrases → {result['output']} (session: {result['timestamp']})")

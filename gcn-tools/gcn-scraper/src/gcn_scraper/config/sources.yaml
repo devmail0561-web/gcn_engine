@@ -61,6 +61,33 @@ sources:
     max_per_query: 100
     rate_limit_delay: 1.0
     enabled: true
+    queries_fr:
+      - "causalité"
+      - "relation causale"
+      - "cause effet"
+      - "condition nécessaire"
+      - "si alors"
+      - "bien que résultats"
+      - "malgré contrainte"
+      - "séquence étapes protocole"
+      - "afin d'améliorer"
+      - "en revanche comparaison"
+      - "dépend des données"
+      - "algorithme contrôle"
+    queries_en:
+      - "causal inference"
+      - "cause effect"
+      - "causal mechanism"
+      - "conditional probability"
+      - "if then implication"
+      - "although despite results"
+      - "sequence pipeline steps"
+      - "in order to improve"
+      - "in contrast to baseline"
+      - "depends on data"
+      - "algorithm controls training"
+      - "enables learning"
+      - "prevents overfitting"
 
   arxiv:
     api_url: "https://export.arxiv.org/api/query"
