@@ -4,7 +4,8 @@ import re
 import time
 import xml.etree.ElementTree as ET
 import requests
-from ._net import retry_get as _retry_get
+import trafilatura
+from ._net import retry_get as _retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config
 
 
@@ -46,10 +47,11 @@ def _clean(html: str) -> str:
 class NewsRSSScraper:
     """Scrappe des flux RSS de presse FR+EN."""
 
-    def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+    def __init__(self, user_agent: str = DEFAULT_USER_AGENT):
         self.user_agent = user_agent
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
+        self._delay = float(get_source_config("news_rss").get("rate_limit_delay", 1.0))
 
     def _parse_feed(self, xml_text: str, lang: str, source_name: str, url: str) -> list[dict]:
         texts = []
@@ -95,22 +97,63 @@ class NewsRSSScraper:
             pass
         return texts
 
+    def _fetch_article_text(self, url: str) -> str | None:
+        """Scrape l'article lié — description RSS en fallback appelant."""
+        resp, self.session = _retry_get(
+            self.session, url, {}, user_agent=self.user_agent,
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
+        if resp is None:
+            return None
+        try:
+            text = trafilatura.extract(resp.text, include_comments=False, include_tables=False)
+            return text if text and len(text) > 200 else None
+        except Exception:
+            return None
+
     def scrape_feed(self, name: str, url: str, lang: str) -> list[dict]:
-        resp, self.session = _retry_get(self.session, url, {}, user_agent=self.user_agent)
+        resp, self.session = _retry_get(
+            self.session, url, {}, user_agent=self.user_agent,
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
         if resp is None:
             print(f"  {name}: toutes tentatives échouées, skip")
             return []
-        items = self._parse_feed(resp.text, lang, name, url)
-        print(f"  {name}: {len(items)} items")
+        raw_items = self._parse_feed(resp.text, lang, name, url)
+        # Principe : scraper le SITE lié (l'article), pas la sortie du flux.
+        items = []
+        for it in raw_items:
+            link = it.get("url", "")
+            text = self._fetch_article_text(link) if link and link != url else None
+            time.sleep(self._delay)
+            if not text:
+                text = it.get("text", "")
+            if text and len(text) > 50:
+                it["text"] = text
+                items.append(it)
+        print(f"  {name}: {len(items)} items (articles scrapés)")
         return items
 
-    def scrape(self, langs: list[str] | None = None) -> list[dict]:
-        """Scrape tous les flux pour les langues demandées."""
+    def scrape(self, langs: list[str] | None = None, seed: int | None = None) -> list[dict]:
+        """Scrape tous les flux pour les langues demandées (ordre mélangé si seed)."""
+        from ..diversity import shuffled as _shuffled
         if langs is None:
             langs = ["fr", "en"]
         results = []
+        consecutive_failures = 0
         for lang in langs:
-            for name, url in _get_rss_sources().get(lang, []):
-                results.extend(self.scrape_feed(name, url, lang))
-                time.sleep(1)
+            feeds = _get_rss_sources().get(lang, [])
+            if seed is not None:
+                feeds = _shuffled(feeds, seed, f"news-{lang}")
+            for name, url in feeds:
+                items = self.scrape_feed(name, url, lang)
+                if not items:
+                    consecutive_failures += 1
+                    if consecutive_failures >= 5:
+                        print("  news: 5 flux en échec de suite, arrêt (anti-blocage).")
+                        return results
+                    continue
+                consecutive_failures = 0
+                results.extend(items)
+                time.sleep(self._delay)
         return results

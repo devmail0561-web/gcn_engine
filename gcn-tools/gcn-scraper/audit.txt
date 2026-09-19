@@ -50,3 +50,23 @@ py_compile des 8 fichiers. ALL CHECKS PASSED.
 Écart noté : l'audit d'origine citait un bloc "education" dans pipeline.py —
 il n'existe pas (EducationScraper non câblé, code mort conservé tel quel).
 Pas de changement de périmètre : aucune source ajoutée/retirée.
+
+Fix 10 — dict.get() misuse (pipeline.py)
+  _src_files.get(key, seen_urls=seen_urls) passait seen_urls comme valeur
+  par défaut à dict.get() (qui n'accepte pas de kwargs), au lieu de l'envoyer
+  en argument à _process_texts(). 7 occurrences. La compilation passait car
+  Python ignore les kwargs inconnus de dict.get() en runtime uniquement.
+  Fix : normalisation des .get() cassés → _src_files.get(key) puis ajout de
+  seen_urls=seen_urls en kwarg propre à chaque appel _process_texts().
+
+Fix 11 — contact_email câblé CLI → pipeline → web_search (cli.py, pipeline.py, web_search.py)
+  --contact-email était accepté par le CLI mais jamais transmis au pipeline
+  ni aux scrapers. web_search.py lisait contact_email depuis le YAML (clé
+  statique), le paramètre CLI était donc ignoré.
+  Fix : contact_email ajouté au constructeur ScrapingPipeline (défaut None),
+  passé à WebSearchScraper qui priorise CLI > YAML fallback. Les scrapers
+  Wikipedia/HAL/arXiv n'utilisent pas de paramètre email (pas de changement).
+
+Vérification (2026-09-19) : py_compile cli.py, pipeline.py, web_search.py.
+Tests end-to-end avec mocks : contact_email=None → fallback YAML,
+contact_email="moi@example.com" → passé à WebSearchScraper. ALL CHECKS PASSED.

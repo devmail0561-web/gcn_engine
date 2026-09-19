@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import requests
 import trafilatura
-from ._net import retry_get as _retry_get
+from ._net import retry_get as _retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config, get_config
 
 
@@ -25,9 +25,9 @@ class WebSearchScraper:
     Le texte est extrait avec trafilatura.
     """
 
-    def __init__(self, user_agent: str = "GCN-Dataset/2.0 (research)"):
+    def __init__(self, user_agent: str = DEFAULT_USER_AGENT, contact_email: str | None = None):
         self._cfg = get_source_config("web_search")
-        self._delay: float = float(self._cfg.get("rate_limit_delay", 1.0))
+        self._delay: float = float(self._cfg.get("rate_limit_delay", 2.0))
         self._max_chars: int = int(self._cfg.get("max_chars_per_page", 5000))
         self._max_results: int = int(self._cfg.get("max_results_per_query", 15))
         self._openalex_url: str = self._cfg.get("openalex_url", "https://api.openalex.org/works")
@@ -40,6 +40,7 @@ class WebSearchScraper:
             "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
         )
         self._engines: list[str] = self._cfg.get("engines", ["duckduckgo", "openalex"])
+        self._contact_email: str = contact_email or self._cfg.get("contact_email", "gcn-research@example.org")
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
 
@@ -49,6 +50,7 @@ class WebSearchScraper:
 
     def _search_ddg(self, query: str, max_results: int) -> list[dict]:
         """Recherche DuckDuckGo — tente ddgs (nouveau nom) puis duckduckgo_search (ancien)."""
+        import time as _time
         DDGS = None
         for mod in ("ddgs", "duckduckgo_search"):
             try:
@@ -62,9 +64,15 @@ class WebSearchScraper:
         if DDGS is None:
             return []
         try:
+            _time.sleep(self._delay)
             raw = DDGS().text(query, max_results=max_results)
             return list(raw) if raw else []
-        except Exception:
+        except Exception as e:
+            # DDG rate-limite agressivement (202/429/Ratelimit) → backoff, pas de boucle.
+            msg = str(e).lower()
+            if "ratelimit" in msg or "429" in msg or "202" in msg:
+                print(f"    DDG rate-limit, pause {self._delay * 2:.0f}s...")
+                _time.sleep(self._delay * 2)
             return []
 
     def _search_openalex(self, query: str, max_results: int) -> list[dict]:
@@ -73,8 +81,13 @@ class WebSearchScraper:
             "search": query,
             "per_page": min(max_results, 25),
             "select": "id,doi,title,abstract_inverted_index,language",
+            # Polite pool : sans mailto, OpenAlex throttle agressivement.
+            "mailto": self._contact_email,
         }
-        resp, self.session = _retry_get(self.session, self._openalex_url, params)
+        resp, self.session = _retry_get(
+            self.session, self._openalex_url, params,
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
         if resp is None:
             return []
         try:
@@ -110,13 +123,18 @@ class WebSearchScraper:
 
     def _search_pubmed(self, query: str, max_results: int) -> list[dict]:
         """Recherche PubMed + fetch des abstracts."""
-        # Étape 1 : recherche → IDs
+        # Étape 1 : recherche → IDs (tool+email requis, sinon throttle à 3 req/s)
         search_params = {
             "db": "pubmed", "term": query,
             "retmax": min(max_results, 20),
             "retmode": "json",
+            "tool": "gcn-scraper",
+            "email": self._contact_email,
         }
-        resp, self.session = _retry_get(self.session, self._pubmed_search_url, search_params)
+        resp, self.session = _retry_get(
+            self.session, self._pubmed_search_url, search_params,
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
         if resp is None:
             return []
         try:
@@ -130,9 +148,14 @@ class WebSearchScraper:
         fetch_params = {
             "db": "pubmed", "id": ",".join(ids),
             "rettype": "abstract", "retmode": "text",
+            "tool": "gcn-scraper",
+            "email": self._contact_email,
         }
         time.sleep(self._delay)
-        resp2, self.session = _retry_get(self.session, self._pubmed_fetch_url, fetch_params)
+        resp2, self.session = _retry_get(
+            self.session, self._pubmed_fetch_url, fetch_params,
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
         if resp2 is None:
             return []
 
@@ -156,8 +179,11 @@ class WebSearchScraper:
     # ------------------------------------------------------------------
 
     def _extract_text(self, url: str) -> str | None:
-        """Extrait le texte propre d'une URL avec trafilatura."""
-        resp, self.session = _retry_get(self.session, url, {})
+        """Scrape la page cible et extrait le texte propre avec trafilatura."""
+        resp, self.session = _retry_get(
+            self.session, url, {},
+            min_interval=self._delay, base_delay=1.0, max_retries=2,
+        )
         if resp is None:
             return None
         try:
@@ -232,12 +258,13 @@ class WebSearchScraper:
 
         results = []
         for url, meta in ranked[:n]:
-            # Utiliser le texte pré-extrait (OpenAlex/PubMed) ou fetcher la page
-            text = meta.get("_text")
+            # Principe : scraper le SITE lié, pas la sortie du moteur.
+            # On fetch la page cible en priorité ; snippet/abstract en fallback.
             item_lang = meta.get("_lang", lang)
+            text = self._extract_text(url)
+            time.sleep(self._delay)
             if not text:
-                text = meta.get("snippet") or self._extract_text(url)
-                time.sleep(self._delay)
+                text = meta.get("_text") or meta.get("snippet")
             if text and len(text) > 100:
                 results.append({
                     "url": url,
@@ -257,6 +284,7 @@ class WebSearchScraper:
         self,
         tracker=None,
         langs: list[str] | None = None,
+        seed: int | None = None,
     ) -> list[dict]:
         """
         Scrape via recherche web multi-sources.
@@ -272,6 +300,9 @@ class WebSearchScraper:
                 print(f"  web/{lang}: budget langue atteint, skip")
                 continue
             query_list = _build_queries(lang)
+            if seed is not None:
+                from ..diversity import shuffled as _shuffled
+                query_list = _shuffled(query_list, seed, f"web-{lang}")
             for query in query_list:
                 if tracker and tracker.is_full(lang):
                     break

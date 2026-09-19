@@ -33,9 +33,11 @@ class ScrapingPipeline:
     En mode --resume, les fichiers de la session précédente sont réutilisés.
     """
 
-    def __init__(self, output_dir: Path, user_agent: str = "GCN-Dataset/2.0"):
+    def __init__(self, output_dir: Path, user_agent: str = "GCN-Dataset/2.0",
+                 contact_email: str | None = None):
         self.output_dir = Path(output_dir)
         self.user_agent = user_agent
+        self.contact_email = contact_email
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -53,6 +55,15 @@ class ScrapingPipeline:
         scorer = QualityScorer()
         dedup = Deduplicator()
         checkpoint = ScrapingCheckpoint(self.output_dir / ".checkpoint.json")
+        from .diversity import make_rng as _make_rng
+        _, seed_eff = _make_rng(config.get("seed"))
+        print(f"=== Diversité: seed={seed_eff} (ordre requêtes/URLs/offsets mélangé) ===")
+        checkpoint.state["last_seed"] = seed_eff
+        checkpoint._save()
+        # URLs déjà collectées lors des runs précédents → skip inter-runs.
+        seen_urls: set[str] = set(checkpoint.state.get("seen_urls", []))
+        if seen_urls:
+            print(f"=== Anti doublons: {len(seen_urls)} URLs déjà vues, skippées ===")
         min_quality: float = config.get("min_quality", 0.3)
         resume: bool = config.get("resume", False)
         selected_langs: list[str] = config.get("langs", ["fr", "en"])
@@ -146,9 +157,10 @@ class ScrapingPipeline:
                     print(f"=== Wikipedia {lang.upper()} ===")
                     from .sources.wikipedia import WikipediaLangScraper
                     scraper = WikipediaLangScraper(lang, self.user_agent)
-                    articles = scraper.scrape(tracker=tracker)
+                    articles = scraper.scrape(tracker=tracker, seed=seed_eff)
                     n = self._process_texts(articles, out, scorer, dedup, tracker, min_quality,
-                                            default_lang=lang, source_out=_src_files.get(key))
+                                            default_lang=lang, source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
@@ -165,9 +177,10 @@ class ScrapingPipeline:
                     print("=== HAL Scientifique ===")
                     from .sources.hal_scientific import HALScraper
                     scraper = HALScraper(self.user_agent)
-                    papers = scraper.scrape(max_per_query=config["hal"].get("max_per_query", 100))
+                    papers = scraper.scrape(max_per_query=config["hal"].get("max_per_query", 100), seed=seed_eff)
                     n = self._process_texts(papers, out, scorer, dedup, tracker, min_quality,
-                                            source_out=_src_files.get(key))
+                                            source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
@@ -183,9 +196,10 @@ class ScrapingPipeline:
                     print("=== arXiv ===")
                     from .sources.arxiv import ArXivScraper
                     scraper = ArXivScraper(self.user_agent)
-                    papers = scraper.scrape(max_per_query=config["arxiv"].get("max_per_query", 100))
+                    papers = scraper.scrape(max_per_query=config["arxiv"].get("max_per_query", 100), seed=seed_eff)
                     n = self._process_texts(papers, out, scorer, dedup, tracker, min_quality,
-                                            default_lang="en", source_out=_src_files.get(key))
+                                            default_lang="en", source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
@@ -202,9 +216,10 @@ class ScrapingPipeline:
                     from .sources.news_rss import NewsRSSScraper
                     scraper = NewsRSSScraper(self.user_agent)
                     langs = config["news"].get("langs", ["fr", "en"])
-                    items = scraper.scrape(langs=langs)
+                    items = scraper.scrape(langs=langs, seed=seed_eff)
                     n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
-                                            source_out=_src_files.get(key))
+                                            source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
@@ -219,12 +234,13 @@ class ScrapingPipeline:
                 else:
                     print("=== Recherche web (DuckDuckGo + OpenAlex + PubMed) ===")
                     from .sources.web_search import WebSearchScraper
-                    scraper = WebSearchScraper(self.user_agent)
-                    items = scraper.scrape(tracker=tracker, langs=selected_langs)
+                    scraper = WebSearchScraper(self.user_agent, contact_email=self.contact_email)
+                    items = scraper.scrape(tracker=tracker, langs=selected_langs, seed=seed_eff)
                     n = self._process_texts(
                         items, out, scorer, dedup, tracker, min_quality,
                         source_out=_src_files.get(key),
                         extra_fields=("relevance_score", "found_by"),
+                        seen_urls=seen_urls,
                     )
                     self._warn_zero(key, n)
                     total_written += n
@@ -247,10 +263,12 @@ class ScrapingPipeline:
                     items = scraper.scrape(
                         languages=selected_prog_langs,
                         max_per_query=config["github"].get("max_per_query", 30),
+                        seed=seed_eff,
                     )
                     n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
                                             skip_split=True, default_lang="code",
-                                            source_out=_src_files.get(key))
+                                            source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
@@ -266,15 +284,24 @@ class ScrapingPipeline:
                     print(f"=== Documentation ({', '.join(selected_prog_langs)}) ===")
                     from .sources.doc_scrape import DocScraper
                     scraper = DocScraper(self.user_agent)
-                    docs = scraper.scrape(languages=selected_prog_langs)
+                    docs = scraper.scrape(languages=selected_prog_langs, seed=seed_eff)
                     n = self._process_texts(docs, out, scorer, dedup, tracker, min_quality,
-                                            default_lang="code", source_out=_src_files.get(key))
+                                            default_lang="code", source_out=_src_files.get(key),
+                                            seen_urls=seen_urls)
                     self._warn_zero(key, n)
                     total_written += n
                     checkpoint.mark_done(key, n)
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
+        # Persister les URLs vues (cap 100k) pour les runs suivants.
+        try:
+            checkpoint.state["seen_urls"] = sorted(seen_urls)[-100000:]
+            checkpoint._save()
+        except Exception:
+            pass
+
         print("\n=== Résumé final ===")
+        print(f"  seed: {seed_eff} | URLs uniques vues (cumul): {len(seen_urls)}")
         balance = tracker.summary()
         for lang, stat in balance.items():
             print(f"  {lang:<6} {stat}")
@@ -314,12 +341,14 @@ class ScrapingPipeline:
         default_lang: str = "auto",
         source_out=None,
         extra_fields: tuple[str, ...] = (),
+        seen_urls: set[str] | None = None,
     ) -> int:
         """
-        Pour chaque item : split → qualité → filtre → écrit en JSONL.
+        Pour chaque item : skip URL déjà vue → split → qualité → filtre → écrit en JSONL.
 
         Champs de sortie : text, lang, source, url, quality.
         Pas de relation_hints — l'annotation est faite par le moteur GCN.
+        seen_urls est muté (ajout des URLs écrites) pour l'anti doublon inter-runs.
         """
         written = 0
         for item in items:
@@ -328,6 +357,8 @@ class ScrapingPipeline:
                 continue
             source = item.get("source", "unknown")
             url = item.get("url", "")
+            if seen_urls is not None and url and url in seen_urls:
+                continue
             item_lang = item.get("lang", default_lang)
 
             sentences = [raw_text] if skip_split else split_sentences(raw_text)
@@ -369,4 +400,6 @@ class ScrapingPipeline:
                     source_out.write(line)
                 tracker.add(lang)
                 written += 1
+                if seen_urls is not None and url:
+                    seen_urls.add(url)
         return written

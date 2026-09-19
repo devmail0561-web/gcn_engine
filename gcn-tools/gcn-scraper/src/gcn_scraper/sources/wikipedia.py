@@ -2,7 +2,7 @@
 from __future__ import annotations
 import time
 import requests
-from ._net import retry_get
+from ._net import retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config, get_config
 
 
@@ -15,7 +15,7 @@ class WikipediaLangScraper:
     Aucune URL hardcodée.
     """
 
-    def __init__(self, lang: str, user_agent: str = "GCN-Dataset/2.0 (research)"):
+    def __init__(self, lang: str, user_agent: str = DEFAULT_USER_AGENT):
         self.lang = lang
         cfg = get_source_config(f"wikipedia_{lang}")
         self._api_url: str = cfg.get("api_url", f"https://{lang}.wikipedia.org/w/api.php")
@@ -37,15 +37,25 @@ class WikipediaLangScraper:
         titles: list[str] = []
         offset = 0
         limit = min(self._page_limit, max_total)
+        fails = 0
         while len(titles) < max_total:
             params = {
                 "action": "query", "list": "search",
                 "srsearch": query, "srlimit": limit,
                 "sroffset": offset, "srnamespace": 0, "format": "json",
+                "formatversion": 2, "maxlag": 5,
             }
-            resp, self.session = retry_get(self.session, self._api_url, params)
+            resp, self.session = retry_get(
+                self.session, self._api_url, params,
+                min_interval=self._delay, base_delay=1.0,
+            )
             if resp is None:
-                break
+                fails += 1
+                if fails >= 2:
+                    break
+                time.sleep(self._delay * 2)
+                continue
+            fails = 0
             try:
                 data = resp.json()
                 hits = data.get("query", {}).get("search", [])
@@ -66,8 +76,12 @@ class WikipediaLangScraper:
             "action": "query", "titles": title,
             "prop": "extracts", "explaintext": True,
             "exsectionformat": "plain", "format": "json",
+            "formatversion": 2, "maxlag": 5,
         }
-        resp, self.session = retry_get(self.session, self._api_url, params)
+        resp, self.session = retry_get(
+            self.session, self._api_url, params,
+            min_interval=self._delay, base_delay=1.0,
+        )
         if resp is None:
             return None
         try:
@@ -84,8 +98,12 @@ class WikipediaLangScraper:
         params = {
             "action": "query", "titles": title,
             "prop": "categories", "cllimit": 10, "format": "json",
+            "formatversion": 2, "maxlag": 5,
         }
-        resp, self.session = retry_get(self.session, self._api_url, params)
+        resp, self.session = retry_get(
+            self.session, self._api_url, params,
+            min_interval=self._delay, base_delay=1.0,
+        )
         if resp is None:
             return []
         try:
@@ -126,10 +144,14 @@ class WikipediaLangScraper:
                 "cmtitle": f"{self._cat_prefix}:{category}",
                 "cmlimit": min(limit - len(titles), 500),
                 "cmnamespace": ns, "format": "json",
+                "formatversion": 2, "maxlag": 5,
             }
             if cmcontinue:
                 params["cmcontinue"] = cmcontinue
-            resp, self.session = retry_get(self.session, self._api_url, params)
+            resp, self.session = retry_get(
+                self.session, self._api_url, params,
+                min_interval=self._delay, base_delay=1.0,
+            )
             if resp is None:
                 break
             try:
@@ -147,11 +169,13 @@ class WikipediaLangScraper:
             time.sleep(self._delay)
         return titles[:limit]
 
-    def scrape(self, tracker=None) -> list[dict]:
+    def scrape(self, tracker=None, seed: int | None = None) -> list[dict]:
         """
         Scraping dynamique : recherche paginée + expansion catégories + fallback config.
 
         tracker : BalanceTracker optionnel — arrêt quand budget langue atteint.
+        seed : mélange l'ordre des requêtes/catégories + échantillonne
+            l'expansion (anti re-scrape à l'identique entre runs).
         """
         lang = self.lang
         if tracker and tracker.is_full(lang):
@@ -159,16 +183,29 @@ class WikipediaLangScraper:
             return []
 
         queries = get_config().get("search_queries", {}).get(lang, [])
+        if seed is not None:
+            from ..diversity import shuffled as _shuffled
+            queries = _shuffled(queries, seed, f"wiki-{lang}")
         seen: set[str] = set()
         discovered_cats: set[str] = set()
         results: list[dict] = []
 
-        # Phase 1 — recherche paginée
+        # Phase 1 — recherche paginée (circuit-breaker: 3 échecs de suite → stop)
+        consecutive_failures = 0
         for query in queries:
             if tracker and tracker.is_full(lang):
                 break
             print(f"  {lang.upper()}/search: '{query[:50]}'...", end=" ", flush=True)
             titles = self.search_articles_paginated(query, max_total=self._max_per_query * 2)
+            if not titles:
+                consecutive_failures += 1
+                print("0 article (échec réseau/rate-limit)")
+                if consecutive_failures >= 3:
+                    print(f"  {lang.upper()}: 3 échecs consécutifs, arrêt (évite de marteler l'API).")
+                    break
+                time.sleep(self._delay * 2)
+                continue
+            consecutive_failures = 0
             count = 0
             for title in titles:
                 if title in seen or (tracker and tracker.is_full(lang)):
@@ -188,10 +225,16 @@ class WikipediaLangScraper:
             print(f"{count} articles")
             time.sleep(self._delay * 2)
 
-        # Phase 2 — expansion dynamique
+        # Phase 2 — expansion dynamique (échantillon mélangé si seed)
         if discovered_cats and (tracker is None or not tracker.is_globally_full()):
             print(f"  {lang.upper()}/expansion: {len(discovered_cats)} catégories...")
-            for cat in list(discovered_cats)[:15]:
+            cats = list(discovered_cats)
+            if seed is not None:
+                from ..diversity import shuffled as _shuffled2
+                cats = _shuffled2(cats, seed, f"wiki-exp-{lang}")[:15]
+            else:
+                cats = cats[:15]
+            for cat in cats:
                 if tracker and tracker.is_globally_full():
                     break
                 for title in self.get_category_articles(cat, max_articles=8):
@@ -208,10 +251,14 @@ class WikipediaLangScraper:
                     time.sleep(self._delay)
                 time.sleep(self._delay * 2)
 
-        # Phase 3 — fallback catégories de config
+        # Phase 3 — fallback catégories de config (ordre mélangé si seed)
         if self._fallback_cats and (tracker is None or not tracker.is_globally_full()):
             print(f"  {lang.upper()}/fallback catégories...")
-            for cat in self._fallback_cats:
+            fb_cats = self._fallback_cats
+            if seed is not None:
+                from ..diversity import shuffled as _shuffled3
+                fb_cats = _shuffled3(fb_cats, seed, f"wiki-fb-{lang}")
+            for cat in fb_cats:
                 if tracker and tracker.is_globally_full():
                     break
                 for title in self.get_category_articles(cat, self._max_per_query):

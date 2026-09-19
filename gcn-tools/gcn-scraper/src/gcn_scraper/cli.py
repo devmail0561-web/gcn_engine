@@ -32,11 +32,16 @@ from .pipeline import ScrapingPipeline
 @click.option("--doc/--no-doc", default=True, show_default=True)
 @click.option("--web-search/--no-web-search", default=False, show_default=True,
               help="Recherche web multi-sources (DuckDuckGo + OpenAlex + PubMed)")
-@click.option("--user-agent", default="GCN-Dataset/3.0 (research)", show_default=True)
+@click.option("--user-agent", default="GCN-Dataset/3.0 (research; contact: gcn-research@example.org)", show_default=True)
+@click.option("--contact-email", default="gcn-research@example.org", show_default=True,
+              help="Email de contact pour les APIs polies (OpenAlex, PubMed, Wikipedia).")
+@click.option("--seed", default=None, type=int,
+              help="Graine de diversité : même seed = même ordre (reproductible), "
+                   "seeds différents = requêtes/URLs/offsets différents. Défaut: tirage aléatoire.")
 def scrape_cmd(
     output_dir, target_total, resume, langs, prog_langs, min_quality,
     max_per_query, hal, arxiv, news, github, github_token, doc,
-    web_search, user_agent,
+    web_search, user_agent, contact_email, seed,
 ):
     """
     Scrape du texte brut multilingue pour le dataset causal GCN.
@@ -83,6 +88,7 @@ def scrape_cmd(
         "langs": selected_langs,
         "prog_langs": selected_prog_langs,
         "target_total": target_total,
+        "seed": seed,
     }
     if hal:
         config["hal"] = {"max_per_query": max_per_query}
@@ -97,7 +103,7 @@ def scrape_cmd(
     if web_search:
         config["web_search"] = {}
 
-    pipeline = ScrapingPipeline(output_dir, user_agent)
+    pipeline = ScrapingPipeline(output_dir, user_agent, contact_email=contact_email)
     result = pipeline.run(config)
 
     click.echo(f"\nTerminé : {result['total_written']} phrases → {result['output']} (session: {result['timestamp']})")

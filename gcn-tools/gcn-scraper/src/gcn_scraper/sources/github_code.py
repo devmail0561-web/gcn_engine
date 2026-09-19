@@ -1,7 +1,7 @@
 """Scraper de code GitHub — Python/Rust/JS/TS/Java/Go/C# (commentaires et docstrings)."""
 from __future__ import annotations
 import time
-from ._net import retry_get
+from ._net import retry_get, DEFAULT_USER_AGENT
 from ..config.loader import get_source_config
 
 
@@ -15,17 +15,22 @@ class GitHubCodeScraper:
 
     def __init__(
         self,
-        user_agent: str = "GCN-Dataset/2.0 (research)",
+        user_agent: str = DEFAULT_USER_AGENT,
         github_token: str | None = None,
     ):
         import requests
         self.session = requests.Session()
         self.session.headers["User-Agent"] = user_agent
+        self.session.headers["Accept"] = "application/vnd.github+json"
+        self.session.headers["X-GitHub-Api-Version"] = "2022-11-28"
+        self._has_token = bool(github_token)
         if github_token:
-            self.session.headers["Authorization"] = f"token {github_token}"
+            self.session.headers["Authorization"] = f"Bearer {github_token}"
         cfg = get_source_config("github")
         self._api_url = cfg.get("api_url", "https://api.github.com/search/code")
-        self._delay = cfg.get("rate_limit_delay", 0.5)
+        # Sans token : 10 req/min → imposer 6s min. Avec token : 30 req/min → 2s min.
+        configured = float(cfg.get("rate_limit_delay", 0.5))
+        self._delay = max(configured, 2.0 if self._has_token else 6.0)
         self._queries_by_lang: dict = cfg.get("queries", {})
 
     def search_code(self, query: str, language: str, max_results: int = 30) -> list[dict]:
@@ -34,7 +39,10 @@ class GitHubCodeScraper:
             "q": f"{query} language:{language}",
             "per_page": min(max_results, 100),
         }
-        resp, self.session = retry_get(self.session, self._api_url, params)
+        resp, self.session = retry_get(
+            self.session, self._api_url, params,
+            min_interval=self._delay, base_delay=2.0,
+        )
         if resp is None:
             return []
         try:
@@ -52,7 +60,10 @@ class GitHubCodeScraper:
         on demande le format brut via l'en-tête Accept.
         """
         if download_url:
-            resp, self.session = retry_get(self.session, download_url, {})
+            resp, self.session = retry_get(
+                self.session, download_url, {},
+                min_interval=self._delay, base_delay=2.0,
+            )
             if resp is None:
                 return None
             return resp.text[:5000]
@@ -115,6 +126,7 @@ class GitHubCodeScraper:
         self,
         languages: list[str] | None = None,
         max_per_query: int | None = None,
+        seed: int | None = None,
     ) -> list[dict]:
         """Scrape du code commenté depuis GitHub."""
         cfg = get_source_config("github")
@@ -123,15 +135,31 @@ class GitHubCodeScraper:
         if max_per_query is None:
             max_per_query = cfg.get("max_per_query", 30)
 
+        from ..diversity import shuffled as _shuffled
         results: list[dict] = []
+        if not self._has_token:
+            print("  GitHub: pas de token → quota 10 req/min, délais 6s imposés (export GITHUB_TOKEN recommandé).")
+        if seed is not None:
+            languages = _shuffled(languages, seed, "github-langs")
+        consecutive_failures = 0
         for lang in languages:
             queries = self._queries_by_lang.get(lang, [])
             if not queries:
                 print(f"  GitHub/{lang}: aucune requête configurée, skip")
                 continue
+            if seed is not None:
+                queries = _shuffled(queries, seed, f"github-{lang}")
             for query in queries:
                 print(f"  GitHub/{lang}: '{query[:40]}'...", end=" ", flush=True)
                 items = self.search_code(query, lang, max_per_query)
+                if not items:
+                    consecutive_failures += 1
+                    print("0 extrait (rate-limit/échec)")
+                    if consecutive_failures >= 3:
+                        print("  GitHub: 3 échecs consécutifs, arrêt (cooldown actif).")
+                        return results
+                    continue
+                consecutive_failures = 0
                 count = 0
                 for item in items:
                     content_url = item.get("url")

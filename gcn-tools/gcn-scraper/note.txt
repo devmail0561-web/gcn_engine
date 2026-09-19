@@ -1,0 +1,21 @@
+Interface CLI finale :
+# Défaut — FR + EN + Python + Rust
+gcn-scrape --output-dir gcn-datasets/raw --target-total 50000
+
+# Contrôle complet
+gcn-scrape --output-dir gcn-datasets/raw \
+  --langs fr,en,es,de \
+  --prog-langs python,rust,javascript,typescript,java,go \
+  --target-total 80000
+
+# Texte uniquement
+gcn-scrape --output-dir gcn-datasets/raw --prog-langs none
+
+# Tout
+gcn-scrape --output-dir gcn-datasets/raw --langs all --prog-langs all
+
+# Avec email de contact (améliore le débit OpenAlex/PubMed)
+gcn-scrape --output-dir gcn-datasets/raw --contact-email moi@example.org
+
+# Reproductible (même seed = même ordre)
+gcn-scrape --output-dir gcn-datasets/raw --seed 42
