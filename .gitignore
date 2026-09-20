@@ -21,3 +21,23 @@ gcn-python/models/
 *.pyo
 *.so
 *.DS_Store
+
+# Fichiers de travail internes — racine
+/PROGRESS.md
+/TODO.md
+/audit_chaine_labelisation_poids.txt
+/notes_augmentation_constantes.txt
+
+# Documents internes de développement
+docs/
+.opencode/
+
+# Notes internes dans les outils
+gcn-tools/gcn-scraper/audit.txt
+gcn-tools/gcn-scraper/note.txt
+
+# Données de travail (corpus, annotations, splits — pas du code)
+gcn-datasets/raw/
+gcn-datasets/real/
+gcn-datasets/splits/
+gcn-datasets/corpus/
