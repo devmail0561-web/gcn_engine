@@ -9,7 +9,9 @@ Sortie JSONL horodatée :
 from __future__ import annotations
 import contextlib
 import json
+import threading
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -250,188 +252,168 @@ class ScrapingPipeline:
                         open(self.output_dir / fname, _mode, encoding="utf-8")
                     )
 
-            # --- Wikipedia (toutes langues, découverte dynamique depuis config) ---
-            for _idx, key in enumerate(_wiki_keys):
-                if tracker.is_globally_full():
-                    skipped = _wiki_keys[_idx:]
-                    if skipped:
-                        print(f"=== Budget global atteint → sources Wikipedia sautées : {', '.join(skipped)} ===")
-                    break
+            # Imports scraper (hors threads pour éviter les conflits d'import)
+            from .sources.wikipedia import WikipediaLangScraper
+            from .sources.hal_scientific import HALScraper
+            from .sources.arxiv import ArXivScraper
+            from .sources.news_rss import NewsRSSScraper
+            from .sources.web_search import WebSearchScraper
+            from .sources.github_code import GitHubCodeScraper
+            from .sources.doc_scrape import DocScraper
+
+            _hal_langs = "fr" in selected_langs or "en" in selected_langs
+            write_lock = threading.Lock()
+
+            def _run_one(key: str, scraper_fn, process_kw: dict) -> tuple:
+                """Scrape en parallèle ; écriture/tracking sérialisés par write_lock."""
+                if resume and checkpoint.is_done(key):
+                    count = checkpoint.get_count(key)
+                    print(f"=== {key}: déjà fait ({count} phrases), skip ===")
+                    return key, count
+                print(f"=== {key} : démarrage ===", flush=True)
+                try:
+                    items = scraper_fn()
+                except Exception as exc:
+                    warnings.warn(
+                        f"Source '{key}': erreur scraping ({exc})",
+                        UserWarning, stacklevel=2,
+                    )
+                    items = []
+                with write_lock:
+                    if tracker.is_globally_full():
+                        print(f"=== {key}: budget global atteint à l'arrivée, skip ===")
+                        checkpoint.mark_done(key, 0, dict(tracker.counts))
+                        return key, 0
+                    n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
+                                            **process_kw)
+                    self._warn_zero(key, n)
+                    checkpoint.mark_done(key, n, dict(tracker.counts))
+                    print(f"  [{key}] → {n} phrases | {tracker.progress_bar()}")
+                return key, n
+
+            # --- Construction de la liste des tâches ---
+            _tasks: list = []
+
+            # Wikipedia (toutes langues sélectionnées)
+            for key in _wiki_keys:
                 wiki_cfg = _all_cfg.get("sources", {}).get(key, {})
                 if not wiki_cfg.get("enabled", True):
                     continue
-                lang = wiki_cfg.get("lang", key.replace("wikipedia_", ""))
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print(f"=== Wikipedia {lang.upper()} ===")
-                    from .sources.wikipedia import WikipediaLangScraper
-                    scraper = WikipediaLangScraper(lang, self.user_agent)
-                    articles = scraper.scrape(tracker=tracker, seed=seed_eff)
-                    n = self._process_texts(articles, out, scorer, dedup, tracker, min_quality,
-                                            default_lang=lang, source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+                _wlang = wiki_cfg.get("lang", key.replace("wikipedia_", ""))
+                _tasks.append((
+                    key,
+                    (lambda l=_wlang: WikipediaLangScraper(l, self.user_agent)
+                     .scrape(tracker=tracker, seed=seed_eff)),
+                    dict(default_lang=_wlang, source_out=_src_files.get(key),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get(key, "")),
+                ))
 
-            # --- HAL (FR + EN) ---
-            _hal_langs = ("fr" in selected_langs or "en" in selected_langs)
+            # HAL (FR + EN)
             if "hal" in config and _yaml_enabled("hal") and _hal_langs:
-                if tracker.is_globally_full():
-                    print("=== HAL : budget global atteint, skip ===")
-            if "hal" in config and _yaml_enabled("hal") and not tracker.is_globally_full() and _hal_langs:
-                key = "hal"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print("=== HAL Scientifique ===")
-                    from .sources.hal_scientific import HALScraper
-                    scraper = HALScraper(self.user_agent)
-                    papers = scraper.scrape(max_per_query=_src_opt("hal", "max_per_query", 100), seed=seed_eff, tracker=tracker)
-                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_quality,
-                                            source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+                _hal_max = _src_opt("hal", "max_per_query", 100)
+                _tasks.append((
+                    "hal",
+                    (lambda mx=_hal_max: HALScraper(self.user_agent)
+                     .scrape(max_per_query=mx, seed=seed_eff, tracker=tracker)),
+                    dict(source_out=_src_files.get("hal"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("hal", "")),
+                ))
 
-            # --- arXiv (EN uniquement) ---
+            # arXiv (EN)
             if "arxiv" in config and _yaml_enabled("arxiv") and "en" in selected_langs:
-                if tracker.is_globally_full():
-                    print("=== arXiv : budget global atteint, skip ===")
-            if "arxiv" in config and _yaml_enabled("arxiv") and not tracker.is_globally_full() and "en" in selected_langs:
-                key = "arxiv"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print("=== arXiv ===")
-                    from .sources.arxiv import ArXivScraper
-                    scraper = ArXivScraper(self.user_agent)
-                    papers = scraper.scrape(max_per_query=_src_opt("arxiv", "max_per_query", 100), seed=seed_eff, tracker=tracker)
-                    n = self._process_texts(papers, out, scorer, dedup, tracker, min_quality,
-                                            default_lang="en", source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+                _arxiv_max = _src_opt("arxiv", "max_per_query", 100)
+                _tasks.append((
+                    "arxiv",
+                    (lambda mx=_arxiv_max: ArXivScraper(self.user_agent)
+                     .scrape(max_per_query=mx, seed=seed_eff, tracker=tracker)),
+                    dict(default_lang="en", source_out=_src_files.get("arxiv"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("arxiv", "")),
+                ))
 
-            # --- News RSS ---
-            if "news" in config and _yaml_enabled("news") and tracker.is_globally_full():
-                print("=== news_rss : budget global atteint, skip ===")
-            if "news" in config and _yaml_enabled("news") and not tracker.is_globally_full():
-                key = "news"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print("=== News RSS ===")
-                    from .sources.news_rss import NewsRSSScraper
-                    scraper = NewsRSSScraper(self.user_agent)
-                    langs = _src_opt("news", "langs", ["fr", "en"])
-                    items = scraper.scrape(langs=langs, seed=seed_eff, tracker=tracker)
-                    n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
-                                            source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+            # News RSS
+            if "news" in config and _yaml_enabled("news"):
+                _news_langs = _src_opt("news", "langs", ["fr", "en"])
+                _tasks.append((
+                    "news",
+                    (lambda ll=_news_langs: NewsRSSScraper(self.user_agent)
+                     .scrape(langs=ll, seed=seed_eff, tracker=tracker)),
+                    dict(source_out=_src_files.get("news"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("news", "")),
+                ))
 
-            # --- Recherche web multi-sources ---
-            if "web_search" in config and _yaml_enabled("web_search") and tracker.is_globally_full():
-                print("=== web_search : budget global atteint, skip ===")
-            if "web_search" in config and _yaml_enabled("web_search") and not tracker.is_globally_full():
-                key = "web_search"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print("=== Recherche web (DuckDuckGo + OpenAlex + PubMed) ===")
-                    from .sources.web_search import WebSearchScraper
-                    scraper = WebSearchScraper(self.user_agent, contact_email=self.contact_email)
-                    items = scraper.scrape(tracker=tracker, langs=selected_langs, seed=seed_eff)
-                    n = self._process_texts(
-                        items, out, scorer, dedup, tracker, min_quality,
-                        source_out=_src_files.get(key),
-                        extra_fields=("relevance_score", "found_by"),
-                        seen_urls=seen_urls, registry=registry,
-                        campaign_id=campaign_id,
-                        output_file=_fname_map.get(key, ""),
-                    )
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+            # Recherche web
+            if "web_search" in config and _yaml_enabled("web_search"):
+                _ws_langs = list(selected_langs)
+                _tasks.append((
+                    "web_search",
+                    (lambda ll=_ws_langs: WebSearchScraper(
+                        self.user_agent, contact_email=self.contact_email)
+                     .scrape(tracker=tracker, langs=ll, seed=seed_eff)),
+                    dict(source_out=_src_files.get("web_search"),
+                         extra_fields=("relevance_score", "found_by"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("web_search", "")),
+                ))
 
-            # --- GitHub Code ---
-            if "github" in config and _yaml_enabled("github") and selected_prog_langs and tracker.is_globally_full():
-                print("=== GitHub Code : budget global atteint, skip ===")
-            if "github" in config and _yaml_enabled("github") and selected_prog_langs and not tracker.is_globally_full():
-                key = "github"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print(f"=== GitHub Code ({', '.join(selected_prog_langs)}) ===")
-                    from .sources.github_code import GitHubCodeScraper
-                    scraper = GitHubCodeScraper(
-                        self.user_agent,
-                        github_token=config["github"].get("token"),
-                    )
-                    items = scraper.scrape(
-                        languages=selected_prog_langs,
-                        max_per_query=_src_opt("github", "max_per_query", 30),
-                        seed=seed_eff,
-                        tracker=tracker,
-                    )
-                    n = self._process_texts(items, out, scorer, dedup, tracker, min_quality,
-                                            skip_split=True, default_lang="code",
-                                            source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} extraits retenus | {tracker.progress_bar()}")
+            # GitHub Code
+            if "github" in config and _yaml_enabled("github") and selected_prog_langs:
+                _gh_token = config["github"].get("token")
+                _gh_max = _src_opt("github", "max_per_query", 30)
+                _gh_langs = list(selected_prog_langs)
+                _tasks.append((
+                    "github",
+                    (lambda tok=_gh_token, mx=_gh_max, ll=_gh_langs:
+                     GitHubCodeScraper(self.user_agent, github_token=tok)
+                     .scrape(languages=ll, max_per_query=mx,
+                             seed=seed_eff, tracker=tracker)),
+                    dict(skip_split=True, default_lang="code",
+                         source_out=_src_files.get("github"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("github", "")),
+                ))
 
-            # --- Documentation ---
-            if "doc" in config and _yaml_enabled("doc") and selected_prog_langs and tracker.is_globally_full():
-                print("=== Documentation : budget global atteint, skip ===")
-            if "doc" in config and _yaml_enabled("doc") and selected_prog_langs and not tracker.is_globally_full():
-                key = "doc"
-                if resume and checkpoint.is_done(key):
-                    print(f"=== {key}: déjà fait ({checkpoint.get_count(key)} phrases), skip ===")
-                    total_written += checkpoint.get_count(key)
-                else:
-                    print(f"=== Documentation ({', '.join(selected_prog_langs)}) ===")
-                    from .sources.doc_scrape import DocScraper
-                    scraper = DocScraper(self.user_agent)
-                    docs = scraper.scrape(languages=selected_prog_langs, seed=seed_eff, tracker=tracker)
-                    n = self._process_texts(docs, out, scorer, dedup, tracker, min_quality,
-                                            default_lang="code", source_out=_src_files.get(key),
-                                            seen_urls=seen_urls, registry=registry,
-                                            campaign_id=campaign_id,
-                                            output_file=_fname_map.get(key, ""))
-                    self._warn_zero(key, n)
-                    total_written += n
-                    checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
+            # Documentation
+            if "doc" in config and _yaml_enabled("doc") and selected_prog_langs:
+                _doc_langs = list(selected_prog_langs)
+                _tasks.append((
+                    "doc",
+                    (lambda ll=_doc_langs: DocScraper(self.user_agent)
+                     .scrape(languages=ll, seed=seed_eff, tracker=tracker)),
+                    dict(default_lang="code", source_out=_src_files.get("doc"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("doc", "")),
+                ))
+
+            # --- Exécution parallèle ---
+            _max_workers = max(1, min(len(_tasks), 8))
+            print(f"=== Scraping parallèle : {len(_tasks)} sources, {_max_workers} workers ===",
+                  flush=True)
+            with ThreadPoolExecutor(max_workers=_max_workers) as _pool:
+                _futures = {
+                    _pool.submit(_run_one, k, fn, kw): k
+                    for k, fn, kw in _tasks
+                }
+                for _future in as_completed(_futures):
+                    _key = _futures[_future]
+                    try:
+                        _, _n = _future.result()
+                        total_written += _n
+                    except Exception as _exc:
+                        warnings.warn(
+                            f"Source '{_key}' : exception non gérée ({_exc})",
+                            UserWarning, stacklevel=2,
+                        )
 
         # Fallback sans registre : persister seen_urls dans le checkpoint JSON.
         if registry is None:
