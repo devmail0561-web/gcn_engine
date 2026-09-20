@@ -54,3 +54,44 @@ pub fn decode(ir: &CausalIR) -> Result<String, VerbalizerError> {
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_display_decoder_error() {
+        let e = VerbalizerError::DecoderError("exit code 1".into());
+        assert!(e.to_string().contains("exit code 1"));
+    }
+
+    #[test]
+    fn error_display_serialization() {
+        let inner: serde_json::Error =
+            serde_json::from_str::<serde_json::Value>("{bad}").unwrap_err();
+        let e = VerbalizerError::Serialization(inner);
+        assert!(!e.to_string().is_empty());
+    }
+
+    #[test]
+    fn decode_returns_process_spawn_when_binary_absent() {
+        use gcn_ir::{CausalIR, IrMetadata, NaturalLanguage, SourceLanguage};
+        let ir = CausalIR {
+            source_lang: SourceLanguage::Natural { lang: NaturalLanguage::Und },
+            source_text: String::new(),
+            nodes: vec![],
+            edges: vec![],
+            cycles: vec![],
+            unresolved: vec![],
+            metadata: IrMetadata::default(),
+        };
+        // gcn-verbalize n'est pas dans le PATH en environnement de test
+        // SAFETY : test mono-thread, aucun autre thread ne lit PATH simultanément.
+        unsafe { std::env::set_var("PATH", "") };
+        let result = decode(&ir);
+        assert!(matches!(
+            result,
+            Err(VerbalizerError::ProcessSpawn(_))
+        ));
+    }
+}
