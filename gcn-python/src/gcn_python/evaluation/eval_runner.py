@@ -29,9 +29,47 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
     node_macro_f1, edge_accuracy, edge_macro_f1.
     """
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
+    # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
+    # all_pairs / multi-couches crashe au load (shapes) ou est évalué dans le
+    # mauvais mode (métriques fausses silencieusement).
+    _arch: dict = {}
+    try:
+        _raw = np.load(model_path, allow_pickle=True)
+        if "_arch_json" in _raw:
+            _arch = json.loads(str(_raw["_arch_json"][0]))
+    except Exception as exc:
+        warnings.warn(f"run_eval : arch illisible ({exc}) — pipeline par défaut.",
+                      UserWarning, stacklevel=2)
+    _d_eff = int(_arch.get("d_eff", vocab.d_clause))
+    _d_emb = int(_arch.get("d_emb", 0))
+    _n_rel = int(_arch.get("n_relations", len(RELATION_TYPES)))
+    _bidi = bool(_arch.get("bidirectional", _arch.get("bidi_flag", False)))
+    _all_pairs = bool(_arch.get("all_pairs", False))
+    _n_layers = int(_arch.get("n_rgcn_layers", 1))
+    _gclass = _arch.get("graph_class", "RGCNLayer")
+    _word_embedding = None
+    if _d_emb > 0:
+        from ..layer1.embedding import WordEmbedding
+        _word_embedding = WordEmbedding(d_emb=_d_emb)
+    encoder = MLPEncoder(d_clause=_d_eff,
+                         d_edge=vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb))
+    if _gclass == "RGCNLayerGAT":
+        try:
+            from ..layer3.gat import RGCNLayerGAT
+            graph = RGCNLayerGAT(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
+                                 n_relations=_n_rel)
+        except ImportError:
+            warnings.warn("run_eval : PyTorch absent — repli sur RGCNLayer (NumPy).",
+                          UserWarning, stacklevel=2)
+            graph = RGCNLayer(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
+                              n_relations=_n_rel)
+    else:
+        graph = RGCNLayer(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
+                          n_relations=_n_rel)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=_word_embedding, bidirectional=_bidi,
+                           all_pairs=_all_pairs, n_rgcn_layers=_n_layers)
     load_checkpoint(pipeline, model_path, trusted=True)
 
     loader = GCNDataLoader(data_dir)
@@ -81,10 +119,17 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
 
         if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                 and sample.edge_map and edge_logits is not None and len(edge_logits) > 0):
-            pairs = [
-                (valid_clause_idxs[k], valid_clause_idxs[k + 1])
-                for k in range(len(valid_clause_idxs) - 1)
-            ]
+            if pipeline.all_pairs:
+                pairs = [
+                    (valid_clause_idxs[i], valid_clause_idxs[j])
+                    for i in range(len(valid_clause_idxs))
+                    for j in range(i + 1, len(valid_clause_idxs))
+                ]
+            else:
+                pairs = [
+                    (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                    for k in range(len(valid_clause_idxs) - 1)
+                ]
             gold_edge_full = np.array(
                 [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
             )
@@ -140,11 +185,27 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
 @click.option("--model-path", required=True, type=click.Path(path_type=Path))
 @click.option("--output", default=None, type=click.Path(path_type=Path),
               help="Chemin JSON du rapport (optionnel, sinon stdout)")
+@click.option("--gate", default=None, type=float,
+              help="Seuil val_node_macro_f1 pour la tête de liens (défaut plan : 0.60). "
+                   "Sans --gate : simple évaluation, pas de contrôle.")
+@click.option("--on-fail", default="warn", type=click.Choice(["warn", "error"]), show_default=True,
+              help="warn = jamais fail-closed (défaut) ; error = exit 1 si sous le seuil.")
 def eval_cmd(
-    data_dir: Path, model_path: Path, output: Path | None
+    data_dir: Path, model_path: Path, output: Path | None,
+    gate: float | None, on_fail: str,
 ) -> None:
     """Évalue le pipeline CGNP sur un répertoire de données annotées."""
     report = run_eval(data_dir, model_path)
+    if gate is not None:
+        f1 = report.get("node_macro_f1")
+        report["gate"] = {"threshold": gate, "val_node_macro_f1": f1,
+                          "passed": (f1 is not None and f1 >= gate)}
+        if not report["gate"]["passed"]:
+            msg = (f"gcn-eval gate : val_node_macro_f1={f1} < seuil {gate} "
+                   f"(bloquant données, pas code — tête de liens non activable en prod).")
+            if on_fail == "error":
+                raise click.ClickException(msg)
+            warnings.warn(msg, UserWarning, stacklevel=2)
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if output:
         Path(output).write_text(text, encoding="utf-8")

@@ -1,7 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import warnings
 import numpy as np
@@ -35,6 +35,7 @@ class TrainingSample:
     sentence: SentenceRecord
     gold_node_labels: np.ndarray  # (N,) int — indices dans NODE_TYPES
     edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
+    hyperedge_map: dict = field(default_factory=dict)  # {(frozenset(sources_str), tgt_idx): rel_idx} N-aires
 
 
 class GCNDataLoader:
@@ -92,14 +93,35 @@ class GCNDataLoader:
             dtype=np.int64,
         )
         edge_map: dict[tuple[int, int], int] = {}
+        hyperedge_map: dict[tuple[frozenset, int], int] = {}
         n_backward = 0
         n_long_distance = 0
         for e in rec.edges:
-            src_idx = node_id_to_idx.get(e.source)
-            tgt_idx = node_id_to_idx.get(e.target)
+            src_list = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
+            tgt = getattr(e, "target", "")
+            if len(src_list) > 1:
+                # N-arête : bypass gap>1, route vers hyperedge_map (non-ordonné v2.0, cf ADR).
+                src_idxs = [node_id_to_idx.get(s) for s in src_list]
+                tgt_idx = node_id_to_idx.get(tgt)
+                if any(i is None for i in src_idxs) or tgt_idx is None:
+                    warnings.warn(
+                        f"[{rec.id}] hyperarête {src_list}→{tgt} : node_id inconnu — ignorée.",
+                        UserWarning, stacklevel=2,
+                    )
+                    continue
+                if not src_list:
+                    warnings.warn(f"[{rec.id}] hyperarête sources vide — ignorée.",
+                                  UserWarning, stacklevel=2)
+                    continue
+                rel_idx = _relation_idx(e.relation, rec.id)
+                hyperedge_map[(frozenset(str(s) for s in src_list), tgt_idx)] = rel_idx
+                continue
+            src_id = src_list[0] if src_list else ""
+            src_idx = node_id_to_idx.get(src_id)
+            tgt_idx = node_id_to_idx.get(tgt)
             if src_idx is None or tgt_idx is None:
                 warnings.warn(
-                    f"[{rec.id}] arête {e.source}→{e.target} : node_id inconnu — arête ignorée.",
+                    f"[{rec.id}] arête {src_id}→{tgt} : node_id inconnu — arête ignorée.",
                     UserWarning, stacklevel=2,
                 )
                 continue
@@ -114,7 +136,7 @@ class GCNDataLoader:
                 key = (tgt_idx, src_idx)
                 if key in edge_map:
                     warnings.warn(
-                        f"[{rec.id}] conflit arête anti-parallèle {e.source}→{e.target} "
+                        f"[{rec.id}] conflit arête anti-parallèle {src_id}→{tgt} "
                         f"(clé {key} déjà présente, relation ignorée).",
                         UserWarning, stacklevel=2,
                     )
@@ -136,7 +158,7 @@ class GCNDataLoader:
                 UserWarning,
                 stacklevel=2,
             )
-        return TrainingSample(rec, node_labels, edge_map)
+        return TrainingSample(rec, node_labels, edge_map, hyperedge_map)
 
 
 def reps_from_sentence(

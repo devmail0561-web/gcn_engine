@@ -132,20 +132,54 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
 
 def _parse_edge(e: dict) -> EdgeRecord:
     attrs = e.get("attributes") or {}
-    relation = e.get("relation") or ""
+    relation = e.get("relation") or e.get("relation_type") or attrs.get("relation") or ""
     if not relation:
         warnings.warn(
-            f"Arête {e.get('source', '?')}→{e.get('target', '?')} sans champ 'relation' "
+            f"Arête {e.get('source', e.get('sources', '?'))}→{e.get('target', '?')} sans champ 'relation' "
             f"— défaut '{RELATION_TYPES[0]}' appliqué.",
             UserWarning, stacklevel=3,
         )
         relation = RELATION_TYPES[0]
+    # sources prioritaire, wrap source, warn si conflit
+    sources = e.get("sources")
+    legacy_source = e.get("source", "")
+    if sources is not None and legacy_source and list(sources) != [legacy_source]:
+        warnings.warn(
+            f"Arête {legacy_source}→{e.get('target', '?')} : 'sources' {sources} "
+            f"et 'source' {legacy_source!r} en conflit — 'sources' gagne.",
+            UserWarning, stacklevel=3,
+        )
+    if sources is None:
+        sources = [legacy_source] if legacy_source else []
+    sources = [str(s) for s in sources]
+    target = str(e.get("target", ""))
+    # confidence absente -> None + warn (jamais 0.0 / 1.0 silencieux)
+    if "confidence" in attrs or "confidence" in e:
+        conf_raw = attrs.get("confidence", e.get("confidence"))
+        try:
+            confidence = float(conf_raw) if conf_raw is not None else None
+        except (TypeError, ValueError):
+            warnings.warn("confidence invalide — None appliqué.", UserWarning, stacklevel=3)
+            confidence = None
+    else:
+        warnings.warn(
+            f"Arête {sources}→{target} sans confidence — None (annotation absente).",
+            UserWarning, stacklevel=3,
+        )
+        confidence = None
+    # negated absent -> None (détection pipeline via root_morph)
+    if "negated" in attrs or "negated" in e:
+        negated = bool(attrs.get("negated", e.get("negated", False)))
+    else:
+        negated = None
+    explicit = bool(attrs.get("explicit", e.get("explicit", True)))
     return EdgeRecord(
-        source=e.get("source", ""),
-        target=e.get("target", ""),
+        source=sources[0] if sources else "",
+        target=target,
         relation=relation,
-        confidence=float(attrs.get("confidence", e.get("confidence", 1.0))),
-        explicit=bool(attrs.get("explicit", e.get("explicit", True))),
-        negated=bool(attrs.get("negated", e.get("negated", False))),
+        confidence=confidence,
+        explicit=explicit,
+        negated=negated,
         marker_token=attrs.get("marker_token", e.get("marker_token")),
+        sources=sources,
     )

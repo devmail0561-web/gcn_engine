@@ -69,12 +69,36 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
     return results
 
 
-def _split_lines(text: str) -> list[str]:
+def _split_lines(text: str, min_line_len: int = 10) -> list[str]:
     """
     Retourne les lignes non vides d'un texte.
     Chaque ligne est traitée comme une unité d'analyse.
+    min_line_len remplace l'ancien magic number 10 (défaut rétrocompat).
     """
-    return [l.strip() for l in text.splitlines() if len(l.strip()) >= 10]
+    return [l.strip() for l in text.splitlines() if len(l.strip()) >= min_line_len]
+
+
+def extract_concepts_from_cir(cir: dict) -> list[str]:
+    """Extrait des concepts (lemmes) depuis cir['nodes'] via la regex bridge.
+
+    Réutilise frontend.bridge._LABEL_RE (^([^(?\\s]+), avec ? littéral).
+    Strip ?.,!(), longueur ≥ 3.
+    """
+    try:
+        from .frontend.bridge import _LABEL_RE
+    except Exception:
+        import re as _re
+        _LABEL_RE = _re.compile(r'^([^(?\s]+)')
+    concepts = []
+    for n in cir.get("nodes", []) or []:
+        label = (n.get("label") or "").strip()
+        if not label:
+            continue
+        m = _LABEL_RE.match(label)
+        lemma = (m.group(1).strip() if m else label).strip("?.,!()")
+        if len(lemma) >= 3 and lemma.lower() not in concepts:
+            concepts.append(lemma.lower())
+    return concepts
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +206,20 @@ def run_discuss(
     graph_path: Optional[Path] = None,
     gcn_bin: str = "gcn",
     log_path: Optional[Path] = None,
+    session_dir: Optional[Path] = None,
 ) -> None:
     """Lance la session de discussion."""
     from .engine import GCNEngine
+    from .cli.session import SessionStore
+
+    # Session persistante : graphe + vecs + historique (anti-perte)
+    session = SessionStore(session_dir)
+    restored = {"graph_edges": 0, "vecs": 0, "history": 0}
+    if session_dir is not None:
+        restored = session.load()
+        if restored["graph_edges"] or restored["vecs"]:
+            print(f"\n  Session restaurée : {restored['graph_edges']} relation(s), "
+                  f"{restored['vecs']} vecteur(s), {restored['history']} événement(s).")
 
     # Charger le moteur
     engine = None
@@ -198,6 +233,8 @@ def run_discuss(
 
     # Charger ou créer le graphe de session
     handler = InstructionHandler()
+    if restored["graph_edges"]:
+        handler.graph = session.graph
     decoder = ReferenceDecoder()   # CIR → texte, flux direct sans fichier
     if graph_path and graph_path.exists():
         try:
@@ -216,6 +253,10 @@ def run_discuss(
             user_input = input("  > ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n  bye.")
+            if session.session_dir is not None:
+                session.graph = handler.graph
+                session.save()
+                print(f"  Session sauvegardée : {session.session_dir}")
             break
 
         if not user_input:
@@ -229,6 +270,10 @@ def run_discuss(
 
             if cmd in ("quit", "exit", "q"):
                 print("  bye.")
+                if session.session_dir is not None:
+                    session.graph = handler.graph
+                    session.save()
+                    print(f"  Session sauvegardée : {session.session_dir}")
                 break
 
             elif cmd == "help":
@@ -259,6 +304,9 @@ def run_discuss(
                         try:
                             cir = engine.analyze(line)
                             if cir.get("edges"):
+                                # Collecte session : vecteurs persistés (anti-perte)
+                                if session.session_dir is not None:
+                                    session.collect(engine, line, cir)
                                 # CIR → verbalizer directement, sans fichier
                                 verbalized = decoder.decode_cir(cir)
                                 if verbalized:
@@ -283,6 +331,10 @@ def run_discuss(
                 n_total = len(handler.graph.edges)
                 print(f"  Total session : {n_total} relation(s)")
                 print()
+                if session.session_dir is not None:
+                    session.graph = handler.graph
+                    session.save()
+                    print(f"  Session sauvegardée : {session.session_dir}")
 
             elif cmd == "save":
                 if not arg:
@@ -315,13 +367,37 @@ def run_discuss(
                 continue
             print()
             response = _format_response(handler, user_input)
+            # Fallback entrée libre : si rien trouvé et moteur dispo, analyser la
+            # question elle-même (Python→Rust sens unique) puis réessayer une fois.
+            if "No causal structure" in response and engine is not None:
+                try:
+                    cir = engine.analyze(user_input)
+                    concepts = extract_concepts_from_cir(cir)
+                    if cir.get("edges"):
+                        # Répondre depuis la question uniquement — ne pas modifier le graphe corpus.
+                        tmp_handler = InstructionHandler()
+                        tmp_handler.add_cir(cir)
+                        tmp_response = _format_response(tmp_handler, user_input)
+                        if "No causal structure" not in tmp_response:
+                            response = tmp_response
+                        if session.session_dir is not None:
+                            session.collect(engine, user_input, cir)
+                    elif concepts:
+                        response += f"\n  (concepts détectés dans la question : {', '.join(concepts)} — source=question, non corpus)"
+                except Exception as _e:
+                    response += f"\n  (fallback analyze impossible : {_e})"
             print(response)
             print()
+            _answered = "No causal structure" not in response
+            if session.session_dir is not None:
+                session.graph = handler.graph
+                session.record_exchange(user_input, _answered)
+                session.save()
             _write_log(log_path, {
                 "event": "query",
                 "question": user_input,
                 "session_relations": len(handler.graph.edges),
-                "answered": "No causal structure" not in response,
+                "answered": _answered,
             })
 
 
@@ -338,11 +414,16 @@ def run_discuss(
               help="Chemin vers le binaire gcn-cli Rust.")
 @click.option("--log", "log_path", default=None, type=click.Path(path_type=Path),
               help="Fichier de log JSON pour le monitoring (optionnel).")
+@click.option("--session-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire de session persistante (graphe + vecs + historique). "
+                   "Restauré au démarrage, sauvegardé à chaque analyse/question et à la sortie.")
 def discuss_cmd(
     ckpt: Optional[Path],
     graph_path: Optional[Path],
     gcn_bin: str,
     log_path: Optional[Path],
+    session_dir: Optional[Path],
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
-    run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin, log_path=log_path)
+    run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,
+               log_path=log_path, session_dir=session_dir)

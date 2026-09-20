@@ -119,11 +119,19 @@ def _normalize_edge(e) -> dict | None:
         src_id, dst_id, edge_obj = e
         if not isinstance(edge_obj, dict):
             return None
-        source, target = str(src_id), str(dst_id)
+        try:
+            from ..data.edge_norm import normalize_node_id
+            source, target = normalize_node_id(src_id), normalize_node_id(dst_id)
+        except ValueError:
+            return None
     elif isinstance(e, dict):
         edge_obj = e
-        source = str(e.get("source", ""))
-        target = str(e.get("target", ""))
+        try:
+            from ..data.edge_norm import normalize_node_id
+            source = normalize_node_id(e.get("source", ""))
+            target = normalize_node_id(e.get("target", ""))
+        except ValueError:
+            return None
     else:
         return None
     relation = edge_obj.get("relation_type", edge_obj.get("relation", RELATION_TYPES[0]))
@@ -131,10 +139,25 @@ def _normalize_edge(e) -> dict | None:
         "source": source,
         "target": target,
         "relation": relation,
-        "confidence": float(edge_obj.get("confidence", 1.0)),
+        "confidence": float(edge_obj["confidence"]) if "confidence" in edge_obj else None,
         "explicit": bool(edge_obj.get("explicit", True)),
-        "negated": bool(edge_obj.get("negated", False)),
+        "negated": bool(edge_obj["negated"]) if "negated" in edge_obj else None,
     }
+
+
+def _canonical_node_id(raw, pos: int) -> str:
+    """Id CIR brut -> id canonique 'nNNN' (cohérent avec les arêtes normalisées).
+
+    Sans ça, _cir_to_doc émettait des ids int (0, 1) côté nœuds et str ("0", "1")
+    côté arêtes — le loader ignorait alors 100 % des arêtes (node_id inconnu).
+    """
+    from ..data.edge_norm import normalize_node_id
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return f"n{pos + 1:03d}"
+    try:
+        return normalize_node_id(raw)
+    except ValueError:
+        return f"n{pos + 1:03d}"
 
 
 def _cir_to_doc(text: str, cir: dict) -> dict:
@@ -144,7 +167,7 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
 
     doc_nodes = [
         {
-            "id": n.get("id", f"n{i+1:03d}"),
+            "id": _canonical_node_id(n.get("id"), i),
             "type": n.get("node_type", NODE_TYPES[1]),
             "label": n.get("label", ""),
             "token_span": _extract_token_span(n),

@@ -83,6 +83,14 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
 @click.option("--label-smoothing", default=0.0, show_default=True, type=float,
               help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
+@click.option("--link-pred/--no-link-pred", default=False, show_default=True,
+              help="Entraîne la tête LinkPredHead (BCE auxiliaire positifs/négatifs).")
+@click.option("--neg-ratio", default=1.0, show_default=True, type=float,
+              help="Négatifs par positif pour la tête de liens.")
+@click.option("--src-aggregation", default="mean", show_default=True, type=click.Choice(["mean", "max"]),
+              help="Agrégation multi-sources de la tête de liens.")
+@click.option("--bfs-depth", default=2, show_default=True, type=int,
+              help="Profondeur BFS des candidats en prédiction (engine/gcn-eval).")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -105,6 +113,10 @@ def train_cmd(
     weight_decay: float,
     rgcn_dropout: float,
     label_smoothing: float,
+    link_pred: bool,
+    neg_ratio: float,
+    src_aggregation: str,
+    bfs_depth: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -169,6 +181,14 @@ def train_cmd(
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional)
+
+    link_pred_head = None
+    if link_pred:
+        from ..layer3.link_pred import LinkPredHead
+        link_pred_head = LinkPredHead(d_in=d_effective, src_aggregation=src_aggregation)
+        pipeline.link_predictor = link_pred_head
+        click.echo(f"LinkPredHead : d_in={d_effective} src_agg={src_aggregation} "
+                   f"neg_ratio={neg_ratio} bfs_depth={bfs_depth}")
 
     if encoder_checkpoint is not None:
         from .checkpoint import load_checkpoint
@@ -268,12 +288,15 @@ def train_cmd(
         """Exécute un pass forward sur le val set et retourne les métriques."""
         total_loss = 0.0
         n = 0
+        n_skipped = 0
         for sample in loader:
             if not sample.sentence.clauses:
+                n_skipped += 1
                 continue
             try:
                 reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
                 if not reps:
+                    n_skipped += 1
                     continue
                 pipeline.forward(
                     reps, sample.sentence.text,
@@ -281,7 +304,11 @@ def train_cmd(
                     n_total_clauses=len(sample.sentence.clauses),
                     connector_reps=connector_reps,
                 )
-            except (ValueError, RuntimeError, IndexError, KeyError, TypeError):
+            except (ValueError, RuntimeError, IndexError, KeyError, TypeError) as _eval_exc:
+                n_skipped += 1
+                import warnings as _wv
+                _wv.warn(f"_run_eval_pass : phrase {sample.sentence.id!r} ignorée — {_eval_exc}",
+                         UserWarning, stacklevel=2)
                 continue
 
             node_logits = pipeline._cached_node_logits
@@ -349,6 +376,11 @@ def train_cmd(
                 epoch_sent_edge_preds.append([])
                 epoch_sent_edge_gold.append([])
 
+        if n_skipped > 0:
+            import warnings as _wvs
+            _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
+                      f"val_f1 calculée sur {n} phrase(s) seulement.",
+                      UserWarning, stacklevel=3)
         return total_loss / max(n, 1)
 
     try:
@@ -454,6 +486,33 @@ def train_cmd(
                         if batch_step_count >= mini_batch_size:
                             pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
                             batch_step_count = 0
+
+                # Tête de liens : BCE auxiliaire (positifs gold + négatifs échantillonnés).
+                # Ne touche qu'à la tête (pas au backbone) — désactivé par défaut.
+                if link_pred_head is not None and not decoder_only:
+                    _ev = pipeline._cached_enriched_vecs
+                    if _ev is not None and len(_ev) >= 2:
+                        from ..layer3.link_pred import sample_negatives
+                        if valid_clause_idxs:
+                            _pos_of = {c: k for k, c in enumerate(valid_clause_idxs)}
+                            _true = [(_pos_of[a], _pos_of[b]) for (a, b) in sample.edge_map
+                                     if a in _pos_of and b in _pos_of]
+                        else:
+                            _true = list(sample.edge_map.keys())
+                        if _true:
+                            _neg = sample_negatives(_true, len(_ev),
+                                                    neg_ratio=neg_ratio, seed=epoch * 1000 + n_samples)
+                            _gW = np.zeros_like(link_pred_head.W)
+                            _gb = np.zeros_like(link_pred_head.b)
+                            _n_lp = 0
+                            for (_a, _b) in _true:
+                                _, _g = link_pred_head.loss_and_grad(_ev[_a], _ev[_b], 1)
+                                _gW += _g[0]; _gb += _g[1]; _n_lp += 1
+                            for (_a, _b) in _neg:
+                                _, _g = link_pred_head.loss_and_grad(_ev[_a], _ev[_b], 0)
+                                _gW += _g[0]; _gb += _g[1]; _n_lp += 1
+                            if _n_lp:
+                                link_pred_head.update([_gW / _n_lp, _gb / _n_lp], lr)
 
                 node_pred_idxs = np.argmax(node_logits, axis=1)
                 if valid_clause_idxs:
@@ -596,7 +655,10 @@ def train_cmd(
     if patience > 0 and val_loader is not None:
         import shutil
         if best_epoch_num > 0:
-            shutil.copy2(best_checkpoint_path, str(output))
+            import tempfile as _tf
+            _tmp = Path(str(output) + ".tmp.restore")
+            shutil.copy2(best_checkpoint_path, str(_tmp))
+            Path(_tmp).replace(output)  # atomique POSIX
             Path(best_checkpoint_path).unlink(missing_ok=True)
             click.echo(f"Best checkpoint restauré (epoch {best_epoch_num}, val_f1={best_val_f1:.4f})")
         else:

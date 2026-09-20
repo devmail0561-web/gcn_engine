@@ -33,13 +33,31 @@ class ClauseRecord:
 
 @dataclass
 class EdgeRecord:
-    source: str            # "n001"
-    target: str            # "n002"
-    relation: str          # RelationType snake_case
-    confidence: float
-    explicit: bool
-    negated: bool
-    marker_token: Optional[int]
+    source: str = ""           # legacy mono-source (from_legacy / shim)
+    target: str = ""           # "n002"
+    relation: str = ""         # RelationType snake_case
+    confidence: Optional[float] = None   # None = annotation absente (≠ 0.0)
+    explicit: Optional[bool] = True
+    negated: Optional[bool] = None       # None = non renseigné (détection pipeline)
+    marker_token: Optional[int] = None
+    sources: Optional[list[str]] = None  # champ canonique v2 (remplace source)
+
+    def __post_init__(self):
+        # Shim rétrocompat : sources est canonique, source reste lisible.
+        if self.sources is None:
+            self.sources = [self.source] if self.source else []
+        if not self.source and self.sources:
+            self.source = self.sources[0]
+
+    @classmethod
+    def from_legacy(cls, source: str, target: str = "", relation: str = "",
+                    confidence: Optional[float] = None,
+                    explicit: Optional[bool] = True,
+                    negated: Optional[bool] = None,
+                    marker_token: Optional[int] = None) -> "EdgeRecord":
+        return cls(source=source, target=target, relation=relation,
+                   confidence=confidence, explicit=explicit, negated=negated,
+                   marker_token=marker_token, sources=[source] if source else [])
 
 
 @dataclass

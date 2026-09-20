@@ -235,6 +235,39 @@ class GCNEngine:
         from .verbalizer.decoder import ReferenceDecoder
         return {"cir": cir, "text": ReferenceDecoder().decode_cir(cir) or ""}
 
+    def predict_links(self, text: str, threshold: float = 0.5,
+                        bfs_depth: int | None = None) -> list[tuple[int, int, float]]:
+        """Prédit les arêtes manquantes d'une phrase (tête LinkPredHead).
+
+        Lève RuntimeError si aucune tête attachée (voir CGNPipeline.predict_links).
+        bfs_depth limite les candidats aux nœuds à ≤ depth sauts (None = tous).
+        """
+        cir = self.analyze(text)
+        vecs = self._pipeline.get_enriched_vectors()
+        if vecs is None:
+            raise RuntimeError("predict_links : aucun vecteur (analyze sans forward?).")
+        existing = set()
+        for e in cir.get("edges", []) or []:
+            if isinstance(e, (list, tuple)) and len(e) == 3:
+                existing.add((int(e[0]), int(e[1])))
+        n = len(vecs)
+        if bfs_depth is not None:
+            from .layer3.link_pred import candidates_within_depth
+            adj: dict[int, list[int]] = {}
+            for s, d in existing:
+                adj.setdefault(s, []).append(d)
+            cand_set = set()
+            for s in range(n):
+                for t in candidates_within_depth(adj, s, int(bfs_depth)):
+                    if (s, t) not in existing:
+                        cand_set.add((s, t))
+            candidates = sorted(cand_set)
+        else:
+            candidates = [(i, j) for i in range(n) for j in range(n)
+                          if i != j and (i, j) not in existing]
+        scored = self._pipeline.predict_links(candidates, vecs)
+        return [(s, d, c) for s, d, c in scored if c >= threshold]
+
     def analyze_batch(self, texts: list[str]) -> list[dict]:
         """
         Liste de phrases pré-segmentées → liste de CausalIR.

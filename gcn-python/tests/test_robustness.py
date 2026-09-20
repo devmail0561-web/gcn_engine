@@ -9,7 +9,14 @@ import pytest
 import numpy as np
 from pathlib import Path
 from gcn_python.layer1.representation import UDRepresentation
-from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge, CONNECTOR_LEMMAS
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
+
+# Lemmes de connecteurs FR définis localement — données tests, pas données moteur
+CONNECTOR_LEMMAS = [
+    "parce", "car", "puisque", "comme", "si", "bien", "quoique",
+    "malgré", "pour", "afin", "donc", "alors", "ensuite", "puis",
+    "mais", "or", "pourtant", "cependant", "néanmoins",
+]
 
 CHECKPOINT = Path("checkpoints/prod_v1.npz")
 

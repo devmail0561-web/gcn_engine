@@ -37,7 +37,13 @@ class VerbalizeSample:
     node_type_embeddings: np.ndarray  # (N, 7) one-hot — conservé pour rétrocompat
     gold_tokens: np.ndarray           # (T,) int indices in SurfaceVocabulary
     source_text: str                  # used to match encoding dataset samples
-    node_labels: list[str] = None     # NOUVEAU — labels depuis causal_ir.nodes[].label
+    node_labels: list[str] | None = None  # labels depuis causal_ir.nodes[].label
+    subgraph: dict | None = None                   # NOUVEAU v2.0 (rétrocompat)
+    source_sentences: list[str] = None             # NOUVEAU v2.0 (rétrocompat)
+
+    def __post_init__(self):
+        if self.source_sentences is None:
+            self.source_sentences = []
 
 
 class VerbalizerDataLoader:
@@ -75,12 +81,19 @@ class VerbalizerDataLoader:
             nodes: list[dict] = ir.get("nodes", [])
             node_embs = _node_type_embeddings(nodes)
             node_labels = [n.get("label", n.get("node_type", "")) for n in nodes]
-            for surf in ex.get("surfaces", []):
-                if surf.get("quality") not in ("gold", "silver"):
-                    continue
+            subgraph = ex.get("subgraph")
+            source_sentences = list(ex.get("source_sentences", []) or [])
+            # Trier surfaces par qualité (gold < silver) puis ordre insertion
+            _rank = {"gold": 0, "silver": 1}
+            surfaces = sorted(
+                [s for s in ex.get("surfaces", []) if s.get("quality") in ("gold", "silver")],
+                key=lambda s: _rank.get(s.get("quality"), 9),
+            )
+            for surf in surfaces:
                 gold_tokens = np.array(vocab.encode(surf["text"]), dtype=np.int64)
                 self._samples.append(
-                    VerbalizeSample(ir_json, node_embs, gold_tokens, source_text, node_labels)
+                    VerbalizeSample(ir_json, node_embs, gold_tokens, source_text,
+                                    node_labels, subgraph, source_sentences)
                 )
 
     @staticmethod
@@ -90,6 +103,13 @@ class VerbalizerDataLoader:
         for p in sorted(data_dir.glob("verbalize_*.json")):
             with p.open(encoding="utf-8") as f:
                 data = json.load(f)
+            if "schema_version" not in data:
+                warnings.warn(
+                    f"VerbalizerDataLoader: {p.name} sans 'schema_version' "
+                    "(attendu '2.0' — format legacy accepté).",
+                    UserWarning,
+                    stacklevel=3,
+                )
             examples.extend(data.get("examples", []))
             loaded.add(p.name)
         ignored = sorted(p.name for p in data_dir.glob("*.json") if p.name not in loaded)

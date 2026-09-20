@@ -149,12 +149,17 @@ class TrainableDecoder:
         self,
         node_embeddings: np.ndarray,
         gold_tokens: np.ndarray | None = None,
+        source_bias: np.ndarray | None = None,
     ) -> np.ndarray:
         """
         (N, D_in) → (|V|,) logits in inference mode, or (T, |V|) in teacher-forcing mode.
 
         Inference (gold_tokens=None): runs one RNN step, returns first-step logits (|V|,).
         Training (gold_tokens provided): runs T steps with teacher forcing, returns (T, |V|).
+
+        source_bias (optionnel, (N,)) : biais additif sur les scores d'attention
+        (ex : +0.5 sur les nœuds sources du contexte). Pas de changement de d_in :
+        le biais ne modifie ni les couches ni les shapes — None = comportement identique.
         """
         if len(node_embeddings) == 0:
             self._rnn_step_cache = []
@@ -172,12 +177,21 @@ class TrainableDecoder:
             raise RuntimeError("forward_decode : état interne non initialisé après _init_layers")
         # Cacher les node embeddings pour backward
         self._cached_node_embs = node_embeddings
+        if source_bias is not None:
+            source_bias = np.asarray(source_bias, dtype=np.float32).reshape(-1)
+            if source_bias.shape[0] != len(node_embeddings):
+                raise ValueError(
+                    f"forward_decode : source_bias len={source_bias.shape[0]} "
+                    f"≠ N={len(node_embeddings)}."
+                )
         h = np.zeros(self.d_hidden, dtype=np.float32)
 
         def _step_attention(h_prev: np.ndarray):
             """S6 : attention per-step — query = attn_vec + W_query.T @ h_prev."""
             query_vec = self._attn_vec + self._W_query.T @ h_prev  # (d_in,)
             scores = node_embeddings @ query_vec                    # (N,)
+            if source_bias is not None:
+                scores = scores + source_bias
             exp_s = np.exp(scores - scores.max())
             step_attn = exp_s / (exp_s.sum() + 1e-9)               # (N,)
             context = (step_attn[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)
@@ -386,7 +400,8 @@ class TrainableDecoder:
 
     # ── VerbalizerDecoder inference interface ─────────────────────────────────
 
-    def decode(self, node_embeddings: np.ndarray) -> str:
+    def decode(self, node_embeddings: np.ndarray,
+                 source_bias: np.ndarray | None = None) -> str:
         """
         Vecteurs enrichis (N, D_in) → surface string (greedy decode).
 
@@ -397,6 +412,8 @@ class TrainableDecoder:
 
         Un décodeur entraîné conjointement avec l'encodeur (d_in=75) ne peut PAS
         décoder depuis du one-hot (d_in=7) → dimension mismatch.
+
+        source_bias (optionnel, (N,)) : biais attention vers les nœuds sources.
         """
         if len(node_embeddings) == 0:
             return ""
@@ -411,9 +428,18 @@ class TrainableDecoder:
 
         h = np.zeros(self.d_hidden, dtype=np.float32)
         tokens: list[int] = []
+        _bias = None
+        if source_bias is not None:
+            _bias = np.asarray(source_bias, dtype=np.float32).reshape(-1)
+            if _bias.shape[0] != len(node_embeddings):
+                raise ValueError(
+                    f"decode : source_bias len={_bias.shape[0]} ≠ N={len(node_embeddings)}."
+                )
         for _ in range(self.max_decode_len):
             query_vec = self._attn_vec + self._W_query.T @ h
             attn_scores = node_embeddings @ query_vec
+            if _bias is not None:
+                attn_scores = attn_scores + _bias
             exp_s = np.exp(attn_scores - attn_scores.max())
             attn_weights = exp_s / (exp_s.sum() + 1e-9)
             context = (attn_weights[:, np.newaxis] * node_embeddings).sum(axis=0).astype(np.float32)

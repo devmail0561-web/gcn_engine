@@ -82,16 +82,47 @@ class CausalGraph:
         self.reverse_adj: dict = defaultdict(list)       # dst → [src]
 
     def add_cir(self, cir: dict) -> None:
+        # Ids normalisés en str : les CIR moteur portent des ids entiers (0, 1, …)
+        # que JSON.stringify en clés ("0", "1", …) au save — sans normalisation,
+        # tout graphe rechargé perd ses labels (nodes.get(dst) → None).
         for n in cir.get("nodes", []):
-            if isinstance(n, dict):
-                self.nodes[n.get("id")] = n
+            if isinstance(n, dict) and n.get("id") is not None:
+                nid = str(n.get("id"))
+                n = dict(n)
+                n["id"] = nid
+                self.nodes[nid] = n
         src_text = cir.get("source_text", "")
         for e in cir.get("edges", []):
             if isinstance(e, (list, tuple)) and len(e) == 3:
                 src, dst, attrs = e
-                self.edges.append((src, dst, attrs, src_text))
-                self.adjacency[src].append(dst)
-                self.reverse_adj[dst].append(src)
+            elif isinstance(e, dict):
+                # format dict {source(s), target, relation...}
+                src = (e.get("sources") or [e.get("source")])[0] if isinstance(e.get("sources"), list) else e.get("source")
+                dst = e.get("target", e.get("dst"))
+                attrs = e
+                if src is None or dst is None:
+                    continue
+            else:
+                continue
+            if not isinstance(attrs, dict):
+                continue
+            src, dst = str(src), str(dst)
+            self.edges.append((src, dst, attrs, src_text))
+            self.adjacency[src].append(dst)
+            self.reverse_adj[dst].append(src)
+
+    def add_discourse_block(self, merged_cir: dict) -> None:
+        """Ajoute un bloc de discours multi-phrases (ids pré-préfixés sNNN_nMMM).
+
+        Délègue à add_cir après validation minimale : les ids doivent être
+        uniques dans le graphe courant (sinon warn, écrasement documenté).
+        """
+        import warnings as _w
+        for n in merged_cir.get("nodes", []):
+            if isinstance(n, dict) and str(n.get("id")) in self.nodes:
+                _w.warn(f"CausalGraph : node id {n.get('id')!r} écrasé par bloc de discours.",
+                        UserWarning, stacklevel=2)
+        self.add_cir(merged_cir)
 
     def clear(self) -> None:
         self.nodes.clear()
@@ -119,10 +150,11 @@ class CausalGraph:
         from pathlib import Path as _P
         data = json.loads(_P(path).read_text(encoding="utf-8"))
         g = cls()
-        g.nodes = data.get("nodes", {})
+        # Clés re-stringifiées (vieux fichiers avec clés entières -> str, cf add_cir).
+        g.nodes = {str(k): v for k, v in (data.get("nodes", {}) or {}).items()}
         for e in data.get("edges", []):
-            src  = e["src"]
-            dst  = e["dst"]
+            src  = str(e["src"])
+            dst  = str(e["dst"])
             attrs = e["attrs"]
             text  = e.get("text", "")
             g.edges.append((src, dst, attrs, text))
@@ -138,30 +170,87 @@ class CausalGraph:
             g.add_cir(cir)
         return g
 
-    def find_causes(self, keyword: str) -> list[tuple]:
-        """Arêtes dont la cible contient keyword."""
-        kw = keyword.lower()
-        return [
-            (src, dst, attrs, text)
-            for src, dst, attrs, text in self.edges
-            if kw in (self.nodes.get(dst, {}).get("label", "")).lower()
-        ]
+    @staticmethod
+    def _match_level(label: str, keyword: str) -> int | None:
+        """1=exact, 2=mot complet (word-boundary), 3=préfixe, 4=substring, None=pas de match."""
+        import re as _re
+        lab, kw = (label or "").lower(), (keyword or "").lower()
+        if not kw or not lab:
+            return None
+        if lab == kw:
+            return 1
+        if _re.search(r'\b' + _re.escape(kw) + r'\b', lab):
+            return 2
+        if lab.startswith(kw):
+            return 3
+        if kw in lab:
+            return 4
+        return None
 
-    def find_effects(self, keyword: str) -> list[tuple]:
-        """Arêtes dont la source contient keyword."""
+    def find_causes(self, keyword: str, min_level: int = 2) -> list[tuple]:
+        """Arêtes dont la cible matche keyword. attrs['_match_level'] stocké sans breaking (4-tuple conservé)."""
+        import warnings as _w
         kw = keyword.lower()
-        return [
-            (src, dst, attrs, text)
-            for src, dst, attrs, text in self.edges
-            if kw in (self.nodes.get(src, {}).get("label", "")).lower()
-        ]
+        scored = []
+        n_substring = 0
+        for idx, (src, dst, attrs, text) in enumerate(self.edges):
+            level = self._match_level(self.nodes.get(dst, {}).get("label", ""), keyword)
+            if level is None or level > min_level:
+                continue
+            if not isinstance(attrs, dict):
+                attrs = {}
+            attrs = dict(attrs)
+            attrs["_match_level"] = level
+            conf = attrs.get("confidence")
+            try:
+                conf_val = float(conf) if conf is not None else -1.0
+            except (TypeError, ValueError):
+                conf_val = -1.0
+            if level == 4:
+                n_substring += 1
+            scored.append((level, -conf_val, idx, (src, dst, attrs, text)))
+        if n_substring:
+            _w.warn(f"find_causes : {n_substring} match(s) substring (niveau 4) — qualité dégradée.",
+                    UserWarning, stacklevel=2)
+        scored.sort(key=lambda t: (t[0], t[1], t[2]))
+        return [t[3] for t in scored]
+
+    def find_effects(self, keyword: str, min_level: int = 2) -> list[tuple]:
+        """Arêtes dont la source matche keyword. Même convention que find_causes."""
+        import warnings as _w
+        scored = []
+        n_substring = 0
+        for idx, (src, dst, attrs, text) in enumerate(self.edges):
+            level = self._match_level(self.nodes.get(src, {}).get("label", ""), keyword)
+            if level is None or level > min_level:
+                continue
+            if not isinstance(attrs, dict):
+                attrs = {}
+            attrs = dict(attrs)
+            attrs["_match_level"] = level
+            conf = attrs.get("confidence")
+            try:
+                conf_val = float(conf) if conf is not None else -1.0
+            except (TypeError, ValueError):
+                conf_val = -1.0
+            if level == 4:
+                n_substring += 1
+            scored.append((level, -conf_val, idx, (src, dst, attrs, text)))
+        if n_substring:
+            _w.warn(f"find_effects : {n_substring} match(s) substring (niveau 4).",
+                    UserWarning, stacklevel=2)
+        scored.sort(key=lambda t: (t[0], t[1], t[2]))
+        return [t[3] for t in scored]
 
     def find_path(self, kw_from: str, kw_to: str) -> list:
-        """BFS : chemin de nœuds contenant kw_from vers nœuds contenant kw_to."""
-        src_ids = [nid for nid, n in self.nodes.items()
-                   if kw_from.lower() in n.get("label", "").lower()]
+        """BFS déterministe : src_ids et voisins triés (seed-agnostique). Matching word-boundary."""
+        import re as _re
+        _from = _re.compile(r'\b' + _re.escape(kw_from.lower()) + r'\b')
+        _to   = _re.compile(r'\b' + _re.escape(kw_to.lower())   + r'\b')
+        src_ids = sorted(nid for nid, n in self.nodes.items()
+                         if _from.search(n.get("label", "").lower()))
         dst_ids = {nid for nid, n in self.nodes.items()
-                   if kw_to.lower() in n.get("label", "").lower()}
+                   if _to.search(n.get("label", "").lower())}
         for start in src_ids:
             visited = {start}
             queue = deque([[start]])
@@ -169,7 +258,7 @@ class CausalGraph:
                 path = queue.popleft()
                 if path[-1] in dst_ids:
                     return path
-                for nb in self.adjacency.get(path[-1], []):
+                for nb in sorted(self.adjacency.get(path[-1], [])):
                     if nb not in visited:
                         visited.add(nb)
                         queue.append(path + [nb])
@@ -240,14 +329,15 @@ class InstructionHandler:
             return f"explain: no causes found for '{keyword}'"
         lines = [f"explain: {keyword}"]
         for src, dst, attrs, src_text in causes:
-            conf = attrs.get("confidence", 0.0)
+            conf = attrs.get("confidence")
             rel  = attrs.get("relation", "?")
             neg  = " [negated]" if attrs.get("negated") else ""
+            conf_s = f"{conf:.2f}" if isinstance(conf, (int, float)) else "?"
             lines.append(
                 f"  {self.graph._label(src)}"
                 f"  --[{rel}]{neg}-->"
                 f"  {self.graph._label(dst)}"
-                f"  conf={conf:.2f}"
+                f"  conf={conf_s}"
             )
         return "\n".join(lines)
 
@@ -340,12 +430,13 @@ class InstructionHandler:
         for i, (src, dst, attrs, _) in enumerate(self.graph.edges, 1):
             rel  = attrs.get("relation", "?")
             neg  = " [negated]" if attrs.get("negated") else ""
-            conf = attrs.get("confidence", 0.0)
+            conf = attrs.get("confidence")
+            conf_s = f"({conf:.0%})" if isinstance(conf, (int, float)) else "(?)"
             lines.append(
                 f"  {i}. [{self.graph._type(src)}] {self.graph._label(src)}"
                 f"  --[{rel}{neg}]-->"
                 f"  [{self.graph._type(dst)}] {self.graph._label(dst)}"
-                f"  ({conf:.0%})"
+                f"  {conf_s}"
             )
         return "\n".join(lines)
 

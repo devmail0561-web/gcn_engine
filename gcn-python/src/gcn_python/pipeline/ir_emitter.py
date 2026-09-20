@@ -13,6 +13,7 @@ def emit(
     edge_triples: list[tuple[int, int, str, float, bool, int | None]],
     node_origins: list[str] | None = None,
     node_attributes: list[dict] | None = None,
+    node_inferred: list[bool] | None = None,
 ) -> dict:
     """
     Produit un dict CausalIR conforme au schéma serde Rust de gcn-ir.
@@ -20,6 +21,9 @@ def emit(
 
     edge_triples : (src_idx, dst_idx, relation, confidence, negated, marker_token)
     node_attributes : list de dicts {entity, agent, patient, quality, agent_type, reversible}
+    node_inferred : flag par nœud (origine inférée) — métadonnée Python
+      "is_inferred" sur le dict nœud, PAS un token spécial. Ignoré par serde Rust
+      (champ supplémentaire côté Python uniquement).
     """
     if node_origins is None:
         node_origins = [NODE_ORIGIN_VALUES[0]] * len(node_types)
@@ -36,6 +40,7 @@ def emit(
             "agent_type": None,
             "reversible": None,
         }
+        inferred = bool(node_inferred[i]) if node_inferred and i < len(node_inferred) else False
         nodes.append({
             "id": i,
             "node_type": nt,
@@ -46,6 +51,7 @@ def emit(
             "temporal_ref": TEMPORAL_REF_DEFAULT,
             "temporal_index": i,
             "origin": origin,
+            "is_inferred": inferred,
             "attributes": attrs,
         })
 

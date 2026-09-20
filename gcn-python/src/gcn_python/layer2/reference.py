@@ -199,16 +199,20 @@ class MLPEncoder:
         for ((_, _), x), layer in zip(snapshot, self._node_layers):
             layer._cache["x"] = x.copy()
 
-    def snapshot_edge_cache(self) -> list:
-        return [
+    def snapshot_edge_cache(self) -> tuple:
+        cache_snap = [
             ((z.copy(), h.copy()), l._cache.get("x", np.zeros(0)).copy())
             for (z, h), l in zip(self._edge_cache, self._edge_layers)
         ]
+        mask_snap = [m.copy() for m in self._edge_dropout_masks]
+        return cache_snap, mask_snap
 
-    def restore_edge_cache(self, snapshot: list) -> None:
-        self._edge_cache = [(z.copy(), h.copy()) for (z, h), _ in snapshot]
-        for ((_, _), x), layer in zip(snapshot, self._edge_layers):
+    def restore_edge_cache(self, snapshot: tuple) -> None:
+        cache_snap, mask_snap = snapshot
+        self._edge_cache = [(z.copy(), h.copy()) for (z, h), _ in cache_snap]
+        for ((_, _), x), layer in zip(cache_snap, self._edge_layers):
             layer._cache["x"] = x.copy()
+        self._edge_dropout_masks = [m.copy() for m in mask_snap]
 
     def parameters(self) -> list[np.ndarray]:
         params = []

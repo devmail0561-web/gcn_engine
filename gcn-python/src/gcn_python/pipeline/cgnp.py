@@ -6,7 +6,7 @@ import numpy as np
 from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
-from ..constants import NODE_TYPES, RELATION_TYPES, SCOPE_HINTS_FR
+from ..constants import NODE_TYPES, RELATION_TYPES
 from .label_builder import build_label
 from .ir_emitter import emit
 
@@ -48,6 +48,8 @@ class CGNPipeline:
         all_pairs: bool = False,
         word_embedding=None,
         bidirectional: bool = False,
+        link_predictor=None,
+        scope_hints: dict | None = None,
     ):
         # S1 : dimension effective = features structurelles + embedding si actif
         _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
@@ -74,6 +76,10 @@ class CGNPipeline:
         self.all_pairs = all_pairs
         self.word_embedding = word_embedding
         self.bidirectional = bidirectional
+        # Tête de prédiction de liens (optionnelle, vérifiée via hasattr côté appelants).
+        # None par défaut : comportement strictement identique à avant.
+        self.link_predictor = link_predictor
+        self.scope_hints: dict = scope_hints if scope_hints is not None else {}
 
         # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
         self.n_rgcn_layers = n_rgcn_layers
@@ -217,8 +223,14 @@ class CGNPipeline:
                 [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
                 dtype=np.int64,
             ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
-            # Types d'arêtes : type 0 uniforme (proxy neutre — les logits nœuds
-            # n'indexent pas les relations, argmax en ferait un bug sémantique)
+            # Types d'arêtes : type 0 uniforme — choix assumé.
+            # Le R-GCN est utilisé en GCN mono-relation (W_0 + self-loop uniquement).
+            # Les matrices W_1..W_{n_relations-1} sont des poids appris mais non activés :
+            # elles s'initialisent aléatoirement et ne reçoivent jamais de gradient.
+            # La sémantique relationnelle repose sur le MLP d'arêtes (closed-loop) qui
+            # reçoit les vecteurs enrichis + features d'arête. Pour brancher les types
+            # réels : passer argmax(edge_logits) avec stop-gradient — non implémenté
+            # pour éviter la dépendance circulaire forward(nœuds) → edge_types → R-GCN.
             edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
 
             # Message passing bidirectionnel
@@ -330,7 +342,7 @@ class CGNPipeline:
         node_attributes = [la[1] for la in node_labels_attrs]
 
         token_spans = [r.token_span for r in reps]
-        scopes = [_infer_scope(r) for r in reps]
+        scopes = [_infer_scope(r, self.scope_hints) for r in reps]
         node_origins = [
             _infer_origin(
                 nt,
@@ -342,7 +354,8 @@ class CGNPipeline:
 
         return emit(text, node_types, node_labels, token_spans,
                     scopes, edge_triples, node_origins=node_origins,
-                    node_attributes=node_attributes)
+                    node_attributes=node_attributes,
+                    node_inferred=[o == "inferred" for o in node_origins])
 
     def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
         """Filtre les caches MLP d'arêtes aux seuls indices valides.
@@ -369,6 +382,32 @@ class CGNPipeline:
           surface = decoder.decode(pipeline.get_enriched_vectors())
         """
         return self._cached_enriched_vecs
+
+    def predict_links(
+        self,
+        candidate_pairs: list[tuple[int, int]],
+        node_vecs: np.ndarray | None = None,
+    ) -> list[tuple[int, int, float]]:
+        """Score des paires candidates via link_predictor.
+
+        Retourne [(src, dst, score)] trié par score décroissant.
+        Lève RuntimeError si aucune tête attachée (pas de fallback silencieux).
+        """
+        if not hasattr(self, "link_predictor") or self.link_predictor is None:
+            raise RuntimeError(
+                "predict_links : aucune tête LinkPredictor attachée au pipeline "
+                "(passez link_predictor=LinkPredHead(...) à CGNPipeline)."
+            )
+        vecs = node_vecs if node_vecs is not None else self._cached_enriched_vecs
+        if vecs is None:
+            raise RuntimeError("predict_links : aucun vecteur (forward requis ou node_vecs fourni).")
+        scored = []
+        for src, dst in candidate_pairs:
+            if src >= len(vecs) or dst >= len(vecs):
+                continue
+            scored.append((src, dst, float(self.link_predictor.score(vecs[src], vecs[dst]))))
+        scored.sort(key=lambda t: t[2], reverse=True)
+        return scored
 
     def analyze(
         self,
@@ -523,8 +562,10 @@ class CGNPipeline:
         les poids R-GCN ne peuvent pas être mis à jour (d_enriched provient du
         backward de l'encodeur). Un UserWarning est émis dans ce cas.
 
-        Les gradients doivent aligner exactement le cache du forward —
-        aucun tronquage silencieux.
+        Nœuds : les gradients doivent aligner exactement le cache du forward
+        (un désalignement lève ValueError). Arêtes : `e = min(len(d_edge_logits),
+        len(_cached_edge_vecs))` — les gradients excédentaires sont ignorés sans
+        exception (comportement voulu par filter_edge_cache ; documenté ici).
         """
         if not (np.isfinite(lr) and lr > 0):
             raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
@@ -994,14 +1035,18 @@ def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
     return False
 
 
-def _infer_scope(rep) -> str:
-    """Dérive le scope depuis les déterminants/pronoms du span (français uniquement).
+def _infer_scope(rep, scope_hints: dict) -> str:
+    """Dérive le scope depuis les déterminants/pronoms du span.
 
-    Support multilingue à ajouter en phase 10.
+    scope_hints : mapping lemme→valeur fourni par l'appelant (language-agnostic).
+    Vide par défaut → toujours "specific". L'utilisateur injecte son propre
+    lexique via CGNPipeline(scope_hints={...}).
     """
+    if not scope_hints:
+        return "specific"
     for tok in rep.tokens:
         if tok.get("dep_rel") in {"det", "nsubj"} and tok.get("pos") in {"DET", "PRON"}:
-            hint = SCOPE_HINTS_FR.get(tok["lemma"].lower())
+            hint = scope_hints.get(tok["lemma"].lower())
             if hint:
                 return hint
     return "specific"

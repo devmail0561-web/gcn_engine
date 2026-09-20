@@ -144,11 +144,18 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
             UserWarning,
             stacklevel=2,
         )
+    def _edge_attrs(e) -> dict:
+        if isinstance(e, dict):
+            return e
+        if isinstance(e, (list, tuple)) and len(e) > 2:
+            return e[2] if isinstance(e[2], dict) else {}
+        return {}
+
     e = min(len(pred_edges), len(gold_edges))
     edge_rel_acc = (
         sum(
-            (pred_edges[i][2] if len(pred_edges[i]) > 2 else {}).get("relation")
-            == (gold_edges[i][2] if len(gold_edges[i]) > 2 else {}).get("relation")
+            _edge_attrs(pred_edges[i]).get("relation")
+            == _edge_attrs(gold_edges[i]).get("relation")
             for i in range(e)
         )
         / max(e, 1)

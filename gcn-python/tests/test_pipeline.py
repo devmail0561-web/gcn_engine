@@ -24,12 +24,12 @@ def make_rep() -> UDRepresentation:
     )
 
 
-def make_pipeline() -> CGNPipeline:
+def make_pipeline(**kwargs) -> CGNPipeline:
     vocab = FeatureVocabulary()
     d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, **kwargs)
 
 
 def test_forward_returns_cir():
@@ -245,7 +245,7 @@ def test_negated_edge_detected():
 
 
 def test_scope_universal_tous():
-    """C5 : 'tous' dans un token det → scope=universal."""
+    """C5 : 'tous' dans un token det → scope=universal avec scope_hints FR injecté."""
     from gcn_python.layer1.representation import UDRepresentation
     rep = UDRepresentation(
         tokens=[
@@ -258,7 +258,14 @@ def test_scope_universal_tous():
         has_object=False, has_advcl=False, has_temporal_obl=False,
         token_span=(5, 8),
     )
-    pipeline = make_pipeline()
+    # scope_hints FR injecté explicitement — le moteur ne connaît aucune langue par défaut
+    fr_scope_hints = {
+        "tous": "universal", "toutes": "universal", "chaque": "universal",
+        "tout": "universal", "aucun": "null", "aucune": "null",
+        "certains": "existential", "certaines": "existential",
+        "quelques": "partial",
+    }
+    pipeline = make_pipeline(scope_hints=fr_scope_hints)
     result = pipeline.forward([rep], "Tous les coûts augmentent.")
     assert result["nodes"][0]["scope"] == "universal"
 

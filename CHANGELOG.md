@@ -5,6 +5,72 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.4.1] — 2026-09-20
+
+### Mise à niveau infrastructure — normalisation, schéma v2.0, robustesse pipeline
+
+**Nouveaux modules :**
+- `data/edge_norm.py` : `normalize_node_id` (`n{int:03d}`, idempotent), `normalize_edge`
+  (sanitization `\n\r`+ANSI, `relation` absente → `None`+warn, `confidence`/`negated` absents → `None`)
+- `data/graph_vecs.py` : cache vecteurs SHA256-clé + manifest JSON, hash canonique poids triés,
+  LRU mmap, fallback warn — préparation vectorisation lazy à grande échelle
+- `gcn-datasets/scripts/migrate_v1_v2.py` : migration schéma `source→sources` + `schema_version 2.0`
+  avec assert non-perte
+
+**Schéma v2.0 :**
+- `data/schema.py` : `EdgeRecord.sources` canonique (liste), shim `source` → `sources` + `from_legacy`,
+  `confidence=None`, `negated=None`
+- `data/json_reader.py` : `sources` prioritaire sur `source` (warn conflit), `confidence`/`negated`
+  absents → `None`+warn
+
+**Loader :**
+- `data/loader.py` : `TrainingSample.hyperedge_map` — `{(frozenset(sources), tgt_idx): rel_idx}`
+  pour arêtes N-aires (gap>1 routées vers hyperedge_map au lieu d'être ignorées silencieusement)
+- `data/verbalize_loader.py` : `subgraph`/`source_sentences`, tri gold<silver, version-check warn
+
+**Checkpoint :**
+- `training/checkpoint.py` : métadonnées arch (`d_hidden`, `vocab_size`, `bidi_flag`) sauvegardées ;
+  sauvegarde atomique POSIX (tmp+replace) ; clés inconnues → warn+ignore (`link_pred_*`/`hyperedge_*`
+  valides) ; triplet sémantique incompatible → `ValueError("Incompatibilité…")`
+- `training/train.py` : `copy2` best-checkpoint atomique (tmp+replace)
+
+**Verbalizer :**
+- `verbalizer/instructions.py` : `add_cir` accepte dicts, `add_discourse_block`,
+  `find_causes`/`find_effects(keyword, min_level)` — tri level/conf/insertion + `_match_level` en attrs ;
+  `find_path` déterministe ; `conf None→"?"`
+- `verbalizer/query_report.py` + `decoder.py` : `max_source_chars=200` word-aware, sanitization,
+  groupement `(n, min, max)` trié `n×max`, contradictions `prevent`/`filter`+negated
+- `discuss.py` : `_split_lines(min_line_len)`, `extract_concepts_from_cir` (réutilise `_LABEL_RE` bridge),
+  fallback `engine.analyze()` → retry tracé `source=question`
+- `index.py` : `--min-line-len`, segmentation phrases, `analyze()` par phrase, ids `sNNN_nMMM`,
+  `add_discourse_block`, `except` → `log.warning`
+
+**Tests :**
+- `tests/test_mise_a_niveau.py` : 13 tests couvrant normalisation, hyperedge bypass, find_match_level,
+  truncation word-aware, graph_vecs roundtrip, checkpoint atomique+arch, migrate non-perte,
+  session save/load, LinkPredHead + checkpoint, source_bias + is_inferred, run_eval arch
+- Total : **144 tests Rust** (inchangé), **255 tests Python** (+13 via test_mise_a_niveau.py, 4 skipped)
+
+### Session persistante + prédiction de liens + décodeur multi-vecs (complément 2.4.1)
+
+- `session.py` (nouveau) : `SessionStore` — graphe + vecs + historique JSONL dans `--session-dir` ;
+  restauré au démarrage `gcn-discuss`, sauvegardé à chaque analyse/question/sortie (anti-perte)
+- `discuss.py` : `--session-dir`, collecte vecs après chaque `analyze` (corpus + fallback question)
+- `index.py` : `--vecs-out` — persiste les vecteurs calculés pendant l'indexation (+ manifest)
+- `layer3/link_pred.py` (nouveau) : Protocol `LinkPredictor` séparé, `LinkPredHead` bilinéaire+sigmoid
+  (`score/loss_and_grad/parameters/update/to_json`), `sample_negatives`, `candidates_within_depth`
+- `pipeline/cgnp.py` : `link_predictor` optionnel (None = inchangé), `predict_links()` trié par score
+- `training/checkpoint.py` : clés `link_pred_*` optionnelles + restauration (`_link_pred_meta_json`)
+- `training/train.py` : `--link-pred/--neg-ratio/--src-aggregation/--bfs-depth` + BCE auxiliaire tête seule
+- `engine.py` : `predict_links(text, threshold, bfs_depth)`
+- `evaluation/eval_runner.py` : `gcn-eval --gate <seuil> --on-fail=warn|error` (warn = jamais fail-closed)
+- `verbalizer/trainable.py` : `source_bias` optionnel (biais attention, d_in inchangé) sur
+  `forward_decode`/`decode`
+- `pipeline/ir_emitter.py` : `node_inferred` → métadonnée nœud `is_inferred` (pas de token spécial) ;
+  `cgnp.forward` la dérive de `origin == "inferred"`
+
+---
+
 ## [2.4.0] — 2026-09-20
 
 ### Checkpoint de production + robustesse moteur + CI/CD

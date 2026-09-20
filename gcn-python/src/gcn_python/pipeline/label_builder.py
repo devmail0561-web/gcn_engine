@@ -30,7 +30,8 @@ def build_label(
       etat/transition/     → "{nominalization}({entity})" ou "{verb}({subject})"
       processus
       entite/etat_system.  → "{entity_lemma}"
-      condition            → "cause_cachée(?)"
+      condition            → "hidden_cause(?)" (neutre — T-1 : jamais "cause_cachée(?)"
+                            côté moteur ; le FR vit dans gcn-frontend-fr)
     """
     subject = _find_subject_lemma(rep)
     entity = _find_entity_lemma(rep)

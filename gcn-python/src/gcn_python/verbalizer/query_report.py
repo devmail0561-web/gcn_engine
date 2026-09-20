@@ -26,6 +26,22 @@ _BLOCKING_RELS = {r for r in RELATION_TYPES if r in {"prevent", "filter"}}
 _ENABLING_RELS = {r for r in RELATION_TYPES if r in {"cause", "enable", "motivation", "sequence"}}
 
 
+def _sanitize(s: str) -> str:
+    import re as _re
+    if not isinstance(s, str):
+        return s
+    s = _re.sub(r"\x1b\[[0-9;]*m", "", s)
+    return s.replace("\n", " ").replace("\r", " ").strip()
+
+
+def _truncate(text: str, max_chars: int = 200) -> str:
+    text = _sanitize(text or "")
+    if len(text) <= max_chars:
+        return text
+    cut = text[:max_chars].rsplit(" ", 1)[0]
+    return cut if cut else text[:max_chars]
+
+
 class QueryVerbalizer:
     """
     Produit des rapports analytiques depuis les résultats de CausalGraph.
@@ -37,8 +53,9 @@ class QueryVerbalizer:
     - Contradictions flaggées explicitement
     """
 
-    def __init__(self, graph: "CausalGraph"):
+    def __init__(self, graph: "CausalGraph", max_source_chars: int = 200):
         self.graph = graph
+        self.max_source_chars = int(max_source_chars)
 
     # ------------------------------------------------------------------
     # Rapport : causes d'un concept
@@ -69,29 +86,47 @@ class QueryVerbalizer:
             src_lbl  = self.graph._label(src)
             src_type = self.graph._type(src)
             rel      = attrs.get("relation", "?")
-            conf     = attrs.get("confidence", 0.0)
+            conf     = attrs.get("confidence")
             neg      = " [negated]" if attrs.get("negated") else ""
+            conf_s = f"{conf:.0%}" if isinstance(conf, (int, float)) else "?"
             lines.append(
                 f"  {i}. [{src_type}] {src_lbl}"
                 f"  --[{rel}{neg}]-->  {keyword!r}"
-                f"  (conf={conf:.0%})"
+                f"  (conf={conf_s})"
             )
             if text:
-                lines.append(f"     source: {text[:72]}")
+                lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
 
-        # Contradictions
+        # Groupement sources convergentes : (frozenset(src_ids), dst, rel) -> (n, min, max)
+        _groups: dict[tuple, list] = {}
+        for src, dst, attrs, text in results:
+            key = (frozenset([src]), dst, attrs.get("relation"))
+            conf = attrs.get("confidence")
+            c = float(conf) if isinstance(conf, (int, float)) else 0.0
+            _groups.setdefault(key, []).append(c)
+        if len(_groups) > 1:
+            ranked = sorted(
+                ((len(v), min(v), max(v), k) for k, v in _groups.items()),
+                key=lambda t: (t[0] * t[2], t[2]),
+                reverse=True,
+            )
+            lines.append("  convergent groups (n, min_conf, max_conf):")
+            for n, mn, mx, k in ranked[:5]:
+                lines.append(f"    {k[2]} n={n} min={mn:.0%} max={mx:.0%}")
+
+        # Contradictions : prevent OU filter + negated=True
         contradictions = [
             (src, dst, attrs, text)
             for src, dst, attrs, text in self.graph.edges
             if (self.graph._label(dst) == keyword or keyword.lower() in self.graph._label(dst).lower())
-            and attrs.get("relation") == "prevent"
+            and (attrs.get("relation") in _BLOCKING_RELS or attrs.get("negated") is True)
         ]
         if contradictions:
-            lines.append(f"\n  ⚠ CONTRADICTION — {len(contradictions)} source(s) affirment prevent:")
+            lines.append(f"\n  ⚠ CONTRADICTION — {len(contradictions)} source(s) bloquantes:")
             for src, dst, attrs, text in contradictions:
-                lines.append(f"     {self.graph._label(src)} --[prevent]--> {keyword!r}")
+                lines.append(f"     {self.graph._label(src)} --[{attrs.get('relation')}]--> {keyword!r}")
                 if text:
-                    lines.append(f"     source: {text[:72]}")
+                    lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
 
         lines.append(_SEP)
         lines.append(f"  {len(results)} cause(s) found.")
@@ -111,14 +146,15 @@ class QueryVerbalizer:
             dst_lbl  = self.graph._label(dst)
             dst_type = self.graph._type(dst)
             rel      = attrs.get("relation", "?")
-            conf     = attrs.get("confidence", 0.0)
+            conf     = attrs.get("confidence")
             neg      = " [negated]" if attrs.get("negated") else ""
+            conf_s = f"{conf:.0%}" if isinstance(conf, (int, float)) else "?"
             lines.append(
                 f"  {i}. --[{rel}{neg}]-->  [{dst_type}] {dst_lbl}"
-                f"  (conf={conf:.0%})"
+                f"  (conf={conf_s})"
             )
             if text:
-                lines.append(f"     source: {text[:72]}")
+                lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
 
         lines.append(_SEP)
         lines.append(f"  {len(results)} effect(s) found.")
@@ -145,7 +181,7 @@ class QueryVerbalizer:
             src, dst = path_ids[i], path_ids[i + 1]
             for s, d, attrs, text in self.graph.edges:
                 if s == src and d == dst and text:
-                    sources.add(text[:72])
+                    sources.add(_truncate(text, self.max_source_chars))
         if sources:
             lines.append("  sources: " + " | ".join(sorted(sources)[:3]))
 
@@ -177,7 +213,7 @@ class QueryVerbalizer:
             dst_lbl = self.graph._label(dst)
             lines.append(f"  {src_lbl}  ↔  {dst_lbl}")
             for rel, text in rels_texts:
-                lines.append(f"    [{rel}]  source: {(text or '')[:60]}")
+                lines.append(f"    [{rel}]  source: {_truncate(text or '', self.max_source_chars)}")
 
         lines.append(_SEP)
         return "\n".join(lines)

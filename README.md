@@ -4,8 +4,8 @@
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-144%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-249%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Python tests](https://img.shields.io/badge/tests%20Python-255%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Version](https://img.shields.io/badge/version-2.4.1-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -512,7 +512,7 @@ cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (249 tests)
+# Python (255 tests)
 cd gcn-python && python -m pytest
 # Dont :
 #   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
@@ -592,6 +592,21 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 
 ---
 
+## Nouveautés v2.4.1
+
+- **Normalisation** : `data/edge_norm.py` — IDs canoniques `n{int:03d}`, sanitization ANSI/CRLF sur edges
+- **Cache vecteurs** : `data/graph_vecs.py` — SHA256-clé + LRU mmap, préparation vectorisation lazy
+- **Schéma v2.0** : `EdgeRecord.sources` canonique, migration `migrate_v1_v2.py`, `confidence`/`negated` optionnels
+- **Checkpoint atomique** : sauvegarde POSIX tmp+replace, métadonnées arch versionnées, clés inconnues ignorées avec warn
+- **Hyperedge map** : arêtes N-aires (gap>1) routées vers `TrainingSample.hyperedge_map` (gaté — infrastructure)
+- **Verbalizer** : `find_causes`/`find_effects` déterministes, `add_discourse_block`, truncation word-aware
+- **Session persistante** : `gcn-discuss --session-dir` (graphe + vecs + historique, anti-perte), `gcn-index --vecs-out`
+- **Liens manquants** : `LinkPredHead` (livrée, gate `gcn-eval --gate --on-fail=warn`), `gcn-train --link-pred --neg-ratio`
+- **Décodeur multi-vecs** : `source_bias` optionnel, `is_inferred` en métadonnée nœud
+- **255 tests Python** (+13 via `test_mise_a_niveau.py`, 4 skipped)
+
+---
+
 ## Nouveautés v2.4.0
 
 - **Checkpoint de production** `model_v2.4.0.npz` — val_edge_f1=0.468 sur 849 phrases
@@ -625,6 +640,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 | A-v2.3.0 | Audit max — 11 correctifs gradient/reproductibilité (231 tests) | ✅ Terminé |
 | B–E | Mesure, tuning, oversampling, robustesse, checkpoint v2.4.0 | ✅ Terminé |
 | Audit 1 | 7 correctifs scripts post-restructuration (paths, spans, edges) | ✅ Terminé |
+| v2.4.1 | Mise à niveau infra : edge_norm, graph_vecs, schéma v2.0, checkpoint atomique (255 tests) | ✅ Terminé |
 
 ---
 

@@ -12,20 +12,6 @@ from ..constants import (
 from .representation import UDRepresentation
 
 # Lemmes de connecteurs causaux les plus fréquents en français
-_CONNECTOR_LEMMAS_RAW = [
-    "parce", "car", "puisque", "comme", "si", "bien", "quoique",
-    "malgré", "pour", "afin", "donc", "alors", "ensuite",
-    "puis", "mais", "or", "pourtant", "cependant", "néanmoins",
-    "pourvu", "seulement", "lorsque", "dès", "tant",
-    "non", "jamais", "ni", "plutôt", "au lieu",
-    "en revanche", "en raison", "grâce", "sous", "condition",
-    "contrairement", "selon", "à cause", "devant", "chez",
-    "vers", "après", "avant", "depuis", "pendant", "durant",
-    "entre", "parmi", "hors", "outre", "faute",
-]
-# Déduplication programmatique — préserve l'ordre, élimine les doublons
-CONNECTOR_LEMMAS = list(dict.fromkeys(_CONNECTOR_LEMMAS_RAW))
-
 # Relations de dépendance UD typiques des connecteurs
 CONNECTOR_DEP_RELS = [
     "mark", "case", "fixed", "cc", "advmod", "obl", "nmod",
@@ -42,9 +28,8 @@ class FeatureVocabulary:
     Lexique de connecteurs : vide par défaut — l'utilisateur fournit
     les lemmes propres à sa langue via connector_lemmas.
 
-    Exemple pour le français :
-        from gcn_python.layer1.features import CONNECTOR_LEMMAS
-        vocab = FeatureVocabulary(connector_lemmas=CONNECTOR_LEMMAS)
+    Exemple (lemmes définis par l'utilisateur, langue au choix) :
+        vocab = FeatureVocabulary(connector_lemmas=["parce", "car", "because", "since"])
 
     Sans connector_lemmas, d_conn est minimal (UPOS + dep_rel + position)
     et fonctionne pour toute langue sans modification.

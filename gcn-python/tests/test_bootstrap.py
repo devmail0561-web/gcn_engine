@@ -171,8 +171,8 @@ def test_normalize_edge_tuple_format():
     e = [0, 1, {"relation": "cause", "confidence": 0.9, "explicit": True, "negated": False}]
     result = _normalize_edge(e)
     assert result is not None
-    assert result["source"] == "0"
-    assert result["target"] == "1"
+    assert result["source"] == "n000"
+    assert result["target"] == "n001"
     assert result["relation"] == "cause"
     assert result["confidence"] == 0.9
     assert result["explicit"] is True
@@ -214,8 +214,9 @@ def test_cir_to_doc_with_tuple_edges():
     doc = _cir_to_doc("A cause B.", cir)
     edges = doc["document"]["sentences"][0]["cir"]["edges"]
     assert len(edges) == 1
-    assert edges[0]["source"] == "0"
-    assert edges[0]["target"] == "1"
+    nodes = doc["document"]["sentences"][0]["cir"]["nodes"]
+    assert edges[0]["source"] == nodes[0]["id"] == "n000"
+    assert edges[0]["target"] == nodes[1]["id"] == "n001"
     assert edges[0]["relation"] == "cause"
 
 
