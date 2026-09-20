@@ -50,3 +50,4 @@ packages = ["src/gcn_python"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]

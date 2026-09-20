@@ -562,10 +562,10 @@ class CGNPipeline:
         les poids R-GCN ne peuvent pas être mis à jour (d_enriched provient du
         backward de l'encodeur). Un UserWarning est émis dans ce cas.
 
-        Nœuds : les gradients doivent aligner exactement le cache du forward
-        (un désalignement lève ValueError). Arêtes : `e = min(len(d_edge_logits),
-        len(_cached_edge_vecs))` — les gradients excédentaires sont ignorés sans
-        exception (comportement voulu par filter_edge_cache ; documenté ici).
+        Nœuds et arêtes : les gradients doivent aligner exactement le cache du forward
+        (un désalignement lève ValueError). En particulier, `filter_edge_cache()`
+        doit avoir été appliqué de façon appariée avec la filtration des logits
+        d'entrée — aucun tronquage silencieux.
         """
         if not (np.isfinite(lr) and lr > 0):
             raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
@@ -665,7 +665,13 @@ class CGNPipeline:
         _d_eff_cached = self._cached_d_eff
         if (d_edge_logits is not None and len(d_edge_logits) > 0
                 and self._cached_edge_vecs is not None):
-            e = min(len(d_edge_logits), len(self._cached_edge_vecs))
+            if len(d_edge_logits) != len(self._cached_edge_vecs):
+                raise ValueError(
+                    f"backward : {len(d_edge_logits)} gradients arêtes pour "
+                    f"{len(self._cached_edge_vecs)} vecteurs (cache stale ou mismatch — "
+                    "forward() puis filter_edge_cache() apparié requis)."
+                )
+            e = len(d_edge_logits)
             for i in range(e):
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
@@ -821,7 +827,13 @@ class CGNPipeline:
         _d_eff_cached = self._cached_d_eff
         if (d_edge_logits is not None and len(d_edge_logits) > 0
                 and self._cached_edge_vecs is not None):
-            e = min(len(d_edge_logits), len(self._cached_edge_vecs))
+            if len(d_edge_logits) != len(self._cached_edge_vecs):
+                raise ValueError(
+                    f"backward : {len(d_edge_logits)} gradients arêtes pour "
+                    f"{len(self._cached_edge_vecs)} vecteurs (cache stale ou mismatch — "
+                    "forward() puis filter_edge_cache() apparié requis)."
+                )
+            e = len(d_edge_logits)
             for i in range(e):
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])

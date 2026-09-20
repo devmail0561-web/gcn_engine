@@ -46,10 +46,10 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
   `add_discourse_block`, `except` → `log.warning`
 
 **Tests :**
-- `tests/test_mise_a_niveau.py` : 13 tests couvrant normalisation, hyperedge bypass, find_match_level,
+- `tests/test_mise_a_niveau.py` : 14 tests couvrant normalisation, hyperedge bypass, find_match_level,
   truncation word-aware, graph_vecs roundtrip, checkpoint atomique+arch, migrate non-perte,
   session save/load, LinkPredHead + checkpoint, source_bias + is_inferred, run_eval arch
-- Total : **144 tests Rust** (inchangé), **255 tests Python** (+13 via test_mise_a_niveau.py, 4 skipped)
+- Total : **144 tests Rust** (inchangé), **256 tests Python** (+14 via test_mise_a_niveau.py, 4 skipped)
 
 ### Session persistante + prédiction de liens + décodeur multi-vecs (complément 2.4.1)
 
@@ -64,6 +64,23 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - `training/train.py` : `--link-pred/--neg-ratio/--src-aggregation/--bfs-depth` + BCE auxiliaire tête seule
 - `engine.py` : `predict_links(text, threshold, bfs_depth)`
 - `evaluation/eval_runner.py` : `gcn-eval --gate <seuil> --on-fail=warn|error` (warn = jamais fail-closed)
+- `evaluation/eval_runner.py` : `run_eval` reconstruit le pipeline depuis `_arch_json`
+  (bidi/embeddings/all_pairs/multi-couches — fini les crashs et modes faux) + paires `all_pairs`
+
+### Audit profond (correctifs bloquants vérifiés par exécution)
+
+- `verbalizer/instructions.py` : `save/load` JSON cassait 100 % des requêtes (ids int → clés str) —
+  ids normalisés `str` dans `add_cir`, recoercition au `load`
+- `training/bootstrap.py` : `_cir_to_doc` émettait nœuds int + arêtes str → 100 % des arêtes
+  bootstrappées ignorées au load — `_canonical_node_id` (`nNNN`) des deux côtés
+- `training/checkpoint.py` : `all_pairs` ajouté au triplet sémantique (mauvais mode silencieux exclu)
+- `training/train.py` : `_run_eval_pass` compte + warne les phrases ignorées (val biaisée corrigée)
+- `pipeline/cgnp.py` : `backward`/`backward_accumulate` lèvent `ValueError` sur mismatch arêtes
+  (fini le `min()` silencieux contraire au contrat)
+- `layer2/reference.py` : masques dropout snapshotés/restaurés avec le cache arêtes (gradients faux corrigés)
+- `evaluation/metrics.py` : `causal_graph_similarity` accepte arêtes dict (fini le `KeyError`)
+- Moteur language-agnostic : `SCOPE_HINTS_FR`/`CONNECTOR_LEMMAS` sortis (`CGNPipeline(scope_hints=...)`
+  injecté, défaut vide) ; R-GCN mono-relation assumé en commentaire (W_r morts documentés)
 - `verbalizer/trainable.py` : `source_bias` optionnel (biais attention, d_in inchangé) sur
   `forward_decode`/`decode`
 - `pipeline/ir_emitter.py` : `node_inferred` → métadonnée nœud `is_inferred` (pas de token spécial) ;

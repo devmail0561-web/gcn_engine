@@ -258,6 +258,32 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
     assert report["node_macro_f1"] is not None
 
 
+def test_backward_edge_mismatch_raises():
+    """M8 : backward refuse les gradients arêtes désalignés (pas de min() silencieux)."""
+    import numpy as np
+    pipe, _ = _make_pipeline()
+    from gcn_python.layer1.representation import UDRepresentation
+
+    def _rep(lemma):
+        return UDRepresentation(
+            tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={"Tense": "Pres"}, subject_pos="NOUN", has_object=False,
+            has_advcl=False, has_temporal_obl=False, token_span=(1, 2))
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pipe.forward([_rep("baisser"), _rep("reduire")], "A puis B.")
+        d_node = np.zeros((2, 7), dtype=np.float32)
+        d_edge_bad = np.zeros((5, 11), dtype=np.float32)
+        try:
+            pipe.backward(d_node, d_edge_bad, lr=0.01)
+        except ValueError as e:
+            assert "arêtes" in str(e)
+        else:
+            raise AssertionError("ValueError attendu (5 grads vs cache)")
+
+
 def test_decoder_source_bias_and_is_inferred():
     import numpy as np
     from gcn_python.verbalizer.trainable import TrainableDecoder, SurfaceVocabulary
