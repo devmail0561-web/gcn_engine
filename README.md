@@ -3,8 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-137%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-231%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-144%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-249%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
@@ -62,8 +62,8 @@ Texte / Code
 ```
 projet_CNM/
 ├── BENCHMARK.md        ← Benchmark complet ML (17 runs, meilleures combos, analyse)
-├── PROGRESS.md         ← Suivi d'avancement détaillé par phase
-├── TODO.md             ← Plan d'action A→E (complété en v2.4.0)
+├── CHANGELOG.md        ← Historique des versions
+├── USECASES_AUDIT.md   ← Inventaire des cas d'usage
 │
 ├── gcn-core/           ← Moteur Rust pur (workspace Cargo)
 │   ├── crates/
@@ -79,8 +79,6 @@ projet_CNM/
 │   └── SAD.md                  Software Architecture Document
 │
 ├── gcn-python/         ← Couches ML Python (framework-agnostique)
-│   ├── models/
-│   │   └── wiki.fr.vec         Embeddings FastText français (22 218 mots, 300d)
 │   └── src/gcn_python/
 │       ├── layer1/     UDRepresentation + vectorisation (depuis tokens JSON annotés)
 │       ├── layer2/     CausalEncoder Protocol (MLP référence NumPy)
@@ -93,7 +91,8 @@ projet_CNM/
 │       └── evaluation/ Métriques + TrainingRecorder
 │
 ├── gcn-tools/         ← Outils externes (hors moteur)
-│   └── gcn-annotate/  Outil d'annotation LLM (Anthropic/OpenAI)
+│   ├── gcn-annotate/  Outil d'annotation LLM (Anthropic/OpenAI)
+│   └── gcn-scraper/   Scraper multi-sources (Wikipedia, arXiv, HAL, GitHub…)
 │
 ├── gcn-references/     ← Références linguistiques (hors moteur)
 │   └── taxonomies/
@@ -106,26 +105,12 @@ projet_CNM/
 └── gcn-datasets/       ← Données annotées (hors moteur)
     ├── schemas/        gcn-nl.schema.yaml, gcn-pl.schema.yaml, gcn-verbalize.schema.yaml
     ├── examples/       Exemples illustratifs annotés (FR, Python, Rust)
-    ├── corpus/         Textes bruts pour bootstrap (generated_1000.json, phrases_fr.txt)
-    ├── raw/            Textes bruts non annotés + annotations intermédiaires (phase4/)
-    ├── splits/         Ancien split alternatif (693/148/149 phrases)
-    ├── scripts/        Scripts Python d'annotation et de gestion
-    │   ├── build_annotations.py    Génère JSON complet (CIR + tokens UD) depuis candidats manuels
-    │   ├── candidates_c1.py        171 phrases annotées pour 6 types de relations rares
-    │   ├── generate_dataset.py     Bootstrap depuis textes bruts
-    │   ├── merge_datasets.py       Fusionne plusieurs splits JSON
-    │   └── oversample_rare.py      Oversample les classes rares
-    └── real/           ← Données annotées officielles
-        ├── source/     Fichiers sources originaux (avant split)
-        ├── train/      Split officiel — 536 phrases annotées
-        ├── val/        Split officiel — 114 phrases annotées
-        ├── test/       Split officiel — 117 phrases annotées
-        └── augmented/  Datasets dérivés (construits à partir des splits officiels)
-            ├── c1_annotations/   171 nouvelles phrases (6 types de relations rares)
-            ├── c1_merged/        707 phrases (train + C1)
-            ├── c1_oversampled/   735 phrases ← MEILLEUR DATASET D'ENTRAÎNEMENT ✅
-            ├── final/            849 phrases (c1_oversampled + val — pour checkpoint prod)
-            └── oversampled_v0/   647 phrases (oversampling sans C1 — référence)
+    └── scripts/        Scripts utilitaires de construction et gestion des datasets
+        ├── build_annotations.py    Génère JSON complet (CIR + tokens UD) depuis candidats
+        ├── candidates_c1.py        171 phrases pour 6 types de relations rares
+        ├── generate_dataset.py     Bootstrap depuis textes bruts
+        ├── merge_datasets.py       Fusionne plusieurs splits JSON
+        └── oversample_rare.py      Oversampling des classes rares
 ```
 
 ---
@@ -516,7 +501,7 @@ Structure minimale d'un exemple annoté :
 ## Tests
 
 ```bash
-# Suite complète Rust (137 tests)
+# Suite complète Rust (144 tests)
 cd gcn-core && cargo test --workspace
 
 # Par crate
@@ -527,7 +512,7 @@ cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
 cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
 
-# Python (231 tests)
+# Python (249 tests)
 cd gcn-python && python -m pytest
 # Dont :
 #   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
@@ -646,8 +631,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 ## Références
 
 - **Benchmark complet (17 runs ML) :** [BENCHMARK.md](BENCHMARK.md)
-- **Suivi d'avancement détaillé :** `PROGRESS.md`
-- **Papier de recherche :** `docs/grammaire_causale_naturelle_v2.docx`
+- **Cas d'usage :** [USECASES_AUDIT.md](USECASES_AUDIT.md)
 - **Architecture détaillée :** `gcn-core/SAD.md`
 - **Limitations connues GCNBridgeParser :** `gcn-python/README.md#limitations`
 - **Auteur :** Michel Tendeng — Université Numérique Cheikh Hamidou Kane (UN-CHK), L3 Cybersécurité, Ziguinchor, Sénégal

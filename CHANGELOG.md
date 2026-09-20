@@ -5,6 +5,44 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.4.0] — 2026-09-20
+
+### Checkpoint de production + robustesse moteur + CI/CD
+
+**Modèle ML :**
+- Checkpoint `model_v2.4.0.npz` — `val_edge_macro_f1 = 0.468` sur 849 phrases
+- Dataset C1 : 171 phrases annotées pour 6 types de relations rares (filter, data_dependency,
+  control_dependency, motivation, sequence, opposition) — stratégie d'oversampling à 30 ex. min
+- Configuration de référence : GAT + bidirectionnel + lr=0.0005 + weighted-loss, 100 epochs
+- Bilan métriques : `val_edge_f1 = 0.468` ✅, `val_node_f1 = 0.274` ✗ (données insuffisantes),
+  `val_graph_exact_match = 0.123` ✗, gap edge = 0.069 ✅
+
+**Robustesse moteur :**
+- `gcn-middleend/src/graph.rs` : warning explicite sur les arêtes dangling (A02 — était silencieux)
+- 14 `assert` → `ValueError`/`RuntimeError` dans les couches ML Python (D1)
+- `token_span` : validation longueur et bornes dans `bootstrap.py` (D2)
+- 8 tests e2e texte brut → CIR JSON via `GCNBridgeParser` (D3)
+
+**Tests :**
+- 4 tests smoke `gcn-ir` : NodeType serde, RelationType.signals_causal_gap, CausalIR méthodes (F01)
+- 3 tests smoke `gcn-verbalizer` : error display, ProcessSpawn sur binaire absent (F01)
+- Total : **144 tests Rust**, **249 tests Python**
+
+**Infrastructure :**
+- CI/CD : `.github/workflows/ci.yml` — runner self-hosted, `cargo test + clippy` + `pytest`
+- Version workspace Rust alignée sur 2.4.0 (F03 — était 2.1.0)
+- `.gitignore` : 57 fichiers de développement internes désindexés (docs/, .opencode/,
+  gcn-datasets/raw|real|splits|corpus, notes et audits internes)
+
+**Scripts dataset (Audit 1) :**
+- `build_annotations.py` : `parents[2]` (fix ImportError post-restructuration)
+- `oversample_rare.py` : `argparse --input/--output` (chemins hardcodés supprimés), `min(factors)` par-relation
+- `generate_dataset.py` : `token_span` conditionnel sur `VERB_c_token_id` + contrôle inversé
+- `make_verbalize_pairs.py` : retourne `None` sur endpoint inconnu au lieu de corrompre silencieusement
+- `merge_datasets.py` : docstring mise à jour
+
+---
+
 ## [2.3.0] — 2026-09-18
 
 ### Audit max — 11 correctifs gradient, reproductibilité, performance
