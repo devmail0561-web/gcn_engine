@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Recherche web ouverte avec croisement de sources — DuckDuckGo + OpenAlex + PubMed."""
 from __future__ import annotations
 import time

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper Wikipedia générique — supporte toutes les langues via l'API MediaWiki."""
 from __future__ import annotations
 import time

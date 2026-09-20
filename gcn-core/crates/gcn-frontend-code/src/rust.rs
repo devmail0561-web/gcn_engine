@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use std::path::Path;
 
 use gcn_ir::{CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId,

@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 // Phase 3: Constraint propagation, causal graph construction, cycle detection, validation
 
 pub mod cycle;

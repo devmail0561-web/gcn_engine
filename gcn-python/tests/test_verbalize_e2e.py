@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """Tests e2e verbalizer — enriched_vecs, engine.verbalize(), gradient cohérence, B3."""
 from __future__ import annotations
 import numpy as np

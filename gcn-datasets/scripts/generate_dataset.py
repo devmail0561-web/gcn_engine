@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 Générateur de dataset d'entraînement pour GCN-Core.
 

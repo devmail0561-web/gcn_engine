@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scoring de phrases par type de relation causale (FR+EN)."""
 from __future__ import annotations
 import re

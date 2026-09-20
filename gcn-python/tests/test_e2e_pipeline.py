@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 Tests e2e Phase D3 — texte brut → CIR JSON via pipeline CGNP.
 

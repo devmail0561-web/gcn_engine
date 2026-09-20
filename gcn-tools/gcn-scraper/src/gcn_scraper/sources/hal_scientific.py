@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper HAL (archives ouvertes) — queries ciblées FR+EN, pagination."""
 from __future__ import annotations
 import time

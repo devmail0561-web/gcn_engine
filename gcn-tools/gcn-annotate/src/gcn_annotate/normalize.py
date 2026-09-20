@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Normalisation et validation des annotations LLM."""
 from __future__ import annotations
 

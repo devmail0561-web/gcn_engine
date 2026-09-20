@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """CLI gcn-scrape v3 — scraping multilingue agnostique, horodaté, multi-sources."""
 from __future__ import annotations
 import click

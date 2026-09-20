@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Diversité du scraping — évite de re-scraper les mêmes URLs/queries à chaque run.
 
 Constat : toutes les sources itéraient des listes fixes dans un ordre fixe,

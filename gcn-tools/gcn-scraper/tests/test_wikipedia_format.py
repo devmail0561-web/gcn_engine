@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """C1 : formatversion=2 renvoie query.pages en LISTE — l'extraction doit marcher."""
 import gcn_scraper.sources.wikipedia as wiki_mod
 from gcn_scraper.sources.wikipedia import WikipediaLangScraper

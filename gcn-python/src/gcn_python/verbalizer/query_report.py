@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 QueryVerbalizer — formate les résultats de requêtes CausalGraph
 en rapports structurés multi-lignes avec sources et contradictions.

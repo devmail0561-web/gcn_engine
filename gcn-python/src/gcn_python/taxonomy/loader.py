@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 TaxonomyIndex: charge les fichiers YAML de taxonomies GCN et expose
 l'appartenance par gcn_class_key = "taxonomy_name.class_name".

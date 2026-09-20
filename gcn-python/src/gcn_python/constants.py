@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 # Sync avec gcn-core/crates/gcn-ir/src/{ir,node,edge}.rs
 NODE_TYPES = ["etat", "action", "transition", "processus", "condition", "entite", "etat_systemique"]
 RELATION_TYPES = ["cause", "enable", "prevent", "condition", "concession", "sequence",

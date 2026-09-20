@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Validation post-annotation : vérifie que reps_from_sentence retourne des reps non vides
 pour le dataset réel annoté avec les tokens UD.

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 from gcn_python.evaluation.metrics import (
     node_accuracy, node_f1_per_class, node_macro_f1,
     edge_accuracy, edge_macro_f1, causal_graph_similarity,

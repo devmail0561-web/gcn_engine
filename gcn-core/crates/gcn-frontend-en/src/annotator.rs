@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::resources::{CausalMarkerEntry, LexicalResources};
 use crate::rules::{nominalize_with_table, looks_like_verb_morphologically, MarkerDir};
 use crate::tagger::{Pos, TaggedToken};

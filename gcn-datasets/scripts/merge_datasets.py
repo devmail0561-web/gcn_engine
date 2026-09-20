@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 merge_datasets.py — Fusionne plusieurs fichiers JSON dataset en un seul.
 

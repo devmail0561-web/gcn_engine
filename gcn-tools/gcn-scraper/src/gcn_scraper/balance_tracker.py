@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Suivi du volume par langue — budget calculé automatiquement depuis sources.yaml.
 
 Agnostique à la langue : ajouter wikipedia_ar dans sources.yaml suffit,

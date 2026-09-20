@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Découpage de texte en phrases — FR+EN avec protection des abréviations."""
 from __future__ import annotations
 import re

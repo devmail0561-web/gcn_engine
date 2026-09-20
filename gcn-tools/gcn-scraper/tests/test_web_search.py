@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Tests WebSearchScraper — mocks réseau, self.user_agent, scrape() de base."""
 import pytest
 from unittest.mock import MagicMock, patch

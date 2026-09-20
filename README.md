@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-144%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Python tests](https://img.shields.io/badge/tests%20Python-249%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)

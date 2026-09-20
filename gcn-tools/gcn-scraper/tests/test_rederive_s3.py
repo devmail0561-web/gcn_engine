@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """C6/C7 : S3 valide même si n_nodes > T ; les phrases vides sont conservées."""
 import json
 

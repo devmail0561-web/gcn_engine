@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Pipeline de scraping — collecte du texte brut diversifié, équilibré FR/EN.
 
 Responsabilité unique : collecter du texte de qualité, pas l'annoter.

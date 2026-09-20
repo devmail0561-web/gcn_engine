@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper Wikipedia EN — wrapper rétrocompat autour de WikipediaLangScraper."""
 from .wikipedia import WikipediaLangScraper
 from ._net import DEFAULT_USER_AGENT

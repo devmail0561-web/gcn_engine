@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use std::path::PathBuf;
 use gcn_frontend_en::EnglishParser;
 use gcn_ir::{NaturalLanguage, RelationType, SourceLanguage};

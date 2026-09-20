@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 Tests de robustesse prod — valident que le modèle discrimine les connecteurs
 et la direction des arêtes. Nécessitent un checkpoint entraîné sur données réelles.

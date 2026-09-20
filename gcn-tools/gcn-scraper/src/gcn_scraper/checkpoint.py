@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Checkpoint de reprise : sauvegarde l'état du scraping après chaque source."""
 from __future__ import annotations
 import json

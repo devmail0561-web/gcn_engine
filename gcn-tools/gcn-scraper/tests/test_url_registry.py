@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Tests URLRegistry — persistance, is_known, idempotence, context manager."""
 import pathlib
 import pytest

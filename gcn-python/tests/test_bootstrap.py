@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """Tests pour training/bootstrap.py — corrections issues CRITICAL #1-3."""
 import json
 import pytest

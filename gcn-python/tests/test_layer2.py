@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 import numpy as np
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer1.features import FeatureVocabulary

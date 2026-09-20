@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper de flux RSS FR+EN — journaux riches en cause/concession/condition."""
 from __future__ import annotations
 import re

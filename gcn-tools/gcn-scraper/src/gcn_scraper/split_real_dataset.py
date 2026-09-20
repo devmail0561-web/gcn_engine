@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Re-génère les splits train/val/test avec tokens UD.
 

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Déduplication exacte + near-dedup par shingling."""
 from __future__ import annotations
 from collections import deque

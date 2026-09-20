@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """Tests de la boucle d'entraînement Phase 2b."""
 from __future__ import annotations
 from pathlib import Path

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """Tests pour RGCNLayerPT — skip automatique si PyTorch n'est pas installé."""
 import pytest
 import numpy as np

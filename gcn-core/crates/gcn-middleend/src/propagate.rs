@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use gcn_ir::{CausalIR, GapNature, RelationType, TemporalGap};
 use std::collections::HashMap;
 

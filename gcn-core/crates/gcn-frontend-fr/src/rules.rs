@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use gcn_ir::{NodeType, RelationType, Scope, AgentType};
 use unicode_normalization::UnicodeNormalization;
 

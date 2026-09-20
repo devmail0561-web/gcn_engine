@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 //! GCN Knowledge: support aux outils de bootstrap d'annotation (gcn-frontend-fr, gcn-frontend-code).
 //! Charge les taxonomies de gcn-references/ pour les annotateurs — pas utilisé par le pipeline ML d'inférence.
 

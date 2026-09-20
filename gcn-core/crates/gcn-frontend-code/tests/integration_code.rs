@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use std::path::PathBuf;
 use gcn_frontend_code::{parse_js, parse_python, parse_rust};
 use gcn_frontend_fr::FrenchParser;

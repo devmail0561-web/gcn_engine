@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """Tests pour frontend/bridge.py — implémentation P1 (pont texte brut → UDRepresentation)."""
 import json
 import shutil

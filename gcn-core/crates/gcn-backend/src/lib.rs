@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 // Phase 4: Pearl reasoning (level 1), GCN-QL query engine, export
 
 pub mod error;

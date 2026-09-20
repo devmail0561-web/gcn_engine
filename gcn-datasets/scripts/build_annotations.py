@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 build_annotations.py — Construit les entrées JSON complètes du dataset à partir
 des phrases candidates annotées manuellement (CIR) + tokens UD générés automatiquement.

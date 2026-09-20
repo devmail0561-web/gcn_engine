@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Annotateur de phrases causales - FR/EN.
 
 Ce script lit les phrases extraites et genere les annotations CausalIR

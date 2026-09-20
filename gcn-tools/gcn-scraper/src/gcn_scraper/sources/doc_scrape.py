@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper de documentation technique — Python/Rust/JS/TS/Java/Go/C#."""
 from __future__ import annotations
 import time

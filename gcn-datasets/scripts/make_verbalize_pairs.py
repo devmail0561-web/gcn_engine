@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 make_verbalize_pairs.py — Convertit gcn-nl (train.json) → gcn-verbalize.
 

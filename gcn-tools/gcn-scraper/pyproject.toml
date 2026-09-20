@@ -7,6 +7,9 @@ name = "gcn-scraper"
 version = "3.0.0"
 description = "Scraper multilingue agnostique pour le dataset GCN causal (50k+ phrases)"
 requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "click>=8.0",
     "trafilatura>=1.6",

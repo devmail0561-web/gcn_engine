@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Diagnostic rapide : mesure le pourcentage de phrases où les token_span CIR
 sont invalides (chevauchement identique, hors-bornes, start >= end).

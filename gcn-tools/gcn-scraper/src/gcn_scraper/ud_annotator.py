@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Annotateur UD : texte brut → liste de tokens UD avec IDs alignés.
 

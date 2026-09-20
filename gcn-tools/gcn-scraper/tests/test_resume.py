@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """C2/C3 : run fresh ne skippe rien ; run resume respecte les budgets remplis."""
 import json
 

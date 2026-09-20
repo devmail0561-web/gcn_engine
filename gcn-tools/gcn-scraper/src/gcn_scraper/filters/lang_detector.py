@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Détection de langue via langdetect (55+ langues, aucun stopword hardcodé)."""
 from __future__ import annotations
 

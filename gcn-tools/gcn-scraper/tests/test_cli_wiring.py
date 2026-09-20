@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Phase 2 (M1/M20) : options CLI câblées — wiki off, warnings github/doc, bornes."""
 from click.testing import CliRunner
 

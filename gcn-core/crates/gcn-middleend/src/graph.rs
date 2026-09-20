@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use gcn_ir::{CausalIR, NodeId};
 use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;

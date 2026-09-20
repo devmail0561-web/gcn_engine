@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 /// Simple whitespace + punctuation tokenizer for English.
 #[derive(Debug, Clone)]
 pub struct Token {

@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod annotator;
 pub mod emitter;
 pub mod error;

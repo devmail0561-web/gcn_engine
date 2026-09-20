@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """CLI pour gcn-annotate — outil d'annotation LLM."""
 from __future__ import annotations
 

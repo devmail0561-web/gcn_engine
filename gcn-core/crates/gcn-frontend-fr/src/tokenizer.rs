@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 /// A single token in the tokenized stream.
 #[derive(Debug, Clone)]
 pub struct Token {

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 import json
 from gcn_python.pipeline.ir_emitter import emit
 

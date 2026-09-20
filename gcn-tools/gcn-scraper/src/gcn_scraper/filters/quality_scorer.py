@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Score de qualité neutre — longueur, densité lexicale, propreté.
 
 N'utilise PAS de mots-clés causaux : le scraper collecte du texte brut diversifié,

@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use gcn_ir::{CausalCycle, CausalIR, CycleId, CycleType, NodeId, RelationType};
 use petgraph::algo::tarjan_scc;
 use petgraph::graph::NodeIndex;

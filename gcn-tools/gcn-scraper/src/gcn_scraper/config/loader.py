@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Chargement de la configuration des sources depuis sources.yaml."""
 from __future__ import annotations
 from pathlib import Path

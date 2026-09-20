@@ -1,0 +1,13 @@
+GCN-Core — Grammaire Causale Naturelle
+Copyright 2026 Michel Tendeng
+
+Ce produit est distribué sous les termes de la licence Apache 2.0.
+Voir le fichier LICENSE pour les termes complets.
+
+Auteur :
+  Michel Tendeng
+  Université Numérique Cheikh Hamidou Kane (UN-CHK)
+  L3 Cybersécurité — Ziguinchor, Sénégal
+
+Les outils externes (gcn-tools/) sont distribués séparément
+sous les termes de la licence MIT. Voir gcn-tools/*/LICENSE.

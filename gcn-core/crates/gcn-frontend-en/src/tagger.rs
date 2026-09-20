@@ -1,3 +1,6 @@
+// Copyright 2026 Michel Tendeng
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::resources::LexicalResources;
 use crate::rules::{is_past_tense, lemmatize_verb, looks_like_verb_morphologically};
 use crate::tokenizer::Token;

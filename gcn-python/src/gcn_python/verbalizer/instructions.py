@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 InstructionHandler — exécute des commandes structurées sur le graphe causal.
 

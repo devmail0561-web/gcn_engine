@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper de code GitHub — Python/Rust/JS/TS/Java/Go/C# (commentaires et docstrings)."""
 from __future__ import annotations
 import time

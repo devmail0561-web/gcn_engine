@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 """
 Candidats C1 — 171 phrases annotées pour équilibrer les types de relations rares.
 

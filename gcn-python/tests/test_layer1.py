@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
 import numpy as np
 from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
 from gcn_python.layer1.representation import UDRepresentation

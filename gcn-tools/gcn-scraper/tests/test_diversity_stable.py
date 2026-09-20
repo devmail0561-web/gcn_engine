@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """C4 : shuffled()/page_offset() doivent être stables entre processus (même seed)."""
 import os
 import subprocess

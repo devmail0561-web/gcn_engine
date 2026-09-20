@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Valide le CIR de chaque phrase du dataset réel :
 1. Chaque node a un token_span [start, end] avec start < end

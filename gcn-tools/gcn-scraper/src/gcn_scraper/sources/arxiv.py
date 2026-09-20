@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Scraper arXiv via l'API Atom/REST — gratuit, sans token."""
 from __future__ import annotations
 import time

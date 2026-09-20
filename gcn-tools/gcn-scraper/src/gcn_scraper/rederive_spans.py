@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """
 Re-dérive les token_span des nœuds CIR depuis spaCy.
 

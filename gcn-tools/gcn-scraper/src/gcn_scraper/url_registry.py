@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Registre SQLite des URLs scrapées — déduplication cross-campagnes.
 
 Le registre est partagé entre toutes les campagnes d'un même projet.

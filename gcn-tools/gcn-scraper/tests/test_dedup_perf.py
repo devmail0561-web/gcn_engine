@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """C5 : la mémoire near-dedup doit être bornée (pas de croissance O(N) liste)."""
 from gcn_scraper.filters.deduplicator import Deduplicator
 

@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Utilitaire réseau partagé — retry avec backoff, jitter, cooldown par host.
 
 Fix 429-bloquant :

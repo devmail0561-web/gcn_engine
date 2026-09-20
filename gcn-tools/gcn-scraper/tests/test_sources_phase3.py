@@ -1,3 +1,5 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: MIT
 """Phase 3 (M5-M13, M19) : pagination réelle, parsing news, srlimit recalculé."""
 import xml.etree.ElementTree as ET
 
