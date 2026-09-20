@@ -110,6 +110,28 @@ class ScrapingPipeline:
             timestamp: str = checkpoint.state["session_timestamp"]
             _mode = "a"
             print(f"=== Reprise session {timestamp} ===")
+            # Avertir si la config CLI diffère de la config originale du run.
+            # Un changement de --langs ou --target-total peut réduire le budget et
+            # déclencher is_globally_full() prématurément, sautant des sources.
+            _saved_cfg = checkpoint.state.get("session_config", {})
+            if _saved_cfg:
+                _warnings = []
+                if "langs" in _saved_cfg and sorted(selected_langs) != sorted(_saved_cfg["langs"]):
+                    _warnings.append(
+                        f"--langs {','.join(selected_langs)} ≠ session originale {','.join(_saved_cfg['langs'])}"
+                    )
+                if "target_total" in _saved_cfg and target_total != _saved_cfg["target_total"]:
+                    _warnings.append(
+                        f"--target-total {target_total} ≠ session originale {_saved_cfg['target_total']}"
+                    )
+                if _warnings:
+                    import warnings as _w
+                    _w.warn(
+                        f"--resume avec config différente du run initial : {'; '.join(_warnings)}. "
+                        "Le budget calculé peut être trop petit et sauter des sources. "
+                        "Utilise les mêmes --langs et --target-total que le run initial.",
+                        UserWarning, stacklevel=3,
+                    )
             # Réhydrater les compteurs budgétaires (sinon dépassement target_total).
             for lang, count in checkpoint.get_budget_counts().items():
                 if lang in tracker.budget:
@@ -123,6 +145,11 @@ class ScrapingPipeline:
             # Ne pas accumuler les compteurs d'une ancienne session incompatible
             checkpoint.reset()
             checkpoint.state["session_timestamp"] = timestamp
+            checkpoint.state["session_config"] = {
+                "langs": selected_langs,
+                "prog_langs": selected_prog_langs,
+                "target_total": target_total,
+            }
             checkpoint.save()
 
         # URLs déjà collectées — chargées depuis le registre SQLite (cross-campagnes)
@@ -143,6 +170,7 @@ class ScrapingPipeline:
             seen_urls = set(checkpoint.state.get("seen_urls", []))
         if seen_urls:
             print(f"=== Anti doublons: {len(seen_urls)} URLs déjà vues, skippées ===")
+        print(f"=== Budget : { {k: v for k, v in tracker.budget.items()} } ===")
 
         global_file = self.output_dir / f"sentences_{timestamp}.jsonl"
 
@@ -223,8 +251,11 @@ class ScrapingPipeline:
                     )
 
             # --- Wikipedia (toutes langues, découverte dynamique depuis config) ---
-            for key in _wiki_keys:
+            for _idx, key in enumerate(_wiki_keys):
                 if tracker.is_globally_full():
+                    skipped = _wiki_keys[_idx:]
+                    if skipped:
+                        print(f"=== Budget global atteint → sources Wikipedia sautées : {', '.join(skipped)} ===")
                     break
                 wiki_cfg = _all_cfg.get("sources", {}).get(key, {})
                 if not wiki_cfg.get("enabled", True):
@@ -250,6 +281,9 @@ class ScrapingPipeline:
 
             # --- HAL (FR + EN) ---
             _hal_langs = ("fr" in selected_langs or "en" in selected_langs)
+            if "hal" in config and _yaml_enabled("hal") and _hal_langs:
+                if tracker.is_globally_full():
+                    print("=== HAL : budget global atteint, skip ===")
             if "hal" in config and _yaml_enabled("hal") and not tracker.is_globally_full() and _hal_langs:
                 key = "hal"
                 if resume and checkpoint.is_done(key):
@@ -271,6 +305,9 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- arXiv (EN uniquement) ---
+            if "arxiv" in config and _yaml_enabled("arxiv") and "en" in selected_langs:
+                if tracker.is_globally_full():
+                    print("=== arXiv : budget global atteint, skip ===")
             if "arxiv" in config and _yaml_enabled("arxiv") and not tracker.is_globally_full() and "en" in selected_langs:
                 key = "arxiv"
                 if resume and checkpoint.is_done(key):
@@ -292,6 +329,8 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- News RSS ---
+            if "news" in config and _yaml_enabled("news") and tracker.is_globally_full():
+                print("=== news_rss : budget global atteint, skip ===")
             if "news" in config and _yaml_enabled("news") and not tracker.is_globally_full():
                 key = "news"
                 if resume and checkpoint.is_done(key):
@@ -314,6 +353,8 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- Recherche web multi-sources ---
+            if "web_search" in config and _yaml_enabled("web_search") and tracker.is_globally_full():
+                print("=== web_search : budget global atteint, skip ===")
             if "web_search" in config and _yaml_enabled("web_search") and not tracker.is_globally_full():
                 key = "web_search"
                 if resume and checkpoint.is_done(key):
@@ -338,6 +379,8 @@ class ScrapingPipeline:
                     print(f"  → {n} phrases retenues | {tracker.progress_bar()}")
 
             # --- GitHub Code ---
+            if "github" in config and _yaml_enabled("github") and selected_prog_langs and tracker.is_globally_full():
+                print("=== GitHub Code : budget global atteint, skip ===")
             if "github" in config and _yaml_enabled("github") and selected_prog_langs and not tracker.is_globally_full():
                 key = "github"
                 if resume and checkpoint.is_done(key):
@@ -368,6 +411,8 @@ class ScrapingPipeline:
                     print(f"  → {n} extraits retenus | {tracker.progress_bar()}")
 
             # --- Documentation ---
+            if "doc" in config and _yaml_enabled("doc") and selected_prog_langs and tracker.is_globally_full():
+                print("=== Documentation : budget global atteint, skip ===")
             if "doc" in config and _yaml_enabled("doc") and selected_prog_langs and not tracker.is_globally_full():
                 key = "doc"
                 if resume and checkpoint.is_done(key):
