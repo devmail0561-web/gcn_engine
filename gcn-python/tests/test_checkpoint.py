@@ -257,6 +257,57 @@ def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
     )
 
 
+def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_path: Path):
+    """D1 complément : clés edge_threshold/drop_morph/temperature absentes → défauts conservés.
+
+    Vieux checkpoint pré-2.1.0 sans ces clés : load_checkpoint doit conserver
+    les valeurs déjà dans le pipeline (CLI ou défauts), pas les remplacer par None.
+    """
+    import json as _json, warnings as _w
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
+    ckpt = tmp_path / "old_ckpt.npz"
+    save_checkpoint(pipe_src, ckpt)
+
+    # Supprimer les 3 clés d'inférence pour simuler un vieux checkpoint
+    raw = np.load(ckpt, allow_pickle=True)
+    arch = _json.loads(str(raw["_arch_json"][0]))
+    for k in ("edge_threshold", "drop_morph", "temperature"):
+        arch.pop(k, None)
+    arrays = dict(raw)
+    arrays["_arch_json"] = np.array([_json.dumps(arch)], dtype=object)
+    np.savez_compressed(ckpt, **arrays)
+
+    # Pipeline avec valeurs non-défaut — doivent être conservées
+    enc2 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
+                           edge_threshold=0.9, drop_morph=True, temperature=2.5)
+    with _w.catch_warnings(record=True):
+        _w.simplefilter("always")
+        load_checkpoint(pipe_dst, ckpt, trusted=True)
+
+    assert pipe_dst.edge_threshold == pytest.approx(0.9), (
+        "edge_threshold écrasé par None — clé absente doit conserver la valeur du pipeline."
+    )
+    assert pipe_dst.drop_morph is True, (
+        "drop_morph écrasé — clé absente doit conserver la valeur du pipeline."
+    )
+    assert pipe_dst.temperature == pytest.approx(2.5), (
+        "temperature écrasée — clé absente doit conserver la valeur du pipeline."
+    )
+
+
 def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
     """load_checkpoint lève ValueError si n_rgcn_layers du checkpoint ≠ pipeline.
 

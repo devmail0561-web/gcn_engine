@@ -55,6 +55,9 @@ def run_eval(
     except Exception as exc:
         warnings.warn(f"run_eval : arch illisible ({exc}) — pipeline par défaut.",
                       UserWarning, stacklevel=2)
+    # trusted=False si l'arch est absente/illisible → hyperparamètres inconnus,
+    # métriques potentiellement non représentatives du modèle réel.
+    _arch_trusted = bool(_arch)
     _d_eff = int(_arch.get("d_eff", FeatureVocabulary().d_clause))
     _d_emb = int(_arch.get("d_emb", 0))
     _n_rel = int(_arch.get("n_relations", len(RELATION_TYPES)))
@@ -220,6 +223,7 @@ def run_eval(
         "causal_graph_similarity": (
             round(float(np.mean(causal_sim_scores)), 4) if causal_sim_scores else None
         ),
+        "trusted": _arch_trusted,
     }
 
 

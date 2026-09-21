@@ -52,6 +52,9 @@ class GCNDataLoader:
         # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
         self._total_long_distance = 0
         self._warned_total = False
+        # Compteur agrégé pour arêtes asymétriques en direction inverse
+        self._total_backward_asymmetric = 0
+        self._warned_backward_asymmetric = False
 
     def __len__(self) -> int:
         return len(self._records)
@@ -80,6 +83,20 @@ class GCNDataLoader:
                     stacklevel=2,
                 )
                 self._warned_total = True
+            if (not self.repeat
+                    and hasattr(self, '_total_backward_asymmetric')
+                    and self._total_backward_asymmetric > 0
+                    and hasattr(self, '_warned_backward_asymmetric')
+                    and not self._warned_backward_asymmetric):
+                warnings.warn(
+                    f"Total : {self._total_backward_asymmetric} arête(s) asymétrique(s) "
+                    "(cause/enable/prevent) en direction inverse sur l'ensemble du dataset — "
+                    "supervision potentiellement incorrecte (inversion cause/effet). "
+                    "Annoter dans la direction correcte (src < tgt) pour éliminer ce biais.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self._warned_backward_asymmetric = True
             if not self.repeat:
                 break
 
@@ -143,6 +160,9 @@ class GCNDataLoader:
                 else:
                     edge_map[key] = rel_idx
                 n_backward += 1
+                if e.relation in {"cause", "enable", "prevent"}:
+                    if hasattr(self, '_total_backward_asymmetric'):
+                        self._total_backward_asymmetric += 1
             else:
                 edge_map[(src_idx, tgt_idx)] = rel_idx
         if n_long_distance and not getattr(self, 'all_pairs', False):
