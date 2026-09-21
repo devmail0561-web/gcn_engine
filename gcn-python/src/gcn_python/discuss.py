@@ -249,6 +249,14 @@ def run_discuss(
             print(f"\n  Graphe chargé : {graph_path.name}")
         except Exception as e:
             print(f"\n  Erreur de chargement du graphe : {e}")
+    # F4c : reprendre la numérotation après les blocs déjà présents (session
+    # restaurée ou --graph préchargé) — sinon d00001_ est réutilisé et les
+    # nœuds d'une session précédente sont silencieusement écrasés.
+    import re as _blk_re
+    for _nid in handler.graph.nodes:
+        _m = _blk_re.match(r"^d(\d+)_", str(_nid))
+        if _m:
+            _sess_blk[0] = max(_sess_blk[0], int(_m.group(1)))
 
     _print_header(
         len(handler.graph.edges),

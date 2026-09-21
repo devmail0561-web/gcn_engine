@@ -213,3 +213,73 @@ def test_from_pretrained_accepts_taxonomy_dir(tmp_path: Path):
             ckpt, trusted=True, taxonomy_dir=taxo
         )
     assert engine is not None
+
+
+# ---------------------------------------------------------------------------
+# F4c — compteur de blocs repris après restauration de session
+# ---------------------------------------------------------------------------
+
+class _FakeDiscourseEncoder:
+    training = True
+
+
+class _FakeDiscoursePipe:
+    def __init__(self):
+        self.encoder = _FakeDiscourseEncoder()
+
+    def get_enriched_vectors(self):
+        return None
+
+
+class _FakeDiscourseEngine:
+    _pipeline = _FakeDiscoursePipe()
+
+    def analyze(self, text):
+        return {
+            "source_text": text,
+            "nodes": [{"id": 0, "node_type": "action", "label": "AAA"},
+                      {"id": 1, "node_type": "etat", "label": "BBB"}],
+            "edges": [[0, 1, {"relation": "cause", "confidence": 0.9,
+                              "explicit": True, "negated": False}]],
+        }
+
+
+def _run_discuss_scripted(monkeypatch, checkpoint, sess_dir, script):
+    """Exécute run_discuss avec stdin scripté et moteur factice (aucun binaire)."""
+    from gcn_python import engine as _engine_mod
+    from gcn_python.discuss import run_discuss
+
+    monkeypatch.setattr(
+        _engine_mod.GCNEngine, "from_pretrained",
+        classmethod(lambda cls, *a, **k: _FakeDiscourseEngine()),
+    )
+    answers = list(script)
+    monkeypatch.setattr("builtins.input", lambda _prompt="": answers.pop(0))
+    run_discuss(checkpoint=checkpoint, session_dir=sess_dir)
+
+
+def _session_node_ids(sess_dir: Path) -> set:
+    data = json.loads((sess_dir / "graph.json").read_text(encoding="utf-8"))
+    return set(data["nodes"].keys())
+
+
+def test_discuss_block_counter_resumes_across_sessions(tmp_path: Path, monkeypatch):
+    """F4c : 2e session sur le même session_dir → d00002_, pas réutilisation de d00001_.
+
+    Sans reprise du compteur, la 2e session réutilise d00001_* et écrase
+    silencieusement les nœuds de la 1re (arêtes orphelines de sens).
+    """
+    ckpt = _make_minimal_checkpoint(tmp_path)
+    corpus = tmp_path / "c.txt"
+    corpus.write_text("Première phrase causale de test un.\n", encoding="utf-8")
+    sess = tmp_path / "sess"
+    script = [f"/analyze {corpus}", "/quit"]
+
+    _run_discuss_scripted(monkeypatch, ckpt, sess, script)
+    assert _session_node_ids(sess) == {"d00001_0", "d00001_1"}
+
+    _run_discuss_scripted(monkeypatch, ckpt, sess, script)
+    ids = _session_node_ids(sess)
+    assert ids == {"d00001_0", "d00001_1", "d00002_0", "d00002_1"}, (
+        f"compteur non repris — nœuds écrasés inter-sessions : {sorted(ids)}"
+    )
