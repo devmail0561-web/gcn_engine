@@ -105,6 +105,10 @@ def run_eval(
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
                            temperature=_temperature)
     load_checkpoint(pipeline, model_path, trusted=True)
+    # D1 : load_checkpoint restaure les hyperparamètres depuis l'arch — re-appliquer
+    # l'override après, sinon la valeur arch écrase l'override passé explicitement.
+    if edge_threshold_override is not None:
+        pipeline.edge_threshold = float(edge_threshold_override)
     # V1 : mode évaluation — désactiver le dropout pour des métriques déterministes.
     pipeline.encoder.training = False
     for _layer in pipeline._graph_layers:

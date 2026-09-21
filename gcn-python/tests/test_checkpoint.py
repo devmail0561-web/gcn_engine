@@ -216,6 +216,47 @@ def test_check_path_safe_refuses_dir_symlink(tmp_path: Path):
         _check_path_safe(target, allow_symlink=False)
 
 
+def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
+    """D1 : load_checkpoint restaure edge_threshold, drop_morph, temperature.
+
+    Avant le fix, load_checkpoint direct (via --encoder-checkpoint) n'appliquait
+    jamais ces valeurs → inférence post-chargement utilisait les défauts CLI
+    (0.0/False/1.0) même si le modèle original avait des valeurs différentes.
+    from_pretrained et run_eval étaient déjà corrects (restauration au constructeur).
+    """
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                           edge_threshold=0.42, drop_morph=True, temperature=1.7)
+    ckpt = tmp_path / "model_d1.npz"
+    save_checkpoint(pipe_src, ckpt)
+
+    enc2 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
+                           edge_threshold=0.0, drop_morph=False, temperature=1.0)
+    load_checkpoint(pipe_dst, ckpt, trusted=True)
+
+    assert pipe_dst.edge_threshold == pytest.approx(0.42), (
+        "edge_threshold non restauré par load_checkpoint (fix D1 manquant)."
+    )
+    assert pipe_dst.drop_morph is True, (
+        "drop_morph non restauré par load_checkpoint (fix D1 manquant)."
+    )
+    assert pipe_dst.temperature == pytest.approx(1.7), (
+        "temperature non restaurée par load_checkpoint (fix D1 manquant)."
+    )
+
+
 def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
     """load_checkpoint lève ValueError si n_rgcn_layers du checkpoint ≠ pipeline.
 

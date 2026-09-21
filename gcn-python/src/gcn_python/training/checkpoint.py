@@ -284,6 +284,21 @@ def load_checkpoint(
     if new_vocab is not None:
         pipeline.vocabulary = new_vocab
 
+    # D1 : restaurer les hyperparamètres d'inférence depuis l'arch — cohérent avec vocab.
+    # from_pretrained et run_eval le font au constructeur ; load_checkpoint doit le faire
+    # ici pour que --encoder-checkpoint produise le même comportement d'inférence
+    # que le checkpoint d'origine (seuil, morph, température).
+    if isinstance(_arch, dict):
+        _et = _arch.get("edge_threshold")
+        _dm = _arch.get("drop_morph")
+        _tp = _arch.get("temperature")
+        if _et is not None:
+            pipeline.edge_threshold = float(_et)
+        if _dm is not None:
+            pipeline.drop_morph = bool(_dm)
+        if _tp is not None:
+            pipeline.temperature = float(_tp)
+
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"
         if key in data:
