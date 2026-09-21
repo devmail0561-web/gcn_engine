@@ -284,3 +284,68 @@ Par ordre de priorité et impact attendu :
 | Audit | Date | Scope | Findings | Corrigés |
 |-------|------|-------|----------|---------|
 | Audit 1 | 2026-09-18 | Diff de session (scripts, tests, moteur) | 7 (2 critiques, 2 médium, 2 bas, 1 info) | ✅ 7/7 |
+
+---
+
+## 9. Re-run 2026-09-21 — code actuel, seed fixe (NON COMPARABLE au tableau §1)
+
+**Contexte :** re-exécution des configs #1 et #4 sur le code post-audits (HEAD `54ef614`),
+`--seed 7` partout (option inexistante le 2026-09-18). CPU seul (8 cœurs, torch 2.13.0, ~4-9 s/epoch).
+
+```bash
+# #1-bis — référence prod (100ep, ~9min)
+gcn-train --data-dir gcn-datasets/real/augmented/c1_oversampled/ --val-dir gcn-datasets/real/val/ \
+  --epochs 100 --lr 0.0005 --weighted-loss --use-attention --bidirectional --seed 7 \
+  --output gcn-datasets/checkpoints/bench_20260921_gat_bidi_oversamp_lr5e4.npz \
+  --log-csv gcn-datasets/checkpoints/bench_20260921_gat_bidi_oversamp_lr5e4.csv
+# #4-bis — baseline sans oversampling (50ep, ~4min) : même commande avec
+# --data-dir gcn-datasets/real/train/ --epochs 50 --lr 0.001 (seed 7, sorties bench_20260921_gat_bidi.*)
+```
+
+### 9a. Résultats (nouvelle échelle — ne pas mélanger avec §1)
+
+| Run | Config | Epochs | best_val_edge_f1 | @ep | val_node_f1 | val_gem | gap_edge | train_edge_acc(fin) |
+|-----|--------|--------|-----------------|-----|-------------|---------|---------|---------------------|
+| #1-bis | GAT + bidi + oversamp C1, lr=0.0005, seed 7 | 100 | **0.1615** | 45 | 0.162 | 0.009 | +0.218 | 0.426 |
+| #4-bis | GAT + bidi, 536 orig, lr=0.001, seed 7 | 50 | **0.2508** | 39 | 0.127 | 0.009 | −0.105 | 0.233 |
+
+Apprentissage sain dans les deux cas : loss ↓ (4.99→2.60 et 4.29→2.46), edge_acc train ↑.
+Gap #1-bis +0.218 (tendance overfit) vs #4-bis −0.105 (val > train, bonne généralisation).
+
+### 9b. Calibration croisée — mêmes poids anciens, harnais neuf, val inchangé
+
+`val.json` (114 phrases) est byte-identique depuis le 2026-09-17. Évaluation des checkpoints
+du 2026-09-18 avec le code actuel (`gcn-eval`, même val) :
+
+| Poids | val_edge_f1 le 2026-09-18 (contemporain) | val_edge_f1 actuel (même val) |
+|-------|------------------------------------------|-------------------------------|
+| `gat_bidi_oversamp_lr5e4.npz` (run #1, 0.4676) | 0.4676 | **0.1867** |
+| `gat_bidi.npz` (run #4, 0.3179) | 0.3179 | **0.2217** |
+
+Sous la même règle, l'entraînement neuf fait jeu égal avec les poids anciens
+(#1-bis 0.1615 vs 0.1867 ; #4-bis **0.2508** vs 0.2217 — le neuf gagne).
+**L'apprentissage n'est pas cassé ; l'échelle a changé.**
+
+### 9c. Pourquoi l'échelle a changé (preuves datées, pas d'hypothèses)
+
+1. **Données d'entraînement réécrites après le run #1.** `c1_oversampled/train.json` :
+   mtime **2026-09-18 10:35** — 11 min APRÈS la fin du run #1 (checkpoint 10:24).
+   `gcn-datasets/real/` est git-ignoré : les octets d'origine sont irrécupérables.
+   (Supervision relationnelle identique en counts ; le contenu token a changé.)
+2. **Harnais d'évaluation reconstruit.** `run_eval` actuel rebâtit le pipeline depuis
+   `_arch_json` (bidi, all_pairs, couches, temperature, edge_threshold…) ; l'ancien
+   construisait `n_relations=11` par défaut et échouait même au load des checkpoints
+   bidi (`(22,79,79) ≠ (11,79,79)` — vérifié). Ajouts depuis : remap asymétrique,
+   restauration D1, `predict_links`/seuils, dédup/oversample.
+3. **Reproductibilité vérifiée.** Ancien code (e6d8028) relancé aujourd'hui dans cet env :
+   init loss 4.9985 × 3 runs identiques — déterministe, et identique au code neuf (4.9953).
+   L'écart avec le 4.33 du 2026-09-18 ne vient donc ni du code archivé ni de l'env
+   (torch/numpy installés le 2026-08-24, inchangés) : il vient des données réécrites (point 1).
+
+### 9d. Conséquences pour la suite
+
+- **Ne jamais comparer §1 et §9.** Deux règles différentes. La référence prod reste le
+  checkpoint `model_v2.4.0.npz`, pas un chiffre.
+- Le biais C1-val (3 types absents du val, §1 note #15/#16) persiste sous le schéma 11 types.
+- Prochain run utile : seed-sweep (7, 42, 123) de #4-bis pour mesurer la variance seed
+  avant toute conclusion sur les hyperparamètres — ~12 min pour 3×50ep.
