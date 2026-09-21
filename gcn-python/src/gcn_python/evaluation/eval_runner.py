@@ -295,12 +295,17 @@ def eval_cmd(
                 warnings.warn(msg, UserWarning, stacklevel=2)
         return report
 
-    if quiet:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
+    try:
+        if quiet:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                report = _build_report()
+        else:
             report = _build_report()
-    else:
-        report = _build_report()
+    except click.ClickException:
+        raise
+    except Exception as exc:
+        raise click.ClickException(f"Erreur d'évaluation : {exc}") from exc
     # F1 : répertoire vide ou toutes les sentences ignorées → diagnostic stderr
     if report.get("n_samples", 0) == 0:
         click.echo(

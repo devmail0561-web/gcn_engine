@@ -77,6 +77,7 @@ class GCNEngine:
         gcn_bin: str = "gcn",
         device: str = "cpu",
         trusted: bool = False,
+        taxonomy_dir=None,
     ) -> "GCNEngine":
         """
         Charge un modèle depuis un checkpoint .npz et retourne un GCNEngine prêt.
@@ -191,7 +192,7 @@ class GCNEngine:
         text_parser = None
         if shutil.which(gcn_bin):
             from .frontend.bridge import GCNBridgeParser
-            text_parser = GCNBridgeParser(gcn_bin)
+            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
 
         return cls(pipeline, text_parser=text_parser)
 

@@ -53,6 +53,9 @@ def segment_sentences(line: str) -> list[str]:
               help="Fichier .npz de sortie pour les vecteurs enrichis (+ manifest JSON). "
                    "Anti-perte : les vecteurs calculés pendant l'indexation sont persistés "
                    "par clé stable et réutilisables en session.")
+@click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire des taxonomies causales (transmis à gcn-cli --data-dir). "
+                   "Parité avec gcn-bootstrap.")
 def index_cmd(
     corpus: Path,
     checkpoint: Path,
@@ -61,6 +64,7 @@ def index_cmd(
     append: bool,
     min_line_len: int,
     vecs_out: Optional[Path],
+    taxonomy_dir: Optional[Path],
 ) -> None:
     """Indexe un corpus de fichiers texte → graphe causal JSON."""
     from .engine import GCNEngine
@@ -75,7 +79,12 @@ def index_cmd(
 
     # Charger le moteur
     click.echo(f"Chargement du modèle depuis {checkpoint.name}...")
-    engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
+    try:
+        engine = GCNEngine.from_pretrained(
+            checkpoint, gcn_bin=gcn_bin, trusted=True, taxonomy_dir=taxonomy_dir
+        )
+    except Exception as exc:
+        raise click.ClickException(f"Erreur de chargement du checkpoint : {exc}") from exc
     engine._pipeline.encoder.training = False
 
     # Charger ou créer le graphe

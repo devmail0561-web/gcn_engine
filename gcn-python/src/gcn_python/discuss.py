@@ -209,6 +209,7 @@ def run_discuss(
     gcn_bin: str = "gcn",
     log_path: Optional[Path] = None,
     session_dir: Optional[Path] = None,
+    taxonomy_dir: Optional[Path] = None,
 ) -> None:
     """Lance la session de discussion."""
     from .engine import GCNEngine
@@ -227,7 +228,9 @@ def run_discuss(
     engine = None
     if checkpoint and checkpoint.exists():
         try:
-            engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
+            engine = GCNEngine.from_pretrained(
+                checkpoint, gcn_bin=gcn_bin, trusted=True, taxonomy_dir=taxonomy_dir
+            )
             engine._pipeline.encoder.training = False
         except Exception as e:
             print(f"\n  Erreur de chargement du checkpoint : {e}")
@@ -426,13 +429,17 @@ def run_discuss(
 @click.option("--session-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire de session persistante (graphe + vecs + historique). "
                    "Restauré au démarrage, sauvegardé à chaque analyse/question et à la sortie.")
+@click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire des taxonomies causales (transmis à gcn-cli --data-dir). "
+                   "Parité avec gcn-bootstrap et gcn-index.")
 def discuss_cmd(
     ckpt: Optional[Path],
     graph_path: Optional[Path],
     gcn_bin: str,
     log_path: Optional[Path],
     session_dir: Optional[Path],
+    taxonomy_dir: Optional[Path],
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
     run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,
-               log_path=log_path, session_dir=session_dir)
+               log_path=log_path, session_dir=session_dir, taxonomy_dir=taxonomy_dir)
