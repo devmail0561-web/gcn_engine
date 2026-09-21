@@ -417,7 +417,7 @@ class CGNPipeline:
             if src >= len(vecs) or dst >= len(vecs):
                 continue
             scored.append((src, dst, float(self.link_predictor.score(vecs[src], vecs[dst]))))
-        scored.sort(key=lambda t: t[2], reverse=True)
+        scored.sort(key=lambda t: (-t[2], t[0], t[1]))
         return scored
 
     def analyze(
@@ -448,7 +448,19 @@ class CGNPipeline:
             )
             text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
         reps, connector_reps = text_parser.parse(text)
-        return self.forward(reps, text, connector_reps=connector_reps)
+        # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
+        _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
+        for _l in getattr(self, '_graph_layers', []):
+            _layers_tr.append((_l, getattr(_l, 'training', False)))
+        for _obj, _was in _layers_tr:
+            if _was and hasattr(_obj, 'training'):
+                _obj.training = False
+        try:
+            return self.forward(reps, text, connector_reps=connector_reps)
+        finally:
+            for _obj, _was in _layers_tr:
+                if hasattr(_obj, 'training'):
+                    _obj.training = _was
 
     def analyze_or_skip(
         self,
