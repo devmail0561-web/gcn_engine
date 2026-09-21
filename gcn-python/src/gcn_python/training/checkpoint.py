@@ -185,7 +185,13 @@ def load_checkpoint(
         import json as _json
         try:
             _arch = _json.loads(str(data["_arch_json"][0]))
-        except Exception:
+        except Exception as _exc:
+            import warnings as _w_arch
+            _w_arch.warn(
+                f"Checkpoint {Path(path).name} : _arch_json illisible ({_exc}) — "
+                "validation architecture désactivée.",
+                UserWarning, stacklevel=2,
+            )
             _arch = {}
         if isinstance(_arch, dict):
             _we = getattr(pipeline, 'word_embedding', None)
@@ -201,6 +207,7 @@ def load_checkpoint(
                 ("bidirectional", bool(pipeline.bidirectional),
                  _arch.get("bidirectional", _arch.get("bidi_flag"))),
                 ("all_pairs", bool(pipeline.all_pairs), _arch.get("all_pairs")),
+                ("n_rgcn_layers", pipeline.n_rgcn_layers, _arch.get("n_rgcn_layers")),
             ):
                 if _found is not None and _found != _exp:
                     raise ValueError(

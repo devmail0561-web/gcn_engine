@@ -460,6 +460,48 @@ def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
     assert "n_samples" in report["test"], "test.n_samples manquant"
 
 
+# ---------------------------------------------------------------------------
+# 5ᵉ audit — éval all_pairs propagé au GCNDataLoader
+# ---------------------------------------------------------------------------
+
+def test_run_eval_all_pairs_passed_to_loader(tmp_path: Path):
+    """all_pairs depuis _arch_json doit être propagé à GCNDataLoader.
+
+    Avant le correctif, GCNDataLoader(data_dir) ignorait all_pairs=True →
+    les arêtes gold avec gap > 1 étaient droppées de edge_map silencieusement →
+    edge_macro_f1 structurellement sous-estimé sans aucun signal.
+    """
+    from gcn_python.evaluation.eval_runner import run_eval
+    from gcn_python.data.loader import GCNDataLoader
+
+    pipeline = _make_pipeline(all_pairs=True)
+    ckpt = tmp_path / "model_ap.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    data_dir = tmp_path / "data_ap"
+    data_dir.mkdir()
+    (data_dir / "s.json").write_text(json.dumps(_minimal_dataset_json()), encoding="utf-8")
+
+    captured_all_pairs: list[bool] = []
+    orig_init = GCNDataLoader.__init__
+
+    def patched_init(self, data_dir_arg, *,
+                     repeat=False, all_pairs=False, shuffle=False, seed=42):
+        captured_all_pairs.append(all_pairs)
+        orig_init(self, data_dir_arg, repeat=repeat, all_pairs=all_pairs,
+                  shuffle=shuffle, seed=seed)
+
+    with patch.object(GCNDataLoader, "__init__", patched_init):
+        run_eval(data_dir, ckpt)
+
+    assert captured_all_pairs, "GCNDataLoader.__init__ n'a pas été appelé"
+    assert all(ap is True for ap in captured_all_pairs), (
+        f"GCNDataLoader instancié avec all_pairs={captured_all_pairs} — "
+        "devrait être True pour un modèle entraîné avec all_pairs=True "
+        "(correctif éval all_pairs manquant)."
+    )
+
+
 def _make_dataset_with_edge(tmp_path: Path, name: str) -> Path:
     """Dataset minimal à 2 nœuds + 1 arête cause (pour tester le filtrage par seuil)."""
     d = tmp_path / name

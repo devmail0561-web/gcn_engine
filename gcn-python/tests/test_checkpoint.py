@@ -216,6 +216,35 @@ def test_check_path_safe_refuses_dir_symlink(tmp_path: Path):
         _check_path_safe(target, allow_symlink=False)
 
 
+def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
+    """load_checkpoint lève ValueError si n_rgcn_layers du checkpoint ≠ pipeline.
+
+    Sans ce correctif, un pipeline 2 couches chargerait silencieusement un
+    checkpoint 1 couche — la couche extra reste aléatoire sans avertissement.
+    """
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe1 = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=1)
+    ckpt = tmp_path / "model_1layer.npz"
+    save_checkpoint(pipe1, ckpt)
+
+    enc2 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
+                        n_rgcn_layers=2)
+    with pytest.raises(ValueError, match="n_rgcn_layers"):
+        load_checkpoint(pipe2, ckpt, trusted=True)
+
+
 def test_e2e_train_save_reload_inference(tmp_path: Path):
     """Prod gate : forward→loss→backward→save→from_pretrained→forward identique."""
     import numpy as np

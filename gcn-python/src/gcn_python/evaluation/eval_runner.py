@@ -43,7 +43,14 @@ def run_eval(
     _raw = None
     try:
         _raw = np.load(model_path, allow_pickle=True)
-        if "_arch_json" in _raw:
+        if "_arch_json" not in _raw:
+            warnings.warn(
+                "run_eval : checkpoint sans _arch_json — hyperparamètres d'inférence "
+                "(edge_threshold, temperature, all_pairs…) inconnus, pipeline par défaut. "
+                "Re-entraîner avec gcn-train >= 2.1.0 pour générer ce champ.",
+                UserWarning, stacklevel=2,
+            )
+        else:
             _arch = json.loads(str(_raw["_arch_json"][0]))
     except Exception as exc:
         warnings.warn(f"run_eval : arch illisible ({exc}) — pipeline par défaut.",
@@ -104,7 +111,7 @@ def run_eval(
         if hasattr(_layer, "training"):
             _layer.training = False
 
-    loader = GCNDataLoader(data_dir)
+    loader = GCNDataLoader(data_dir, all_pairs=_all_pairs)
 
     all_node_preds: list[str] = []
     all_node_gold: list[str] = []
