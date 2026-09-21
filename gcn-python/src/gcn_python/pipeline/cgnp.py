@@ -728,10 +728,12 @@ class CGNPipeline:
         # C3 : RGCNLayerPT n'implémente pas backward_message_pass — ses poids sont
         # gelés par ce backward NumPy. Warning explicite (utiliser
         # torch_parameters() + optimizer PyTorch pour l'entraîner).
+        # V3 fix : d_curr initialisé AVANT le if — 1 clause (edge_index=None) laisserait
+        # d_curr indéfini si initialisé à l'intérieur → UnboundLocalError.
+        d_curr = d_enriched
         if (self._cached_edge_index is not None
                 and self._cached_enriched_vecs is not None):
             import warnings as _w2
-            d_curr = d_enriched
             for _layer in reversed(self._graph_layers):
                 if hasattr(_layer, 'backward_message_pass'):
                     d_curr, graph_grads = _layer.backward_message_pass(d_curr)
@@ -875,23 +877,11 @@ class CGNPipeline:
         self._accum_node_grads = _acc(self._accum_node_grads, all_node_grads)
         self._accum_edge_grads = _acc(self._accum_edge_grads, all_edge_grads)
 
-        # R-GCN gradients
-        if (self._cached_edge_index is not None
-                and self._cached_enriched_vecs is not None):
-            d_curr = d_enriched
-            layer_grads_list = []
-            for _layer in reversed(self._graph_layers):
-                if hasattr(_layer, 'backward_message_pass'):
-                    d_curr, g = _layer.backward_message_pass(d_curr)
-                    layer_grads_list.append((_layer, g))
-            if self._accum_rgcn_grads is None:
-                self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
-            else:
-                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list):
-                    for i in range(len(acc_g)):
-                        acc_g[i] += new_g[i]
-
         # --- Décodeur backward accumulation (B3) ---
+        # Ordre décodeur AVANT RGCN — miroir de backward() :
+        # d_enriched doit recevoir la contribution décodeur avant que d_curr = d_enriched
+        # soit capturé pour le backward RGCN (sinon le gradient décodeur ne remonte
+        # pas jusqu'aux embeddings via d_curr, comme dans backward()).
         if (self.decoder is not None
                 and self._cached_decode_gradient is not None
                 and hasattr(self.decoder, 'backward_decode')):
@@ -914,8 +904,26 @@ class CGNPipeline:
                     and _d_node_embs.shape == d_enriched.shape):
                 d_enriched += _d_node_embs
 
+        # R-GCN gradients
+        # V3 fix : d_curr initialisé AVANT le if — 1 clause (edge_index=None) laisserait
+        # d_curr indéfini si initialisé à l'intérieur → UnboundLocalError.
+        d_curr = d_enriched
+        if (self._cached_edge_index is not None
+                and self._cached_enriched_vecs is not None):
+            layer_grads_list = []
+            for _layer in reversed(self._graph_layers):
+                if hasattr(_layer, 'backward_message_pass'):
+                    d_curr, g = _layer.backward_message_pass(d_curr)
+                    layer_grads_list.append((_layer, g))
+            if self._accum_rgcn_grads is None:
+                self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
+            else:
+                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list):
+                    for i in range(len(acc_g)):
+                        acc_g[i] += new_g[i]
+
         # --- Word embedding backward accumulation (S2) ---
-        # V3 : utiliser d_curr (gradient post-R-GCN), miroir de backward().
+        # V3 : utiliser d_curr (gradient post-R-GCN + décodeur), miroir de backward().
         if (self.word_embedding is not None
                 and self._cached_reps is not None
                 and d_curr is not None

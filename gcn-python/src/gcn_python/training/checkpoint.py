@@ -259,14 +259,18 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False)
     if "_link_pred_meta_json" in data:
         from ..layer3.link_pred import LinkPredHead
         head = LinkPredHead.from_json(str(data["_link_pred_meta_json"][0]))
+        # B7 parity : pré-validation de TOUTES les shapes avant toute mutation
+        for i, p in enumerate(head.parameters()):
+            key = f"link_pred_{i}"
+            if key in data and data[key].shape != p.shape:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour link_pred_{i} : "
+                    f"checkpoint={data[key].shape} ≠ head={p.shape}."
+                )
+        # Toutes les shapes validées — mutation sûre
         for i, p in enumerate(head.parameters()):
             key = f"link_pred_{i}"
             if key in data:
-                if data[key].shape != p.shape:
-                    raise ValueError(
-                        f"Incompatibilité de dimension pour link_pred_{i} : "
-                        f"checkpoint={data[key].shape} ≠ head={p.shape}."
-                    )
                 if p.ndim == 0:
                     p[()] = data[key].item() if hasattr(data[key], "item") else data[key]
                 else:

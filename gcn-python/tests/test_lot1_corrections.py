@@ -204,6 +204,78 @@ def test_word_embedding_gradient_received_after_backward():
         assert lemma in ("baisser", "hausser")
 
 
+def test_word_embedding_gradient_1clause_no_unboundlocalerror():
+    """V3 hotfix régression : 1 clause → _cached_edge_index=None → d_curr non initialisé
+    à l'intérieur du if → UnboundLocalError avant le hotfix.
+    """
+    from gcn_python.layer1.embedding import WordEmbedding
+
+    d_emb = 4
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause + d_emb
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    we = WordEmbedding(d_emb=d_emb, seed=0)
+    we.add_lemma("solo")
+
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=we)
+
+    # 1 seul rep → pas d'arête → _cached_edge_index reste None
+    pipeline.forward([_make_rep("solo")], "test")
+    assert pipeline._cached_edge_index is None or pipeline._cached_edge_index.shape[1] == 0, \
+        "Précondition : pas d'arête pour 1 clause"
+
+    node_logits = pipeline._cached_node_logits
+    d_node = np.ones_like(node_logits) / node_logits.size
+    d_edge = np.zeros((0, 11), dtype=np.float32)
+
+    # Ne doit pas lever UnboundLocalError
+    calls: list = []
+    orig_bwd = we.backward
+    def patched_bwd(d, lemma):
+        calls.append(d.copy())
+        orig_bwd(d, lemma)
+    we.backward = patched_bwd
+
+    pipeline.backward(d_node, d_edge, lr=1e-9)
+    assert len(calls) == 1, "word_embedding.backward doit être appelé pour 1 clause"
+
+
+def test_word_embedding_gradient_accumulate_1clause_no_unboundlocalerror():
+    """V3 hotfix : backward_accumulate avec 1 clause ne doit pas lever UnboundLocalError."""
+    from gcn_python.layer1.embedding import WordEmbedding
+
+    d_emb = 4
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause + d_emb
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    we = WordEmbedding(d_emb=d_emb, seed=0)
+    we.add_lemma("solo")
+
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=we)
+
+    pipeline.forward([_make_rep("solo")], "test")
+    node_logits = pipeline._cached_node_logits
+    d_node = np.ones_like(node_logits) / node_logits.size
+    d_edge = np.zeros((0, 11), dtype=np.float32)
+
+    calls: list = []
+    orig_bwd = we.backward
+    def patched_bwd(d, lemma):
+        calls.append(d.copy())
+        orig_bwd(d, lemma)
+    we.backward = patched_bwd
+
+    # Ne doit pas lever UnboundLocalError
+    pipeline.backward_accumulate(d_node, d_edge)
+    assert len(calls) == 1, "word_embedding.backward doit être appelé en accumulate aussi"
+
+
 def test_word_embedding_gradient_uses_dcurr_not_denriched():
     """V3 régression : le gradient embedding doit venir de d_curr (post-RGCN).
 
