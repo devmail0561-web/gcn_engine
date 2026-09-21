@@ -302,8 +302,9 @@ def _make_mock_result(cir_dict, returncode=0, stderr=""):
     return mock
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_mocked_success(mock_run):
+def test_reps_from_text_mocked_success(mock_run, _resolve):
     """Workflow complet mocké → 2 reps avec les bons root_pos."""
     mock_run.return_value = _make_mock_result(_CIR_TWO_NODES)
     with warnings.catch_warnings(record=True):
@@ -314,8 +315,9 @@ def test_reps_from_text_mocked_success(mock_run):
     assert reps[1].root_pos == "NOUN"   # etat → NOUN
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_quality_warning(mock_run):
+def test_reps_from_text_quality_warning(mock_run, _resolve):
     """UserWarning émis systématiquement pour informer de la qualité approximative."""
     mock_run.return_value = _make_mock_result(_CIR_TWO_NODES)
     with warnings.catch_warnings(record=True) as w:
@@ -326,17 +328,19 @@ def test_reps_from_text_quality_warning(mock_run):
     assert "APPROXIMATIFS" in str(user_warnings[0].message)
 
 
-@patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_gcn_not_found(mock_run):
-    """FileNotFoundError → GCNBridgeError avec 'introuvable' dans le message."""
-    mock_run.side_effect = FileNotFoundError
-    with pytest.raises(GCNBridgeError, match="introuvable"):
-        with warnings.catch_warnings(record=True):
-            reps_from_text("test")
+def test_reps_from_text_gcn_not_found():
+    """gcn absent du PATH → GCNBridgeError avec 'introuvable' dans le message."""
+    # _resolve_gcn_bin lève GCNBridgeError si shutil.which retourne None.
+    # Le test s'exécute sans subprocess mocké (l'erreur arrive avant).
+    with patch("shutil.which", return_value=None):
+        with pytest.raises(GCNBridgeError, match="introuvable"):
+            with warnings.catch_warnings(record=True):
+                reps_from_text("test")
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_timeout(mock_run):
+def test_reps_from_text_timeout(mock_run, _resolve):
     """TimeoutExpired → GCNBridgeError avec 'Timeout' dans le message."""
     import subprocess
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="gcn", timeout=30)
@@ -345,8 +349,9 @@ def test_reps_from_text_timeout(mock_run):
             reps_from_text("test")
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_nonzero_return(mock_run):
+def test_reps_from_text_nonzero_return(mock_run, _resolve):
     """returncode=1 → GCNBridgeError avec 'échoué' dans le message."""
     mock_run.return_value = _make_mock_result({}, returncode=1, stderr="erreur")
     with pytest.raises(GCNBridgeError, match="échoué"):
@@ -354,8 +359,9 @@ def test_reps_from_text_nonzero_return(mock_run):
             reps_from_text("test")
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_reps_from_text_invalid_json(mock_run):
+def test_reps_from_text_invalid_json(mock_run, _resolve):
     """Sortie non-JSON → GCNBridgeError avec 'JSON' dans le message."""
     mock = MagicMock()
     mock.returncode = 0
@@ -395,8 +401,9 @@ def _make_pipeline():
     )
 
 
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
 @patch("gcn_python.frontend.bridge.subprocess.run")
-def test_pipeline_analyze_returns_cir(mock_run):
+def test_pipeline_analyze_returns_cir(mock_run, _resolve):
     """pipeline.analyze() retourne un CausalIR dict avec les champs attendus."""
     mock_run.return_value = _make_mock_result(_CIR_TWO_NODES)
     pipeline = _make_pipeline()

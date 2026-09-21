@@ -79,15 +79,16 @@ def bootstrap_cmd(
     success = 0
     errors = 0
 
+    # Résoudre gcn_bin une seule fois (évite la résolution PATH répétée + cohérence)
+    from ..frontend.bridge import _resolve_gcn_bin, GCNBridgeError as _GCNBridgeError
+    try:
+        gcn_bin_resolved = _resolve_gcn_bin(gcn_bin)
+    except _GCNBridgeError as exc:
+        raise click.ClickException(str(exc)) from exc
+
     for i, text in enumerate(texts):
         try:
-            # R7 : valider gcn_bin avant subprocess (anti-injection)
-            import re as _re
-            if _re.search(r'[;&|`$()<>\n\r]', gcn_bin):
-                click.echo(f"  [{i+1}] gcn_bin invalide : {gcn_bin!r}", err=True)
-                errors += 1
-                continue
-            cmd_args = [gcn_bin, "analyze"]
+            cmd_args = [gcn_bin_resolved, "analyze"]
             if taxonomy_dir:
                 cmd_args += ["--data-dir", str(taxonomy_dir)]
             # -- sépare explicitement les options du texte (évite "--option" parsé comme flag)

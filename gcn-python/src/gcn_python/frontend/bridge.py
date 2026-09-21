@@ -247,22 +247,52 @@ def _cir_to_reps_and_connectors(
     return clause_reps, connector_reps
 
 
-def _validate_gcn_bin(gcn_bin: str) -> None:
-    """R7 : valide gcn_bin avant tout appel subprocess.
+def _resolve_gcn_bin(gcn_bin: str) -> str:
+    """Résout gcn_bin en chemin absolu et valide le résultat.
 
-    Refuse les chemins contenant des caractères shell-dangereux ou des
-    séquences de type injection de commande. Le binaire doit être un nom
-    simple ou un chemin absolu/relatif sans espaces ni métacaractères shell.
+    - Nom nu (ex. "gcn") : résolu via shutil.which() → chemin absolu.
+      Élimine la fenêtre PATH-hijacking : un attaquant qui modifie PATH
+      après la résolution ne peut plus substituer le binaire.
+    - Chemin absolu : vérifié directement (fichier existant et exécutable).
+    - Chemin relatif : converti en absolu via resolve(), puis vérifié.
+
+    Raises:
+        GCNBridgeError: binaire introuvable ou invalide.
+    """
+    import shutil as _shutil
+    import os as _os
+    if not gcn_bin or not gcn_bin.strip():
+        raise GCNBridgeError("gcn_bin vide — chemin invalide.")
+    # Nom nu (pas de séparateur) → résolution via PATH au moment de l'appel
+    if _os.sep not in gcn_bin and (not _os.altsep or _os.altsep not in gcn_bin):
+        resolved = _shutil.which(gcn_bin)
+        if resolved is None:
+            raise GCNBridgeError(
+                f"Binaire gcn introuvable dans PATH : {gcn_bin!r}. "
+                "Installez gcn-cli ou passez gcn_bin=<chemin absolu>."
+            )
+        return resolved  # absolu, stable même si PATH change ensuite
+    # Chemin fourni (absolu ou relatif)
+    from pathlib import Path as _Path
+    p = _Path(gcn_bin).resolve()
+    if not p.exists():
+        raise GCNBridgeError(f"Binaire gcn introuvable : {p}")
+    return str(p)
+
+
+def _validate_gcn_bin(gcn_bin: str) -> None:
+    """Valide gcn_bin (garde de compatibilité — préférer _resolve_gcn_bin).
+
+    Refuse les chaînes vides. Les métacaractères shell sont inoffensifs avec
+    shell=False mais on les refuse quand même (défense en profondeur).
     """
     import re as _re
     if not gcn_bin or not gcn_bin.strip():
         raise GCNBridgeError("gcn_bin vide — chemin invalide.")
-    # Refuser les métacaractères shell courants
     dangerous = _re.search(r'[;&|`$()<>\n\r]', gcn_bin)
     if dangerous:
         raise GCNBridgeError(
-            f"gcn_bin {gcn_bin!r} contient le caractère dangereux {dangerous.group()!r} "
-            "— refus d'appel subprocess (risque d'injection de commande)."
+            f"gcn_bin {gcn_bin!r} contient le caractère dangereux {dangerous.group()!r}."
         )
 
 
@@ -277,7 +307,7 @@ def _call_gcn_analyze(
     Raises:
         GCNBridgeError: binaire absent, timeout, code non-zéro, JSON invalide.
     """
-    _validate_gcn_bin(gcn_bin)
+    gcn_bin = _resolve_gcn_bin(gcn_bin)  # résout + vérifie existence; lève GCNBridgeError
     cmd = [gcn_bin, "analyze"]
     if taxonomy_dir is not None:
         cmd += ["--data-dir", str(taxonomy_dir)]

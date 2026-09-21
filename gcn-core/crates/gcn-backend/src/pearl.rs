@@ -82,7 +82,12 @@ type EdgeMap<'a> = HashMap<(u32, u32), &'a gcn_ir::CausalEdge>;
 
 fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
     let nm: NodeMap = ir.nodes.iter().map(|n| (n.id, n)).collect();
-    let em: EdgeMap = ir.edges.iter().map(|(s, d, e)| ((s.0, d.0), e)).collect();
+    // or_insert keeps the first occurrence for duplicate (src, dst) pairs;
+    // collect() would silently keep the last (non-deterministic HashMap ordering).
+    let mut em: EdgeMap = HashMap::new();
+    for (s, d, e) in &ir.edges {
+        em.entry((s.0, d.0)).or_insert(e);
+    }
     (nm, em)
 }
 

@@ -36,7 +36,24 @@ def count_edges(sentence: dict) -> Counter:
     return c
 
 
-def oversample(input_path: Path, output_path: Path) -> None:
+def _check_train_paths(input_path: Path, output_path: Path, *, allow_non_train: bool = False) -> None:
+    """Refuse d'opérer sur des fichiers val/test pour éviter le leakage.
+
+    Vérifie le stem de l'entrée ET de la sortie — un output vers val.json
+    serait silencieusement un leakage même si l'entrée est correcte.
+    """
+    for p, role in [(input_path, "entrée"), (output_path, "sortie")]:
+        stem = p.stem.lower()
+        if not allow_non_train and ("val" in stem or "test" in stem):
+            raise ValueError(
+                f"oversample : '{p.name}' ({role}) ressemble à un split val/test. "
+                "Appliquer oversample sur val/test crée un leakage. "
+                "Passez allow_non_train=True pour forcer."
+            )
+
+
+def oversample(input_path: Path, output_path: Path, *, allow_non_train: bool = False) -> None:
+    _check_train_paths(input_path, output_path, allow_non_train=allow_non_train)
     with open(input_path) as f:
         raw = json.load(f)
 
@@ -103,14 +120,8 @@ if __name__ == "__main__":
     parser.add_argument("--allow-non-train", action="store_true",
                         help="Désactive le guard sur le nom du fichier d'entrée (dangereux).")
     args = parser.parse_args()
-    # R5 guard : refuser les fichiers dont le nom contient 'val' ou 'test'
-    # sauf opt-in explicite.
-    input_stem = args.input.stem.lower()
-    if not args.allow_non_train and ("val" in input_stem or "test" in input_stem):
-        print(
-            f"ERREUR : '{args.input.name}' ressemble à un split val/test (nom contient "
-            f"'val' ou 'test'). Appliquer oversample sur val/test crée un leakage.\n"
-            f"Passez --allow-non-train pour forcer si vous savez ce que vous faites."
-        )
+    try:
+        oversample(args.input, args.output, allow_non_train=args.allow_non_train)
+    except ValueError as exc:
+        print(f"ERREUR : {exc}\nPassez --allow-non-train pour forcer si vous savez ce que vous faites.")
         raise SystemExit(1)
-    oversample(args.input, args.output)

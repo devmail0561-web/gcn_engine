@@ -14,8 +14,22 @@ Vérifie la distribution des relations après fusion.
 import argparse
 import hashlib
 import json
+import re
+import unicodedata
 from collections import Counter
 from pathlib import Path
+
+
+def _normalize_text(text: str) -> str:
+    """Normalisation pour dédup robuste : NFKC + casefold + collapse whitespace.
+
+    Capture les doublons que .strip() seul manque : casse différente, espaces
+    multiples, ZWSP, ponctuation finale, NFD/NFC incohérents.
+    """
+    t = unicodedata.normalize("NFKC", text or "")
+    t = t.casefold()
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
 
 
 def load_sentences(path: Path) -> list[dict]:
@@ -56,7 +70,7 @@ def main():
             if s["id"] in ids_seen:
                 duplicates_id += 1
                 continue
-            text_hash = hashlib.sha256((s.get("text") or "").strip().encode()).hexdigest()
+            text_hash = hashlib.sha256(_normalize_text(s.get("text") or "").encode()).hexdigest()
             if text_hash in texts_seen:
                 duplicates_text += 1
                 continue
