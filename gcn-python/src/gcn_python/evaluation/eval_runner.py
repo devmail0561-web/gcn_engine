@@ -301,6 +301,13 @@ def eval_cmd(
             report = _build_report()
     else:
         report = _build_report()
+    # F1 : répertoire vide ou toutes les sentences ignorées → diagnostic stderr
+    if report.get("n_samples", 0) == 0:
+        click.echo(
+            "ATTENTION : n_samples=0 — aucune sentence évaluée "
+            "(répertoire vide, sentences sans clauses, ou toutes ignorées).",
+            err=True,
+        )
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if output:
         Path(output).write_text(text, encoding="utf-8")

@@ -81,8 +81,11 @@ def index_cmd(
     # Charger ou créer le graphe
     graph = CausalGraph()
     if append and output.exists():
-        graph = CausalGraph.load(output)
-        click.echo(f"Graphe existant chargé : {len(graph.edges)} relations")
+        try:
+            graph = CausalGraph.load(output)
+            click.echo(f"Graphe existant chargé : {len(graph.edges)} relations")
+        except Exception as exc:
+            raise click.ClickException(f"Graphe existant illisible : {exc}") from exc
 
     # Lire les fichiers
     texts = _read_texts(corpus)
@@ -93,12 +96,15 @@ def index_cmd(
     total = 0
     collected: dict[str, object] = {}
     collected_meta: dict[str, dict] = {}
+    # F4 : préfixe par bloc (sentence avec arêtes), pas par fichier — évite les
+    # collisions d'ids quand deux phrases du même fichier produisent les mêmes ids.
+    block_idx = 0
     for file_idx, (filename, content) in enumerate(texts, 1):
         lines = _split_lines(content, min_line_len=min_line_len)
         n_new = 0
         for line in lines:
             # Séquence correcte : segmenter en phrases, un analyze() par phrase,
-            # puis bloc de discours avec ids préfixés (sFFF_nMMM).
+            # puis bloc de discours avec ids préfixés (bBBBBB_nMMM).
             for sent in segment_sentences(line):
                 try:
                     cir = engine.analyze(sent)
@@ -106,6 +112,7 @@ def index_cmd(
                     log.warning("index: analyze impossible (%s) : %s", filename, exc)
                     continue
                 if cir.get("edges"):
+                    block_idx += 1
                     # Collecte vecs AVANT préfixage (positions = ordre cir["nodes"])
                     if vecs_out is not None:
                         try:
@@ -124,7 +131,7 @@ def index_cmd(
                                     }
                         except Exception as exc:
                             log.warning("index: vecs non collectés (%s) : %s", filename, exc)
-                    prefix = f"s{file_idx:03d}_"
+                    prefix = f"b{block_idx:05d}_"
                     for n in cir.get("nodes", []):
                         if isinstance(n, dict) and n.get("id"):
                             n["id"] = prefix + str(n["id"])
