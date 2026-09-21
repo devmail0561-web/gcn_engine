@@ -217,6 +217,8 @@ def run_discuss(
 
     # Session persistante : graphe + vecs + historique (anti-perte)
     session = SessionStore(session_dir)
+    # F4 : compteur de blocs session pour éviter les collisions d'ids inter-phrases
+    _sess_blk = [0]
     restored = {"graph_edges": 0, "vecs": 0, "history": 0}
     if session_dir is not None:
         restored = session.load()
@@ -316,6 +318,24 @@ def run_discuss(
                                 verbalized = decoder.decode_cir(cir)
                                 if verbalized:
                                     print(verbalized)
+                                # F4 : préfixe par bloc (is not None : id=0 est falsy)
+                                _sess_blk[0] += 1
+                                _pfx = f"d{_sess_blk[0]:05d}_"
+                                for _n in cir.get("nodes", []) or []:
+                                    if isinstance(_n, dict) and _n.get("id") is not None:
+                                        _n["id"] = _pfx + str(_n["id"])
+                                _re = []
+                                for _e in cir.get("edges", []) or []:
+                                    if isinstance(_e, (list, tuple)) and len(_e) == 3:
+                                        _re.append([_pfx + str(_e[0]), _pfx + str(_e[1]), _e[2]])
+                                    elif isinstance(_e, dict):
+                                        _e = dict(_e)
+                                        if _e.get("source") is not None:
+                                            _e["source"] = _pfx + str(_e["source"])
+                                        if _e.get("target") is not None:
+                                            _e["target"] = _pfx + str(_e["target"])
+                                        _re.append(_e)
+                                cir["edges"] = _re
                                 # Aussi stocké dans le graphe pour les requêtes
                                 handler.add_cir(cir)
                                 n_new += len(cir["edges"])

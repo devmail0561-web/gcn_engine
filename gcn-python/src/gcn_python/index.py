@@ -142,7 +142,8 @@ def index_cmd(
                             log.warning("index: vecs non collectés (%s) : %s", filename, exc)
                     prefix = f"b{block_idx:05d}_"
                     for n in cir.get("nodes", []):
-                        if isinstance(n, dict) and n.get("id"):
+                        # is not None : l'id 0 (entier) est falsy — n.get("id") le sautait
+                        if isinstance(n, dict) and n.get("id") is not None:
                             n["id"] = prefix + str(n["id"])
                     remapped = []
                     for e in cir.get("edges", []):
@@ -151,9 +152,9 @@ def index_cmd(
                             remapped.append([prefix + str(s), prefix + str(d), a])
                         elif isinstance(e, dict):
                             e = dict(e)
-                            if e.get("source"):
+                            if e.get("source") is not None:
                                 e["source"] = prefix + str(e["source"])
-                            if e.get("target"):
+                            if e.get("target") is not None:
                                 e["target"] = prefix + str(e["target"])
                             remapped.append(e)
                     cir["edges"] = remapped
