@@ -5,7 +5,7 @@
 - Clé stable : sha256(sentence_text utf-8) + "_" + position nœud dans cir["nodes"].
 - Manifest JSON : checkpoint_hash (poids triés), d_eff, created_at, entries.
 - Hash canonique : sha256(concat(poids triés)) — stable même si ZIP varie.
-- NpzFile LRU : cache de handles np.load(..., allow_pickle=False, mmap_mode='r').
+- NpzFile FIFO (oldest-first eviction) : cache de handles np.load(..., allow_pickle=False, mmap_mode='r').
 - Fallback _minimal_reps : qualité dégradée documentée.
 """
 from __future__ import annotations
@@ -70,6 +70,7 @@ def _get_handle(path: Path):
         return _HANDLES[key]
     handle = np.load(path, allow_pickle=False, mmap_mode="r")
     if len(_HANDLES) >= _MAX_HANDLES:
+        # FIFO : éjecter le handle inséré le plus tôt (pas LRU)
         oldest = next(iter(_HANDLES))
         try:
             _HANDLES[oldest].close()

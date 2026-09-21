@@ -308,10 +308,11 @@ class GCNEngine:
         return list(self._pipeline.relation_types)
 
     def __repr__(self) -> str:
-        d_eff = self._pipeline.vocabulary.d_clause
+        _we = getattr(self._pipeline, 'word_embedding', None)
+        d_eff = self._pipeline.vocabulary.d_clause + (_we.d_emb if _we is not None else 0)
         n_rel = len(self._pipeline.relation_types)
         parser = "gcn-cli" if self._text_parser else "bridge heuristique"
         return (
-            f"GCNEngine(d_clause={d_eff}, n_relations={n_rel}, "
+            f"GCNEngine(d_eff={d_eff}, n_relations={n_rel}, "
             f"node_types={len(self.node_types)}, parser={parser!r})"
         )

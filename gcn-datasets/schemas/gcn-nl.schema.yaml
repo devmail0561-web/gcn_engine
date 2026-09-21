@@ -842,19 +842,21 @@ causal_edge:
     relation:
       type: enum
       required: true
-      values: [cause, enable, prevent, condition, concession, sequence, motivation, filter, opposition]
+      values: [cause, enable, prevent, condition, concession, sequence, motivation, filter, opposition, data_dependency, control_dependency]
       description: >
         Type de relation causale (langues naturelles uniquement) :
-          cause      — causalité directe ("parce que", "car")
-          enable     — facilitation sans forçage ("grâce à")
-          prevent    — blocage de la chaîne causale ("empêcher")
-          condition  — suspension jusqu'à évaluation ("si", "à condition que")
-          concession — lacune causale signalée ("bien que", "malgré")
-          sequence   — succession temporelle ("quand", "après")
-          motivation — causalité intentionnelle inversée ("pour", "afin de")
-                       L'effet (but) est mentionné avant la cause (action)
-          filter     — état systémique filtrant globalement
-          opposition — rupture causale ("mais", "or")
+          cause             — causalité directe ("parce que", "car")
+          enable            — facilitation sans forçage ("grâce à")
+          prevent           — blocage de la chaîne causale ("empêcher")
+          condition         — suspension jusqu'à évaluation ("si", "à condition que")
+          concession        — lacune causale signalée ("bien que", "malgré")
+          sequence          — succession temporelle ("quand", "après")
+          motivation        — causalité intentionnelle inversée ("pour", "afin de")
+                              L'effet (but) est mentionné avant la cause (action)
+          filter            — état systémique filtrant globalement
+          opposition        — rupture causale ("mais", "or")
+          data_dependency   — dépendance de données (domaine code/système)
+          control_dependency — dépendance de contrôle (domaine code/système)
 
     attributes:
       type: object

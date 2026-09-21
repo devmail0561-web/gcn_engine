@@ -84,7 +84,7 @@ def emit(
         "cycles": [],
         "unresolved": [],
         "metadata": {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "pipeline": ["cgnp-layer1", "cgnp-layer2", "cgnp-layer3"],
             "created_at": None,
         },

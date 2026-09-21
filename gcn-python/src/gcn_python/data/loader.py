@@ -154,7 +154,10 @@ class GCNDataLoader:
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse "
-                f"(src > tgt) — stockées comme arêtes inversées (tgt→src) avec même relation.",
+                f"(src > tgt) — stockées comme arêtes (tgt→src) avec la même relation. "
+                "Pour les relations asymétriques (cause, enable, prevent), cela peut "
+                "introduire des erreurs de supervision. Annoter les arêtes dans la "
+                "direction correcte (src < tgt) pour éviter cette remappitude.",
                 UserWarning,
                 stacklevel=2,
             )

@@ -239,14 +239,19 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False)
         from ..verbalizer.trainable import TrainableDecoder
         decoder = TrainableDecoder.from_json(str(data["_decoder_meta_json"][0]))
         decoder_params = decoder.parameters()
+        # B7 : pré-validation complète de TOUTES les shapes avant toute mutation
+        # (identique au pattern encodeur/RGCN lignes 183-202).
+        for i, p in enumerate(decoder_params):
+            key = f"decoder_{i}"
+            if key in data and data[key].shape != p.shape:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour decoder_{i} : "
+                    f"checkpoint={data[key].shape} ≠ decoder={p.shape}."
+                )
+        # Toutes les shapes validées — mutation sûre
         for i, p in enumerate(decoder_params):
             key = f"decoder_{i}"
             if key in data:
-                if data[key].shape != p.shape:
-                    raise ValueError(
-                        f"Incompatibilité de dimension pour decoder_{i} : "
-                        f"checkpoint={data[key].shape} ≠ decoder={p.shape}."
-                    )
                 p[:] = data[key]
         pipeline.decoder = decoder
 
