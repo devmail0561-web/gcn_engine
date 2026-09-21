@@ -275,6 +275,84 @@ def test_load_checkpoint_validates_n_rgcn_layers_reverse(tmp_path: Path):
         load_checkpoint(pipe1, ckpt, trusted=True)
 
 
+def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
+    """load_checkpoint ne lève pas d'erreur quand n_rgcn_layers correspond (cas passant 2→2).
+
+    Vérifie que la validation est non-bloquante sur les cas corrects et que
+    les poids de la couche extra sont effectivement restaurés.
+    """
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=2)
+    ckpt = tmp_path / "model_2to2.npz"
+    save_checkpoint(pipe_src, ckpt)
+    W_extra_before = pipe_src._graph_layers[1].W_0.copy()
+
+    enc2 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
+                           n_rgcn_layers=2)
+    load_checkpoint(pipe_dst, ckpt, trusted=True)
+    W_extra_after = pipe_dst._graph_layers[1].W_0.copy()
+    assert np.allclose(W_extra_before, W_extra_after), (
+        "Poids couche extra (graph_extra_1) non restaurés après load_checkpoint 2→2."
+    )
+
+
+def test_load_checkpoint_n_rgcn_layers_absent_warns_for_multilayer(tmp_path: Path):
+    """load_checkpoint warn si n_rgcn_layers absent en arch et pipeline > 1 couche.
+
+    Vieux checkpoint pré-2.1.0 sans n_rgcn_layers : si chargé dans un pipeline
+    2 couches, la validation est désactivée → couche extra reste aléatoire.
+    Le warn signale ce danger au lieu de le laisser silencieux.
+    """
+    import json as _json, warnings as _w
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe_old = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=1)
+    ckpt = tmp_path / "old_checkpoint.npz"
+    save_checkpoint(pipe_old, ckpt)
+
+    # Simuler un vieux checkpoint en retirant n_rgcn_layers de l'arch
+    raw = np.load(ckpt, allow_pickle=True)
+    arch = _json.loads(str(raw["_arch_json"][0]))
+    del arch["n_rgcn_layers"]
+    arrays = dict(raw)
+    arrays["_arch_json"] = np.array([_json.dumps(arch)], dtype=object)
+    np.savez_compressed(ckpt, **arrays)
+
+    enc2 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
+                        n_rgcn_layers=2)
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        load_checkpoint(pipe2, ckpt, trusted=True)
+    messages = [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
+    assert any("n_rgcn_layers" in m for m in messages), (
+        f"Aucun UserWarning sur n_rgcn_layers absent — silence silencieux. "
+        f"Warnings : {messages}"
+    )
+
+
 def test_load_checkpoint_warns_when_arch_json_absent(tmp_path: Path):
     """load_checkpoint émet un UserWarning si _arch_json est absent du checkpoint.
 

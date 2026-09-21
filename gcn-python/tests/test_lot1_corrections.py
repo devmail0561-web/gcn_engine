@@ -503,17 +503,17 @@ def test_run_eval_all_pairs_passed_to_loader(tmp_path: Path):
 
 
 def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
-    """Preuve fonctionnelle sans mock : arête gap>1 comptabilisée dans edge_macro_f1.
+    """Preuve fonctionnelle sans mock : arête gap>1 dans edge_map quand all_pairs=True.
 
-    Mutation survivante du test précédent : patch GCNDataLoader.__init__ vérifie
-    uniquement le kwarg, pas que l'arête arrive dans edge_map. Ce test force le
-    chemin complet sans interception.
+    Correction audit 7 : edge_macro_f1 retourne 0.0 (pas None) même quand
+    all_edge_gold est vide — l'assertion is not None était tautologique.
 
-    Pipeline all_pairs=True + arête n001→n003 (gap=2) :
-      - Avec le correctif : edge_map={(0,2): cause_idx}, edge_macro_f1 ≠ None
-      - Sans le correctif (all_pairs=False au loader) : edge_map={}, edge_macro_f1 = None
+    Preuve en deux étapes :
+    1. GCNDataLoader direct : (0,2) ∈ edge_map avec all_pairs=True, absent avec False.
+    2. Intégration run_eval : différentiel n_edge_gold non vide vs vide via capture.
     """
     from gcn_python.evaluation.eval_runner import run_eval
+    from gcn_python.data.loader import GCNDataLoader
 
     pipeline = _make_pipeline(all_pairs=True)
     ckpt = tmp_path / "model_gap2.npz"
@@ -546,7 +546,6 @@ def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
                          "temporal_index": 2, "origin": "explicit"},
                     ],
                     "edges": [
-                        # gap=2 : ignorée par all_pairs=False, conservée par True
                         {"source": "n001", "target": "n003", "relation": "cause",
                          "confidence": None, "explicit": True, "negated": None},
                     ],
@@ -558,11 +557,29 @@ def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
     data_dir.mkdir()
     (data_dir / "data.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
-    result = run_eval(data_dir, ckpt)
+    # Étape 1 : preuve structurelle directe via GCNDataLoader
+    samples_true = list(GCNDataLoader(data_dir, all_pairs=True))
+    assert samples_true and (0, 2) in samples_true[0].edge_map, (
+        "GCNDataLoader(all_pairs=True) doit conserver l'arête gap=2 dans edge_map."
+    )
+    samples_false = list(GCNDataLoader(data_dir, all_pairs=False))
+    assert samples_false and (0, 2) not in samples_false[0].edge_map, (
+        "GCNDataLoader(all_pairs=False) doit dropper l'arête gap=2."
+    )
 
-    assert result["edge_macro_f1"] is not None, (
-        "edge_macro_f1 non calculée — arête gap=2 absente de edge_map : "
-        "all_pairs non propagé au GCNDataLoader (correctif éval all_pairs manquant)."
+    # Étape 2 : intégration — run_eval utilise all_pairs=True depuis l'arch ;
+    # capturer all_edge_gold via forward pour prouver la traversée complète
+    gold_edges_seen: list[int] = []
+    orig_to_sample = GCNDataLoader._to_sample
+    def patched_to_sample(self, rec):
+        sample = orig_to_sample(self, rec)
+        gold_edges_seen.append(len(sample.edge_map))
+        return sample
+    with patch.object(GCNDataLoader, "_to_sample", patched_to_sample):
+        run_eval(data_dir, ckpt)
+    assert gold_edges_seen and any(n > 0 for n in gold_edges_seen), (
+        f"edge_map vide pour toutes les sentences ({gold_edges_seen}) — "
+        "all_pairs non propagé au GCNDataLoader dans run_eval."
     )
 
 

@@ -217,11 +217,21 @@ def load_checkpoint(
             ("all_pairs", bool(pipeline.all_pairs), _arch.get("all_pairs")),
             ("n_rgcn_layers", pipeline.n_rgcn_layers, _arch.get("n_rgcn_layers")),
         ):
-                if _found is not None and _found != _exp:
-                    raise ValueError(
-                        f"Incompatibilité de dimension pour {_k} : "
-                        f"checkpoint={_found!r} ≠ pipeline={_exp!r}."
-                    )
+            if _found is not None and _found != _exp:
+                raise ValueError(
+                    f"Incompatibilité de dimension pour {_k} : "
+                    f"checkpoint={_found!r} ≠ pipeline={_exp!r}."
+                )
+        # Vieux checkpoint sans n_rgcn_layers : clé absente → skip silencieux,
+        # mais si le pipeline a > 1 couche, la couche extra resterait aléatoire.
+        if _arch and _arch.get("n_rgcn_layers") is None and pipeline.n_rgcn_layers > 1:
+            import warnings as _w_nl
+            _w_nl.warn(
+                f"Checkpoint {Path(path).name} : n_rgcn_layers absent en arch — "
+                f"pipeline {pipeline.n_rgcn_layers} couches, validation couches désactivée "
+                "(vieux checkpoint pré-2.1.0).",
+                UserWarning, stacklevel=2,
+            )
 
     # Double-absent policy : decoder
     import logging as _log3
