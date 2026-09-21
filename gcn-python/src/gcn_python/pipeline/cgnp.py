@@ -50,6 +50,8 @@ class CGNPipeline:
         bidirectional: bool = False,
         link_predictor=None,
         scope_hints: dict | None = None,
+        edge_threshold: float = 0.0,
+        drop_morph: bool = False,
     ):
         # S1 : dimension effective = features structurelles + embedding si actif
         _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
@@ -80,6 +82,12 @@ class CGNPipeline:
         # None par défaut : comportement strictement identique à avant.
         self.link_predictor = link_predictor
         self.scope_hints: dict = scope_hints if scope_hints is not None else {}
+        if not (0.0 <= float(edge_threshold) < 1.0):
+            raise ValueError(
+                f"edge_threshold doit être dans [0, 1[ (reçu {edge_threshold!r})."
+            )
+        self.edge_threshold = float(edge_threshold)
+        self.drop_morph = bool(drop_morph)
 
         # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
         self.n_rgcn_layers = n_rgcn_layers
@@ -189,7 +197,8 @@ class CGNPipeline:
 
         # Couche 1 — vectorisation (S1 : word_embedding optionnel)
         clause_vecs = np.stack([
-            vectorize_clause(r, self.vocabulary, self.word_embedding) for r in reps
+            vectorize_clause(r, self.vocabulary, self.word_embedding,
+                             drop_morph=self.drop_morph) for r in reps
         ])  # (N, D_effective)
         self._cached_clause_vecs = clause_vecs
 
@@ -295,6 +304,7 @@ class CGNPipeline:
                     reps[src_i], reps[dst_i], connector,
                     real_src, real_dst, real_n,
                     self.vocabulary, self.word_embedding,
+                    drop_morph=self.drop_morph,
                 )
                 # Enrichir avec les representations R-GCN + node type predictions
                 enriched_edge = np.concatenate([
@@ -321,7 +331,8 @@ class CGNPipeline:
                     rel_conf = min(1.0, max(0.0, rel_conf))
                 marker_tok_id = connector.token_span[0] if connector is not None else None
                 negated = _detect_negation(reps[src_i], reps[dst_i], connector)
-                edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf, negated, marker_tok_id))
+                if rel_conf >= self.edge_threshold:
+                    edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf, negated, marker_tok_id))
 
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)

@@ -93,6 +93,13 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Profondeur BFS des candidats en prédiction (engine/gcn-eval).")
 @click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
               help="Nombre de couches R-GCN empilées (≥1). Requiert RGCNLayer (pas GAT).")
+@click.option("--edge-threshold", default=0.0, show_default=True, type=float,
+              help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
+@click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
+              help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
+                   "pour simuler le bridge heuristique (parité train/inférence).")
+@click.option("--seed", default=None, type=int,
+              help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -120,10 +127,23 @@ def train_cmd(
     src_aggregation: str,
     bfs_depth: int,
     n_rgcn_layers: int,
+    edge_threshold: float,
+    drop_morph: bool,
+    seed: int | None,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
     from ..verbalizer.trainable import TrainableDecoder
+
+    # R9 : reproductibilité — seed numpy + torch si disponible
+    if seed is not None:
+        np.random.seed(seed)
+        try:
+            import torch as _torch
+            _torch.manual_seed(seed)
+        except ImportError:
+            pass
+        click.echo(f"Seed : {seed}")
 
     vocab = FeatureVocabulary()
 
@@ -191,7 +211,8 @@ def train_cmd(
 
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
-                           bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers)
+                           bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
+                           edge_threshold=edge_threshold, drop_morph=drop_morph)
 
     link_pred_head = None
     if link_pred:
@@ -209,6 +230,16 @@ def train_cmd(
     loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
+    _n_hyper = sum(1 for s in loader if s.hyperedge_map)
+    if _n_hyper:
+        warnings.warn(
+            f"{_n_hyper} phrase(s) avec des N-arêtes (sources multiples) dans {data_dir}. "
+            "Ces arêtes sont collectées dans hyperedge_map mais jamais supervisées "
+            "par l'entraînement (gradient 0). Utilisez des arêtes binaires ou "
+            "implémentez une tête N-aire.",
+            UserWarning, stacklevel=2,
+        )
 
     val_loader = None
     if val_dir is not None:

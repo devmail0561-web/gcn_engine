@@ -107,21 +107,36 @@ def vectorize_clause(
     rep: UDRepresentation,
     vocab: FeatureVocabulary,
     word_embedding=None,
+    drop_morph: bool = False,
 ) -> np.ndarray:
     """UDRepresentation → np.ndarray[d_clause (+ d_emb si word_embedding fourni)]
 
     word_embedding : WordEmbedding optionnel (S1/S2). Si fourni, le vecteur
     d'embedding du root_lemma est concaténé à la fin des features structurelles.
     Quand None (défaut), comportement identique à l'original — rétrocompatible.
+
+    drop_morph : si True, zérote les features Tense/Aspect/Mood/Polarity (→ _absent/0.0).
+    Utilisé avec --drop-morph pour simuler le bridge heuristique à l'entraînement
+    (parité train/inférence quand root_morph={} dans les UDRepresentation bridge).
     """
+    if drop_morph:
+        tense_vec  = _one_hot("_absent", vocab.tense_values)
+        aspect_vec = _one_hot("_absent", vocab.aspect_values)
+        mood_vec   = _one_hot("_absent", vocab.mood_values)
+        polarity   = np.zeros(1, dtype=np.float32)
+    else:
+        tense_vec  = _one_hot(rep.tense,  vocab.tense_values)
+        aspect_vec = _one_hot(rep.aspect, vocab.aspect_values)
+        mood_vec   = _one_hot(rep.mood,   vocab.mood_values)
+        polarity   = np.array([1.0 if rep.is_negative else 0.0], dtype=np.float32)
     parts = [
         _one_hot(rep.root_pos, vocab.upos_tags),
         _one_hot(rep.root_dep_rel, vocab.dep_rels),
         _one_hot(rep.subject_pos or "_absent", vocab.subject_pos_cats),
-        _one_hot(rep.tense, vocab.tense_values),
-        _one_hot(rep.aspect, vocab.aspect_values),
-        _one_hot(rep.mood, vocab.mood_values),
-        np.array([1.0 if rep.is_negative else 0.0], dtype=np.float32),
+        tense_vec,
+        aspect_vec,
+        mood_vec,
+        polarity,
         np.array([float(rep.has_object), float(rep.has_advcl), float(rep.has_temporal_obl)],
                  dtype=np.float32),
     ]
@@ -164,12 +179,13 @@ def vectorize_edge(
     n_clauses: int,
     vocab: FeatureVocabulary,
     word_embedding=None,
+    drop_morph: bool = False,
 ) -> np.ndarray:
     """Two clauses + connector + interaction features → np.ndarray[d_edge (+ 2*d_emb)]"""
     interaction = _interaction_features(src, dst, src_idx, dst_idx, n_clauses)
     return np.concatenate([
-        vectorize_clause(src, vocab, word_embedding),
-        vectorize_clause(dst, vocab, word_embedding),
+        vectorize_clause(src, vocab, word_embedding, drop_morph=drop_morph),
+        vectorize_clause(dst, vocab, word_embedding, drop_morph=drop_morph),
         vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
         interaction,
     ])
