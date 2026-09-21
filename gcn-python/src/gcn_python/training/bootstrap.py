@@ -10,6 +10,45 @@ import click
 
 from ..constants import NODE_TYPES, RELATION_TYPES, SCOPE_VALUES, NODE_ORIGIN_VALUES
 
+# Mappings node_type → UPOS / dep_rel pour la tokenisation synthétique.
+# Identiques à frontend/bridge.py : NODE_TYPE_TO_POS / NODE_TYPE_TO_DEP.
+_SYNTH_POS: dict[str, str] = {
+    "action": "VERB", "transition": "VERB", "processus": "NOUN",
+    "etat": "NOUN", "etat_systemique": "NOUN", "entite": "NOUN", "condition": "SCONJ",
+}
+_SYNTH_DEP: dict[str, str] = {
+    "action": "root", "transition": "root", "processus": "root",
+    "etat": "nsubj", "etat_systemique": "nsubj", "entite": "nsubj", "condition": "advcl",
+}
+
+
+def _synthetic_tokens(nodes: list) -> list:
+    """Génère un token synthétique par nœud CIR pour rendre le document entraînable.
+
+    B1 correctif : _cir_to_doc produisait tokens=[] → reps_from_sentence retournait
+    ([],[],[]) → toutes les phrases bootstrappées étaient ignorées à l'entraînement.
+
+    QUALITÉ APPROXIMATIVE : root_morph={}, Tense/Aspect/Mood=_absent, is_negative=False.
+    Les features morphologiques (14 dims) seront nulles — analogue au bridge heuristique.
+    Pour la qualité maximale, annoter manuellement les tokens UD.
+    """
+    tokens = []
+    for i, n in enumerate(nodes):
+        label = (n.get("label") or "").strip()
+        # Accepte "node_type" (CIR Rust/Python) et "type" (format doc gcn-nl)
+        ntype = str(n.get("node_type") or n.get("type") or "action").lower()
+        lemma = label.split()[0] if label else ntype
+        tokens.append({
+            "id": i + 1,
+            "form": lemma,
+            "lemma": lemma,
+            "pos": _SYNTH_POS.get(ntype, "NOUN"),
+            "dep_rel": _SYNTH_DEP.get(ntype, "root"),
+            "dep_head": 0,
+            "morph": {},
+        })
+    return tokens
+
 
 @click.command("gcn-bootstrap")
 @click.option("--input", "input_file", required=True, type=click.Path(path_type=Path),
@@ -161,16 +200,23 @@ def _canonical_node_id(raw, pos: int) -> str:
 
 
 def _cir_to_doc(text: str, cir: dict) -> dict:
-    """Convertit un CausalIR dict (format Rust ou Python) en document JSON gcn-nl."""
+    """Convertit un CausalIR dict (format Rust ou Python) en document JSON gcn-nl.
+
+    TOKENS SYNTHÉTIQUES (B1) : un token par nœud, dérivé du label et du node_type.
+    token_span=(i+1, i+1) pour chaque nœud — aligné sur l'id du token synthétique.
+    Qualité approximative : root_morph={} → Tense/Aspect/Mood=_absent, is_negative=False.
+    Pour la qualité maximale, remplacer les tokens par des annotations UD réelles.
+    """
     nodes = cir.get("nodes", [])
     edges = cir.get("edges", [])
 
+    # Assigner token_span=(i+1, i+1) cohérent avec les tokens synthétiques (id=i+1)
     doc_nodes = [
         {
             "id": _canonical_node_id(n.get("id"), i),
             "type": n.get("node_type", NODE_TYPES[1]),
             "label": n.get("label", ""),
-            "token_span": _extract_token_span(n),
+            "token_span": [i + 1, i + 1],
             "scope": n.get("scope", SCOPE_VALUES[4]),
             "temporal_index": n.get("temporal_index", 0),
             "origin": n.get("origin", NODE_ORIGIN_VALUES[0]),
@@ -186,7 +232,7 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
                 {
                     "id": "s001",
                     "text": text,
-                    "tokens": [],
+                    "tokens": _synthetic_tokens(nodes),
                     "cir": {
                         "nodes": doc_nodes,
                         "edges": doc_edges,

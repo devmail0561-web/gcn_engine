@@ -115,7 +115,12 @@ def test_cir_to_doc_basic():
     assert sent["text"] == "Les ventes baissent."
     assert len(sent["cir"]["nodes"]) == 1
     assert sent["cir"]["nodes"][0]["type"] == "processus"
-    assert sent["cir"]["nodes"][0]["token_span"] == [1, 3]
+    # B1 correctif : token_span synthétique [i+1, i+1] (aligné sur le token synthétique)
+    assert sent["cir"]["nodes"][0]["token_span"] == [1, 1]
+    # B1 correctif : tokens non vides pour que reps_from_sentence fonctionne
+    assert len(sent["tokens"]) == 1
+    assert sent["tokens"][0]["lemma"] == "baisse"
+    assert sent["tokens"][0]["id"] == 1
 
 
 def test_cir_to_doc_with_null_token_span():
@@ -133,8 +138,8 @@ def test_cir_to_doc_with_null_token_span():
     }
     doc = _cir_to_doc("Test.", cir)
 
-    # Ne doit pas crasher
-    assert doc["document"]["sentences"][0]["cir"]["nodes"][0]["token_span"] == [0, 0]
+    # Ne doit pas crasher ; token_span synthétique [1, 1] pour le nœud 0
+    assert doc["document"]["sentences"][0]["cir"]["nodes"][0]["token_span"] == [1, 1]
 
 
 def test_cir_to_doc_with_edges():
@@ -230,3 +235,64 @@ def test_bootstrap_cmd_integration(tmp_path):
     """Issue #1 et #2 : bootstrap doit appeler gcn avec text comme arg positionnel."""
     # Test d'intégration complet à implémenter si gcn-cli disponible
     pass
+
+
+# ── Tests B1 : données bootstrappées utilisables à l'entraînement ────────────
+
+def test_cir_to_doc_has_tokens():
+    """B1 régression : _cir_to_doc doit produire des tokens non vides."""
+    from gcn_python.training.bootstrap import _cir_to_doc
+    cir = {
+        "nodes": [
+            {"id": "n001", "node_type": "action", "label": "baisser", "scope": "specific",
+             "temporal_index": 0, "origin": "explicit"},
+            {"id": "n002", "node_type": "etat", "label": "impact", "scope": "specific",
+             "temporal_index": 1, "origin": "explicit"},
+        ],
+        "edges": []
+    }
+    doc = _cir_to_doc("test.", cir)
+    tokens = doc["document"]["sentences"][0]["tokens"]
+    assert len(tokens) == 2, "un token synthétique par nœud"
+    assert tokens[0]["id"] == 1
+    assert tokens[1]["id"] == 2
+    assert tokens[0]["lemma"] == "baisser"
+    assert tokens[1]["lemma"] == "impact"
+    assert tokens[0]["pos"] == "VERB"
+    assert tokens[1]["pos"] == "NOUN"
+
+
+def test_cir_to_doc_bootstrapped_data_trainable():
+    """B1 régression : données bootstrappées doivent produire des reps valides via reps_from_sentence."""
+    from gcn_python.training.bootstrap import _cir_to_doc
+    from gcn_python.data.json_reader import load_sentences
+    from gcn_python.data.loader import reps_from_sentence
+    import tempfile, json
+    from pathlib import Path
+
+    cir = {
+        "nodes": [
+            {"id": "n001", "node_type": "condition", "label": "hausse des coûts",
+             "scope": "specific", "temporal_index": 0, "origin": "explicit"},
+            {"id": "n002", "node_type": "action", "label": "réduire budget",
+             "scope": "specific", "temporal_index": 1, "origin": "explicit"},
+        ],
+        "edges": [
+            {"source": "n001", "target": "n002", "relation": "cause", "confidence": 0.8}
+        ]
+    }
+    doc = _cir_to_doc("Si les coûts hausse on réduit.", cir)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "bootstrapped.json"
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        sentences = load_sentences(path)
+
+    assert len(sentences) == 1, "une phrase dans le doc"
+    reps, valid_idxs, connector_reps = reps_from_sentence(sentences[0])
+    assert len(reps) == 2, (
+        f"2 reps attendues, {len(reps)} obtenues — "
+        "les données bootstrappées sont ignorées à l'entraînement (correctif B1 manquant)."
+    )
+    assert reps[0].root_pos == "SCONJ"
+    assert reps[1].root_pos == "VERB"

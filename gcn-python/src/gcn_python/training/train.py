@@ -91,6 +91,8 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Agrégation multi-sources de la tête de liens.")
 @click.option("--bfs-depth", default=2, show_default=True, type=int,
               help="Profondeur BFS des candidats en prédiction (engine/gcn-eval).")
+@click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
+              help="Nombre de couches R-GCN empilées (≥1). Requiert RGCNLayer (pas GAT).")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -117,6 +119,7 @@ def train_cmd(
     neg_ratio: float,
     src_aggregation: str,
     bfs_depth: int,
+    n_rgcn_layers: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -178,9 +181,17 @@ def train_cmd(
     if patience > 0 and val_dir is None:
         raise click.ClickException("--patience requiert --val-dir")
 
+    # B4 : validation --n-rgcn-layers
+    if n_rgcn_layers < 1:
+        raise click.ClickException(f"--n-rgcn-layers doit être ≥ 1 (reçu {n_rgcn_layers}).")
+    if n_rgcn_layers > 1 and use_attention:
+        raise click.ClickException(
+            "--n-rgcn-layers > 1 n'est pas supporté avec --use-attention (GAT)."
+        )
+
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
-                           bidirectional=bidirectional)
+                           bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers)
 
     link_pred_head = None
     if link_pred:
@@ -248,21 +259,11 @@ def train_cmd(
 
     recorder = TrainingRecorder()
     history: list[dict] = []
+    # B2 : csv_file/csv_writer initialisés ici pour être visibles dans le finally.
+    # L'ouverture réelle du fichier est faite à l'intérieur du try (ci-dessous)
+    # pour garantir la fermeture en cas d'exception pendant le setup.
     csv_writer = None
     csv_file = None
-    if log_csv:
-        csv_fieldnames = [
-            "epoch", "loss", "node_accuracy", "node_macro_f1",
-            "edge_accuracy", "edge_macro_f1", "graph_exact_match",
-        ]
-        if val_loader is not None:
-            csv_fieldnames.extend([
-                "val_loss", "val_node_accuracy", "val_node_macro_f1",
-                "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
-            ])
-        csv_file = open(log_csv, "w", newline="", encoding="utf-8")
-        csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames)
-        csv_writer.writeheader()
 
     best_val_f1 = -1.0
     best_epoch_num = 0
@@ -280,6 +281,11 @@ def train_cmd(
         _toggle(pipeline.encoder, training)
         for layer in pipeline._graph_layers:
             _toggle(layer, training)
+        # B9 : couvrir aussi decoder et link_predictor (omis avant)
+        if pipeline.decoder is not None:
+            _toggle(pipeline.decoder, training)
+        if getattr(pipeline, 'link_predictor', None) is not None:
+            _toggle(pipeline.link_predictor, training)
 
     def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
                        epoch_edge_preds, epoch_edge_gold,
@@ -384,6 +390,22 @@ def train_cmd(
         return total_loss / max(n, 1)
 
     try:
+        # B2 : ouverture du CSV ici (dans le try) pour garantir la fermeture
+        # en cas d'exception pendant le setup ultérieur (class weights, etc.).
+        if log_csv:
+            csv_fieldnames = [
+                "epoch", "loss", "node_accuracy", "node_macro_f1",
+                "edge_accuracy", "edge_macro_f1", "graph_exact_match",
+            ]
+            if val_loader is not None:
+                csv_fieldnames.extend([
+                    "val_loss", "val_node_accuracy", "val_node_macro_f1",
+                    "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
+                ])
+            csv_file = open(log_csv, "w", newline="", encoding="utf-8")
+            csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames)
+            csv_writer.writeheader()
+
         for epoch in range(1, epochs + 1):
             epoch_loss = 0.0
             n_samples = 0
