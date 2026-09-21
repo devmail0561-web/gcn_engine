@@ -748,11 +748,14 @@ class CGNPipeline:
                     )
 
         # --- Word embedding backward (S2) ---
+        # V3 : utiliser d_curr (gradient post-R-GCN) et non d_enriched (pré-R-GCN).
+        # Si aucune couche RGCN n'implémente backward_message_pass, d_curr reste
+        # un alias vers d_enriched — comportement identique à l'original.
         if (self.word_embedding is not None
                 and self._cached_reps is not None
-                and d_enriched is not None
-                and d_enriched.shape[1] > self.vocabulary.d_clause):
-            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+                and d_curr is not None
+                and d_curr.shape[1] > self.vocabulary.d_clause):
+            d_emb_slice = d_curr[:, self.vocabulary.d_clause:]
             if len(self._cached_reps) != len(d_emb_slice):
                 raise ValueError(
                     f"backward word_embedding : {len(d_emb_slice)} gradients pour "
@@ -912,10 +915,12 @@ class CGNPipeline:
                 d_enriched += _d_node_embs
 
         # --- Word embedding backward accumulation (S2) ---
+        # V3 : utiliser d_curr (gradient post-R-GCN), miroir de backward().
         if (self.word_embedding is not None
                 and self._cached_reps is not None
-                and d_enriched.shape[1] > self.vocabulary.d_clause):
-            d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]
+                and d_curr is not None
+                and d_curr.shape[1] > self.vocabulary.d_clause):
+            d_emb_slice = d_curr[:, self.vocabulary.d_clause:]
             if len(self._cached_reps) != len(d_emb_slice):
                 raise ValueError(
                     f"backward_accumulate word_embedding : {len(d_emb_slice)} gradients "

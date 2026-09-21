@@ -28,12 +28,12 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
     Retourne un dict avec : n_samples, n_skipped, node_accuracy,
     node_macro_f1, edge_accuracy, edge_macro_f1.
     """
-    vocab = FeatureVocabulary()
     # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
     # all_pairs / multi-couches crashe au load (shapes) ou est évalué dans le
     # mauvais mode (métriques fausses silencieusement).
     _arch: dict = {}
+    _raw = None
     try:
         _raw = np.load(model_path, allow_pickle=True)
         if "_arch_json" in _raw:
@@ -41,13 +41,23 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
     except Exception as exc:
         warnings.warn(f"run_eval : arch illisible ({exc}) — pipeline par défaut.",
                       UserWarning, stacklevel=2)
-    _d_eff = int(_arch.get("d_eff", vocab.d_clause))
+    _d_eff = int(_arch.get("d_eff", FeatureVocabulary().d_clause))
     _d_emb = int(_arch.get("d_emb", 0))
     _n_rel = int(_arch.get("n_relations", len(RELATION_TYPES)))
     _bidi = bool(_arch.get("bidirectional", _arch.get("bidi_flag", False)))
     _all_pairs = bool(_arch.get("all_pairs", False))
     _n_layers = int(_arch.get("n_rgcn_layers", 1))
     _gclass = _arch.get("graph_class", "RGCNLayer")
+    # V2 : charger le vocab depuis le checkpoint AVANT de construire l'encodeur,
+    # identique à GCNEngine.from_pretrained — évite un crash shape mismatch si
+    # le modèle a été entraîné avec connector_lemmas (d_edge différent du défaut).
+    vocab = FeatureVocabulary()
+    if _raw is not None and "_vocab_json" in _raw:
+        try:
+            vocab = FeatureVocabulary.from_json(str(_raw["_vocab_json"][0]))
+        except Exception as exc:
+            warnings.warn(f"run_eval : vocab illisible ({exc}) — vocab par défaut.",
+                          UserWarning, stacklevel=2)
     _word_embedding = None
     if _d_emb > 0:
         from ..layer1.embedding import WordEmbedding
@@ -71,6 +81,11 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
                            word_embedding=_word_embedding, bidirectional=_bidi,
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers)
     load_checkpoint(pipeline, model_path, trusted=True)
+    # V1 : mode évaluation — désactiver le dropout pour des métriques déterministes.
+    pipeline.encoder.training = False
+    for _layer in pipeline._graph_layers:
+        if hasattr(_layer, "training"):
+            _layer.training = False
 
     loader = GCNDataLoader(data_dir)
 

@@ -1,0 +1,279 @@
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
+"""Tests de régression pour les correctifs du Lot 1 (audit 2026-09-21).
+
+V1 : eval_runner.py — training=False positionné avant l'évaluation.
+V2 : eval_runner.py — vocab chargé depuis le checkpoint avant l'encodeur.
+V3 : cgnp.py — gradient word_embedding utilise d_curr (post-RGCN) pas d_enriched.
+"""
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
+import pytest
+
+from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer1.representation import UDRepresentation
+from gcn_python.layer2.reference import MLPEncoder
+from gcn_python.layer3.reference import RGCNLayer
+from gcn_python.pipeline.cgnp import CGNPipeline
+from gcn_python.training.checkpoint import save_checkpoint
+
+
+# ---------------------------------------------------------------------------
+# Helpers partagés
+# ---------------------------------------------------------------------------
+
+def _make_rep(lemma: str = "baisser") -> UDRepresentation:
+    return UDRepresentation(
+        tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+        root_lemma=lemma,
+        root_pos="VERB",
+        root_dep_rel="root",
+        root_morph={"Tense": "Pres"},
+        subject_pos="NOUN",
+        has_object=False,
+        has_advcl=False,
+        has_temporal_obl=False,
+        token_span=(1, 2),
+    )
+
+
+def _make_pipeline(vocab=None, **kwargs) -> CGNPipeline:
+    if vocab is None:
+        vocab = FeatureVocabulary()
+    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
+    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, **kwargs)
+
+
+def _minimal_dataset_json(text: str = "test phrase.") -> dict:
+    """Génère un document gcn-nl minimal avec une seule phrase sans arêtes."""
+    return {
+        "document": {
+            "sentences": [
+                {
+                    "id": "s001",
+                    "text": text,
+                    "tokens": [
+                        {
+                            "id": 1, "form": "test", "lemma": "test",
+                            "pos": "NOUN", "dep_rel": "root", "dep_head": 0, "morph": {},
+                        }
+                    ],
+                    "cir": {
+                        "nodes": [
+                            {
+                                "id": "n001", "type": "action", "label": "test",
+                                "token_span": [1, 1], "scope": "specific",
+                                "temporal_index": 0, "origin": "explicit",
+                            }
+                        ],
+                        "edges": [],
+                    },
+                }
+            ]
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# V1 — eval_runner : training=False positionné lors de l'évaluation
+# ---------------------------------------------------------------------------
+
+def test_run_eval_training_false(tmp_path: Path):
+    """V1 : run_eval doit évaluer le pipeline en mode inference (training=False).
+
+    Avant le correctif, MLPEncoder.training restait True → edge_dropout actif →
+    métriques val non-déterministes.
+    """
+    from gcn_python.evaluation.eval_runner import run_eval
+
+    pipeline = _make_pipeline()
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "test.json").write_text(
+        json.dumps(_minimal_dataset_json()), encoding="utf-8"
+    )
+
+    training_states: list[bool] = []
+
+    orig_forward = CGNPipeline.forward
+    def capture_forward(self, *args, **kwargs):
+        training_states.append(bool(self.encoder.training))
+        return orig_forward(self, *args, **kwargs)
+
+    with patch.object(CGNPipeline, "forward", capture_forward):
+        run_eval(data_dir, ckpt)
+
+    assert training_states, "forward() n'a pas été appelé — dataset vide?"
+    assert not any(training_states), (
+        f"encoder.training={training_states} pendant run_eval — "
+        "dropout actif → métriques non-déterministes (correctif V1 manquant)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# V2 — eval_runner : vocab chargé depuis le checkpoint avant l'encodeur
+# ---------------------------------------------------------------------------
+
+def test_run_eval_vocab_restored_from_checkpoint(tmp_path: Path):
+    """V2 : run_eval doit charger _vocab_json avant de construire l'encodeur.
+
+    Avant le correctif, un modèle entraîné avec connector_lemmas provoquait
+    un crash ValueError sur shape mismatch dans load_checkpoint.
+    """
+    from gcn_python.evaluation.eval_runner import run_eval
+
+    # Modèle entraîné avec connector_lemmas : d_edge ≠ vocab vide
+    vocab_with_lemmas = FeatureVocabulary(connector_lemmas=["parce", "car", "because"])
+    d_eff = vocab_with_lemmas.d_clause
+    d_edge = vocab_with_lemmas.d_edge_closed_loop(d_eff, 7)
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab_with_lemmas)
+
+    ckpt = tmp_path / "model_with_lemmas.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "test.json").write_text(
+        json.dumps(_minimal_dataset_json()), encoding="utf-8"
+    )
+
+    # Avant correctif : ValueError sur encoder_0 shape mismatch
+    # Après correctif : doit passer sans exception
+    result = run_eval(data_dir, ckpt)
+    assert "n_samples" in result
+    assert "node_accuracy" in result
+
+
+# ---------------------------------------------------------------------------
+# V3 — cgnp.py backward : d_curr utilisé pour le gradient word_embedding
+# ---------------------------------------------------------------------------
+
+def test_word_embedding_gradient_received_after_backward():
+    """V3 smoke : word_embedding.backward() doit être appelé après backward().
+
+    Vérifie que le code path est actif (le gradient atteint les embeddings).
+    """
+    from gcn_python.layer1.embedding import WordEmbedding
+
+    d_emb = 4
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause + d_emb
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    we = WordEmbedding(d_emb=d_emb, seed=0)
+    we.add_lemma("baisser")
+    we.add_lemma("hausser")
+
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=we)
+
+    reps = [_make_rep("baisser"), _make_rep("hausser")]
+    pipeline.forward(reps, "test")
+    node_logits = pipeline._cached_node_logits
+    d_node = np.ones_like(node_logits) / node_logits.size
+    d_edge = np.zeros((0, 11), dtype=np.float32)
+
+    # Capturer les appels à word_embedding.backward
+    calls: list[tuple] = []
+    original_bwd = we.backward
+    def patched_bwd(d, lemma):
+        calls.append((d.copy(), lemma))
+        original_bwd(d, lemma)
+    we.backward = patched_bwd
+
+    pipeline.backward(d_node, d_edge, lr=1e-9)
+
+    assert len(calls) == 2, (
+        f"word_embedding.backward appelé {len(calls)} fois pour 2 reps — "
+        "gradient n'atteint pas les embeddings (correctif V3 manquant)."
+    )
+    for grad, lemma in calls:
+        assert grad.shape == (d_emb,)
+        assert lemma in ("baisser", "hausser")
+
+
+def test_word_embedding_gradient_uses_dcurr_not_denriched():
+    """V3 régression : le gradient embedding doit venir de d_curr (post-RGCN).
+
+    Vérifie que le gradient reçu par word_embedding correspond au slice de d_curr
+    (qui traverse le RGCN backward) et non à d_enriched (qui ne le traverse pas).
+    Avec un RGCN dont W_0 ≠ identité, d_curr[:, d_clause:] ≠ d_enriched[:, d_clause:].
+    """
+    from gcn_python.layer1.embedding import WordEmbedding
+
+    d_emb = 4
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause + d_emb
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    we = WordEmbedding(d_emb=d_emb, seed=7)
+    we.add_lemma("alpha")
+    we.add_lemma("beta")
+
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=7)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=7)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=we)
+
+    reps = [_make_rep("alpha"), _make_rep("beta")]
+    pipeline.forward(reps, "test")
+
+    node_logits = pipeline._cached_node_logits
+    d_node = np.ones_like(node_logits) / node_logits.size
+    d_edge = np.zeros((0, 11), dtype=np.float32)
+
+    # Capturer d_enriched (pré-RGCN) et d_curr (post-RGCN) pendant backward
+    captured: dict = {}
+    orig_bmp = graph.backward_message_pass
+    def patched_bmp(d_out):
+        captured["d_enriched_before"] = d_out.copy()
+        d_in, grads = orig_bmp(d_out)
+        captured["d_curr_after"] = d_in.copy()
+        return d_in, grads
+    graph.backward_message_pass = patched_bmp
+
+    grads_received: list = []
+    orig_we_bwd = we.backward
+    def patched_we_bwd(d, lemma):
+        grads_received.append(d.copy())
+        orig_we_bwd(d, lemma)
+    we.backward = patched_we_bwd
+
+    pipeline.backward(d_node, d_edge, lr=1e-9)
+
+    assert "d_curr_after" in captured, "backward_message_pass n'a pas été appelé"
+    assert len(grads_received) == 2
+
+    d_clause = vocab.d_clause
+    # Le gradient embedding reçu doit correspondre à d_curr[:, d_clause:] (post-RGCN)
+    # et PAS à d_enriched[:, d_clause:] (pré-RGCN)
+    d_curr_emb_slice = captured["d_curr_after"][:, d_clause:]
+    d_enriched_emb_slice = captured["d_enriched_before"][:, d_clause:]
+
+    # Vérifier que d_curr ≠ d_enriched (sinon le test ne distingue rien)
+    if np.allclose(d_curr_emb_slice, d_enriched_emb_slice):
+        pytest.skip("d_curr == d_enriched pour ce seed — test non discriminant")
+
+    # Le gradient reçu par les embeddings doit correspondre à d_curr, pas d_enriched
+    received_sum = sum(g for g in grads_received)
+    expected_from_dcurr = d_curr_emb_slice.sum(axis=0)
+    expected_from_denriched = d_enriched_emb_slice.sum(axis=0)
+
+    err_dcurr = float(np.linalg.norm(received_sum - expected_from_dcurr))
+    err_denriched = float(np.linalg.norm(received_sum - expected_from_denriched))
+
+    assert err_dcurr < err_denriched, (
+        f"Le gradient embedding est plus proche de d_enriched ({err_denriched:.4f}) "
+        f"que de d_curr ({err_dcurr:.4f}) — correctif V3 manquant ou incorrect."
+    )
