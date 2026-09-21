@@ -503,14 +503,16 @@ def test_run_eval_all_pairs_passed_to_loader(tmp_path: Path):
 
 
 def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
-    """Preuve fonctionnelle sans mock : arête gap>1 dans edge_map quand all_pairs=True.
+    """Preuve fonctionnelle : arête gap>1 dans edge_map quand all_pairs=True.
 
-    Correction audit 7 : edge_macro_f1 retourne 0.0 (pas None) même quand
-    all_edge_gold est vide — l'assertion is not None était tautologique.
+    Audit 7 fix : edge_macro_f1 retourne 0.0 (pas None) même quand all_edge_gold
+    est vide — l'assertion is not None était tautologique.
 
     Preuve en deux étapes :
-    1. GCNDataLoader direct : (0,2) ∈ edge_map avec all_pairs=True, absent avec False.
-    2. Intégration run_eval : différentiel n_edge_gold non vide vs vide via capture.
+    1. GCNDataLoader direct (sans mock) : (0,2) ∈ edge_map avec all_pairs=True,
+       absent avec all_pairs=False — discriminant réel sur loader.py:128-129.
+    2. Intégration run_eval (patch transparent _to_sample) : assert len(edge_map) > 0
+       pour au moins une sentence — prouve que l'arête traverse loader→run_eval.
     """
     from gcn_python.evaluation.eval_runner import run_eval
     from gcn_python.data.loader import GCNDataLoader

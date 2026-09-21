@@ -224,7 +224,7 @@ def load_checkpoint(
                 )
         # Vieux checkpoint sans n_rgcn_layers : clé absente → skip silencieux,
         # mais si le pipeline a > 1 couche, la couche extra resterait aléatoire.
-        if _arch and _arch.get("n_rgcn_layers") is None and pipeline.n_rgcn_layers > 1:
+        if isinstance(_arch, dict) and _arch.get("n_rgcn_layers") is None and pipeline.n_rgcn_layers > 1:
             import warnings as _w_nl
             _w_nl.warn(
                 f"Checkpoint {Path(path).name} : n_rgcn_layers absent en arch — "

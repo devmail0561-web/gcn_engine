@@ -301,10 +301,15 @@ def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                            n_rgcn_layers=2)
+    W_extra_r_before = pipe_src._graph_layers[1].W_r.copy()
     load_checkpoint(pipe_dst, ckpt, trusted=True)
     W_extra_after = pipe_dst._graph_layers[1].W_0.copy()
+    W_extra_r_after = pipe_dst._graph_layers[1].W_r.copy()
     assert np.allclose(W_extra_before, W_extra_after), (
-        "Poids couche extra (graph_extra_1) non restaurés après load_checkpoint 2→2."
+        "W_0 couche extra (graph_extra_1) non restauré après load_checkpoint 2→2."
+    )
+    assert np.allclose(W_extra_r_before, W_extra_r_after), (
+        "W_r couche extra (graph_extra_1) non restauré après load_checkpoint 2→2."
     )
 
 
