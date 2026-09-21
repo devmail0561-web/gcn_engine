@@ -52,6 +52,7 @@ class CGNPipeline:
         scope_hints: dict | None = None,
         edge_threshold: float = 0.0,
         drop_morph: bool = False,
+        bfs_depth: int | None = None,
     ):
         # S1 : dimension effective = features structurelles + embedding si actif
         _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
@@ -88,6 +89,14 @@ class CGNPipeline:
             )
         self.edge_threshold = float(edge_threshold)
         self.drop_morph = bool(drop_morph)
+        if bfs_depth is not None:
+            bfs_depth = int(bfs_depth)
+            if bfs_depth < 1:
+                raise ValueError(
+                    f"bfs_depth doit être ≥ 1 (reçu {bfs_depth!r}) — "
+                    "None = candidats illimités."
+                )
+        self.bfs_depth = bfs_depth
 
         # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
         self.n_rgcn_layers = n_rgcn_layers

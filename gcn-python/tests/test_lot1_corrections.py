@@ -460,6 +460,60 @@ def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
     assert "n_samples" in report["test"], "test.n_samples manquant"
 
 
+def test_eval_cmd_quiet_guarantees_pure_json_despite_warnings(tmp_path: Path):
+    """--quiet supprime les warnings d'éval : stdout = JSON pur, zéro UserWarning.
+
+    Différentiel robuste au plugin warnings de pytest (qui capture les warnings
+    au lieu de les laisser polluer stderr) : on enregistre les émissions via
+    catch_warnings(record=True) au lieu de compter sur le mélange stdout/stderr.
+    - sans --quiet : ≥1 UserWarning émis (si ce assert casse, les warnings ont
+      disparu du chemin éval — réécrire ce test) ;
+    - avec --quiet : 0 UserWarning + stdout parse en JSON avec les clés.
+    Sans ce test, le contrat machine-readable de gcn-eval dépend du registre
+    'once per process' des warnings (passe en suite complète, casse en isolé
+    ou avec -W default / flux combinés 2>&1).
+    """
+    import warnings
+    from click.testing import CliRunner
+    from gcn_python.evaluation.eval_runner import eval_cmd
+
+    pipeline = _make_pipeline()
+    ckpt = tmp_path / "model_q.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    d = tmp_path / "vq"
+    d.mkdir()
+    (d / "s.json").write_text(json.dumps(_minimal_dataset_json()), encoding="utf-8")
+
+    runner = CliRunner()
+    with warnings.catch_warnings(record=True) as noisy_recs:
+        warnings.simplefilter("always")
+        noisy = runner.invoke(eval_cmd, [
+            "--data-dir", str(d),
+            "--model-path", str(ckpt),
+        ])
+    assert noisy.exit_code == 0, f"gcn-eval a échoué : {noisy.output}"
+    assert any(issubclass(w.category, UserWarning) for w in noisy_recs), (
+        "aucun UserWarning émis sans --quiet — le chemin éval ne warne plus, "
+        "ce test a perdu son pouvoir discriminant, le réécrire."
+    )
+
+    with warnings.catch_warnings(record=True) as quiet_recs:
+        warnings.simplefilter("always")
+        quiet = runner.invoke(eval_cmd, [
+            "--data-dir", str(d),
+            "--model-path", str(ckpt),
+            "--quiet",
+        ])
+    assert quiet.exit_code == 0, f"gcn-eval --quiet a échoué : {quiet.output}"
+    assert not [w for w in quiet_recs if issubclass(w.category, UserWarning)], (
+        f"--quiet a laissé passer des warnings : {[str(w.message)[:80] for w in quiet_recs]}"
+    )
+    report = json.loads(quiet.output)
+    assert "node_macro_f1" in report, "node_macro_f1 manquant en mode --quiet"
+    assert "edge_macro_f1" in report, "edge_macro_f1 manquant en mode --quiet"
+
+
 # ---------------------------------------------------------------------------
 # 5ᵉ audit — éval all_pairs propagé au GCNDataLoader
 # ---------------------------------------------------------------------------

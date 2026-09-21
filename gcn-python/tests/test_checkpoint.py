@@ -308,6 +308,62 @@ def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_p
     )
 
 
+def _make_bfs_pipeline(vocab, **kwargs):
+    """Pipeline minimal pour les tests bfs_depth."""
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, **kwargs)
+
+
+def test_checkpoint_bfs_depth_roundtrip_and_absent_key(tmp_path: Path):
+    """--bfs-depth est réel : persisté dans _arch_json et restauré au load.
+
+    Avant le fix, --bfs-depth (défaut 2) était seulement affiché puis ignoré :
+    jamais passé au pipeline, jamais persisté, help promettant un effet
+    'en prédiction (engine/gcn-eval)' alors que gcn-eval n'a pas l'option.
+    """
+    import json as _json
+    import numpy as _np
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    assert _make_bfs_pipeline(vocab).bfs_depth is None, (
+        "défaut pipeline : None (illimité) — reproduit le comportement historique."
+    )
+
+    src = _make_bfs_pipeline(vocab, bfs_depth=3)
+    ckpt = tmp_path / "model_bfs.npz"
+    save_checkpoint(src, ckpt)
+    arch = _json.loads(str(_np.load(ckpt, allow_pickle=True)["_arch_json"][0]))
+    assert arch.get("bfs_depth") == 3, "bfs_depth non persisté dans _arch_json."
+
+    dst = _make_bfs_pipeline(FeatureVocabulary())
+    load_checkpoint(dst, ckpt, trusted=True)
+    assert dst.bfs_depth == 3, "bfs_depth non restauré par load_checkpoint."
+
+    # Vieux checkpoint sans la clé → valeur du pipeline conservée
+    arch.pop("bfs_depth", None)
+    raw = dict(_np.load(ckpt, allow_pickle=True))
+    raw["_arch_json"] = _np.array([_json.dumps(arch)], dtype=object)
+    _np.savez_compressed(ckpt, **raw)
+    dst2 = _make_bfs_pipeline(FeatureVocabulary(), bfs_depth=2)
+    load_checkpoint(dst2, ckpt, trusted=True)
+    assert dst2.bfs_depth == 2, "clé absente doit conserver la valeur du pipeline."
+
+
+def test_pipeline_bfs_depth_invalid_raises():
+    """CGNPipeline refuse bfs_depth < 1 (None = illimité)."""
+    from gcn_python.layer1.features import FeatureVocabulary
+
+    with pytest.raises(ValueError, match="bfs_depth"):
+        _make_bfs_pipeline(FeatureVocabulary(), bfs_depth=0)
+
+
 def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
     """load_checkpoint lève ValueError si n_rgcn_layers du checkpoint ≠ pipeline.
 

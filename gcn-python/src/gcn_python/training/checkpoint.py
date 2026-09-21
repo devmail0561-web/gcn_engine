@@ -79,6 +79,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "edge_threshold": float(getattr(pipeline, 'edge_threshold', 0.0)),
         "drop_morph":   bool(getattr(pipeline, 'drop_morph', False)),
         "temperature":  float(getattr(pipeline, 'temperature', 1.0)),
+        "bfs_depth":    (None if getattr(pipeline, 'bfs_depth', None) is None
+                         else int(pipeline.bfs_depth)),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -298,6 +300,9 @@ def load_checkpoint(
             pipeline.drop_morph = bool(_dm)
         if _tp is not None:
             pipeline.temperature = float(_tp)
+        _bd = _arch.get("bfs_depth")
+        if _bd is not None:
+            pipeline.bfs_depth = int(_bd)
 
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"

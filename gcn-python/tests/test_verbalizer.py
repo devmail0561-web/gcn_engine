@@ -96,3 +96,43 @@ def test_decode_with_programming_lang():
     ir_json = _make_ir(PY_LANG, NODES, [EDGE])
     result = ReferenceDecoder().decode(ir_json)
     assert isinstance(result, str) and len(result) > 0
+
+
+# ---------------------------------------------------------------------------
+# Hygiène stdout/stderr CLI (audit 11) : gcn-verbalize --quiet + _read_texts
+# (_read_texts vit dans discuss.py mais est consommé par gcn-index).
+# ---------------------------------------------------------------------------
+
+def test_verbalize_cmd_quiet_stdout_is_pure_text():
+    """gcn-verbalize --quiet : stdout = texte verbalisé pur, exit 0."""
+    from click.testing import CliRunner
+    from gcn_python.verbalizer.cli import verbalize_cmd
+
+    ir_json = _make_ir(FR_LANG, NODES, [EDGE])
+    runner = CliRunner()
+    result = runner.invoke(verbalize_cmd, ["--quiet"], input=ir_json)
+    assert result.exit_code == 0, f"gcn-verbalize --quiet a échoué : {result.output}"
+    assert "ventes" in result.output and "couts" in result.output, (
+        f"stdout ne contient pas le texte verbalisé : {result.output!r}"
+    )
+
+
+def test_read_texts_diagnostics_go_to_stderr(tmp_path, capsys):
+    """_read_texts : diagnostics sur stderr, jamais sur stdout.
+
+    Avant le fix, print() brut — importé par gcn-index via index.py, donc
+    pollution potentielle de toute sortie standard consommée en aval.
+    """
+    from gcn_python.discuss import _read_texts
+
+    assert _read_texts(tmp_path / "nope.txt") == []
+    captured = capsys.readouterr()
+    assert captured.out == "", f"stdout pollué : {captured.out!r}"
+    assert "introuvable" in captured.err
+
+    bad = tmp_path / "f.json"
+    bad.write_text("{}", encoding="utf-8")
+    assert _read_texts(bad) == []
+    captured = capsys.readouterr()
+    assert captured.out == "", f"stdout pollué : {captured.out!r}"
+    assert "non supporté" in captured.err

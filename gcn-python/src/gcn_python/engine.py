@@ -172,6 +172,9 @@ class GCNEngine:
         edge_threshold = float(arch.get("edge_threshold", 0.0))
         drop_morph     = bool(arch.get("drop_morph", False))
         temperature    = float(arch.get("temperature", 1.0))
+        bfs_depth      = arch.get("bfs_depth")
+        if bfs_depth is not None:
+            bfs_depth = int(bfs_depth)
 
         # M5 : reconstruit les couches R-GCN extra (n_rgcn_layers>1).
         pipeline = CGNPipeline(
@@ -179,7 +182,7 @@ class GCNEngine:
             word_embedding=word_embedding, bidirectional=bidirectional,
             all_pairs=all_pairs, n_rgcn_layers=n_rgcn_layers,
             edge_threshold=edge_threshold, drop_morph=drop_morph,
-            temperature=temperature,
+            temperature=temperature, bfs_depth=bfs_depth,
         )
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
@@ -248,8 +251,12 @@ class GCNEngine:
         """Prédit les arêtes manquantes d'une phrase (tête LinkPredHead).
 
         Lève RuntimeError si aucune tête attachée (voir CGNPipeline.predict_links).
-        bfs_depth limite les candidats aux nœuds à ≤ depth sauts (None = tous).
+        bfs_depth limite les candidats aux nœuds à ≤ depth sauts.
+        None = valeur du pipeline (config d'entraînement via --bfs-depth),
+        elle-même None = tous les candidats (illimité).
         """
+        if bfs_depth is None:
+            bfs_depth = getattr(self._pipeline, "bfs_depth", None)
         cir = self.analyze(text)
         vecs = self._pipeline.get_enriched_vectors()
         if vecs is None:

@@ -291,7 +291,7 @@ message passing — enrichissement des représentations
 | `gcn-train` | Entraîner sur un corpus annoté |
 | `gcn-eval` | Évaluer un checkpoint |
 | `gcn-bootstrap` | Générer des données d'entraînement depuis texte brut |
-| `gcn-verbalize` | CIR → texte (TrainableDecoder) |
+| `gcn-verbalize` | CIR → texte (ReferenceDecoder, templates) |
 
 ---
 

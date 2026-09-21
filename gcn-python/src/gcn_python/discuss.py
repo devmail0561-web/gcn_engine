@@ -36,8 +36,10 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
     """
     Lit un fichier ou tous les fichiers texte d'un répertoire.
     Retourne une liste de (nom_fichier, contenu_texte).
-    Formats supportés : .txt, .md, .log, .csv (première colonne).
+    Formats supportés : .txt, .md, .log, .text, .rst.
     Les fichiers .json sont ignorés — ce sont des données annotées, pas du texte brut.
+    Les diagnostics partent sur stderr (click.echo err=True) pour ne jamais
+    polluer une sortie standard consommée en aval (ex. gcn-index).
     """
     TEXT_EXTENSIONS = {".txt", ".md", ".log", ".text", ".rst"}
     results = []
@@ -48,23 +50,23 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
                 content = path.read_text(encoding="utf-8", errors="replace")
                 results.append((path.name, content))
             except Exception as e:
-                print(f"  ⚠ Impossible de lire {path.name} : {e}")
+                click.echo(f"  ⚠ Impossible de lire {path.name} : {e}", err=True)
         else:
-            print(f"  ⚠ Format non supporté : {path.suffix}. "
-                  f"Formats acceptés : {', '.join(sorted(TEXT_EXTENSIONS))}")
+            click.echo(f"  ⚠ Format non supporté : {path.suffix}. "
+                       f"Formats acceptés : {', '.join(sorted(TEXT_EXTENSIONS))}", err=True)
     elif path.is_dir():
         files = sorted(p for p in path.iterdir()
                        if p.is_file() and p.suffix.lower() in TEXT_EXTENSIONS)
         if not files:
-            print(f"  ⚠ Aucun fichier texte trouvé dans {path}")
+            click.echo(f"  ⚠ Aucun fichier texte trouvé dans {path}", err=True)
         for f in files:
             try:
                 content = f.read_text(encoding="utf-8", errors="replace")
                 results.append((f.name, content))
             except Exception as e:
-                print(f"  ⚠ {f.name} : {e}")
+                click.echo(f"  ⚠ {f.name} : {e}", err=True)
     else:
-        print(f"  ⚠ Chemin introuvable : {path}")
+        click.echo(f"  ⚠ Chemin introuvable : {path}", err=True)
 
     return results
 

@@ -89,8 +89,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Négatifs par positif pour la tête de liens.")
 @click.option("--src-aggregation", default="mean", show_default=True, type=click.Choice(["mean", "max"]),
               help="Agrégation multi-sources de la tête de liens.")
-@click.option("--bfs-depth", default=2, show_default=True, type=int,
-              help="Profondeur BFS des candidats en prédiction (engine/gcn-eval).")
+@click.option("--bfs-depth", default=None, show_default=True, type=int,
+              help="Profondeur BFS des candidats de predict_links (engine). "
+                   "None = tous les candidats (défaut, illimité). "
+                   "Stocké dans _arch_json et repris par défaut en prédiction.")
 @click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
               help="Nombre de couches R-GCN empilées (≥1). Requiert RGCNLayer (pas GAT).")
 @click.option("--edge-threshold", default=0.0, show_default=True, type=float,
@@ -125,7 +127,7 @@ def train_cmd(
     link_pred: bool,
     neg_ratio: float,
     src_aggregation: str,
-    bfs_depth: int,
+    bfs_depth: int | None,
     n_rgcn_layers: int,
     edge_threshold: float,
     drop_morph: bool,
@@ -208,11 +210,14 @@ def train_cmd(
         raise click.ClickException(
             "--n-rgcn-layers > 1 n'est pas supporté avec --use-attention (GAT)."
         )
+    if bfs_depth is not None and bfs_depth < 1:
+        raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
 
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
-                           edge_threshold=edge_threshold, drop_morph=drop_morph)
+                           edge_threshold=edge_threshold, drop_morph=drop_morph,
+                           bfs_depth=bfs_depth)
 
     link_pred_head = None
     if link_pred:

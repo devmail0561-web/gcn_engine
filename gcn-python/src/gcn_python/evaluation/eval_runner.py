@@ -71,6 +71,9 @@ def run_eval(
     _edge_threshold = float(_arch.get("edge_threshold", 0.0))
     _drop_morph = bool(_arch.get("drop_morph", False))
     _temperature = float(_arch.get("temperature", 1.0))
+    _bfs_depth = _arch.get("bfs_depth")
+    if _bfs_depth is not None:
+        _bfs_depth = int(_bfs_depth)
     if edge_threshold_override is not None:
         _edge_threshold = float(edge_threshold_override)
     # V2 : charger le vocab depuis le checkpoint AVANT de construire l'encodeur,
@@ -106,7 +109,7 @@ def run_eval(
                            word_embedding=_word_embedding, bidirectional=_bidi,
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
-                           temperature=_temperature)
+                           temperature=_temperature, bfs_depth=_bfs_depth)
     load_checkpoint(pipeline, model_path, trusted=True)
     # D1 : load_checkpoint restaure les hyperparamètres depuis l'arch — re-appliquer
     # l'override après, sinon la valeur arch écrase l'override passé explicitement.
@@ -230,22 +233,31 @@ def run_eval(
 @click.command("gcn-eval")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire val JSON (requis).")
-@click.option("--model-path", required=True, type=click.Path(path_type=Path))
+@click.option("--model-path", required=True, type=click.Path(path_type=Path),
+              help="Checkpoint .npz du modèle (requis).")
 @click.option("--test-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire test JSON (held-out). Métriques reportées sous la clé 'test'.")
 @click.option("--output", default=None, type=click.Path(path_type=Path),
               help="Chemin JSON du rapport (optionnel, sinon stdout)")
 @click.option("--gate", default=None, type=float,
-              help="Seuil val_node_macro_f1 pour la tête de liens (défaut plan : 0.60). "
-                   "Sans --gate : simple évaluation, pas de contrôle.")
+              help="Ajoute un booléen 'gate' au rapport (val_node_macro_f1 >= seuil). "
+                   "Par défaut : pas de contrôle. N'active pas la tête de liens en "
+                   "production ; avec --on-fail error, exit 1 si sous le seuil.")
 @click.option("--on-fail", default="warn", type=click.Choice(["warn", "error"]), show_default=True,
               help="warn = jamais fail-closed (défaut) ; error = exit 1 si sous le seuil.")
 @click.option("--edge-threshold", default=None, type=float,
               help="Surcharge le seuil d'arête stocké dans le checkpoint. "
-                   "Par défaut : valeur enregistrée dans _arch_json (reproduit la config d'entraînement).")
+                   "Par défaut : valeur enregistrée dans _arch_json (reproduit la config d'entraînement). "
+                   "Sans _arch_json : repli sur 0.0 + avertissement.")
+@click.option("--quiet", is_flag=True, default=False,
+              help="Supprime les avertissements (warnings) pendant l'évaluation : "
+                   "stdout = JSON pur, machine-readable même avec -W default. "
+                   "Sans --quiet, les warnings partent sur stderr (mélangés à stdout "
+                   "si les flux sont combinés).")
 def eval_cmd(
     data_dir: Path, model_path: Path, test_dir: Path | None, output: Path | None,
     gate: float | None, on_fail: str, edge_threshold: float | None,
+    quiet: bool,
 ) -> None:
     """Évalue le pipeline CGNP sur un répertoire de données annotées.
 
@@ -253,33 +265,42 @@ def eval_cmd(
     Les métriques --data-dir sont reportées à la racine du JSON ;
     les métriques --test-dir sont reportées sous la clé "test".
     """
-    report = run_eval(data_dir, model_path, edge_threshold_override=edge_threshold)
+    def _build_report() -> dict:
+        report = run_eval(data_dir, model_path, edge_threshold_override=edge_threshold)
 
-    if test_dir is not None:
-        test_report = run_eval(
-            Path(test_dir), model_path, edge_threshold_override=edge_threshold
-        )
-        report["test"] = {
-            "data_dir": str(test_dir),
-            "n_samples": test_report["n_samples"],
-            "n_skipped": test_report["n_skipped"],
-            "node_accuracy": test_report["node_accuracy"],
-            "node_macro_f1": test_report["node_macro_f1"],
-            "edge_accuracy": test_report["edge_accuracy"],
-            "edge_macro_f1": test_report["edge_macro_f1"],
-            "causal_graph_similarity": test_report.get("causal_graph_similarity"),
-        }
+        if test_dir is not None:
+            test_report = run_eval(
+                Path(test_dir), model_path, edge_threshold_override=edge_threshold
+            )
+            report["test"] = {
+                "data_dir": str(test_dir),
+                "n_samples": test_report["n_samples"],
+                "n_skipped": test_report["n_skipped"],
+                "node_accuracy": test_report["node_accuracy"],
+                "node_macro_f1": test_report["node_macro_f1"],
+                "edge_accuracy": test_report["edge_accuracy"],
+                "edge_macro_f1": test_report["edge_macro_f1"],
+                "causal_graph_similarity": test_report.get("causal_graph_similarity"),
+            }
 
-    if gate is not None:
-        f1 = report.get("node_macro_f1")
-        report["gate"] = {"threshold": gate, "val_node_macro_f1": f1,
-                          "passed": (f1 is not None and f1 >= gate)}
-        if not report["gate"]["passed"]:
-            msg = (f"gcn-eval gate : val_node_macro_f1={f1} < seuil {gate} "
-                   f"(bloquant données, pas code — tête de liens non activable en prod).")
-            if on_fail == "error":
-                raise click.ClickException(msg)
-            warnings.warn(msg, UserWarning, stacklevel=2)
+        if gate is not None:
+            f1 = report.get("node_macro_f1")
+            report["gate"] = {"threshold": gate, "val_node_macro_f1": f1,
+                              "passed": (f1 is not None and f1 >= gate)}
+            if not report["gate"]["passed"]:
+                msg = (f"gcn-eval gate : val_node_macro_f1={f1} < seuil {gate} "
+                       f"(bloquant données, pas code — tête de liens non activable en prod).")
+                if on_fail == "error":
+                    raise click.ClickException(msg)
+                warnings.warn(msg, UserWarning, stacklevel=2)
+        return report
+
+    if quiet:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            report = _build_report()
+    else:
+        report = _build_report()
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if output:
         Path(output).write_text(text, encoding="utf-8")
