@@ -122,6 +122,12 @@ def bootstrap_cmd(
             errors += 1
 
     click.echo(f"Terminé : {success} succès, {errors} erreurs.")
+    if success == 0 and errors > 0:
+        click.echo(
+            f"ATTENTION : 0 document généré sur {errors} tentative(s) — "
+            "répertoire de sortie probablement vide. Vérifiez gcn-cli et le format d'entrée.",
+            err=True,
+        )
 
 
 def _extract_token_span(node: dict) -> list[int]:

@@ -152,6 +152,12 @@ def index_cmd(
 
     graph.save(output)
     click.echo(f"\nGraphe sauvegardé : {output}  ({len(graph.edges)} relations au total)")
+    if total == 0:
+        click.echo(
+            "ATTENTION : aucune relation extraite — graphe vide persisté. "
+            "Vérifiez le corpus, le checkpoint et la disponibilité de gcn-bin.",
+            err=True,
+        )
     if vecs_out is not None and collected:
         try:
             _params = {}

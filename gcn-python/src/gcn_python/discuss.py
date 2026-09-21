@@ -337,6 +337,13 @@ def run_discuss(
                     session.graph = handler.graph
                     session.save()
                     print(f"  Session sauvegardée : {session.session_dir}")
+                    if n_total == 0:
+                        import sys as _sys
+                        print(
+                            "  ATTENTION : graphe vide persisté (0 relation) — "
+                            "aucune arête causale extraite dans cette session.",
+                            file=_sys.stderr,
+                        )
 
             elif cmd == "save":
                 if not arg:
