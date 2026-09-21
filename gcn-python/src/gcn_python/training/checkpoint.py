@@ -181,6 +181,7 @@ def load_checkpoint(
         )
 
     # Validation sémantique du triplet (d_eff, d_hidden, |V|, n_relations, bidi)
+    _arch: dict = {}
     if "_arch_json" in data:
         import json as _json
         try:
@@ -193,22 +194,29 @@ def load_checkpoint(
                 UserWarning, stacklevel=2,
             )
             _arch = {}
-        if isinstance(_arch, dict):
-            _we = getattr(pipeline, 'word_embedding', None)
-            _d_emb = _we.d_emb if _we is not None else 0
-            _d_eff = pipeline.vocabulary.d_clause + _d_emb
-            _g0 = pipeline._graph_layers[0] if getattr(pipeline, '_graph_layers', None) else pipeline.graph
-            _d_hid = getattr(_g0, 'd_out', _d_eff)
-            _n_rel = getattr(_g0, 'n_relations', len(pipeline.relation_types))
-            for _k, _exp, _found in (
-                ("d_eff", _d_eff, _arch.get("d_eff")),
-                ("d_hidden", int(_d_hid), _arch.get("d_hidden")),
-                ("n_relations", _n_rel, _arch.get("n_relations")),
-                ("bidirectional", bool(pipeline.bidirectional),
-                 _arch.get("bidirectional", _arch.get("bidi_flag"))),
-                ("all_pairs", bool(pipeline.all_pairs), _arch.get("all_pairs")),
-                ("n_rgcn_layers", pipeline.n_rgcn_layers, _arch.get("n_rgcn_layers")),
-            ):
+    else:
+        import warnings as _w_noarch
+        _w_noarch.warn(
+            f"Checkpoint {Path(path).name} sans _arch_json — validation architecture "
+            "désactivée (re-entraîner avec gcn-train >= 2.1.0).",
+            UserWarning, stacklevel=2,
+        )
+    if isinstance(_arch, dict):
+        _we = getattr(pipeline, 'word_embedding', None)
+        _d_emb = _we.d_emb if _we is not None else 0
+        _d_eff = pipeline.vocabulary.d_clause + _d_emb
+        _g0 = pipeline._graph_layers[0] if getattr(pipeline, '_graph_layers', None) else pipeline.graph
+        _d_hid = getattr(_g0, 'd_out', _d_eff)
+        _n_rel = getattr(_g0, 'n_relations', len(pipeline.relation_types))
+        for _k, _exp, _found in (
+            ("d_eff", _d_eff, _arch.get("d_eff")),
+            ("d_hidden", int(_d_hid), _arch.get("d_hidden")),
+            ("n_relations", _n_rel, _arch.get("n_relations")),
+            ("bidirectional", bool(pipeline.bidirectional),
+             _arch.get("bidirectional", _arch.get("bidi_flag"))),
+            ("all_pairs", bool(pipeline.all_pairs), _arch.get("all_pairs")),
+            ("n_rgcn_layers", pipeline.n_rgcn_layers, _arch.get("n_rgcn_layers")),
+        ):
                 if _found is not None and _found != _exp:
                     raise ValueError(
                         f"Incompatibilité de dimension pour {_k} : "

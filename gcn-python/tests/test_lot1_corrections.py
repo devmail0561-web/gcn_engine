@@ -502,6 +502,70 @@ def test_run_eval_all_pairs_passed_to_loader(tmp_path: Path):
     )
 
 
+def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
+    """Preuve fonctionnelle sans mock : arête gap>1 comptabilisée dans edge_macro_f1.
+
+    Mutation survivante du test précédent : patch GCNDataLoader.__init__ vérifie
+    uniquement le kwarg, pas que l'arête arrive dans edge_map. Ce test force le
+    chemin complet sans interception.
+
+    Pipeline all_pairs=True + arête n001→n003 (gap=2) :
+      - Avec le correctif : edge_map={(0,2): cause_idx}, edge_macro_f1 ≠ None
+      - Sans le correctif (all_pairs=False au loader) : edge_map={}, edge_macro_f1 = None
+    """
+    from gcn_python.evaluation.eval_runner import run_eval
+
+    pipeline = _make_pipeline(all_pairs=True)
+    ckpt = tmp_path / "model_gap2.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    # 3 clauses, 1 arête gap=2 (n001→n003, indices 0→2)
+    doc = {
+        "document": {
+            "sentences": [{
+                "id": "s001",
+                "text": "A cause C via B.",
+                "tokens": [
+                    {"id": 1, "form": "A", "lemma": "A", "pos": "NOUN",
+                     "dep_rel": "nsubj", "dep_head": 2, "morph": {}},
+                    {"id": 2, "form": "cause", "lemma": "causer", "pos": "VERB",
+                     "dep_rel": "root", "dep_head": 0, "morph": {}},
+                    {"id": 3, "form": "C", "lemma": "C", "pos": "NOUN",
+                     "dep_rel": "obj", "dep_head": 2, "morph": {}},
+                ],
+                "cir": {
+                    "nodes": [
+                        {"id": "n001", "type": "action", "label": "A",
+                         "token_span": [1, 1], "scope": "specific",
+                         "temporal_index": 0, "origin": "explicit"},
+                        {"id": "n002", "type": "action", "label": "B",
+                         "token_span": [2, 2], "scope": "specific",
+                         "temporal_index": 1, "origin": "explicit"},
+                        {"id": "n003", "type": "action", "label": "C",
+                         "token_span": [3, 3], "scope": "specific",
+                         "temporal_index": 2, "origin": "explicit"},
+                    ],
+                    "edges": [
+                        # gap=2 : ignorée par all_pairs=False, conservée par True
+                        {"source": "n001", "target": "n003", "relation": "cause",
+                         "confidence": None, "explicit": True, "negated": None},
+                    ],
+                },
+            }]
+        }
+    }
+    data_dir = tmp_path / "data_gap2_func"
+    data_dir.mkdir()
+    (data_dir / "data.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+    result = run_eval(data_dir, ckpt)
+
+    assert result["edge_macro_f1"] is not None, (
+        "edge_macro_f1 non calculée — arête gap=2 absente de edge_map : "
+        "all_pairs non propagé au GCNDataLoader (correctif éval all_pairs manquant)."
+    )
+
+
 def _make_dataset_with_edge(tmp_path: Path, name: str) -> Path:
     """Dataset minimal à 2 nœuds + 1 arête cause (pour tester le filtrage par seuil)."""
     d = tmp_path / name

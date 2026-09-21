@@ -245,6 +245,77 @@ def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
         load_checkpoint(pipe2, ckpt, trusted=True)
 
 
+def test_load_checkpoint_validates_n_rgcn_layers_reverse(tmp_path: Path):
+    """load_checkpoint lève ValueError si le checkpoint a plus de couches que le pipeline.
+
+    Direction 2→1 : checkpoint 2 couches chargé dans pipeline 1 couche.
+    Sans ce check, la couche extra du checkpoint serait silencieusement ignorée
+    (clé graph_extra_1_* whitelistée dans _VALID_PREFIXES mais jamais restaurée).
+    """
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe2 = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=2)
+    ckpt = tmp_path / "model_2layers.npz"
+    save_checkpoint(pipe2, ckpt)
+
+    enc1 = MLPEncoder(d_clause=vocab.d_clause,
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr1 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe1 = CGNPipeline(encoder=enc1, graph=gr1, vocabulary=FeatureVocabulary(),
+                        n_rgcn_layers=1)
+    with pytest.raises(ValueError, match="n_rgcn_layers"):
+        load_checkpoint(pipe1, ckpt, trusted=True)
+
+
+def test_load_checkpoint_warns_when_arch_json_absent(tmp_path: Path):
+    """load_checkpoint émet un UserWarning si _arch_json est absent du checkpoint.
+
+    Un checkpoint sans _arch_json désactive la validation de shapes — l'appelant
+    doit en être informé, pas obtenir un silence silencieux.
+    """
+    import json, warnings as _w
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import load_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause,
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
+
+    # Fabriquer un .npz sans _arch_json ni _vocab_json
+    ckpt = tmp_path / "no_arch.npz"
+    import numpy as np
+    params = list(pipe.encoder.parameters())
+    arrays = {f"encoder_{i}": p for i, p in enumerate(params)}
+    for li, layer in enumerate(pipe._graph_layers):
+        prefix = "graph" if li == 0 else f"graph_extra_{li}"
+        for j, p in enumerate(layer.parameters()):
+            arrays[f"{prefix}_{j}"] = p
+    np.savez_compressed(ckpt, **arrays)
+
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        load_checkpoint(pipe, ckpt, trusted=True)
+
+    messages = [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
+    assert any("sans _arch_json" in m for m in messages), (
+        f"Aucun UserWarning 'sans _arch_json' — silence silencieux. "
+        f"Warnings reçus : {messages}"
+    )
+
+
 def test_e2e_train_save_reload_inference(tmp_path: Path):
     """Prod gate : forward→loss→backward→save→from_pretrained→forward identique."""
     import numpy as np
