@@ -80,7 +80,10 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     tmp.replace(path)
 
 
-def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False) -> None:
+def load_checkpoint(
+    pipeline: CGNPipeline, path: Path,
+    *, trusted: bool = False, allow_symlink: bool = False,
+) -> None:
     """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
 
     Atomique : toutes les shapes sont validées avant toute mutation du pipeline.
@@ -91,8 +94,10 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False)
     `trusted=False` par défaut refuse le chargement ; passez `trusted=True`
     uniquement pour un checkpoint local de confiance (produit par votre
     `gcn-train`). Les CLI (`gcn-train --encoder-checkpoint`, `gcn-eval`,
-    `gcn-discuss`, `gcn-index`) le passent explicitement — l'invocation vaut
-    opt-in.
+    `gcn-discuss`, `gcn-index`) le passent explicitement — l'invocation vaut opt-in.
+
+    Symlinks : refusés par défaut (R4 — vecteur de substitution silencieuse).
+    Passez `allow_symlink=True` si vous êtes sûr de la cible.
     """
     if not trusted:
         raise RuntimeError(
@@ -101,10 +106,16 @@ def load_checkpoint(pipeline: CGNPipeline, path: Path, *, trusted: bool = False)
             "pour un fichier local de confiance."
         )
     if Path(path).is_symlink():
+        if not allow_symlink:
+            raise RuntimeError(
+                f"Refus de charger {Path(path).name} : le chemin est un symlink. "
+                "Un symlink peut pointer vers un checkpoint malveillant (vecteur de substitution). "
+                "Passez allow_symlink=True si vous avez vérifié la cible."
+            )
         import warnings as _w
         _w.warn(
-            f"Checkpoint {Path(path).name} est un symlink — vérifiez la cible "
-            "avant chargement (risque de substitution).",
+            f"Checkpoint {Path(path).name} est un symlink — allow_symlink=True "
+            "passé explicitement.",
             UserWarning,
             stacklevel=2,
         )

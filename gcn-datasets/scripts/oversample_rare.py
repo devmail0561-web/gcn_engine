@@ -93,8 +93,24 @@ def oversample(input_path: Path, output_path: Path) -> None:
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Oversampling des classes rares — à appliquer sur le train UNIQUEMENT, "
+                    "APRÈS le split train/val/test. Appliquer sur le val ou le test "
+                    "gonflera silencieusement les métriques (leakage)."
+    )
     parser.add_argument("--input",  required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--allow-non-train", action="store_true",
+                        help="Désactive le guard sur le nom du fichier d'entrée (dangereux).")
     args = parser.parse_args()
+    # R5 guard : refuser les fichiers dont le nom contient 'val' ou 'test'
+    # sauf opt-in explicite.
+    input_stem = args.input.stem.lower()
+    if not args.allow_non_train and ("val" in input_stem or "test" in input_stem):
+        print(
+            f"ERREUR : '{args.input.name}' ressemble à un split val/test (nom contient "
+            f"'val' ou 'test'). Appliquer oversample sur val/test crée un leakage.\n"
+            f"Passez --allow-non-train pour forcer si vous savez ce que vous faites."
+        )
+        raise SystemExit(1)
     oversample(args.input, args.output)

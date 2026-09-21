@@ -70,7 +70,7 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
         cycles: vec![],
         unresolved: vec![],
         metadata: IrMetadata {
-            schema_version: "1.0".to_string(),
+            schema_version: "2.0".to_string(),
             pipeline: vec!["gcn-frontend-fr".to_string()],
             created_at: None,
         },

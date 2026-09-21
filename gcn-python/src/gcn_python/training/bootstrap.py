@@ -81,6 +81,12 @@ def bootstrap_cmd(
 
     for i, text in enumerate(texts):
         try:
+            # R7 : valider gcn_bin avant subprocess (anti-injection)
+            import re as _re
+            if _re.search(r'[;&|`$()<>\n\r]', gcn_bin):
+                click.echo(f"  [{i+1}] gcn_bin invalide : {gcn_bin!r}", err=True)
+                errors += 1
+                continue
             cmd_args = [gcn_bin, "analyze"]
             if taxonomy_dir:
                 cmd_args += ["--data-dir", str(taxonomy_dir)]

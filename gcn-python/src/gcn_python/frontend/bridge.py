@@ -247,6 +247,25 @@ def _cir_to_reps_and_connectors(
     return clause_reps, connector_reps
 
 
+def _validate_gcn_bin(gcn_bin: str) -> None:
+    """R7 : valide gcn_bin avant tout appel subprocess.
+
+    Refuse les chemins contenant des caractères shell-dangereux ou des
+    séquences de type injection de commande. Le binaire doit être un nom
+    simple ou un chemin absolu/relatif sans espaces ni métacaractères shell.
+    """
+    import re as _re
+    if not gcn_bin or not gcn_bin.strip():
+        raise GCNBridgeError("gcn_bin vide — chemin invalide.")
+    # Refuser les métacaractères shell courants
+    dangerous = _re.search(r'[;&|`$()<>\n\r]', gcn_bin)
+    if dangerous:
+        raise GCNBridgeError(
+            f"gcn_bin {gcn_bin!r} contient le caractère dangereux {dangerous.group()!r} "
+            "— refus d'appel subprocess (risque d'injection de commande)."
+        )
+
+
 def _call_gcn_analyze(
     text: str,
     gcn_bin: str,
@@ -258,6 +277,7 @@ def _call_gcn_analyze(
     Raises:
         GCNBridgeError: binaire absent, timeout, code non-zéro, JSON invalide.
     """
+    _validate_gcn_bin(gcn_bin)
     cmd = [gcn_bin, "analyze"]
     if taxonomy_dir is not None:
         cmd += ["--data-dir", str(taxonomy_dir)]

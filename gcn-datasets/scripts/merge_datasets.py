@@ -12,6 +12,7 @@ Usage :
 Vérifie la distribution des relations après fusion.
 """
 import argparse
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -42,21 +43,32 @@ def main():
 
     all_sentences = []
     ids_seen: set[str] = set()
-    duplicates = 0
+    # R5/R3 : dédup sur hash du texte normalisé — détecte les doublons d'oversample
+    # (_dup1, _dup2…) et les leakages train/val même après renommage d'ID.
+    texts_seen: set[str] = set()
+    duplicates_id = 0
+    duplicates_text = 0
 
     for path in args.inputs:
         sents = load_sentences(path)
         before = len(all_sentences)
         for s in sents:
             if s["id"] in ids_seen:
-                duplicates += 1
+                duplicates_id += 1
+                continue
+            text_hash = hashlib.sha256((s.get("text") or "").strip().encode()).hexdigest()
+            if text_hash in texts_seen:
+                duplicates_text += 1
                 continue
             ids_seen.add(s["id"])
+            texts_seen.add(text_hash)
             all_sentences.append(s)
         print(f"{path.name}: {len(sents)} phrases → {len(all_sentences)-before} ajoutées")
 
-    if duplicates:
-        print(f"  Doublons ignorés : {duplicates}")
+    if duplicates_id:
+        print(f"  Doublons ID ignorés : {duplicates_id}")
+    if duplicates_text:
+        print(f"  Doublons texte ignorés (oversample/leakage) : {duplicates_text}")
 
     print(f"\nTotal : {len(all_sentences)} phrases")
     counts = count_edges(all_sentences)

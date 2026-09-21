@@ -37,7 +37,7 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
         cycles: vec![],
         unresolved: vec![],
         metadata: IrMetadata {
-            schema_version: "1.0".to_string(),
+            schema_version: "2.0".to_string(),
             pipeline: vec!["gcn-frontend-code".to_string()],
             created_at: None,
         },
