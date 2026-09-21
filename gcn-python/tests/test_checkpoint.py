@@ -114,6 +114,74 @@ def test_backward_slice_mismatch_raises():
         pipeline.backward_accumulate(np.zeros((5, 7), dtype=np.float32), d_edge)
 
 
+def test_arch_json_stores_edge_threshold_and_drop_morph(tmp_path: Path):
+    """edge_threshold et drop_morph persistés dans _arch_json (nécessaire pour éval cohérente)."""
+    import json, numpy as np
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                       edge_threshold=0.35, drop_morph=True)
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipe, ckpt)
+
+    raw = np.load(ckpt, allow_pickle=True)
+    arch = json.loads(str(raw["_arch_json"][0]))
+    assert arch["edge_threshold"] == pytest.approx(0.35)
+    assert arch["drop_morph"] is True
+
+
+def test_check_path_safe_refuses_symlink(tmp_path: Path):
+    """_check_path_safe refuse un symlink leaf."""
+    import os
+    from gcn_python.training.checkpoint import _check_path_safe
+
+    real = tmp_path / "real.npz"
+    real.write_bytes(b"")
+    link = tmp_path / "link.npz"
+    os.symlink(real, link)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        _check_path_safe(link, allow_symlink=False)
+    # allow_symlink=True ne lève pas
+    _check_path_safe(link, allow_symlink=True)
+
+
+def test_check_path_safe_refuses_hardlink(tmp_path: Path):
+    """_check_path_safe refuse un hardlink (nlink > 1)."""
+    import os
+    from gcn_python.training.checkpoint import _check_path_safe
+
+    real = tmp_path / "real.npz"
+    real.write_bytes(b"")
+    hard = tmp_path / "hard.npz"
+    os.link(real, hard)  # crée un hardlink
+
+    with pytest.raises(RuntimeError, match="liens durs"):
+        _check_path_safe(hard, allow_symlink=False)
+
+
+def test_check_path_safe_refuses_dir_symlink(tmp_path: Path):
+    """_check_path_safe refuse un chemin dont un répertoire parent est un symlink."""
+    import os
+    from gcn_python.training.checkpoint import _check_path_safe
+
+    real_dir = tmp_path / "real_dir"
+    real_dir.mkdir()
+    link_dir = tmp_path / "link_dir"
+    os.symlink(real_dir, link_dir)
+    target = link_dir / "model.npz"
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        _check_path_safe(target, allow_symlink=False)
+
+
 def test_e2e_train_save_reload_inference(tmp_path: Path):
     """Prod gate : forward→loss→backward→save→from_pretrained→forward identique."""
     import numpy as np

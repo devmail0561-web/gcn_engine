@@ -9,8 +9,48 @@ from ..pipeline.cgnp import CGNPipeline
 from ..layer1.features import FeatureVocabulary
 
 
+def _check_path_safe(path: Path, *, allow_symlink: bool = False) -> None:
+    """Refuse les chemins suspects : symlinks dans l'arbre, hardlinks, FIFO.
+
+    Appelé avant lecture (load_checkpoint) ET avant écriture (save_checkpoint)
+    pour éliminer les vecteurs de substitution silencieuse.
+    """
+    import os
+    import stat as _stat
+    # Vérifier chaque composant du chemin (pas seulement la feuille)
+    check = path if not path.exists() else path
+    p = path.resolve().parent  # on vérifie les parents d'abord
+    # Vérifier la feuille ET chaque parent jusqu'à la racine
+    parts_to_check = [path] + list(path.parents)
+    for part in parts_to_check:
+        if not part.exists():
+            continue
+        if part.is_symlink():
+            if not allow_symlink:
+                raise RuntimeError(
+                    f"Chemin suspect (symlink) : {part}. "
+                    "Passez allow_symlink=True si vous avez vérifié la cible."
+                )
+    # Vérifier la feuille si elle existe : hardlink et FIFO
+    if path.exists() and not path.is_symlink():
+        st = path.stat()
+        if _stat.S_ISFIFO(st.st_mode):
+            raise RuntimeError(
+                f"Refus de lire/écrire {path.name} : c'est un FIFO (named pipe)."
+            )
+        if st.st_nlink > 1 and not allow_symlink:
+            raise RuntimeError(
+                f"Refus de lire/écrire {path.name} : {st.st_nlink} liens durs détectés "
+                "(vecteur de substitution silencieuse). Passez allow_symlink=True pour forcer."
+            )
+
+
 def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     """Sérialise tous les poids du pipeline dans un fichier .npz."""
+    path = Path(path)
+    # Refuser les chemins suspects avant d'écrire
+    _check_path_safe(path, allow_symlink=False)
+
     arrays: dict[str, np.ndarray] = {}
 
     # Métadonnées d'architecture — lues par GCNEngine.from_pretrained()
@@ -36,6 +76,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "all_pairs": pipeline.all_pairs,
         "n_rgcn_layers": pipeline.n_rgcn_layers,
         "graph_class":  type(graph0).__name__,
+        "edge_threshold": float(getattr(pipeline, 'edge_threshold', 0.0)),
+        "drop_morph":   bool(getattr(pipeline, 'drop_morph', False)),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -83,6 +125,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
 def load_checkpoint(
     pipeline: CGNPipeline, path: Path,
     *, trusted: bool = False, allow_symlink: bool = False,
+    _skip_path_check: bool = False,
 ) -> None:
     """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
 
@@ -105,20 +148,19 @@ def load_checkpoint(
             "(allow_pickle requis → exécution de pickle). Relancez avec trusted=True "
             "pour un fichier local de confiance."
         )
-    if Path(path).is_symlink():
-        if not allow_symlink:
-            raise RuntimeError(
-                f"Refus de charger {Path(path).name} : le chemin est un symlink. "
-                "Un symlink peut pointer vers un checkpoint malveillant (vecteur de substitution). "
-                "Passez allow_symlink=True si vous avez vérifié la cible."
+    if not _skip_path_check:
+        try:
+            _check_path_safe(Path(path), allow_symlink=allow_symlink)
+        except RuntimeError:
+            raise
+        if allow_symlink and Path(path).is_symlink():
+            import warnings as _w
+            _w.warn(
+                f"Checkpoint {Path(path).name} est un symlink — allow_symlink=True "
+                "passé explicitement.",
+                UserWarning,
+                stacklevel=2,
             )
-        import warnings as _w
-        _w.warn(
-            f"Checkpoint {Path(path).name} est un symlink — allow_symlink=True "
-            "passé explicitement.",
-            UserWarning,
-            stacklevel=2,
-        )
     data = np.load(path, allow_pickle=True)
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)

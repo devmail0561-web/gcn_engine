@@ -90,8 +90,8 @@ def bootstrap_cmd(
             cmd_args = [gcn_bin, "analyze"]
             if taxonomy_dir:
                 cmd_args += ["--data-dir", str(taxonomy_dir)]
-            # Issue #1 CRITICAL : text comme argument positionnel, pas stdin
-            cmd_args.append(text)
+            # -- sépare explicitement les options du texte (évite "--option" parsé comme flag)
+            cmd_args += ["--", text]
             # Issue #2 CRITICAL : encodage UTF-8 explicite
             result = subprocess.run(
                 cmd_args,

@@ -22,11 +22,18 @@ from ..evaluation.metrics import (
 from ..constants import NODE_TYPES, RELATION_TYPES
 
 
-def run_eval(data_dir: Path, model_path: Path) -> dict:
+def run_eval(
+    data_dir: Path,
+    model_path: Path,
+    *,
+    edge_threshold_override: float | None = None,
+) -> dict:
     """Évalue le pipeline CGNP sur toutes les sentences d'un répertoire.
 
     Retourne un dict avec : n_samples, n_skipped, node_accuracy,
     node_macro_f1, edge_accuracy, edge_macro_f1.
+
+    edge_threshold_override : surcharge le seuil stocké dans _arch_json.
     """
     # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
@@ -48,6 +55,12 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
     _all_pairs = bool(_arch.get("all_pairs", False))
     _n_layers = int(_arch.get("n_rgcn_layers", 1))
     _gclass = _arch.get("graph_class", "RGCNLayer")
+    # Restaurer edge_threshold et drop_morph depuis l'arch — évite un shift
+    # train/éval silencieux quand le modèle a été entraîné avec ces options.
+    _edge_threshold = float(_arch.get("edge_threshold", 0.0))
+    _drop_morph = bool(_arch.get("drop_morph", False))
+    if edge_threshold_override is not None:
+        _edge_threshold = float(edge_threshold_override)
     # V2 : charger le vocab depuis le checkpoint AVANT de construire l'encodeur,
     # identique à GCNEngine.from_pretrained — évite un crash shape mismatch si
     # le modèle a été entraîné avec connector_lemmas (d_edge différent du défaut).
@@ -79,7 +92,8 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
                           n_relations=_n_rel)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            word_embedding=_word_embedding, bidirectional=_bidi,
-                           all_pairs=_all_pairs, n_rgcn_layers=_n_layers)
+                           all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
+                           edge_threshold=_edge_threshold, drop_morph=_drop_morph)
     load_checkpoint(pipeline, model_path, trusted=True)
     # V1 : mode évaluation — désactiver le dropout pour des métriques déterministes.
     pipeline.encoder.training = False
@@ -196,8 +210,11 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
 
 
 @click.command("gcn-eval")
-@click.option("--data-dir", required=True, type=click.Path(path_type=Path))
+@click.option("--data-dir", required=True, type=click.Path(path_type=Path),
+              help="Répertoire val JSON (requis).")
 @click.option("--model-path", required=True, type=click.Path(path_type=Path))
+@click.option("--test-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire test JSON (held-out). Métriques reportées sous la clé 'test'.")
 @click.option("--output", default=None, type=click.Path(path_type=Path),
               help="Chemin JSON du rapport (optionnel, sinon stdout)")
 @click.option("--gate", default=None, type=float,
@@ -205,12 +222,36 @@ def run_eval(data_dir: Path, model_path: Path) -> dict:
                    "Sans --gate : simple évaluation, pas de contrôle.")
 @click.option("--on-fail", default="warn", type=click.Choice(["warn", "error"]), show_default=True,
               help="warn = jamais fail-closed (défaut) ; error = exit 1 si sous le seuil.")
+@click.option("--edge-threshold", default=None, type=float,
+              help="Surcharge le seuil d'arête stocké dans le checkpoint. "
+                   "Par défaut : valeur enregistrée dans _arch_json (reproduit la config d'entraînement).")
 def eval_cmd(
-    data_dir: Path, model_path: Path, output: Path | None,
-    gate: float | None, on_fail: str,
+    data_dir: Path, model_path: Path, test_dir: Path | None, output: Path | None,
+    gate: float | None, on_fail: str, edge_threshold: float | None,
 ) -> None:
-    """Évalue le pipeline CGNP sur un répertoire de données annotées."""
-    report = run_eval(data_dir, model_path)
+    """Évalue le pipeline CGNP sur un répertoire de données annotées.
+
+    Utilisez --test-dir pour obtenir les métriques held-out honnêtes (test set).
+    Les métriques --data-dir sont reportées à la racine du JSON ;
+    les métriques --test-dir sont reportées sous la clé "test".
+    """
+    report = run_eval(data_dir, model_path, edge_threshold_override=edge_threshold)
+
+    if test_dir is not None:
+        test_report = run_eval(
+            Path(test_dir), model_path, edge_threshold_override=edge_threshold
+        )
+        report["test"] = {
+            "data_dir": str(test_dir),
+            "n_samples": test_report["n_samples"],
+            "n_skipped": test_report["n_skipped"],
+            "node_accuracy": test_report["node_accuracy"],
+            "node_macro_f1": test_report["node_macro_f1"],
+            "edge_accuracy": test_report["edge_accuracy"],
+            "edge_macro_f1": test_report["edge_macro_f1"],
+            "causal_graph_similarity": test_report.get("causal_graph_similarity"),
+        }
+
     if gate is not None:
         f1 = report.get("node_macro_f1")
         report["gate"] = {"threshold": gate, "val_node_macro_f1": f1,

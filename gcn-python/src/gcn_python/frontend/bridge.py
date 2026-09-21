@@ -281,7 +281,8 @@ def _call_gcn_analyze(
     cmd = [gcn_bin, "analyze"]
     if taxonomy_dir is not None:
         cmd += ["--data-dir", str(taxonomy_dir)]
-    cmd.append(text)
+    # -- sépare explicitement les options du texte (évite "--option" passé comme texte)
+    cmd += ["--", text]
 
     try:
         proc = subprocess.run(

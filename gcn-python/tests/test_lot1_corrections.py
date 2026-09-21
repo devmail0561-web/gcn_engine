@@ -349,3 +349,112 @@ def test_word_embedding_gradient_uses_dcurr_not_denriched():
         f"Le gradient embedding est plus proche de d_enriched ({err_denriched:.4f}) "
         f"que de d_curr ({err_dcurr:.4f}) — correctif V3 manquant ou incorrect."
     )
+
+
+# ---------------------------------------------------------------------------
+# Sécu+held-out — edge_threshold/drop_morph dans _arch_json, --test-dir
+# ---------------------------------------------------------------------------
+
+def test_run_eval_restores_edge_threshold_from_arch(tmp_path: Path):
+    """edge_threshold restauré depuis _arch_json dans run_eval.
+
+    Si le modèle a été entraîné avec edge_threshold=0.5 et que run_eval ne
+    restaure pas la valeur, le pipeline évalue avec seuil 0.0 → métriques
+    optimistes (toutes les arêtes émises, y compris les low-confidence).
+    """
+    from gcn_python.evaluation.eval_runner import run_eval
+
+    pipeline = _make_pipeline()
+    pipeline.edge_threshold = 0.5
+    ckpt = tmp_path / "model_thr.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    # Vérifier que l'arch JSON contient bien edge_threshold
+    import json as _json
+    raw = np.load(ckpt, allow_pickle=True)
+    arch = _json.loads(str(raw["_arch_json"][0]))
+    assert arch["edge_threshold"] == pytest.approx(0.5), "arch doit stocker edge_threshold"
+
+    data_dir = tmp_path / "data2"
+    data_dir.mkdir()
+    (data_dir / "s.json").write_text(
+        json.dumps(_minimal_dataset_json()), encoding="utf-8"
+    )
+
+    # Capturer le seuil utilisé lors du forward
+    captured_thr: list[float] = []
+    orig_forward = CGNPipeline.forward
+    def capture_forward(self, *args, **kwargs):
+        captured_thr.append(self.edge_threshold)
+        return orig_forward(self, *args, **kwargs)
+
+    with patch.object(CGNPipeline, "forward", capture_forward):
+        run_eval(data_dir, ckpt)
+
+    assert captured_thr, "forward() n'a pas été appelé"
+    assert all(abs(t - 0.5) < 1e-6 for t in captured_thr), (
+        f"edge_threshold={captured_thr} attendu 0.5 — run_eval ne restaure pas "
+        "la valeur depuis _arch_json."
+    )
+
+
+def test_run_eval_edge_threshold_override(tmp_path: Path):
+    """edge_threshold_override surcharge la valeur du checkpoint."""
+    from gcn_python.evaluation.eval_runner import run_eval
+
+    pipeline = _make_pipeline()
+    pipeline.edge_threshold = 0.3
+    ckpt = tmp_path / "model_ov.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    data_dir = tmp_path / "data3"
+    data_dir.mkdir()
+    (data_dir / "s.json").write_text(
+        json.dumps(_minimal_dataset_json()), encoding="utf-8"
+    )
+
+    captured_thr: list[float] = []
+    orig_forward = CGNPipeline.forward
+    def capture_forward(self, *args, **kwargs):
+        captured_thr.append(self.edge_threshold)
+        return orig_forward(self, *args, **kwargs)
+
+    with patch.object(CGNPipeline, "forward", capture_forward):
+        run_eval(data_dir, ckpt, edge_threshold_override=0.7)
+
+    assert all(abs(t - 0.7) < 1e-6 for t in captured_thr), (
+        f"edge_threshold={captured_thr} attendu 0.7 (override) — "
+        "edge_threshold_override ignoré."
+    )
+
+
+def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
+    """--test-dir ajoute les métriques held-out sous la clé 'test' dans le rapport."""
+    from click.testing import CliRunner
+    from gcn_python.evaluation.eval_runner import eval_cmd
+
+    pipeline = _make_pipeline()
+    ckpt = tmp_path / "model_td.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    def _make_data_dir(name: str) -> Path:
+        d = tmp_path / name
+        d.mkdir()
+        (d / "s.json").write_text(json.dumps(_minimal_dataset_json()), encoding="utf-8")
+        return d
+
+    val_dir = _make_data_dir("val")
+    test_dir = _make_data_dir("test")
+
+    runner = CliRunner()
+    result = runner.invoke(eval_cmd, [
+        "--data-dir", str(val_dir),
+        "--model-path", str(ckpt),
+        "--test-dir", str(test_dir),
+    ])
+    assert result.exit_code == 0, f"gcn-eval a échoué : {result.output}"
+    report = json.loads(result.output)
+    assert "test" in report, "La clé 'test' doit être présente quand --test-dir est passé"
+    assert "node_macro_f1" in report["test"], "test.node_macro_f1 manquant"
+    assert "edge_macro_f1" in report["test"], "test.edge_macro_f1 manquant"
+    assert "n_samples" in report["test"], "test.n_samples manquant"
