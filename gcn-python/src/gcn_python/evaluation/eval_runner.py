@@ -55,10 +55,12 @@ def run_eval(
     _all_pairs = bool(_arch.get("all_pairs", False))
     _n_layers = int(_arch.get("n_rgcn_layers", 1))
     _gclass = _arch.get("graph_class", "RGCNLayer")
-    # Restaurer edge_threshold et drop_morph depuis l'arch — évite un shift
-    # train/éval silencieux quand le modèle a été entraîné avec ces options.
+    # Restaurer edge_threshold, drop_morph et temperature depuis l'arch —
+    # sans ça run_eval utilise les défauts même si le modèle a été entraîné
+    # avec d'autres valeurs → métriques non représentatives de la prod.
     _edge_threshold = float(_arch.get("edge_threshold", 0.0))
     _drop_morph = bool(_arch.get("drop_morph", False))
+    _temperature = float(_arch.get("temperature", 1.0))
     if edge_threshold_override is not None:
         _edge_threshold = float(edge_threshold_override)
     # V2 : charger le vocab depuis le checkpoint AVANT de construire l'encodeur,
@@ -93,7 +95,8 @@ def run_eval(
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            word_embedding=_word_embedding, bidirectional=_bidi,
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
-                           edge_threshold=_edge_threshold, drop_morph=_drop_morph)
+                           edge_threshold=_edge_threshold, drop_morph=_drop_morph,
+                           temperature=_temperature)
     load_checkpoint(pipeline, model_path, trusted=True)
     # V1 : mode évaluation — désactiver le dropout pour des métriques déterministes.
     pipeline.encoder.training = False

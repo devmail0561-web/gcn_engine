@@ -114,8 +114,8 @@ def test_backward_slice_mismatch_raises():
         pipeline.backward_accumulate(np.zeros((5, 7), dtype=np.float32), d_edge)
 
 
-def test_arch_json_stores_edge_threshold_and_drop_morph(tmp_path: Path):
-    """edge_threshold et drop_morph persistés dans _arch_json (nécessaire pour éval cohérente)."""
+def test_arch_json_stores_inference_hyperparams(tmp_path: Path):
+    """edge_threshold, drop_morph et temperature persistés dans _arch_json."""
     import json, numpy as np
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
@@ -127,7 +127,7 @@ def test_arch_json_stores_edge_threshold_and_drop_morph(tmp_path: Path):
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
-                       edge_threshold=0.35, drop_morph=True)
+                       edge_threshold=0.35, drop_morph=True, temperature=2.0)
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipe, ckpt)
 
@@ -135,6 +135,40 @@ def test_arch_json_stores_edge_threshold_and_drop_morph(tmp_path: Path):
     arch = json.loads(str(raw["_arch_json"][0]))
     assert arch["edge_threshold"] == pytest.approx(0.35)
     assert arch["drop_morph"] is True
+    assert arch["temperature"] == pytest.approx(2.0)
+
+
+def test_from_pretrained_restores_inference_hyperparams(tmp_path: Path):
+    """from_pretrained restaure edge_threshold, drop_morph, temperature dans le pipeline.
+
+    Sans ce correctif, analyze() utilisait les défauts (seuil=0.0, morph actif,
+    temp=1.0) même si le modèle avait été entraîné avec d'autres valeurs.
+    """
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint
+    from gcn_python.engine import GCNEngine
+
+    vocab = FeatureVocabulary()
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
+    pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                       edge_threshold=0.42, drop_morph=True, temperature=1.5)
+    ckpt = tmp_path / "model.npz"
+    save_checkpoint(pipe, ckpt)
+
+    engine = GCNEngine.from_pretrained(ckpt, trusted=True)
+    assert engine._pipeline.edge_threshold == pytest.approx(0.42), (
+        "edge_threshold non restauré depuis _arch_json dans from_pretrained"
+    )
+    assert engine._pipeline.drop_morph is True, (
+        "drop_morph non restauré depuis _arch_json dans from_pretrained"
+    )
+    assert engine._pipeline.temperature == pytest.approx(1.5), (
+        "temperature non restaurée depuis _arch_json dans from_pretrained"
+    )
 
 
 def test_check_path_safe_refuses_symlink(tmp_path: Path):

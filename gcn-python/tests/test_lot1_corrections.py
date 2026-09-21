@@ -458,3 +458,77 @@ def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
     assert "node_macro_f1" in report["test"], "test.node_macro_f1 manquant"
     assert "edge_macro_f1" in report["test"], "test.edge_macro_f1 manquant"
     assert "n_samples" in report["test"], "test.n_samples manquant"
+
+
+def _make_dataset_with_edge(tmp_path: Path, name: str) -> Path:
+    """Dataset minimal à 2 nœuds + 1 arête cause (pour tester le filtrage par seuil)."""
+    d = tmp_path / name
+    d.mkdir(exist_ok=True)
+    doc = {
+        "document": {
+            "sentences": [
+                {
+                    "id": "s001",
+                    "text": "A cause B.",
+                    "tokens": [
+                        {"id": 1, "form": "A", "lemma": "A", "pos": "NOUN",
+                         "dep_rel": "nsubj", "dep_head": 2, "morph": {}},
+                        {"id": 2, "form": "cause", "lemma": "causer", "pos": "VERB",
+                         "dep_rel": "root", "dep_head": 0, "morph": {}},
+                        {"id": 3, "form": "B", "lemma": "B", "pos": "NOUN",
+                         "dep_rel": "obj", "dep_head": 2, "morph": {}},
+                    ],
+                    "cir": {
+                        "nodes": [
+                            {"id": "n001", "type": "action", "label": "A",
+                             "token_span": [1, 1], "scope": "specific",
+                             "temporal_index": 0, "origin": "explicit"},
+                            {"id": "n002", "type": "action", "label": "B",
+                             "token_span": [3, 3], "scope": "specific",
+                             "temporal_index": 1, "origin": "explicit"},
+                        ],
+                        "edges": [
+                            {"source": "n001", "target": "n002", "relation": "cause",
+                             "confidence": None, "explicit": True, "negated": None},
+                        ],
+                    },
+                }
+            ]
+        }
+    }
+    (d / "data.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return d
+
+
+def test_edge_threshold_filters_edges_in_forward(tmp_path: Path):
+    """Preuve différentielle : seuil élevé réduit les arêtes émises vs seuil 0.
+
+    Sans mock masquant — vérifie le comportement fonctionnel du filtrage,
+    pas seulement la propagation d'attribut.
+    """
+    vocab = FeatureVocabulary()
+    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl, seed=42)
+    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=11, seed=42)
+
+    # Pipeline seuil 0 : émet toutes les arêtes (argmax conf ≥ 0)
+    pipe_low = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                           edge_threshold=0.0)
+    # Pipeline seuil haut : émet seulement les arêtes très confiantes
+    pipe_high = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                            edge_threshold=0.99)
+
+    reps = [_make_rep("alpha"), _make_rep("beta")]
+    cir_low  = pipe_low.forward(reps, "alpha cause beta")
+    cir_high = pipe_high.forward(reps, "alpha cause beta")
+
+    edges_low  = len(cir_low.get("edges", []))  if cir_low  else 0
+    edges_high = len(cir_high.get("edges", [])) if cir_high else 0
+
+    assert edges_low >= edges_high, (
+        f"seuil=0.0 ({edges_low} arêtes) devrait émettre ≥ seuil=0.99 ({edges_high} arêtes)"
+    )
+    # Avec un seuil 0.99 et des logits aléatoires, softmax max ≈ 0.27 (11 classes) → 0 arêtes
+    assert edges_high == 0, (
+        f"Seuil=0.99 : attendu 0 arêtes (conf softmax max ≈ 1/11), obtenu {edges_high}"
+    )

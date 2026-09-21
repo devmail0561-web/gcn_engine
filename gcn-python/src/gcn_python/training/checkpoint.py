@@ -78,6 +78,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "graph_class":  type(graph0).__name__,
         "edge_threshold": float(getattr(pipeline, 'edge_threshold', 0.0)),
         "drop_morph":   bool(getattr(pipeline, 'drop_morph', False)),
+        "temperature":  float(getattr(pipeline, 'temperature', 1.0)),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 

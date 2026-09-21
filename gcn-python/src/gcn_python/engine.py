@@ -166,12 +166,20 @@ class GCNEngine:
             from .layer1.embedding import WordEmbedding
             word_embedding = WordEmbedding(d_emb=d_emb)
 
+        # Restaurer les hyperparamètres d'inférence depuis l'arch — sans ça,
+        # analyze() utilise les défauts (seuil 0.0, morph actif, temp 1.0) même
+        # si le modèle a été entraîné avec d'autres valeurs.
+        edge_threshold = float(arch.get("edge_threshold", 0.0))
+        drop_morph     = bool(arch.get("drop_morph", False))
+        temperature    = float(arch.get("temperature", 1.0))
+
         # M5 : reconstruit les couches R-GCN extra (n_rgcn_layers>1).
         pipeline = CGNPipeline(
             encoder=encoder, graph=graph, vocabulary=vocab,
             word_embedding=word_embedding, bidirectional=bidirectional,
-            all_pairs=all_pairs,
-            n_rgcn_layers=n_rgcn_layers,
+            all_pairs=all_pairs, n_rgcn_layers=n_rgcn_layers,
+            edge_threshold=edge_threshold, drop_morph=drop_morph,
+            temperature=temperature,
         )
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
