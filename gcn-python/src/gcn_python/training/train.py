@@ -494,13 +494,21 @@ def train_cmd(
                     valid_edge_idxs = np.where(valid_edge_mask)[0]
                     gold_edge = gold_edge_full[valid_edge_idxs]
                     edge_logits_arg = edge_logits[valid_edge_idxs]
+                    _val_edge_sw = (
+                        np.array([sample.edge_conf_map.get(pairs[i], 1.0)
+                                  for i in valid_edge_idxs], dtype=np.float32)
+                        if sample.edge_conf_map else None
+                    )
+                else:
+                    _val_edge_sw = None
 
             loss_val, _, _ = pipeline.loss(
                 node_logits, edge_logits_arg, gold_node, gold_edge,
                 edge_loss_weight=edge_loss_weight,
                 node_class_weights=node_class_weights,
                 edge_class_weights=edge_class_weights,
-                sample_weight=sample.sentence.weight,  # BUG-7 : cohérence train/val
+                sample_weight=sample.sentence.weight,
+                edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
             )
             total_loss += loss_val
             n += 1

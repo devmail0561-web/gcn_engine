@@ -45,6 +45,17 @@ class FeatureVocabulary:
     connector_lemmas: list[str] = field(default_factory=list)
     connector_dep_rels: list[str] = field(default_factory=lambda: list(CONNECTOR_DEP_RELS))
 
+    def __post_init__(self) -> None:
+        # N-7 : précalcul des index O(1) pour _one_hot (évite list.index() par appel)
+        self._idx_upos = _make_index(self.upos_tags)
+        self._idx_dep = _make_index(self.dep_rels)
+        self._idx_tense = _make_index(self.tense_values)
+        self._idx_aspect = _make_index(self.aspect_values)
+        self._idx_mood = _make_index(self.mood_values)
+        self._idx_subj = _make_index(self.subject_pos_cats)
+        self._idx_conn_lemma = _make_index(self.connector_lemmas)
+        self._idx_conn_dep = _make_index(self.connector_dep_rels)
+
     @property
     def d_clause(self) -> int:
         return (
@@ -232,19 +243,19 @@ def vectorize_clause(
     l'objet (+2*d_emb, vecteurs _absent appris si absents). Requiert word_embedding.
     """
     if drop_morph:
-        tense_vec  = _one_hot("_absent", vocab.tense_values)
-        aspect_vec = _one_hot("_absent", vocab.aspect_values)
-        mood_vec   = _one_hot("_absent", vocab.mood_values)
+        tense_vec  = _one_hot("_absent", vocab.tense_values,  vocab._idx_tense)
+        aspect_vec = _one_hot("_absent", vocab.aspect_values, vocab._idx_aspect)
+        mood_vec   = _one_hot("_absent", vocab.mood_values,   vocab._idx_mood)
         polarity   = np.zeros(1, dtype=np.float32)
     else:
-        tense_vec  = _one_hot(rep.tense,  vocab.tense_values)
-        aspect_vec = _one_hot(rep.aspect, vocab.aspect_values)
-        mood_vec   = _one_hot(rep.mood,   vocab.mood_values)
+        tense_vec  = _one_hot(rep.tense,  vocab.tense_values,  vocab._idx_tense)
+        aspect_vec = _one_hot(rep.aspect, vocab.aspect_values, vocab._idx_aspect)
+        mood_vec   = _one_hot(rep.mood,   vocab.mood_values,   vocab._idx_mood)
         polarity   = np.array([1.0 if rep.is_negative else 0.0], dtype=np.float32)
     parts = [
-        _one_hot(rep.root_pos, vocab.upos_tags),
-        _one_hot(rep.root_dep_rel, vocab.dep_rels),
-        _one_hot(rep.subject_pos or "_absent", vocab.subject_pos_cats),
+        _one_hot(rep.root_pos,              vocab.upos_tags,        vocab._idx_upos),
+        _one_hot(rep.root_dep_rel,          vocab.dep_rels,         vocab._idx_dep),
+        _one_hot(rep.subject_pos or "_absent", vocab.subject_pos_cats, vocab._idx_subj),
         tense_vec,
         aspect_vec,
         mood_vec,
@@ -280,10 +291,10 @@ def vectorize_connector(
 ) -> np.ndarray:
     """Connector features between two clauses → np.ndarray[d_conn]"""
     if marker_rep is not None:
-        upos_vec  = _one_hot(marker_rep.root_pos, vocab.upos_tags)
-        lemma_vec = _one_hot(marker_rep.root_lemma, vocab.connector_lemmas) \
+        upos_vec  = _one_hot(marker_rep.root_pos, vocab.upos_tags, vocab._idx_upos)
+        lemma_vec = _one_hot(marker_rep.root_lemma, vocab.connector_lemmas, vocab._idx_conn_lemma) \
                     if vocab.connector_lemmas else np.zeros(0, dtype=np.float32)
-        dep_vec   = _one_hot(marker_rep.root_dep_rel, vocab.connector_dep_rels)
+        dep_vec   = _one_hot(marker_rep.root_dep_rel, vocab.connector_dep_rels, vocab._idx_conn_dep)
     else:
         upos_vec  = np.zeros(len(vocab.upos_tags), dtype=np.float32)
         lemma_vec = np.zeros(len(vocab.connector_lemmas), dtype=np.float32)

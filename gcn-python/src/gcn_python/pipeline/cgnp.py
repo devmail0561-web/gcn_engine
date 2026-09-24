@@ -318,7 +318,15 @@ class CGNPipeline:
             # Message passing bidirectionnel
             if self.bidirectional and edge_index_rgcn.shape[1] > 0:
                 rev_index = edge_index_rgcn[[1, 0], :]
-                rev_types = edge_type_idxs_rgcn.copy()  # même type, direction inversée — évite débordement n_relations
+                # BUG-1 fix : arêtes inverses → types _inv (forward_idx + n_forward)
+                # W_r[type_inv] apprend à agréger dans le sens inverse séparément.
+                n_forward = len(self.relation_types) // 2 if self.bidirectional else len(self.relation_types)
+                rev_types = np.where(
+                    edge_type_idxs_rgcn < n_forward,
+                    edge_type_idxs_rgcn + n_forward,    # forward → _inv
+                    edge_type_idxs_rgcn - n_forward,    # _inv → forward (cas gold déjà _inv)
+                )
+                rev_types = np.clip(rev_types, 0, len(self.relation_types) - 1)
                 edge_index_mp = np.concatenate([edge_index_rgcn, rev_index], axis=1)
                 edge_types_mp = np.concatenate([edge_type_idxs_rgcn, rev_types])
             else:
@@ -565,11 +573,12 @@ class CGNPipeline:
         from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors, GCNBridgeError
         if shutil.which(gcn_bin) is None:
             return None
-        _layers_tr: list[tuple] = []
-        for _obj in [self.encoder, self.graph, self.decoder]:
-            if _obj is not None and hasattr(_obj, 'training'):
-                _layers_tr.append((_obj, _obj.training))
-                _obj.training = False
+        # BUG-6 : basculer encoder + TOUTES les couches graph + decoder
+        _to_toggle = [self.encoder] + list(getattr(self, '_graph_layers', [])) + [self.decoder]
+        _layers_tr = [(_obj, getattr(_obj, 'training', False))
+                      for _obj in _to_toggle if _obj is not None and hasattr(_obj, 'training')]
+        for _obj, _ in _layers_tr:
+            _obj.training = False
         try:
             cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
             reps, connector_reps = _cir_to_reps_and_connectors(cir)
@@ -1196,6 +1205,14 @@ def _cross_entropy(
         w = np.asarray(sample_weights, dtype=np.float32)
         per_sample_loss = per_sample_loss * w
         d_logits = d_logits * w[:, np.newaxis]
+        # S-5 : normaliser par Σw pour que mean(loss*w) ≡ weighted_mean
+        # Sans cette correction, des poids < 1.0 réduisent artificiellement l'échelle
+        # de la loss plutôt que de repondérer les exemples.
+        sum_w = float(w.sum())
+        if sum_w > 0:
+            scale = len(w) / sum_w  # ramène mean(w*x) à weighted_mean(x,w)
+            per_sample_loss = per_sample_loss * scale
+            d_logits = d_logits * scale
 
     loss = float(per_sample_loss.mean())
     return loss, d_logits

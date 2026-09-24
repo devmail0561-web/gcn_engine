@@ -27,7 +27,7 @@ UD_DEP_RELS = ["acl", "advcl", "advmod", "amod", "appos", "aux", "case", "cc", "
 
 UD_TENSE_VALUES = ["Pres", "Past", "Fut", "Imp", "_absent"]      # 5
 UD_ASPECT_VALUES = ["Perf", "Imp", "Prog", "_absent"]             # 4
-UD_MOOD_VALUES = ["Ind", "Sub", "Cond", "Imp", "_absent"]         # 5
+UD_MOOD_VALUES = ["Ind", "Sub", "Cnd", "Imp", "_absent"]          # 5 (S-3 : UD utilise Cnd, pas Cond)
 UD_POLARITY_VALUES = ["Neg"]                                       # 1 binaire
 
 # D_clause = 19 + 38 + 5(subject_pos) + 5 + 4 + 5 + 1 + 3(flags) + N_taxonomy
