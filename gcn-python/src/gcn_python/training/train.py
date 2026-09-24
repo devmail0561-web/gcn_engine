@@ -232,6 +232,7 @@ def train_cmd(
     from ..verbalizer.trainable import TrainableDecoder
 
     # R9 : reproductibilité — seed numpy + torch si disponible
+    _init_seed = seed if seed is not None else 42
     if seed is not None:
         np.random.seed(seed)
         try:
@@ -306,7 +307,7 @@ def train_cmd(
             encoder = TransformerMLPEncoder(
                 d_clause=d_effective, d_edge=d_edge_closed,
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
-                n_heads=mha_heads)
+                n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
         click.echo(f"MHA globale : n_heads={mha_heads} (TransformerMLPEncoder, poids fixes)")
@@ -314,7 +315,8 @@ def train_cmd(
         if mha_heads != 4:
             raise click.ClickException("--mha-heads requiert --global-attention.")
         encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
-                             weight_decay=weight_decay, mlp_hidden=mlp_hidden)
+                             weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
     # Phase B/D : PairNorm/DropEdge/CompGCN vivent dans RGCNLayerPT uniquement.
@@ -331,7 +333,7 @@ def train_cmd(
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
                              dropout=rgcn_dropout, n_heads=n_gat_heads,
-                             use_layernorm=gat_layernorm)
+                             use_layernorm=gat_layernorm, seed=_init_seed)
         # output_activation=sigmoid par défaut ; le pipeline passe les
         # intermédiaires en relu quand n_rgcn_layers > 1 (E4)
         click.echo(f"GAT : n_heads={n_gat_heads} layernorm={gat_layernorm}")
@@ -345,13 +347,23 @@ def train_cmd(
             from ..layer3.pytorch_rgcn import RGCNLayerPT
             graph = RGCNLayerPT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
                                 pairnorm=pairnorm, drop_edge=drop_edge,
-                                use_compgcn=use_compgcn, d_rel_emb=d_rel_emb)
+                                use_compgcn=use_compgcn, d_rel_emb=d_rel_emb,
+                                seed=_init_seed)
             click.echo(f"RGCNLayerPT : pairnorm={pairnorm} drop_edge={drop_edge} "
                        f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
+            # Bug 4 : RGCNLayerPT sans backward_message_pass — W_r/E_r/W_comp gelés
+            if not hasattr(graph, "backward_message_pass"):
+                warnings.warn(
+                    "RGCNLayerPT : backward_message_pass absent — matrices W_r/E_r/W_comp "
+                    "gelées à l'initialisation. Seul le MLP (encodeur) est entraîné. "
+                    "Pour entraîner le R-GCN, utiliser un optimizer PyTorch externe via "
+                    "graph.torch_parameters().",
+                    UserWarning, stacklevel=2,
+                )
         else:
             graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
                               dropout=rgcn_dropout, output_activation=rgcn_activation,
-                              use_layernorm=rgcn_layernorm)
+                              use_layernorm=rgcn_layernorm, seed=_init_seed)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -429,7 +441,7 @@ def train_cmd(
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
     loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
-                           silver_weight=silver_weight)
+                           silver_weight=silver_weight, seed=_init_seed)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
     if silver_weight < 1.0:
@@ -553,6 +565,9 @@ def train_cmd(
     best_epoch_num = 0
     best_checkpoint_path = str(output) + ".best.npz"
     _patience_counter = 0
+    best_val_edge_f1 = -1.0
+    best_edge_epoch = 0
+    best_edge_checkpoint_path = str(output) + ".best_edge.npz"
 
     def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
         """Bascule TOUS les composants avec dropout en mode eval ou train."""
@@ -1020,7 +1035,15 @@ def train_cmd(
                     )
                 click.echo(msg)
 
-            # Early stopping
+            # Sauver le meilleur checkpoint val_edge_macro_f1 (indépendant de l'early stopping)
+            if val_loader is not None:
+                _cur_edge_f1 = metrics.get("val_edge_macro_f1", 0.0)
+                if _cur_edge_f1 > best_val_edge_f1:
+                    best_val_edge_f1 = _cur_edge_f1
+                    best_edge_epoch = epoch
+                    save_checkpoint(pipeline, Path(best_edge_checkpoint_path))
+
+            # Early stopping (surveille val_node_macro_f1 pour la patience)
             if patience > 0 and val_loader is not None:
                 val_f1 = metrics.get("val_node_macro_f1", 0.0)
                 if val_f1 > best_val_f1:
@@ -1057,6 +1080,11 @@ def train_cmd(
         save_checkpoint(pipeline, output)
 
     click.echo(f"Checkpoint sauvegardé : {output}")
+    if val_loader is not None and best_edge_epoch > 0:
+        click.echo(
+            f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
+            f"→ {best_edge_checkpoint_path}"
+        )
 
     if log_csv:
         json_path = Path(log_csv).with_suffix(".json")

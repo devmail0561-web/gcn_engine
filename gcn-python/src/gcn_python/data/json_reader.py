@@ -143,12 +143,11 @@ def _parse_edge(e: dict) -> EdgeRecord:
     attrs = e.get("attributes") or {}
     relation = e.get("relation") or e.get("relation_type") or attrs.get("relation") or ""
     if not relation:
-        warnings.warn(
-            f"Arête {e.get('source', e.get('sources', '?'))}→{e.get('target', '?')} sans champ 'relation' "
-            f"— défaut '{RELATION_TYPES[0]}' appliqué.",
-            UserWarning, stacklevel=3,
+        raise ValueError(
+            f"Arête {e.get('source', e.get('sources', '?'))}→{e.get('target', '?')} "
+            f"sans champ 'relation' — arête ignorée. "
+            f"Vérifier l'annotation (relations valides : {RELATION_TYPES})."
         )
-        relation = RELATION_TYPES[0]
     # sources prioritaire, wrap source, warn si conflit
     sources = e.get("sources")
     legacy_source = e.get("source", "")

@@ -111,9 +111,27 @@ def run_eval(
                           UserWarning, stacklevel=2)
             graph = RGCNLayer(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
                               n_relations=_n_rel)
+    elif _gclass == "RGCNLayerPT":
+        try:
+            from ..layer3.pytorch_rgcn import RGCNLayerPT
+            graph = RGCNLayerPT(
+                d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
+                n_relations=_n_rel,
+                pairnorm=bool(_arch.get("pairnorm", False)),
+                drop_edge=0.0,  # toujours désactivé en eval
+                use_compgcn=bool(_arch.get("use_compgcn", False)),
+                d_rel_emb=int(_arch.get("d_rel_emb", 32)),
+            )
+        except ImportError:
+            warnings.warn("run_eval : PyTorch absent — repli sur RGCNLayer (NumPy).",
+                          UserWarning, stacklevel=2)
+            graph = RGCNLayer(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
+                              n_relations=_n_rel)
     else:
         graph = RGCNLayer(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
-                          n_relations=_n_rel)
+                          n_relations=_n_rel,
+                          output_activation=str(_arch.get("rgcn_output_activation", "sigmoid")),
+                          use_layernorm=bool(_arch.get("rgcn_layernorm", False)))
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            word_embedding=_word_embedding, bidirectional=_bidi,
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
