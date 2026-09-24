@@ -43,6 +43,13 @@ def emit(
     if node_origins is None:
         node_origins = [NODE_ORIGIN_VALUES[0]] * len(node_types)
 
+    # S-2 : temporal_index = rang dans l'ordre du texte (par position de token start)
+    # Ordre de création ≠ ordre temporel quand une cause est mentionnée après son effet.
+    text_order = sorted(range(len(token_spans)), key=lambda k: token_spans[k][0])
+    temporal_rank = [0] * len(token_spans)
+    for rank, orig_idx in enumerate(text_order):
+        temporal_rank[orig_idx] = rank
+
     nodes = []
     for i, (nt, label, span, scope, origin) in enumerate(
         zip(node_types, node_labels, token_spans, scopes, node_origins)
@@ -64,7 +71,7 @@ def emit(
             "scope": scope,
             "modifiers": [],
             "temporal_ref": temporal_refs[i] if temporal_refs and i < len(temporal_refs) else TEMPORAL_REF_DEFAULT,
-            "temporal_index": i,
+            "temporal_index": temporal_rank[i],  # S-2 : rang texte, pas rang création
             "origin": origin,
             "is_inferred": inferred,
             "attributes": attrs,
@@ -79,42 +86,47 @@ def emit(
                 f"emit : confidence non finie ({confidence!r}) pour l'arête "
                 f"{src}->{dst} — JSON refusé par serde Rust."
             )
+        # S-7 temporal_gap : différence d'indices temporels entre les deux clauses
+        t_src = temporal_rank[src] if src < len(temporal_rank) else None
+        t_dst = temporal_rank[dst] if dst < len(temporal_rank) else None
+        t_gap = (t_dst - t_src) if (t_src is not None and t_dst is not None) else None
         edges.append([src, dst, {
             "relation": relation,
             "confidence": conf,
-            "temporal_gap": None,
+            "temporal_gap": t_gap,
             "explicit": marker_token is not None,
             "negated": negated,
             "marker_token": marker_token,
             "in_cycle": None,
         }])
 
-    # S-7 : détection de cycles par DFS sur le graphe d'arêtes
-    adj: dict[int, list[int]] = {i: [] for i in range(len(nodes))}
+    # S-7 : détection de cycles par DFS sur le graphe d'arêtes (orienté)
+    # Utilise un graphe orienté pour éviter de confondre arête retour avec parent.
+    adj_directed: dict[int, list[int]] = {i: [] for i in range(len(nodes))}
     for src, dst, _ in edges:
-        adj[src].append(dst)
-        adj[dst].append(src)  # non-orienté pour détection de cycles simples
+        adj_directed[src].append(dst)
 
     visited: set[int] = set()
+    in_path: set[int] = set()       # nœuds dans le chemin de récursion courant
     cycle_node_sets: list[frozenset[int]] = []
 
-    def _dfs_cycle(node: int, parent: int, path: list[int]) -> None:
+    def _dfs_cycle(node: int, path: list[int]) -> None:
         visited.add(node)
+        in_path.add(node)
         path.append(node)
-        for nb in adj[node]:
-            if nb == parent:
-                continue
-            if nb in visited:
-                # Cycle détecté : extraire la boucle
+        for nb in adj_directed[node]:
+            if nb in in_path:
+                # Arête retour → cycle : extraire la boucle
                 idx = path.index(nb)
                 cycle_node_sets.append(frozenset(path[idx:]))
-            else:
-                _dfs_cycle(nb, node, path)
+            elif nb not in visited:
+                _dfs_cycle(nb, path)
         path.pop()
+        in_path.discard(node)
 
     for start in range(len(nodes)):
         if start not in visited:
-            _dfs_cycle(start, -1, [])
+            _dfs_cycle(start, [])
 
     # Dédupliquer les cycles
     unique_cycles = list({frozenset(c) for c in cycle_node_sets})
