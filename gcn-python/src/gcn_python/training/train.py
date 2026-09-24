@@ -171,6 +171,14 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--max-class-weight", default=5.0, show_default=True, type=float,
               help="Plafond des class weights avec --weighted-loss. Évite qu'une classe "
                    "ultra-rare domine la loss. 0 = pas de plafond.")
+@click.option("--scheduled-sampling/--no-scheduled-sampling", default=False, show_default=True,
+              help="Scheduled sampling : réduit linéairement la probabilité d'injecter "
+                   "gold_edge_map en entraînement (1.0 → 0.0 sur ss-final-epoch epochs). "
+                   "Réduit l'asymétrie train/val due au teacher forcing R-GCN. "
+                   "Requiert --two-pass-val (actif par défaut).")
+@click.option("--ss-final-epoch", default=50, show_default=True, type=int,
+              help="Epoch (incluse) où p_gold atteint 0.0 avec --scheduled-sampling. "
+                   "Avant : p_gold = 1 - (epoch-1)/ss_final_epoch. Après : p_gold = 0.0.")
 @click.option("--seed", default=None, type=int,
               help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
@@ -226,6 +234,8 @@ def train_cmd(
     max_class_weight: float,
     use_compgcn: bool,
     d_rel_emb: int,
+    scheduled_sampling: bool,
+    ss_final_epoch: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -395,6 +405,14 @@ def train_cmd(
 
     if decoder_only and decoder is None:
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
+
+    if scheduled_sampling and not two_pass_val:
+        raise click.ClickException(
+            "--scheduled-sampling requiert --two-pass-val (actif par défaut). "
+            "Sans two-pass, l'inférence utilise des types 0 partout."
+        )
+    if ss_final_epoch < 1:
+        raise click.ClickException(f"--ss-final-epoch doit être ≥ 1 (reçu {ss_final_epoch}).")
 
     if patience > 0 and val_dir is None:
         raise click.ClickException("--patience requiert --val-dir")
@@ -753,12 +771,17 @@ def train_cmd(
                     reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
                     if not reps:
                         continue
+                    if scheduled_sampling and ss_final_epoch > 0:
+                        _p_gold = max(0.0, 1.0 - (epoch - 1) / ss_final_epoch)
+                        _gold_map = sample.edge_map if (np.random.random() < _p_gold) else None
+                    else:
+                        _gold_map = sample.edge_map  # teacher forcing standard
                     pipeline.forward(
                         reps, sample.sentence.text,
                         clause_positions=valid_clause_idxs,
                         n_total_clauses=len(sample.sentence.clauses),
                         connector_reps=connector_reps,
-                        gold_edge_map=sample.edge_map,  # BUG-1 teacher-forcing : types réels en train uniquement
+                        gold_edge_map=_gold_map,
                     )
                 except ValueError:
                     raise

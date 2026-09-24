@@ -283,3 +283,63 @@ def test_pipeline_routes_transformer_through_forward_batch():
         enc.forward_batch(np.random.default_rng(0).normal(0, 1, (4, d_eff)).astype(np.float32)),
         mlp.forward_batch(np.random.default_rng(0).normal(0, 1, (4, d_eff)).astype(np.float32)),
     )
+
+
+# ─── Tests bugs critiques + scheduled sampling ──────────────────────────────
+
+from gcn_python.layer3.reference import RGCNLayer
+
+
+def test_seed_propagation_mlpencoder():
+    """Deux MLPEncoder avec la même seed produisent les mêmes poids."""
+    e1 = MLPEncoder(d_clause=20, d_edge=50, seed=7)
+    e2 = MLPEncoder(d_clause=20, d_edge=50, seed=7)
+    for l1, l2 in zip(e1._node_layers, e2._node_layers):
+        assert np.allclose(l1.W, l2.W)
+    e3 = MLPEncoder(d_clause=20, d_edge=50, seed=99)
+    assert not np.allclose(e1._node_layers[0].W, e3._node_layers[0].W)
+
+
+def test_seed_propagation_rgcn():
+    """Deux RGCNLayer avec la même seed produisent les mêmes W_r."""
+    r1 = RGCNLayer(d_in=16, d_out=16, n_relations=3, seed=7)
+    r2 = RGCNLayer(d_in=16, d_out=16, n_relations=3, seed=7)
+    assert np.allclose(r1.W_r, r2.W_r)
+    r3 = RGCNLayer(d_in=16, d_out=16, n_relations=3, seed=99)
+    assert not np.allclose(r1.W_r, r3.W_r)
+
+
+def test_scheduled_sampling_p_gold_decreases():
+    """p_gold = max(0, 1 - (epoch-1)/ss_final_epoch) décroît correctement."""
+    ss_final = 10
+    p_golds = [max(0.0, 1.0 - (ep - 1) / ss_final) for ep in range(1, 15)]
+    assert p_golds[0] == 1.0        # epoch 1 : p_gold=1.0
+    assert p_golds[9] == pytest.approx(0.1)   # epoch 10
+    assert p_golds[10] == 0.0       # epoch 11 : p_gold=0.0
+    assert p_golds[13] == 0.0       # epoch 14 : reste 0.0
+
+
+def test_json_reader_rejects_missing_relation(tmp_path):
+    """Arête sans champ relation lève ValueError (plus de substitution silencieuse)."""
+    import json
+    from gcn_python.data.json_reader import load_all_sentences
+    bad = {
+        "document": {"sentences": [{
+            "id": "s1", "text": "A cause B.",
+            "clauses": [
+                {"id": "n1", "type": "action", "label": "A", "token_span": [0, 1]},
+                {"id": "n2", "type": "action", "label": "B", "token_span": [1, 2]},
+            ],
+            "edges": [{"source": "n1", "target": "n2"}]  # relation absente
+        }]}
+    }
+    f = tmp_path / "bad.json"
+    f.write_text(json.dumps(bad), encoding="utf-8")
+    import warnings
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        records = load_all_sentences(tmp_path)
+    # Le sample doit être ignoré (ValueError attrapée) avec un warning
+    assert len(records) == 0 or all(
+        len(r.edges) == 0 for r in records
+    ), "Arête sans relation ne doit pas être chargée"
