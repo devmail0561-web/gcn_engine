@@ -113,37 +113,22 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
         min(len(pred_nodes), len(gold_nodes)) / max(len(gold_nodes), 1)
     )
 
-    # Node type accuracy (align by position)
+    # Node type accuracy : NaN quand tailles différentes (L-1 — alignement positionnel invalide)
     if len(pred_nodes) != len(gold_nodes):
-        warnings.warn(
-            f"causal_graph_similarity: pred_nodes ({len(pred_nodes)}) ≠ gold_nodes "
-            f"({len(gold_nodes)}) — alignement par position potentiellement trompeur. "
-            f"Envisager un alignement par identité pour des métriques plus fiables.",
-            UserWarning,
-            stacklevel=2,
-        )
-    n = min(len(pred_nodes), len(gold_nodes))
-    node_type_acc = (
-        sum(
+        node_type_acc = float('nan')
+    elif len(pred_nodes) == 0:
+        node_type_acc = 1.0
+    else:
+        node_type_acc = sum(
             pred_nodes[i].get("node_type") == gold_nodes[i].get("node_type")
-            for i in range(n)
-        ) / max(n, 1)
-    )
+            for i in range(len(pred_nodes))
+        ) / len(pred_nodes)
 
     # Edge count ratio
     edge_count_ratio = (
         min(len(pred_edges), len(gold_edges)) / max(len(gold_edges), 1)
     )
 
-    # Edge relation accuracy (align by position)
-    if len(pred_edges) != len(gold_edges):
-        warnings.warn(
-            f"causal_graph_similarity: pred_edges ({len(pred_edges)}) ≠ gold_edges "
-            f"({len(gold_edges)}) — alignement par position potentiellement trompeur. "
-            f"Envisager un alignement par identité pour des métriques plus fiables.",
-            UserWarning,
-            stacklevel=2,
-        )
     def _edge_attrs(e) -> dict:
         if isinstance(e, dict):
             return e
@@ -151,25 +136,48 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
             return e[2] if isinstance(e[2], dict) else {}
         return {}
 
-    e = min(len(pred_edges), len(gold_edges))
-    edge_rel_acc = (
-        sum(
+    # Edge relation accuracy : NaN quand tailles différentes (L-1)
+    if len(pred_edges) != len(gold_edges):
+        edge_rel_acc = float('nan')
+    elif len(pred_edges) == 0:
+        edge_rel_acc = 1.0
+    else:
+        edge_rel_acc = sum(
             _edge_attrs(pred_edges[i]).get("relation")
             == _edge_attrs(gold_edges[i]).get("relation")
-            for i in range(e)
-        )
-        / max(e, 1)
-    )
+            for i in range(len(pred_edges))
+        ) / len(pred_edges)
 
-    overall = float(np.mean([node_count_ratio, node_type_acc,
-                              edge_count_ratio, edge_rel_acc]))
+    # overall : ignore NaN (L-1 — seules les valeurs définies contribuent)
+    defined = [v for v in [node_count_ratio, node_type_acc, edge_count_ratio, edge_rel_acc]
+               if not (isinstance(v, float) and v != v)]  # v != v ↔ isnan
+    overall = float(np.mean(defined)) if defined else float('nan')
 
+    # L-2 : edge_relation_f1 — macro F1 sur les types de relations (fiable même si |pred|≠|gold|)
+    pred_rels = [_edge_attrs(e).get("relation", "") for e in pred_edges]
+    gold_rels = [_edge_attrs(e).get("relation", "") for e in gold_edges]
+    all_rel_types = sorted(set(pred_rels) | set(gold_rels))
+    if all_rel_types:
+        from collections import Counter as _C
+        pc, gc = _C(pred_rels), _C(gold_rels)
+        f1s = []
+        for r in all_rel_types:
+            tp = min(pc[r], gc[r])
+            prec = tp / pc[r] if pc[r] else 0.0
+            rec  = tp / gc[r] if gc[r] else 0.0
+            f1s.append(2 * prec * rec / (prec + rec) if (prec + rec) else 0.0)
+        edge_rel_f1 = float(np.mean(f1s))
+    else:
+        edge_rel_f1 = 1.0  # deux graphes sans arêtes sont identiques
+
+    def _r(v): return round(v, 4) if v == v else float('nan')
     return {
-        "node_count_ratio": round(node_count_ratio, 4),
-        "node_type_accuracy": round(node_type_acc, 4),
-        "edge_count_ratio": round(edge_count_ratio, 4),
-        "edge_relation_accuracy": round(edge_rel_acc, 4),
-        "overall": round(overall, 4),
+        "node_count_ratio": _r(node_count_ratio),
+        "node_type_accuracy": _r(node_type_acc),
+        "edge_count_ratio": _r(edge_count_ratio),
+        "edge_relation_accuracy": _r(edge_rel_acc),
+        "edge_relation_f1": round(edge_rel_f1, 4),
+        "overall": _r(overall),
     }
 
 
@@ -369,3 +377,17 @@ def _f1_per_class(
             "support": support,
         }
     return result
+
+
+def connector_precision_at_1(
+    pred_idxs: list[int], gold_idxs: list[int | None]
+) -> float:
+    """G3 : précision@1 du connecteur — le bon connecteur est-il choisi par arête ?
+
+    Les gold None (aucun match vocab) sont exclus du calcul.
+    Baseline aléatoire : 1/|C|. Cible raisonnable : > 0.50.
+    """
+    pairs = [(p, g) for p, g in zip(pred_idxs, gold_idxs) if g is not None]
+    if not pairs:
+        return 0.0
+    return sum(1 for p, g in pairs if p == g) / len(pairs)

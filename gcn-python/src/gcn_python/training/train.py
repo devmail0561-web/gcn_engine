@@ -539,6 +539,8 @@ def train_cmd(
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
             ]
+            if pipeline.decoder is not None:
+                csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
             if assembler is not None:
                 csv_fieldnames.append("verbalize_connector_prec1")
             if val_loader is not None:
@@ -552,6 +554,8 @@ def train_cmd(
 
         for epoch in range(1, epochs + 1):
             epoch_loss = 0.0
+            epoch_dec_loss = 0.0   # L-3 : loss décodeur séparée
+            n_dec_samples = 0
             n_samples = 0
             batch_step_count = 0
             epoch_node_preds: list[str] = []
@@ -761,8 +765,8 @@ def train_cmd(
                         continue
                     _, dec_grads, d_attn_vec = pipeline.decoder.backward_decode(d_dec)
                     pipeline.decoder.update(dec_grads, d_attn_vec, lr)
-                    epoch_loss += dec_loss
-                    n_samples += 1
+                    epoch_dec_loss += dec_loss   # L-3 : séparé de epoch_loss
+                    n_dec_samples += 1
                     # G2/G3 : entraînement assembleur + collecte connector_prec@1
                     if assembler is not None and vsample.edge_triples:
                         _golds = vsample.connector_gold_idx or []
@@ -789,6 +793,10 @@ def train_cmd(
                     epoch_sent_edge_preds, epoch_sent_edge_gold,
                 ),
             }
+            if pipeline.decoder is not None:
+                metrics["decoder_loss"] = (  # L-3 : séparé, non mélangé dans loss
+                    epoch_dec_loss / max(n_dec_samples, 1)
+                )
             # G3 : connector_precision@1 (gold None exclus) — remplace le BLEU invalide
             if assembler is not None:
                 from ..evaluation.metrics import connector_precision_at_1
