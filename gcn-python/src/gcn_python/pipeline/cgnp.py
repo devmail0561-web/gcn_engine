@@ -3,7 +3,10 @@
 from __future__ import annotations
 import numpy as np
 
-from ..layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
+from ..layer1.features import (
+    FeatureVocabulary, vectorize_clause, vectorize_edge,
+    embedding_routing, CLAUSE_POOLING_MODES,
+)
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
 from ..constants import NODE_TYPES, RELATION_TYPES
@@ -23,7 +26,8 @@ class CGNPipeline:
     - backward(d_node, d_edge, lr)            → rétropropagation + mise à jour SGD
 
     Précondition à la construction : si graph expose d_out, il doit être égal à
-    vocabulary.d_clause — vérifié immédiatement, ValueError sinon.
+    vocabulary.d_clause_effective() (d_clause + embeddings [+ sujet/objet]) —
+    vérifié immédiatement, ValueError sinon.
 
     decoder (optionnel) : TrainableDecoder ou tout objet implémentant
     forward_decode / loss_decode / backward_decode / update. Si None, le pipeline
@@ -53,14 +57,30 @@ class CGNPipeline:
         edge_threshold: float = 0.0,
         drop_morph: bool = False,
         bfs_depth: int | None = None,
+        clause_pooling: str = "root",
+        subject_object_emb: bool = False,
+        gat_residual: bool = False,
+        assembler=None,
     ):
-        # S1 : dimension effective = features structurelles + embedding si actif
-        _d_eff = vocabulary.d_clause + (word_embedding.d_emb if word_embedding is not None else 0)
+        if clause_pooling not in CLAUSE_POOLING_MODES:
+            raise ValueError(
+                f"clause_pooling inconnu : {clause_pooling!r} "
+                f"(attendu parmi {CLAUSE_POOLING_MODES})."
+            )
+        self.clause_pooling = clause_pooling
+        self.subject_object_emb = bool(subject_object_emb)
+        self.gat_residual = bool(gat_residual)
+        # G2 : assembleur lexical de connecteurs (optionnel, entraîné par gcn-train)
+        self.assembler = assembler
+        # A/B : dimension effective = structure + embeddings (+ sujet/objet)
+        _d_emb = word_embedding.d_emb if word_embedding is not None else 0
+        _d_eff = vocabulary.d_clause_effective(_d_emb, self.subject_object_emb)
         if hasattr(graph, 'd_out') and graph.d_out != _d_eff:
             raise ValueError(
                 f"RGCNLayer.d_out={graph.d_out} ≠ d_effective={_d_eff} "
                 f"(vocabulary.d_clause={vocabulary.d_clause}"
                 + (f" + word_embedding.d_emb={word_embedding.d_emb}" if word_embedding is not None else "")
+                + (" + 2*d_emb (subject_object_emb)" if self.subject_object_emb else "")
                 + ") : instanciez RGCNLayer avec d_out=d_effective."
             )
         self.encoder = encoder
@@ -98,20 +118,44 @@ class CGNPipeline:
                 )
         self.bfs_depth = bfs_depth
 
-        # S5 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
+        # S5/E4 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
+        # E4 : les couches supplémentaires sont du même type que graph
+        # (LayerClass = type(graph)) — GAT préserve l'attention à chaque couche.
         self.n_rgcn_layers = n_rgcn_layers
         self._graph_layers: list = [graph]
         if n_rgcn_layers > 1:
             if hasattr(graph, 'd_in') and hasattr(graph, 'd_out') and hasattr(graph, 'n_relations'):
-                from ..layer3.reference import RGCNLayer
+                LayerClass = type(graph)
                 for extra_i in range(1, n_rgcn_layers):
-                    self._graph_layers.append(
-                        RGCNLayer(
+                    _kwargs: dict = dict(
+                        d_in=graph.d_in, d_out=graph.d_out,
+                        n_relations=graph.n_relations,
+                        seed=extra_i * 100 + 42,
+                    )
+                    _kwargs["dropout"] = getattr(
+                        graph, 'dropout_rate', getattr(graph, 'dropout', 0.0))
+                    if hasattr(graph, 'n_heads'):
+                        # GAT : même attention multi-tête, activation relu
+                        # (intermédiaire), même LayerNorm
+                        _kwargs["n_heads"] = graph.n_heads
+                        _kwargs["output_activation"] = "relu"
+                        _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
+                    try:
+                        _extra = LayerClass(**_kwargs)
+                    except TypeError:
+                        _extra = LayerClass(
                             d_in=graph.d_in, d_out=graph.d_out,
                             n_relations=graph.n_relations,
                             seed=extra_i * 100 + 42,
                         )
-                    )
+                    self._graph_layers.append(_extra)
+                # E1/E4 : intermédiaires en relu, finale en sigmoid
+                # (couches exposant output_activation uniquement)
+                for _lyr in self._graph_layers[:-1]:
+                    if hasattr(_lyr, 'output_activation'):
+                        _lyr.output_activation = "relu"
+                if hasattr(self._graph_layers[-1], 'output_activation'):
+                    self._graph_layers[-1].output_activation = "sigmoid"
             else:
                 import warnings as _w
                 _w.warn(
@@ -137,6 +181,9 @@ class CGNPipeline:
         self._cached_decode_gradient: np.ndarray | None = None
         # Cache reps — utilisé par backward pour word_embedding.backward()
         self._cached_reps: list | None = None
+        # Cache routage embeddings (A+B) — [(lemma, offset, poids)] par rep,
+        # rempli au forward quand word_embedding est présent
+        self._cached_pool_routing: list | None = None
         # Cache paires d'arêtes (src_i, dst_i) — pour router dx edge → d_enriched
         self._cached_edge_pairs: list[tuple[int, int]] | None = None
         # Offsets mesurés à la construction du vecteur enriched_edge (forward)
@@ -157,6 +204,7 @@ class CGNPipeline:
         clause_positions: list[int] | None = None,
         n_total_clauses: int | None = None,
         connector_reps: list | None = None,
+        gold_edge_map: dict | None = None,
     ) -> dict:
         """UDRepresentation list → CausalIR dict (JSON-serializable, conforme schéma serde Rust).
 
@@ -167,7 +215,8 @@ class CGNPipeline:
           Comparé via `is not None` — la valeur 0 est traitée comme zéro clause, pas comme absent.
         connector_reps : UDRepresentation|None par paire consécutive (len = len(reps)-1).
         """
-        return self._forward_from_reps(reps, text, clause_positions, n_total_clauses, connector_reps)
+        return self._forward_from_reps(reps, text, clause_positions, n_total_clauses,
+                                       connector_reps, gold_edge_map)
 
     def _forward_from_reps(
         self,
@@ -176,6 +225,7 @@ class CGNPipeline:
         clause_positions: list[int] | None = None,
         n_total_clauses: int | None = None,
         connector_reps: list | None = None,
+        gold_edge_map: dict | None = None,
     ) -> dict:
         if clause_positions is not None and len(clause_positions) != len(reps):
             raise ValueError(
@@ -194,6 +244,7 @@ class CGNPipeline:
         self._cached_edge_snapshots = None
         self._cached_decode_gradient = None
         self._cached_reps = None
+        self._cached_pool_routing = None
         self._cached_edge_pairs = None
         self._cached_d_edge_base = None
         self._cached_d_eff = None
@@ -204,12 +255,21 @@ class CGNPipeline:
 
         self._cached_reps = reps
 
-        # Couche 1 — vectorisation (S1 : word_embedding optionnel)
+        # Couche 1 — vectorisation (S1 : word_embedding optionnel, A/B : pooling + subj/obj)
         clause_vecs = np.stack([
             vectorize_clause(r, self.vocabulary, self.word_embedding,
-                             drop_morph=self.drop_morph) for r in reps
+                             drop_morph=self.drop_morph,
+                             clause_pooling=self.clause_pooling,
+                             subject_object_emb=self.subject_object_emb) for r in reps
         ])  # (N, D_effective)
         self._cached_clause_vecs = clause_vecs
+        # Routage des gradients d'embeddings (A+B) — miroir exact du forward
+        if self.word_embedding is not None:
+            self._cached_pool_routing = [
+                embedding_routing(r, self.word_embedding,
+                                  self.clause_pooling, self.subject_object_emb)
+                for r in reps
+            ]
 
         # S3 : chemin batch si forward_batch disponible et pas de snapshots requis
         _has_batch = hasattr(self.encoder, 'forward_batch')
@@ -241,15 +301,19 @@ class CGNPipeline:
                 [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
                 dtype=np.int64,
             ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
-            # Types d'arêtes : type 0 uniforme — choix assumé.
-            # Le R-GCN est utilisé en GCN mono-relation (W_0 + self-loop uniquement).
-            # Les matrices W_1..W_{n_relations-1} sont des poids appris mais non activés :
-            # elles s'initialisent aléatoirement et ne reçoivent jamais de gradient.
-            # La sémantique relationnelle repose sur le MLP d'arêtes (closed-loop) qui
-            # reçoit les vecteurs enrichis + features d'arête. Pour brancher les types
-            # réels : passer argmax(edge_logits) avec stop-gradient — non implémenté
-            # pour éviter la dépendance circulaire forward(nœuds) → edge_types → R-GCN.
-            edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
+            # Types d'arêtes : gold (teacher forcing) si disponible, sinon type 0.
+            # gold_edge_map = {(src_idx, tgt_idx): rel_idx} fourni par train.py en entraînement.
+            # En inférence (gold absent) : type 0 — acceptable car le signal d'entraînement
+            # gold suffit à apprendre les W_r distincts pour chaque type de relation.
+            if gold_edge_map:
+                edge_type_idxs_rgcn = np.array([
+                    gold_edge_map.get((i, j), gold_edge_map.get((j, i), 0))
+                    for (i, j) in _edge_pairs_rgcn
+                ], dtype=np.int64)
+                n_rel = len(self.relation_types)
+                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, n_rel - 1)
+            else:
+                edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
 
             # Message passing bidirectionnel
             if self.bidirectional and edge_index_rgcn.shape[1] > 0:
@@ -268,7 +332,12 @@ class CGNPipeline:
             self._cached_edge_type_idxs = edge_types_mp
 
             for _layer in self._graph_layers:
-                enriched = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
+                _h = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
+                # E3 : résidu (h + prev) si shapes compatibles, sinon h seul
+                if self.gat_residual and _h.shape == enriched.shape:
+                    enriched = _h + enriched
+                else:
+                    enriched = _h
 
         # Deuxième passage nœuds sur les vecteurs enrichis
         if len(reps) > 1:
@@ -314,6 +383,8 @@ class CGNPipeline:
                     real_src, real_dst, real_n,
                     self.vocabulary, self.word_embedding,
                     drop_morph=self.drop_morph,
+                    clause_pooling=self.clause_pooling,
+                    subject_object_emb=self.subject_object_emb,
                 )
                 # Enrichir avec les representations R-GCN + node type predictions
                 enriched_edge = np.concatenate([
@@ -491,12 +562,20 @@ class CGNPipeline:
         from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors, GCNBridgeError
         if shutil.which(gcn_bin) is None:
             return None
+        _layers_tr: list[tuple] = []
+        for _obj in [self.encoder, self.graph, self.decoder]:
+            if _obj is not None and hasattr(_obj, 'training'):
+                _layers_tr.append((_obj, _obj.training))
+                _obj.training = False
         try:
             cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
             reps, connector_reps = _cir_to_reps_and_connectors(cir)
             return self.forward(reps, text, connector_reps=connector_reps)
         except GCNBridgeError:
             return None
+        finally:
+            for _obj, _was in _layers_tr:
+                _obj.training = _was
 
     def loss(
         self,
@@ -509,6 +588,7 @@ class CGNPipeline:
         node_class_weights: np.ndarray | None = None,  # (7,) float — poids par classe nœud
         edge_class_weights: np.ndarray | None = None,  # (11,) float — poids par classe arête
         label_smoothing: float = 0.0,  # lissage des labels [0, 1]
+        sample_weight: float = 1.0,  # F : poids gold/silver de la phrase (arêtes seules)
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -516,12 +596,17 @@ class CGNPipeline:
         Retourne (total_loss, d_node_logits, d_edge_logits).
         Gradients normalisés par le nombre d'exemples.
         edge_loss_weight permet d'équilibrer la contribution des arêtes dans la loss totale.
+        sample_weight (F) multiplie la loss arêtes et son gradient (nœuds intacts).
         Si gold_surface est fourni et que le décodeur a produit des logits (forward()),
         la loss décodeur est ajoutée au total et son gradient est caché pour backward().
         """
         if not np.isfinite(edge_loss_weight) or edge_loss_weight < 0:
             raise ValueError(
                 f"edge_loss_weight doit être un nombre fini >= 0 (reçu {edge_loss_weight!r})."
+            )
+        if not np.isfinite(sample_weight) or sample_weight < 0:
+            raise ValueError(
+                f"sample_weight doit être un nombre fini >= 0 (reçu {sample_weight!r})."
             )
         if not (0.0 <= label_smoothing < 1.0) or not np.isfinite(label_smoothing):
             raise ValueError(
@@ -545,10 +630,10 @@ class CGNPipeline:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
 
-        total_loss = node_loss + edge_loss_weight * edge_loss
-        # Le gradient arêtes suit la même pondération que la loss affichée
-        # (sans quoi edge_loss_weight=0 afficherait 0 tout en entraînant).
-        d_edge = d_edge * edge_loss_weight
+        total_loss = sample_weight * node_loss + edge_loss_weight * sample_weight * edge_loss
+        # BUG-8 : sample_weight s'applique aux nœuds ET aux arêtes (cohérence gold/silver)
+        d_node = d_node * sample_weight
+        d_edge = d_edge * edge_loss_weight * sample_weight
         if not np.isfinite(total_loss):
             import warnings as _w3
             _w3.warn(
@@ -768,7 +853,12 @@ class CGNPipeline:
             import warnings as _w2
             for _layer in reversed(self._graph_layers):
                 if hasattr(_layer, 'backward_message_pass'):
-                    d_curr, graph_grads = _layer.backward_message_pass(d_curr)
+                    d_input, graph_grads = _layer.backward_message_pass(d_curr)
+                    # E3 : gradient identité du résidu
+                    if self.gat_residual and d_input.shape == d_curr.shape:
+                        d_curr = d_input + d_curr
+                    else:
+                        d_curr = d_input
                     if weight_decay > 0.0:
                         params = _layer.parameters()
                         graph_grads = [g + weight_decay * p for g, p in zip(graph_grads, params)]
@@ -781,24 +871,50 @@ class CGNPipeline:
                         UserWarning, stacklevel=2,
                     )
 
-        # --- Word embedding backward (S2) ---
+        # --- Word embedding backward (S2 + routage A/B) ---
         # V3 : utiliser d_curr (gradient post-R-GCN) et non d_enriched (pré-R-GCN).
         # Si aucune couche RGCN n'implémente backward_message_pass, d_curr reste
         # un alias vers d_enriched — comportement identique à l'original.
+        # A/B : le gradient est routé vers tous les lemmes poolés (mean/max),
+        # le root seul (root), et sujet/objet (B) via _cached_pool_routing.
         if (self.word_embedding is not None
                 and self._cached_reps is not None
                 and d_curr is not None
                 and d_curr.shape[1] > self.vocabulary.d_clause):
-            d_emb_slice = d_curr[:, self.vocabulary.d_clause:]
-            if len(self._cached_reps) != len(d_emb_slice):
-                raise ValueError(
-                    f"backward word_embedding : {len(d_emb_slice)} gradients pour "
-                    f"{len(self._cached_reps)} reps (cache stale — appelez forward() "
-                    "avant backward())."
-                )
-            for i in range(len(self._cached_reps)):
-                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+            self._backward_word_embedding(d_curr)
             self.word_embedding.update(lr)
+
+    def _backward_word_embedding(self, d_curr: np.ndarray, caller: str = "backward") -> None:
+        """Route les gradients d'embeddings via _cached_pool_routing (A/B).
+
+        Chaque entrée (lemma, offset, poids) reçoit
+        d_curr[i, d_clause+offset : d_clause+offset+d_emb] * poids.
+        Fallback historique (cache absent) : root_lemma seul, tronqué à d_emb.
+        N'appelle PAS update() — l'appelant décide (SGD immédiat vs accumulé).
+        """
+        d_emb = self.word_embedding.d_emb
+        d_emb_full = d_curr[:, self.vocabulary.d_clause:]
+        if len(self._cached_reps) != len(d_emb_full):
+            raise ValueError(
+                f"{caller} word_embedding : {len(d_emb_full)} gradients pour "
+                f"{len(self._cached_reps)} reps (cache stale — appelez forward() "
+                "avant backward())."
+            )
+        _routing = self._cached_pool_routing
+        for i in range(len(self._cached_reps)):
+            _routes = (_routing[i] if _routing is not None and i < len(_routing)
+                       and _routing[i] else None)
+            if _routes is None:
+                self.word_embedding.backward(
+                    d_emb_full[i, :d_emb], self._cached_reps[i].root_lemma)
+                continue
+            for (lemma, offset, w) in _routes:
+                _g = d_emb_full[i, offset:offset + d_emb]
+                if len(_g) < d_emb:  # garde : cache/forward désalignés
+                    _pad = np.zeros(d_emb, dtype=np.float32)
+                    _pad[:len(_g)] = _g
+                    _g = _pad
+                self.word_embedding.backward(_g * w, lemma)
 
     def backward_accumulate(
         self,
@@ -945,7 +1061,12 @@ class CGNPipeline:
             layer_grads_list = []
             for _layer in reversed(self._graph_layers):
                 if hasattr(_layer, 'backward_message_pass'):
-                    d_curr, g = _layer.backward_message_pass(d_curr)
+                    d_input, g = _layer.backward_message_pass(d_curr)
+                    # E3 : gradient identité du résidu (miroir de backward())
+                    if self.gat_residual and d_input.shape == d_curr.shape:
+                        d_curr = d_input + d_curr
+                    else:
+                        d_curr = d_input
                     layer_grads_list.append((_layer, g))
             if self._accum_rgcn_grads is None:
                 self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
@@ -954,20 +1075,13 @@ class CGNPipeline:
                     for i in range(len(acc_g)):
                         acc_g[i] += new_g[i]
 
-        # --- Word embedding backward accumulation (S2) ---
+        # --- Word embedding backward accumulation (S2 + routage A/B) ---
         # V3 : utiliser d_curr (gradient post-R-GCN + décodeur), miroir de backward().
         if (self.word_embedding is not None
                 and self._cached_reps is not None
                 and d_curr is not None
                 and d_curr.shape[1] > self.vocabulary.d_clause):
-            d_emb_slice = d_curr[:, self.vocabulary.d_clause:]
-            if len(self._cached_reps) != len(d_emb_slice):
-                raise ValueError(
-                    f"backward_accumulate word_embedding : {len(d_emb_slice)} gradients "
-                    f"pour {len(self._cached_reps)} reps (cache stale)."
-                )
-            for i in range(len(self._cached_reps)):
-                self.word_embedding.backward(d_emb_slice[i], self._cached_reps[i].root_lemma)
+            self._backward_word_embedding(d_curr, caller="backward_accumulate")
             # update() appelé dans apply_accumulated_gradients() avec normalisation
 
     def apply_accumulated_gradients(self, lr: float, n_samples: int = 1, weight_decay: float = 0.0) -> None:

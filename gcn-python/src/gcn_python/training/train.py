@@ -94,7 +94,40 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
                    "None = tous les candidats (défaut, illimité). "
                    "Stocké dans _arch_json et repris par défaut en prédiction.")
 @click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
-              help="Nombre de couches R-GCN empilées (≥1). Requiert RGCNLayer (pas GAT).")
+              help="Nombre de couches R-GCN empilées (≥1). Avec n>1 et GAT, "
+                   "recommander --rgcn-dropout 0.2 --weight-decay 1e-4 pour limiter "
+                   "l'overfitting sur petits datasets (avertissement, pas de contrainte).")
+@click.option("--clause-pooling", default="root", show_default=True,
+              type=click.Choice(["root", "mean", "max"]),
+              help="Pooling des embeddings de clause (A) : root (défaut), mean ou max "
+                   "sur les tokens de contenu. Requiert --embedding-dim > 0.")
+@click.option("--subject-object-emb/--no-subject-object-emb", default=False, show_default=True,
+              help="Concaténer les embeddings sujet/objet (B, +2*d_emb, _absent appris). "
+                   "Requiert --embedding-dim > 0.")
+@click.option("--mlp-hidden", default=128, show_default=True, type=int,
+              help="Première couche cachée du MLP nœuds. Recommandé : 256 avec "
+                   "--subject-object-emb (d_effective=226).")
+@click.option("--freeze-embeddings/--no-freeze-embeddings", default=False, show_default=True,
+              help="Geler les embeddings pré-entraînés (C). Requiert --embedding-file. "
+                   "Les spéciaux _subj_absent/_obj_absent restent entraînables.")
+@click.option("--silver-weight", default=1.0, show_default=True, type=float,
+              help="Poids des phrases silver dans la loss arêtes (F). 1.0 = aucun effet. "
+                   "Variante immédiate : 0.7.")
+@click.option("--n-gat-heads", default=1, show_default=True, type=int,
+              help="Nombre de têtes d'attention GAT (D). Requiert --use-attention. "
+                   "d_out doit être divisible (d_emb=49 → d_out=128 → {1,2,4,8}).")
+@click.option("--gat-residual/--no-gat-residual", default=False, show_default=True,
+              help="Connexions résiduelles entre couches graphe (E3).")
+@click.option("--gat-layernorm/--no-gat-layernorm", default=False, show_default=True,
+              help="LayerNorm après concaténation des têtes GAT (E2).")
+@click.option("--legacy-decoder", is_flag=True, default=False,
+              help="Choix explicite du TrainableDecoder déprécié (G). Défaut : legacy "
+                   "tant que --connectors-file est absent.")
+@click.option("--connectors-file", default=None, type=click.Path(path_type=Path),
+              help="Vocabulaire de connecteurs JSON (G2, connectors_fr.json). "
+                   "Active l'entraînement de l'assembleur lexical.")
+@click.option("--verbalize-source-dir", default=None, type=click.Path(path_type=Path),
+              help="Dataset source des paires verbalize (G1, défaut : --data-dir).")
 @click.option("--edge-threshold", default=0.0, show_default=True, type=float,
               help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
 @click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
@@ -132,6 +165,17 @@ def train_cmd(
     edge_threshold: float,
     drop_morph: bool,
     seed: int | None,
+    clause_pooling: str,
+    subject_object_emb: bool,
+    mlp_hidden: int,
+    freeze_embeddings: bool,
+    silver_weight: float,
+    n_gat_heads: int,
+    gat_residual: bool,
+    gat_layernorm: bool,
+    legacy_decoder: bool,
+    connectors_file: Path | None,
+    verbalize_source_dir: Path | None,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -149,10 +193,23 @@ def train_cmd(
 
     vocab = FeatureVocabulary()
 
+    # Préconditions A/B/C/F (amelioration_v3)
+    _has_emb = embedding_file is not None or embedding_dim > 0
+    if clause_pooling != "root" and not _has_emb:
+        raise click.ClickException("--clause-pooling != root requiert --embedding-dim > 0.")
+    if subject_object_emb and not _has_emb:
+        raise click.ClickException("--subject-object-emb requiert --embedding-dim > 0.")
+    if freeze_embeddings and embedding_file is None:
+        raise click.ClickException("--freeze-embeddings requiert --embedding-file.")
+    if not (0.0 < silver_weight <= 1.0):
+        raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
+    if mlp_hidden < 1:
+        raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
+
     # S1/S2/S9 : word embeddings optionnels
     word_embedding = None
     d_emb = 0
-    if embedding_file is not None or embedding_dim > 0:
+    if _has_emb:
         from ..layer1.embedding import WordEmbedding
         if embedding_file is not None and embedding_dim == 0:
             # Détecter la dimension depuis la première ligne du fichier
@@ -169,33 +226,65 @@ def train_cmd(
             if embedding_file is not None:
                 n_loaded = word_embedding.load_from_file(str(embedding_file))
                 click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
+            if freeze_embeddings:
+                # C : gel des pré-entraînés (spéciaux _absent toujours entraînables)
+                word_embedding.frozen = True
+                click.echo("Embeddings pré-entraînés gelés (--freeze-embeddings)")
 
-    d_effective = vocab.d_clause + d_emb
+    # B : point unique de vérité pour la dimension effective
+    d_effective = vocab.d_clause_effective(d_emb, subject_object_emb)
     # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
     n_node_types = len(NODE_TYPES)
-    d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb)
-    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed, weight_decay=weight_decay)
+    d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
+                                                 subject_object_emb)
+    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
+                         weight_decay=weight_decay, mlp_hidden=mlp_hidden)
 
     # Couche 3 : choix du graph selon les flags
     n_rel = 22 if bidirectional else len(RELATION_TYPES)
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                             dropout=rgcn_dropout)
+                             dropout=rgcn_dropout, n_heads=n_gat_heads,
+                             use_layernorm=gat_layernorm)
+        # output_activation=sigmoid par défaut ; le pipeline passe les
+        # intermédiaires en relu quand n_rgcn_layers > 1 (E4)
+        click.echo(f"GAT : n_heads={n_gat_heads} layernorm={gat_layernorm}")
     else:
+        if n_gat_heads != 1:
+            raise click.ClickException("--n-gat-heads requiert --use-attention.")
+        if gat_layernorm:
+            raise click.ClickException("--gat-layernorm requiert --use-attention.")
         graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
                           dropout=rgcn_dropout)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
     decoder: TrainableDecoder | None = None
+    assembler = None
+    verbalize_mode = "legacy"
+    connector_vocab: list[str] | None = None
+    if connectors_file is not None:
+        _conn_doc = json.loads(Path(connectors_file).read_text(encoding="utf-8"))
+        connector_vocab = list(_conn_doc.get("connectors", []))
+        if not connector_vocab:
+            raise click.ClickException(f"Aucun connecteur dans {connectors_file}")
     if verbalize_dir is not None:
-        verb_loader = VerbalizerDataLoader(verbalize_dir)
+        _verb_source = verbalize_source_dir if verbalize_source_dir is not None else data_dir
+        verb_loader = VerbalizerDataLoader(verbalize_dir, source_json_dir=_verb_source,
+                                           connector_vocab=connector_vocab)
         if len(verb_loader) == 0:
             raise click.ClickException(f"Aucune paire verbalize dans {verbalize_dir}")
         decoder = TrainableDecoder(verb_loader.vocab)
         verb_source_map = verb_loader.source_text_map()
         click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
+        if connector_vocab is not None:
+            from ..verbalizer.trainable import LexicalConnectorAssembler
+            assembler = LexicalConnectorAssembler(connector_vocab)
+            verbalize_mode = "lexical"
+            click.echo(f"Assembleur lexical : {len(connector_vocab)} connecteurs (mode lexical)")
+        elif legacy_decoder:
+            click.echo("Décodeur legacy explicite (--legacy-decoder)")
 
     if decoder_only and decoder is None:
         raise click.ClickException("--decoder-only requiert --verbalize-dir")
@@ -203,13 +292,9 @@ def train_cmd(
     if patience > 0 and val_dir is None:
         raise click.ClickException("--patience requiert --val-dir")
 
-    # B4 : validation --n-rgcn-layers
+    # B4 : validation --n-rgcn-layers (restriction GAT levée — E4)
     if n_rgcn_layers < 1:
         raise click.ClickException(f"--n-rgcn-layers doit être ≥ 1 (reçu {n_rgcn_layers}).")
-    if n_rgcn_layers > 1 and use_attention:
-        raise click.ClickException(
-            "--n-rgcn-layers > 1 n'est pas supporté avec --use-attention (GAT)."
-        )
     if bfs_depth is not None and bfs_depth < 1:
         raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
 
@@ -217,7 +302,12 @@ def train_cmd(
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
-                           bfs_depth=bfs_depth)
+                           bfs_depth=bfs_depth, clause_pooling=clause_pooling,
+                           subject_object_emb=subject_object_emb,
+                           gat_residual=gat_residual, assembler=assembler)
+    # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
+    pipeline.silver_weight = silver_weight
+    pipeline.verbalize_mode = verbalize_mode
 
     link_pred_head = None
     if link_pred:
@@ -232,9 +322,12 @@ def train_cmd(
         load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True)
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
+                           silver_weight=silver_weight)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    if silver_weight < 1.0:
+        click.echo(f"Silver-weight : {silver_weight} (F — loss arêtes pondérée)")
     # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
     _n_hyper = sum(1 for s in loader if s.hyperedge_map)
     if _n_hyper:
@@ -269,7 +362,19 @@ def train_cmd(
                     edge_counts[int(rel)] += 1
             if word_embedding is not None:
                 reps_s, _, _ = reps_from_sentence(sample.sentence)
-                all_lemmas.extend(r.root_lemma for r in reps_s)
+                # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
+                # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
+                if clause_pooling == "root" and not subject_object_emb:
+                    all_lemmas.extend(r.root_lemma for r in reps_s)
+                else:
+                    from ..layer1.features import _pool_lemmas, _find_subj_obj_lemmas
+                    for r in reps_s:
+                        if clause_pooling == "root":
+                            all_lemmas.append(r.root_lemma)
+                        else:
+                            all_lemmas.extend(_pool_lemmas(r, clause_pooling))
+                        if subject_object_emb:
+                            all_lemmas.extend(_find_subj_obj_lemmas(r))
         if weighted_loss:
             if node_counts:
                 total_nodes = sum(node_counts.values())
@@ -395,6 +500,7 @@ def train_cmd(
                 edge_loss_weight=edge_loss_weight,
                 node_class_weights=node_class_weights,
                 edge_class_weights=edge_class_weights,
+                sample_weight=sample.sentence.weight,  # BUG-7 : cohérence train/val
             )
             total_loss += loss_val
             n += 1
@@ -433,6 +539,8 @@ def train_cmd(
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
             ]
+            if assembler is not None:
+                csv_fieldnames.append("verbalize_connector_prec1")
             if val_loader is not None:
                 csv_fieldnames.extend([
                     "val_loss", "val_node_accuracy", "val_node_macro_f1",
@@ -454,6 +562,8 @@ def train_cmd(
             epoch_sent_node_gold: list[list[str]] = []
             epoch_sent_edge_preds: list[list[str]] = []
             epoch_sent_edge_gold: list[list[str]] = []
+            _asm_pred_idxs: list[int] = []  # G3 : connecteurs prédits (par arête)
+            _asm_gold_idxs: list = []       # G3 : connecteurs gold (None exclus)
 
             for sample in loader:
                 if not sample.sentence.clauses:
@@ -468,6 +578,7 @@ def train_cmd(
                         clause_positions=valid_clause_idxs,
                         n_total_clauses=len(sample.sentence.clauses),
                         connector_reps=connector_reps,
+                        gold_edge_map=sample.edge_map,  # BUG-1 : types réels pour R-GCN
                     )
                 except ValueError:
                     raise
@@ -533,6 +644,7 @@ def train_cmd(
                     node_class_weights=node_class_weights,
                     edge_class_weights=edge_class_weights,
                     label_smoothing=label_smoothing,
+                    sample_weight=sample.sentence.weight,  # F (1.0 si silver_weight=1.0)
                 )
 
                 if not decoder_only:
@@ -606,6 +718,7 @@ def train_cmd(
 
             if verb_loader is not None and pipeline.decoder is not None:
                 from ..verbalizer.trainable import SurfaceVocabulary as _SV
+                from ..data.verbalize_loader import _node_type_embeddings
                 for vsample in verb_loader:
                     if len(vsample.gold_tokens) == 0:
                         continue
@@ -617,13 +730,22 @@ def train_cmd(
                     if not _reps:
                         continue
                     pipeline.forward(_reps, vsample.source_text)
-                    _enriched = pipeline.get_enriched_vectors()
-                    if _enriched is None:
-                        continue
+                    # G1 : vecteurs lexicaux réels depuis clause_texts si disponibles,
+                    # sinon repli sur les one-hot de types (comportement historique)
+                    if word_embedding is not None and vsample.clause_texts:
+                        _lex_vecs = np.stack([
+                            np.mean([word_embedding.lookup(w)
+                                     for w in ct.lower().split() or ['_unk']],
+                                    axis=0).astype(np.float32)
+                            for ct in vsample.clause_texts
+                        ])
+                    else:
+                        _lex_vecs = _node_type_embeddings(
+                            _json.loads(vsample.ir_json)['nodes'])
                     _eos = pipeline.decoder.vocab._t2i.get(_SV.EOS, -1)
                     _gold = (np.append(vsample.gold_tokens, _eos).astype(np.int64)
                              if _eos >= 0 else vsample.gold_tokens)
-                    dec_logits = pipeline.decoder.forward_decode(_enriched, _gold)
+                    dec_logits = pipeline.decoder.forward_decode(_lex_vecs, _gold)
                     dec_loss, d_dec = pipeline.decoder.loss_decode(dec_logits, _gold)
                     if not np.isfinite(dec_loss):
                         continue
@@ -631,6 +753,20 @@ def train_cmd(
                     pipeline.decoder.update(dec_grads, d_attn_vec, lr)
                     epoch_loss += dec_loss
                     n_samples += 1
+                    # G2/G3 : entraînement assembleur + collecte connector_prec@1
+                    if assembler is not None and vsample.edge_triples:
+                        _golds = vsample.connector_gold_idx or []
+                        for _k, (_s, _d, _r) in enumerate(vsample.edge_triples):
+                            _g = _golds[_k] if _k < len(_golds) else None
+                            _pred = assembler.predict(_r)
+                            if _g is None:
+                                continue
+                            _asm_pred_idxs.append(_pred)
+                            _asm_gold_idxs.append(_g)
+                            _a_loss, _a_grads = assembler.loss_and_grad(_r, _g)
+                            assembler.update(_a_grads, lr)
+                            epoch_loss += _a_loss
+                            n_samples += 1
 
             avg_loss = epoch_loss / max(n_samples, 1)
             metrics = {
@@ -643,6 +779,11 @@ def train_cmd(
                     epoch_sent_edge_preds, epoch_sent_edge_gold,
                 ),
             }
+            # G3 : connector_precision@1 (gold None exclus) — remplace le BLEU invalide
+            if assembler is not None:
+                from ..evaluation.metrics import connector_precision_at_1
+                metrics["verbalize_connector_prec1"] = connector_precision_at_1(
+                    _asm_pred_idxs, _asm_gold_idxs)
 
             # Val pass
             if val_loader is not None:

@@ -98,6 +98,13 @@ class TrainableDecoder:
         seed: int = 0,
         max_decode_len: int = 20,
     ) -> None:
+        warnings.warn(
+            "TrainableDecoder est déprécié (BLEU invalide sur labels 1 mot) — "
+            "utilisez LexicalConnectorAssembler (verbalize_mode='lexical'). "
+            "Passez --legacy-decoder pour un choix explicite.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.vocab = vocab
         self.d_hidden = d_hidden
         self.max_decode_len = max_decode_len
@@ -245,7 +252,7 @@ class TrainableDecoder:
                 d_t[t] -= 1.0
                 d_logits += d_t
             N = len(valid)
-            return total_loss / N, d_logits
+            return total_loss / N, d_logits / N  # BUG-9 : gradient cohérent avec la loss
         else:
             # Multi-step (T, |V|): per-step cross-entropy
             T, V = logits.shape
@@ -265,7 +272,7 @@ class TrainableDecoder:
                 valid_steps += 1
             if valid_steps == 0:
                 return 0.0, d_logits
-            return total_loss / valid_steps, d_logits
+            return total_loss / valid_steps, d_logits / valid_steps  # BUG-9 : cohérence 2D
 
     def backward_decode(
         self, d_logits: np.ndarray
@@ -480,3 +487,99 @@ class TrainableDecoder:
         if data.get("w_query") and dec._layers is not None:
             dec._W_query = np.array(data["w_query"], dtype=np.float32)
         return dec
+
+
+class LexicalConnectorAssembler:
+    """Assembleur lexical de connecteurs (Amélioration G2).
+
+    Architecture :
+      rel_emb = R[relation_idx]              R : (11, d_rel=16)
+      logits  = W_conn @ rel_emb + b         W_conn : (|C|, 16), b : (|C|,)
+      connector = vocab_connectors[argmax(logits)]
+      sortie  : f"{src_text} {connector} {dst_text}"
+
+    Le vocabulaire de connecteurs vient de connectors_fr.json
+    (extraction auto depuis mixte_final + validation manuelle).
+    Entraîné par cross-entropie sur connector_gold_idx (None = ignoré).
+    """
+
+    def __init__(
+        self,
+        connector_vocab: list[str],
+        d_rel: int = 16,
+        n_relations: int = 11,
+        seed: int = 42,
+    ) -> None:
+        if not connector_vocab:
+            raise ValueError("LexicalConnectorAssembler requiert un vocabulaire non vide.")
+        self.connector_vocab = list(connector_vocab)
+        self.d_rel = d_rel
+        self.n_relations = n_relations
+        _rng = np.random.default_rng(seed)
+        self.R = (_rng.normal(0, np.sqrt(1.0 / d_rel),
+                              (n_relations, d_rel)).astype(np.float32))
+        self.W_conn = (_rng.normal(0, np.sqrt(1.0 / d_rel),
+                                   (len(connector_vocab), d_rel)).astype(np.float32))
+        self.b = np.zeros(len(connector_vocab), dtype=np.float32)
+
+    def forward(self, relation_idx: int) -> np.ndarray:
+        """relation_idx → logits (|C|,)."""
+        if not (0 <= int(relation_idx) < self.n_relations):
+            raise ValueError(
+                f"relation_idx hors bornes : {relation_idx!r} "
+                f"(attendu [0, {self.n_relations}[)."
+            )
+        return self.W_conn @ self.R[int(relation_idx)] + self.b
+
+    def predict(self, relation_idx: int) -> int:
+        """Indice du connecteur prédit pour une relation."""
+        return int(np.argmax(self.forward(relation_idx)))
+
+    def loss_and_grad(
+        self, relation_idx: int, gold_idx: int
+    ) -> tuple[float, list[np.ndarray]]:
+        """Cross-entropie + gradients [dR_row, dW, db].
+
+        Seule la ligne R[relation_idx] reçoit un gradient (sparse).
+        Retourne dR sous forme (n_relations, d_rel) avec zéros ailleurs.
+        """
+        logits = self.forward(relation_idx)
+        _m = logits.max()
+        _exp = np.exp(logits - _m)
+        _probs = _exp / (_exp.sum() + 1e-9)
+        loss = float(-np.log(_probs[gold_idx] + 1e-9))
+        d_logits = _probs.copy()
+        d_logits[gold_idx] -= 1.0
+        rel_emb = self.R[int(relation_idx)]
+        dW = np.outer(d_logits, rel_emb)
+        db = d_logits.copy()
+        d_rel_emb = self.W_conn.T @ d_logits
+        dR = np.zeros_like(self.R)
+        dR[int(relation_idx)] = d_rel_emb
+        return loss, [dR, dW, db]
+
+    def update(self, grads: list[np.ndarray], lr: float) -> None:
+        """SGD sur R, W_conn, b."""
+        self.R -= lr * grads[0]
+        self.W_conn -= lr * grads[1]
+        self.b -= lr * grads[2]
+
+    def parameters(self) -> list[np.ndarray]:
+        return [self.R, self.W_conn, self.b]
+
+    def verbalize(self, src_text: str, dst_text: str, relation_idx: int) -> str:
+        """Assemble 'src connecteur dst' avec le connecteur prédit."""
+        return f"{src_text} {self.connector_vocab[self.predict(relation_idx)]} {dst_text}"
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "connector_vocab": self.connector_vocab,
+            "d_rel": self.d_rel,
+            "n_relations": self.n_relations,
+        }, ensure_ascii=False)
+
+    @classmethod
+    def from_json(cls, s: str) -> "LexicalConnectorAssembler":
+        data = json.loads(s)
+        return cls(data["connector_vocab"], d_rel=data.get("d_rel", 16),
+                   n_relations=data.get("n_relations", 11))

@@ -378,3 +378,110 @@ def test_cross_entropy_weighted_gradient_scales_by_gold_weight():
             grad_w[i], grad_0[i] * weights[labels[i]], rtol=1e-5,
             err_msg=f"ligne {i}: poids attendu w[{labels[i]}]={weights[labels[i]]:.4f}"
         )
+
+
+# ── Améliorations v3 : résidu (E3), pooling/B forward, pondération loss (F) ──
+
+def test_gat_residual_changes_enriched_vs_no_residual():
+    """E3 : avec résidu, enriched = h + prev ≠ h seul (pipeline NumPy)."""
+    from gcn_python.layer1.representation import UDRepresentation
+    vocab = FeatureVocabulary()
+    D = vocab.d_clause
+
+    def _rep(lemma):
+        return UDRepresentation(
+            tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos=None, has_object=False,
+            has_advcl=False, has_temporal_obl=False, token_span=(1, 1))
+
+    reps = [_rep("alpha"), _rep("beta")]
+    enc1 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    enc2 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    g1 = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
+    g2 = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
+    p_plain = CGNPipeline(encoder=enc1, graph=g1, vocabulary=vocab)
+    p_res = CGNPipeline(encoder=enc2, graph=g2, vocabulary=vocab, gat_residual=True)
+    p_plain.forward(reps, "test")
+    p_res.forward(reps, "test")
+    assert p_plain._cached_enriched_vecs.shape == (2, D)
+    assert p_res._cached_enriched_vecs.shape == (2, D)
+    assert not np.allclose(p_plain._cached_enriched_vecs, p_res._cached_enriched_vecs), \
+        "résidu doit modifier les vecteurs enrichis"
+
+
+def test_clause_pooling_mean_forward_shape():
+    """A : forward pipeline avec clause_pooling=mean (d_emb>0)."""
+    from gcn_python.layer1.embedding import WordEmbedding
+    from gcn_python.layer1.representation import UDRepresentation
+    vocab = FeatureVocabulary()
+    we = WordEmbedding(d_emb=8, seed=0)
+    we.build_vocab(["alpha", "beta"])
+    d_eff = vocab.d_clause_effective(8, False)
+    enc = MLPEncoder(d_clause=d_eff, d_edge=vocab.d_edge_closed_loop(d_eff, 7, 8), seed=0)
+    g = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=0)
+    pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab,
+                       word_embedding=we, clause_pooling="mean")
+
+    def _rep(lemma):
+        return UDRepresentation(
+            tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos=None, has_object=False,
+            has_advcl=False, has_temporal_obl=False, token_span=(1, 1))
+
+    out = pipe.forward([_rep("alpha"), _rep("beta")], "test")
+    assert pipe._cached_clause_vecs.shape == (2, d_eff)
+    assert pipe._cached_pool_routing is not None
+    assert len(pipe._cached_pool_routing) == 2
+    assert out is not None
+
+
+def test_subject_object_emb_forward_shape():
+    """B : forward pipeline avec subject_object_emb (d_eff = d_clause + 3*d_emb)."""
+    from gcn_python.layer1.embedding import WordEmbedding
+    from gcn_python.layer1.representation import UDRepresentation
+    vocab = FeatureVocabulary()
+    we = WordEmbedding(d_emb=8, seed=0)
+    we.build_vocab(["alpha", "beta", "chat"])
+    d_eff = vocab.d_clause_effective(8, True)
+    assert d_eff == vocab.d_clause + 24
+    enc = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, 7, 8, True), seed=0)
+    g = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=0)
+    pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab,
+                       word_embedding=we, subject_object_emb=True)
+
+    def _rep(lemma):
+        return UDRepresentation(
+            tokens=[{"lemma": "chat", "pos": "NOUN", "dep_rel": "nsubj", "morph": {}},
+                    {"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos="NOUN", has_object=False,
+            has_advcl=False, has_temporal_obl=False, token_span=(1, 2))
+
+    out = pipe.forward([_rep("alpha"), _rep("beta")], "test")
+    assert pipe._cached_clause_vecs.shape == (2, d_eff)
+    assert out is not None
+
+
+def test_sample_weight_scales_node_and_edge_loss():
+    """BUG-8 fix : sample_weight multiplie la loss nœuds ET arêtes (cohérence gold/silver)."""
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    vocab = FeatureVocabulary()
+    D = vocab.d_clause
+    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    g = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
+    pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab)
+    rng = np.random.default_rng(0)
+    node_logits = rng.normal(0, 1, (2, 7)).astype(np.float32)
+    edge_logits = rng.normal(0, 1, (1, 11)).astype(np.float32)
+    gold_node = np.array([0, 1])
+    gold_edge = np.array([2])
+    loss_full, d_node_full, d_edge_full = pipe.loss(
+        node_logits, edge_logits, gold_node, gold_edge)
+    loss_w, d_node_w, d_edge_w = pipe.loss(
+        node_logits, edge_logits, gold_node, gold_edge, sample_weight=0.7)
+    assert loss_w < loss_full
+    assert np.allclose(d_node_w, d_node_full * 0.7), "gradient nœuds × 0.7 (BUG-8)"
+    assert np.allclose(d_edge_w, d_edge_full * 0.7), "gradient arêtes × 0.7"

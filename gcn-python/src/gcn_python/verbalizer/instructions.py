@@ -203,9 +203,9 @@ class CausalGraph:
             attrs["_match_level"] = level
             conf = attrs.get("confidence")
             try:
-                conf_val = float(conf) if conf is not None else -1.0
+                conf_val = float(conf) if conf is not None else 0.5  # BUG-4 : None = neutre
             except (TypeError, ValueError):
-                conf_val = -1.0
+                conf_val = 0.5
             if level == 4:
                 n_substring += 1
             scored.append((level, -conf_val, idx, (src, dst, attrs, text)))
@@ -230,9 +230,9 @@ class CausalGraph:
             attrs["_match_level"] = level
             conf = attrs.get("confidence")
             try:
-                conf_val = float(conf) if conf is not None else -1.0
+                conf_val = float(conf) if conf is not None else 0.5  # BUG-4 : None = neutre
             except (TypeError, ValueError):
-                conf_val = -1.0
+                conf_val = 0.5
             if level == 4:
                 n_substring += 1
             scored.append((level, -conf_val, idx, (src, dst, attrs, text)))

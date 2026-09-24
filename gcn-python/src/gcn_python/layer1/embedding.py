@@ -19,9 +19,10 @@ class WordEmbedding:
     Checkpoint : sauvegardé via save_checkpoint (clés word_emb_E et _word_emb_vocab_json).
     """
 
-    def __init__(self, d_emb: int = 50, seed: int = 42) -> None:
+    def __init__(self, d_emb: int = 50, seed: int = 42, frozen: bool = False) -> None:
         self.d_emb = d_emb
         self._seed = seed
+        self.frozen = frozen  # Amélioration C : gel des pré-entraînés (voir load_from_file)
         self._vocab: dict[str, int] = {"_unk": 0}
         self._lemmas: list[str] = ["_unk"]
         self._rng = np.random.default_rng(seed)
@@ -29,6 +30,14 @@ class WordEmbedding:
             0, np.sqrt(1.0 / d_emb), (1, d_emb)
         ).astype(np.float32)
         self._grad_accum: np.ndarray | None = None
+        # Plage d'indices pré-entraînés (gelée si frozen) — fixée par load_from_file().
+        # Les lemmes spéciaux _subj_absent/_obj_absent (indices 1-2) et les lemmes
+        # ajoutés après le chargement restent toujours entraînables.
+        self._pretrained_start: int | None = None
+        self._pretrained_end: int | None = None
+        # Amélioration B : vecteurs d'absence appris (comme _unk)
+        self.add_lemma('_subj_absent')   # index 1
+        self.add_lemma('_obj_absent')    # index 2
 
     # ── gestion du vocabulaire ────────────────────────────────────────
 
@@ -56,17 +65,37 @@ class WordEmbedding:
         idx = self._vocab.get(lemma, 0)
         return self._E[idx].copy()
 
+    def _is_frozen_idx(self, idx: int) -> bool:
+        """True si l'indice est gelé (C) : frozen ET dans la plage pré-entraînée."""
+        return (
+            bool(self.frozen)
+            and self._pretrained_start is not None
+            and self._pretrained_end is not None
+            and self._pretrained_start <= idx < self._pretrained_end
+        )
+
     def backward(self, d_emb: np.ndarray, lemma: str) -> None:
-        """Accumule le gradient pour l'embedding de lemma."""
+        """Accumule le gradient pour l'embedding de lemma (no-op si gelé)."""
         idx = self._vocab.get(lemma, 0)
+        if self._is_frozen_idx(idx):
+            return  # accumuler rien
         if self._grad_accum is None:
             self._grad_accum = np.zeros_like(self._E)
         self._grad_accum[idx] += d_emb
 
     def update(self, lr: float) -> None:
-        """Étape SGD ; vide les gradients accumulés."""
+        """Étape SGD ; vide les gradients accumulés.
+
+        Si frozen, seules les lignes hors plage pré-entraînée sont mises à jour
+        (_subj_absent/_obj_absent et lemmes ajoutés après le chargement).
+        """
         if self._grad_accum is not None:
-            self._E -= lr * self._grad_accum
+            if self.frozen and self._pretrained_start is not None:
+                grads = self._grad_accum.copy()
+                grads[self._pretrained_start:self._pretrained_end] = 0.0
+                self._E -= lr * grads
+            else:
+                self._E -= lr * self._grad_accum
             self._grad_accum = None
 
     # ── chargement pré-entraîné (S9) ─────────────────────────────────
@@ -80,13 +109,31 @@ class WordEmbedding:
         Ne charge que les vecteurs dont la dimension correspond à self.d_emb.
 
         Retourne le nombre de vecteurs chargés avec succès.
+        La plage d'indices chargés est mémorisée : avec frozen=True, seuls
+        ces indices sont gelés (les spéciaux _subj_absent/_obj_absent et les
+        lemmes ajoutés ensuite restent entraînables).
         """
         loaded = 0
+        self._pretrained_start = len(self._lemmas)
+        loaded = 0
+        _first_real_dim: int | None = None
         with open(path, encoding=encoding) as f:
             for line in f:
                 parts = line.rstrip().split(" ")
-                if len(parts) - 1 != self.d_emb:
-                    continue  # en-tête ou dimension incompatible
+                dim = len(parts) - 1
+                if dim <= 1:
+                    continue  # en-tête "V d_emb" ou ligne vide
+                if _first_real_dim is None:
+                    _first_real_dim = dim
+                    if _first_real_dim != self.d_emb:
+                        raise ValueError(
+                            f"Dimension du fichier ({_first_real_dim}) ≠ d_emb ({self.d_emb}). "
+                            f"Utilisez --embedding-dim {_first_real_dim} pour ce fichier, "
+                            f"ou omettez --embedding-file pour des embeddings aléatoires "
+                            f"{self.d_emb}-dim."
+                        )
+                if dim != self.d_emb:
+                    continue  # dimension incompatible (ne devrait pas arriver après la vérif)
                 word = parts[0]
                 try:
                     vec = np.array(parts[1:], dtype=np.float32)
@@ -95,6 +142,7 @@ class WordEmbedding:
                 idx = self.add_lemma(word)
                 self._E[idx] = vec
                 loaded += 1
+        self._pretrained_end = len(self._lemmas)
         return loaded
 
     # ── paramètres / checkpoint ───────────────────────────────────────
@@ -103,14 +151,23 @@ class WordEmbedding:
         return [self._E]
 
     def to_json(self) -> str:
-        """Sérialise la liste des lemmes (ordre = indices)."""
-        return json.dumps(self._lemmas, ensure_ascii=False)
+        """Sérialise les lemmes et la plage pré-entraînée (pour from_json)."""
+        return json.dumps({
+            "lemmas": self._lemmas,
+            "__pretrained_start": self._pretrained_start,
+            "__pretrained_end": self._pretrained_end,
+        }, ensure_ascii=False)
 
     @classmethod
     def from_json(cls, s: str, d_emb: int = 50) -> "WordEmbedding":
         """Recrée le vocabulaire depuis to_json(). Les poids sont à restaurer séparément."""
         obj = cls(d_emb=d_emb)
-        lemmas = json.loads(s)
+        data = json.loads(s)
+        # Compatibilité : ancien format = liste de lemmes directement
+        lemmas = data if isinstance(data, list) else data.get("lemmas", [])
         for lemma in lemmas[1:]:  # index 0 = _unk, déjà présent
             obj.add_lemma(lemma)
+        if isinstance(data, dict):
+            obj._pretrained_start = data.get("__pretrained_start")
+            obj._pretrained_end = data.get("__pretrained_end")
         return obj
