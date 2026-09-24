@@ -91,3 +91,41 @@ def test_custom_registry_db_path(tmp_path):
     captured, _ = _invoke(["--output-dir", str(tmp_path), "--registry-db", str(custom)])
     init_kwargs = captured["init"][1]
     assert init_kwargs.get("registry_db") == custom
+
+
+# ─── Tests ratio code / langs none ─────────────────────────────────────────
+
+
+def test_code_ratio_default_is_10_percent(tmp_path):
+    """Par défaut, code_ratio=0.10 transmis dans la config."""
+    captured, _ = _invoke(["--output-dir", str(tmp_path)])
+    assert captured["config"].get("code_ratio") == 0.10
+
+
+def test_code_ratio_custom_transmitted(tmp_path):
+    """--code-ratio 0.5 transmis dans la config."""
+    captured, _ = _invoke(["--output-dir", str(tmp_path), "--code-ratio", "0.5"])
+    assert captured["config"].get("code_ratio") == 0.5
+
+
+def test_langs_none_sets_empty_langs(tmp_path):
+    """--langs none → config['langs'] == [] (pas de fallback fr,en)."""
+    captured, _ = _invoke(["--output-dir", str(tmp_path), "--langs", "none"])
+    assert captured["config"].get("langs") == []
+
+
+def test_langs_none_budget_is_code_only():
+    """--langs none → budget {"code": target} sans aucune langue humaine."""
+    from gcn_scraper.balance_tracker import _compute_budget
+    budget = _compute_budget([], 20000, include_code=True, code_ratio=0.10)
+    assert budget == {"code": 20000}
+    assert "fr" not in budget
+    assert "en" not in budget
+
+
+def test_code_ratio_applied_in_budget():
+    """--code-ratio 0.5 avec langs=[fr] → fr=10000, code=10000 sur 20000."""
+    from gcn_scraper.balance_tracker import _compute_budget
+    budget = _compute_budget(["fr"], 20000, include_code=True, code_ratio=0.5)
+    assert budget["code"] == 10000
+    assert budget["fr"] == 10000

@@ -88,8 +88,10 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "freeze_embeddings": bool(getattr(we, 'frozen', False)) if we is not None else False,
         "n_gat_heads": int(getattr(graph0, 'n_heads', 1)),
         "gat_residual": bool(getattr(pipeline, 'gat_residual', False)),
-        "gat_layernorm": bool(getattr(graph0, 'norm', None) is not None),
+        "gat_layernorm": bool(getattr(graph0, 'norm', None) is not None
+                              and type(graph0).__name__ == "RGCNLayerGAT"),
         "gat_output_activation": str(getattr(graph0, 'output_activation', 'sigmoid')),
+        "rgcn_output_activation": str(getattr(graph0, 'output_activation', 'sigmoid')),
         "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
         "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
@@ -110,6 +112,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
                                    getattr(graph0, 'use_compgcn', False))),
         "d_rel_emb": int(getattr(pipeline, 'd_rel_emb',
                                 getattr(graph0, 'd_rel_emb', 32))),
+        "two_pass_val": bool(getattr(pipeline, 'two_pass_val', True)),
+        "rgcn_layernorm": bool(getattr(graph0, 'use_layernorm', False)),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -388,6 +392,9 @@ def load_checkpoint(
         _sw = _arch.get("silver_weight")
         if _sw is not None:
             pipeline.silver_weight = float(_sw)
+        _tpv = _arch.get("two_pass_val")
+        if _tpv is not None:
+            pipeline.two_pass_val = bool(_tpv)
         _mh = _arch.get("mlp_hidden")
         if _mh is not None and hasattr(pipeline.encoder, 'mlp_hidden'):
             _mh_int = int(_mh)

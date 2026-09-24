@@ -237,3 +237,49 @@ def test_compgcn_relation_embeddings_are_close_for_similar_relations():
     d_close = float(np.linalg.norm(E[0] - E[1]))
     d_far = float(np.linalg.norm(E[0] - E[2]))
     assert d_close < d_far
+
+
+@needs_torch
+def test_pipeline_routes_transformer_through_forward_batch():
+    """Garde-fou Phase C : CGNPipeline.forward() doit emprunter forward_batch()
+    (donc la MHA) avec TransformerMLPEncoder — pas la boucle forward_node.
+    Sans l'opt-in prefers_batch_forward, --global-attention serait un no-op
+    silencieux (mêmes métriques que la référence, constaté sur R1)."""
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer1.representation import UDRepresentation
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.constants import NODE_TYPES
+
+    def _rep(lemma):
+        return UDRepresentation(
+            tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
+            root_lemma=lemma, root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos=None,
+            has_object=False, has_advcl=False, has_temporal_obl=False,
+            token_span=(0, 1),
+        )
+
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 0, False)
+    enc = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge, n_heads=1)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=3)
+    pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab)
+
+    calls = []
+    _orig = enc.forward_batch
+    enc.forward_batch = lambda X: (calls.append(X.shape), _orig(X))[1]
+    try:
+        pipe.forward([_rep("baisser"), _rep("reduire")], "Les ventes baissent puis on reduit.")
+    finally:
+        enc.forward_batch = _orig
+    assert calls, "forward_batch jamais appele : la MHA est hors chemin (no-op)"
+
+    # Logits differents du MLP seul → la MHA contribue reellement.
+    mlp = MLPEncoder(d_clause=d_eff, d_edge=d_edge, seed=123)
+    assert not np.allclose(
+        enc.forward_batch(np.random.default_rng(0).normal(0, 1, (4, d_eff)).astype(np.float32)),
+        mlp.forward_batch(np.random.default_rng(0).normal(0, 1, (4, d_eff)).astype(np.float32)),
+    )

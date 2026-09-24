@@ -66,7 +66,7 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
                help="Modèle fastText multilingue .bin (cc.XX.300.bin, 157 langues, même API). "
                     "Mutuellement exclusif avec --embedding-file. Impose d_emb=300, "
                     "frozen=True par défaut. Préserve l'agnosticisme langue (pas de CamemBERT).")
-@click.option("--mini-batch-size", default=1, show_default=True, type=int,
+@click.option("--mini-batch-size", default=4, show_default=True, type=int,
               help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
 @click.option("--use-attention/--no-attention", default=False, show_default=True,
               help="Activer la couche R-GCN+GAT avec attention par relation.")
@@ -81,11 +81,11 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--patience", default=0, show_default=True, type=int,
               help="Epochs sans amélioration de val_node_macro_f1 avant arrêt. "
                    "0 = désactivé (défaut). Requiert --val-dir.")
-@click.option("--weight-decay", default=0.0, show_default=True, type=float,
+@click.option("--weight-decay", default=1e-4, show_default=True, type=float,
               help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
-@click.option("--rgcn-dropout", default=0.0, show_default=True, type=float,
+@click.option("--rgcn-dropout", default=0.1, show_default=True, type=float,
               help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
-@click.option("--label-smoothing", default=0.0, show_default=True, type=float,
+@click.option("--label-smoothing", default=0.05, show_default=True, type=float,
               help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
 @click.option("--link-pred/--no-link-pred", default=False, show_default=True,
               help="Entraîne la tête LinkPredHead (BCE auxiliaire positifs/négatifs).")
@@ -156,6 +156,21 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--d-rel-emb", default=32, show_default=True, type=int,
                help="Dimension des embeddings de relations CompGCN (Phase D). "
                     "Requiert --use-compgcn.")
+@click.option("--two-pass-val/--no-two-pass-val", default=True, show_default=True,
+              help="Passage préliminaire d'arêtes en val/inférence pour prédire les types "
+                   "avant le R-GCN (corrige l'asymétrie teacher forcing BUG-1).")
+@click.option("--rgcn-activation", default="sigmoid", show_default=True,
+              type=click.Choice(["sigmoid", "relu", "none"]),
+              help="Activation de sortie du R-GCN NumPy. relu débloque les gradients "
+                   "(sigmoid max 0.25). GAT utilise --gat-output-activation séparément.")
+@click.option("--rgcn-layernorm/--no-rgcn-layernorm", default=False, show_default=True,
+              help="LayerNorm après l'activation dans le R-GCN NumPy. "
+                   "Stabilise les magnitudes des features entre couches.")
+@click.option("--max-grad-norm", default=5.0, show_default=True, type=float,
+              help="Norme maximale des gradients (gradient clipping). 0 = désactivé.")
+@click.option("--max-class-weight", default=5.0, show_default=True, type=float,
+              help="Plafond des class weights avec --weighted-loss. Évite qu'une classe "
+                   "ultra-rare domine la loss. 0 = pas de plafond.")
 @click.option("--seed", default=None, type=int,
               help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
@@ -204,6 +219,11 @@ def train_cmd(
     mha_heads: int,
     pairnorm: bool,
     drop_edge: float,
+    two_pass_val: bool,
+    rgcn_activation: str,
+    rgcn_layernorm: bool,
+    max_grad_norm: float,
+    max_class_weight: float,
     use_compgcn: bool,
     d_rel_emb: int,
 ) -> None:
@@ -330,7 +350,8 @@ def train_cmd(
                        f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
         else:
             graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                              dropout=rgcn_dropout)
+                              dropout=rgcn_dropout, output_activation=rgcn_activation,
+                              use_layernorm=rgcn_layernorm)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -365,6 +386,9 @@ def train_cmd(
 
     if patience > 0 and val_dir is None:
         raise click.ClickException("--patience requiert --val-dir")
+    if val_dir is not None and patience == 0:
+        click.echo("Avertissement : --val-dir sans --patience — pas d'early stopping. "
+                   "Ajoutez --patience 15 pour activer l'arrêt anticipé.")
 
     # B4 : validation --n-rgcn-layers (restriction GAT levée — E4)
     if n_rgcn_layers < 1:
@@ -389,6 +413,7 @@ def train_cmd(
     pipeline.drop_edge = drop_edge
     pipeline.use_compgcn = use_compgcn
     pipeline.d_rel_emb = d_rel_emb
+    pipeline.two_pass_val = two_pass_val
 
     link_pred_head = None
     if link_pred:
@@ -465,6 +490,8 @@ def train_cmd(
                 for c in range(n_node_classes):
                     count = node_counts.get(c, 1)
                     node_class_weights[c] = total_nodes / (n_node_classes * count)
+                if max_class_weight > 0:
+                    node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
                 click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3)))}")
             if edge_counts:
                 total_edges = sum(edge_counts.values())
@@ -473,6 +500,8 @@ def train_cmd(
                 for c in range(n_edge_classes):
                     count = edge_counts.get(c, 1)
                     edge_class_weights[c] = total_edges / (n_edge_classes * count)
+                if max_class_weight > 0:
+                    edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
                 click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3)))}")
         if word_embedding is not None and all_lemmas:
             word_embedding.build_vocab(all_lemmas)
@@ -794,13 +823,19 @@ def train_cmd(
                 )
 
                 if not decoder_only:
+                    _mgn = max_grad_norm if max_grad_norm > 0 else None
                     if mini_batch_size <= 1:
-                        pipeline.backward(d_node, d_edge, lr=lr)
+                        pipeline.backward(d_node, d_edge, lr=lr,
+                                          weight_decay=weight_decay,
+                                          max_grad_norm=_mgn)
                     else:
-                        pipeline.backward_accumulate(d_node, d_edge)
+                        pipeline.backward_accumulate(d_node, d_edge,
+                                                    max_grad_norm=_mgn)
                         batch_step_count += 1
                         if batch_step_count >= mini_batch_size:
-                            pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
+                            pipeline.apply_accumulated_gradients(
+                                lr, n_samples=batch_step_count,
+                                weight_decay=weight_decay)
                             batch_step_count = 0
 
                 # Tête de liens : BCE auxiliaire (positifs gold + négatifs échantillonnés).
@@ -859,7 +894,8 @@ def train_cmd(
                 n_samples += 1
 
             if mini_batch_size > 1 and batch_step_count > 0 and not decoder_only:
-                pipeline.apply_accumulated_gradients(lr, n_samples=batch_step_count)
+                pipeline.apply_accumulated_gradients(
+                    lr, n_samples=batch_step_count, weight_decay=weight_decay)
                 batch_step_count = 0
 
             if verb_loader is not None and pipeline.decoder is not None:

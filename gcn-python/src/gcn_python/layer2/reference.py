@@ -280,6 +280,12 @@ class TransformerMLPEncoder(MLPEncoder):
         self.n_heads = n_heads
         self._mha = _torch.nn.MultiheadAttention(d, n_heads, batch_first=True)
         self._torch = _torch
+        # Opt-in chemin batch du pipeline (cgnp.py) : le S3 n'emprunte
+        # forward_batch() que si l'encodeur ne fournit pas de snapshots.
+        # Sans cet opt-in, la MHA serait du code mort (boucle forward_node).
+        # Le backward rejoue forward_node (MLP seul) — approximation actée :
+        # le gradient ne traverse pas la MHA, le gain vient du contexte global.
+        self.prefers_batch_forward = True
 
     def forward_batch(self, node_vecs: np.ndarray) -> np.ndarray:
         if node_vecs.shape[0] == 0:  # FIX-3 : graphe vide → MHA lèverait RuntimeError

@@ -13,23 +13,33 @@ def _compute_budget(
     selected_langs: list[str],
     target_total: int,
     include_code: bool = True,
+    code_ratio: float = 0.10,
 ) -> dict[str, int]:
     """Budget proportionnel aux poids des langues sélectionnées.
 
     include_code=False (--prog-langs none) : pas de bucket "code" — sinon
     is_globally_full() ne devient jamais vrai et 10% du budget est perdu
     (audit-2 Fix 4).
+
+    code_ratio : fraction du budget total allouée au code (0.0–1.0).
+    Si selected_langs est vide et include_code=True → budget code-only
+    {"code": target_total} quel que soit code_ratio.
     """
     try:
         from .config.loader import get_config
         cfg = get_config()
     except Exception:
         cfg = {}
+
+    # Code-only : pas de langues humaines sélectionnées.
+    if not selected_langs and include_code:
+        return {"code": target_total}
+
     weights: dict[str, float] = {}
     for lang in selected_langs:
         source_cfg = cfg.get("sources", {}).get(f"wikipedia_{lang}", {})
         weights[lang] = float(source_cfg.get("budget_weight", 1.0))
-    code_budget = max(int(target_total * 0.10), 500) if include_code else 0
+    code_budget = max(int(target_total * code_ratio), 500) if include_code else 0
     text_budget = target_total - code_budget
     total_weight = sum(weights.values()) or 1.0
     budget = {lang: max(100, int(text_budget * w / total_weight)) for lang, w in weights.items()}

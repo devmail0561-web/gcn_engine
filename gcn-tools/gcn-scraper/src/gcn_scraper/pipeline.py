@@ -104,8 +104,11 @@ class ScrapingPipeline:
         # Budget calculé sur les langues sélectionnées uniquement ;
         # bucket "code" seulement si des prog-langs sont actifs (audit-2 Fix 4).
         from .balance_tracker import _compute_budget
+        _code_ratio: float = float(config.get("code_ratio", 0.10))
         budget = config.get("budget") or _compute_budget(
-            selected_langs, target_total, include_code=bool(selected_prog_langs)
+            selected_langs, target_total,
+            include_code=bool(selected_prog_langs),
+            code_ratio=_code_ratio,
         )
         tracker = BalanceTracker(budget)
 

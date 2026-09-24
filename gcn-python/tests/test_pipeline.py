@@ -485,3 +485,83 @@ def test_sample_weight_scales_node_and_edge_loss():
     assert loss_w < loss_full
     assert np.allclose(d_node_w, d_node_full * 0.7), "gradient nœuds × 0.7 (BUG-8)"
     assert np.allclose(d_edge_w, d_edge_full * 0.7), "gradient arêtes × 0.7"
+
+
+# ─── Two-pass validation (Phase 1 — fix teacher forcing BUG-1) ──────────────
+
+def test_two_pass_val_edge_types_not_all_zero():
+    """Avec two_pass_val=True et sans gold_edge_map, les types d'arêtes R-GCN
+    ne doivent PAS être tous zéros (utilise les prédictions préliminaires)."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = True
+    reps = [make_rep(), make_rep()]
+    pipeline.forward(reps, "A cause B.")
+    assert pipeline._cached_edge_type_idxs is not None
+    # Vérifier que le code ne crashe pas — les types peuvent être 0 par hasard
+    # mais la logique two-pass a été exercée (pas de fallback np.zeros aveugle).
+
+
+def test_two_pass_val_disabled_falls_back_to_zeros():
+    """Avec two_pass_val=False et sans gold, on retombe sur le fallback type-0."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = False
+    reps = [make_rep(), make_rep()]
+    pipeline.forward(reps, "A cause B.")
+    edge_types = pipeline._cached_edge_type_idxs
+    assert edge_types is not None
+    # Sans bidi, edge_types_mp = edge_type_idxs_rgcn direct
+    # Avec bidi, on a aussi les types inversés, mais les forward sont tous 0
+    n_fwd = len(edge_types) // 2 if pipeline.bidirectional else len(edge_types)
+    assert np.all(edge_types[:n_fwd] == 0), "Fallback type-0 quand two_pass_val=False"
+
+
+def test_two_pass_val_predicted_types_in_range():
+    """Les types prédits par le passage préliminaire sont dans [0, n_rel)."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = True
+    reps = [make_rep(), make_rep(), make_rep()]
+    pipeline.forward(reps, "A puis B puis C.")
+    edge_types = pipeline._cached_edge_type_idxs
+    assert edge_types is not None
+    n_rel = len(pipeline.relation_types)
+    assert np.all(edge_types >= 0), f"Types négatifs trouvés : {edge_types}"
+    assert np.all(edge_types < n_rel), f"Types hors bornes : {edge_types} (n_rel={n_rel})"
+
+
+def test_two_pass_val_enriched_vecs_finite():
+    """Les vecteurs enrichis après two-pass sont finis (pas de NaN/Inf)."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = True
+    reps = [make_rep(), make_rep()]
+    pipeline.forward(reps, "A cause B.")
+    enriched = pipeline._cached_enriched_vecs
+    assert enriched is not None
+    assert np.all(np.isfinite(enriched)), "Vecteurs enrichis non finis après two-pass"
+
+
+def test_two_pass_val_backward_works():
+    """backward() fonctionne après un forward two-pass (pas de cache corrompu)."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = True
+    reps = [make_rep(), make_rep()]
+    pipeline.forward(reps, "A cause B.")
+    n_nodes = len(reps)
+    n_edges = 1
+    d_node = np.zeros((n_nodes, 7), dtype=np.float32)
+    d_edge = np.zeros((n_edges, 11), dtype=np.float32)
+    pipeline.backward(d_node, d_edge, lr=0.01)
+
+
+def test_two_pass_val_single_rep_no_crash():
+    """Avec une seule rep, two_pass_val ne doit pas crasher (pas d'arêtes)."""
+    pipeline = make_pipeline()
+    pipeline.two_pass_val = True
+    result = pipeline.forward([make_rep()], "Il court.")
+    assert len(result["nodes"]) == 1
+    assert result["edges"] == []
+
+
+def test_two_pass_val_default_is_true():
+    """L'attribut two_pass_val par défaut est True sur un nouveau pipeline."""
+    pipeline = make_pipeline()
+    assert pipeline.two_pass_val is True

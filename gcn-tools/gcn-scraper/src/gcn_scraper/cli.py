@@ -21,6 +21,11 @@ from .pipeline import ScrapingPipeline
 @click.option("--prog-langs", default="python,rust", show_default=True,
               help="Langages de programmation pour GitHub/doc. "
                    "Ex: python,rust,javascript,java,go. 'all' = tous configurés, 'none' = désactiver.")
+@click.option("--code-ratio", default=0.10, show_default=True,
+               type=click.FloatRange(0.0, 1.0),
+               help="Fraction du budget total allouée au code (0.0–1.0). "
+                    "Ex: --code-ratio 0.5 = 50%% code / 50%% texte. "
+                    "Ignoré si --prog-langs none.")
 @click.option("--min-quality", default=0.3, show_default=True,
                type=click.FloatRange(0.0, 1.0),
                help="Score de qualité minimum [0-1] pour conserver une phrase")
@@ -55,7 +60,7 @@ from .pipeline import ScrapingPipeline
 @click.option("--no-registry", is_flag=True, default=False,
               help="Désactiver le registre URL (pas de déduplication cross-campagnes).")
 def scrape_cmd(
-    output_dir, target_total, resume, langs, prog_langs, min_quality,
+    output_dir, target_total, resume, langs, prog_langs, code_ratio, min_quality,
     max_per_query, wiki, hal, arxiv, news, github, github_token, doc,
     web_search, user_agent, contact_email, seed, registry_db, no_registry,
 ):
@@ -76,14 +81,17 @@ def scrape_cmd(
     cfg = get_config()
 
     # Résoudre les langues humaines
-    if langs.strip().lower() == "all":
+    _langs_raw = langs.strip().lower()
+    if _langs_raw == "all":
         selected_langs = [
             v["lang"] for k, v in cfg.get("sources", {}).items()
             if k.startswith("wikipedia_") and v.get("enabled", True) and "lang" in v
         ]
+    elif _langs_raw == "none":
+        selected_langs = []  # code-only : aucune source de texte humain
     else:
         selected_langs = [_lang.strip() for _lang in langs.split(",") if _lang.strip()]
-    if not selected_langs:
+    if not selected_langs and _langs_raw not in ("none",):
         selected_langs = ["fr", "en"]
 
     # Résoudre les langages de programmation
@@ -105,6 +113,7 @@ def scrape_cmd(
         "prog_langs": selected_prog_langs,
         "target_total": target_total,
         "seed": seed,
+        "code_ratio": code_ratio,
     }
     if hal:
         config["hal"] = {"max_per_query": max_per_query}
@@ -119,7 +128,14 @@ def scrape_cmd(
                 "(flux FR/EN uniquement).",
                 err=True,
             )
-        config["news"] = {"langs": news_langs}
+        if news_langs:
+            config["news"] = {"langs": news_langs}
+        elif not selected_langs:
+            click.echo(
+                "Avertissement : --news ignoré car --langs none "
+                "(News = FR/EN uniquement).",
+                err=True,
+            )
     if github:
         if not selected_prog_langs:
             click.echo(

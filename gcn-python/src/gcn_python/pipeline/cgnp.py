@@ -140,6 +140,11 @@ class CGNPipeline:
                         _kwargs["n_heads"] = graph.n_heads
                         _kwargs["output_activation"] = "relu"
                         _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
+                    # Propager output_activation et use_layernorm pour tous les backends
+                    if hasattr(graph, 'output_activation') and "output_activation" not in _kwargs:
+                        _kwargs["output_activation"] = graph.output_activation
+                    if hasattr(graph, 'use_layernorm') and "use_layernorm" not in _kwargs:
+                        _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
                     # Phase B/D (RGCNLayerPT) : propager pairnorm/drop_edge/compgcn
                     # aux couches extra (défauts False/0.0 si absents → transparents).
                     for _k in ("pairnorm", "drop_edge", "use_compgcn", "d_rel_emb"):
@@ -210,6 +215,70 @@ class CGNPipeline:
         self._accum_rgcn_grads = None
         self._accum_dec_grads = None
         self._accum_dec_attn = None
+
+    # ------------------------------------------------------------------
+    # Two-pass validation : passage préliminaire de classification
+    # d'arêtes SANS enrichissement R-GCN pour prédire les edge types.
+    # ------------------------------------------------------------------
+    two_pass_val: bool = True
+
+    def _predict_edge_types_preliminary(
+        self,
+        clause_vecs: np.ndarray,
+        node_logits: np.ndarray,
+        reps: list,
+        clause_positions: list[int] | None,
+        n_total_clauses: int | None,
+        connector_reps: list | None,
+    ) -> dict[tuple[int, int], int]:
+        """Passage préliminaire : prédire les types d'arêtes sans R-GCN.
+
+        Utilise clause_vecs (non enrichis) à la place des vecteurs enrichis
+        pour construire les features d'arête, puis appelle le edge MLP.
+        Les prédictions sont bruitées mais meilleures que le fallback type-0.
+        """
+        real_n = n_total_clauses if n_total_clauses is not None else len(reps)
+        _edge_pairs = (
+            [(i, j) for i in range(len(reps)) for j in range(i + 1, len(reps))]
+            if self.all_pairs
+            else [(i, i + 1) for i in range(len(reps) - 1)]
+        )
+        node_type_probs = _softmax(node_logits)
+        predicted: dict[tuple[int, int], int] = {}
+        was_training = getattr(self.encoder, 'training', False)
+        if was_training:
+            self.encoder.training = False
+        try:
+            for src_i, dst_i in _edge_pairs:
+                real_src = clause_positions[src_i] if clause_positions else src_i
+                real_dst = clause_positions[dst_i] if clause_positions else dst_i
+                connector = (
+                    connector_reps[src_i]
+                    if connector_reps and src_i < len(connector_reps)
+                    and dst_i == src_i + 1
+                    else None
+                )
+                edge_vec_base = vectorize_edge(
+                    reps[src_i], reps[dst_i], connector,
+                    real_src, real_dst, real_n,
+                    self.vocabulary, self.word_embedding,
+                    drop_morph=self.drop_morph,
+                    clause_pooling=self.clause_pooling,
+                    subject_object_emb=self.subject_object_emb,
+                )
+                enriched_edge = np.concatenate([
+                    edge_vec_base,
+                    clause_vecs[src_i],
+                    clause_vecs[dst_i],
+                    node_type_probs[src_i],
+                    node_type_probs[dst_i],
+                ])
+                edge_logit = self.encoder.forward_edge(enriched_edge)
+                predicted[(src_i, dst_i)] = int(np.argmax(edge_logit))
+        finally:
+            if was_training:
+                self.encoder.training = True
+        return predicted
 
     def forward(
         self,
@@ -285,12 +354,17 @@ class CGNPipeline:
                 for r in reps
             ]
 
-        # S3 : chemin batch si forward_batch disponible et pas de snapshots requis
+        # S3 : chemin batch si forward_batch disponible et pas de snapshots requis.
+        # Opt-in Phase C : un encodeur global (MHA) pose prefers_batch_forward=True
+        # pour emprunter forward_batch() même s'il fournit des snapshots — sinon
+        # la boucle forward_node contournerait la self-attention (code mort).
+        # Le backward rejoue alors forward_node (MLP seul) : approximation actée.
         _has_batch = hasattr(self.encoder, 'forward_batch')
+        _batch_opt_in = bool(getattr(self.encoder, 'prefers_batch_forward', False))
 
         # Couche 2 — prédiction des types de nœuds (premier passage)
         node_snapshots: list = []
-        if _has_batch and not _snap:
+        if _has_batch and (not _snap or _batch_opt_in):
             node_logits = self.encoder.forward_batch(clause_vecs)
         else:
             node_logits_list: list[np.ndarray] = []
@@ -315,10 +389,8 @@ class CGNPipeline:
                 [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
                 dtype=np.int64,
             ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
-            # Types d'arêtes : gold (teacher forcing) si disponible, sinon type 0.
-            # gold_edge_map = {(src_idx, tgt_idx): rel_idx} fourni par train.py en entraînement.
-            # En inférence (gold absent) : type 0 — acceptable car le signal d'entraînement
-            # gold suffit à apprendre les W_r distincts pour chaque type de relation.
+            # Types d'arêtes : gold (teacher forcing) si disponible,
+            # sinon two-pass (prédiction préliminaire) ou fallback type 0.
             if gold_edge_map:
                 edge_type_idxs_rgcn = np.array([
                     gold_edge_map.get((i, j), gold_edge_map.get((j, i), 0))
@@ -326,6 +398,21 @@ class CGNPipeline:
                 ], dtype=np.int64)
                 n_rel = len(self.relation_types)
                 edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, n_rel - 1)
+            elif self.two_pass_val and len(reps) >= 2:
+                predicted_map = self._predict_edge_types_preliminary(
+                    clause_vecs, node_logits, reps, clause_positions,
+                    n_total_clauses, connector_reps,
+                )
+                _g0 = self._graph_layers[0]
+                _g_nrel = getattr(_g0, 'n_relations', len(self.relation_types))
+                _n_fwd = _g_nrel // 2 if self.bidirectional else _g_nrel
+                edge_type_idxs_rgcn = np.array([
+                    predicted_map.get((i, j), predicted_map.get((j, i), 0))
+                    for (i, j) in _edge_pairs_rgcn
+                ], dtype=np.int64)
+                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, max(_n_fwd - 1, 0))
+                self._cached_d_edge_base = None
+                self._cached_d_eff = None
             else:
                 edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
 
@@ -364,7 +451,7 @@ class CGNPipeline:
         # Deuxième passage nœuds sur les vecteurs enrichis
         if len(reps) > 1:
             node_snapshots = []
-            if _has_batch and not _snap:
+            if _has_batch and (not _snap or _batch_opt_in):
                 node_logits2 = self.encoder.forward_batch(enriched)
             else:
                 node_logits2_list: list[np.ndarray] = []
@@ -948,6 +1035,7 @@ class CGNPipeline:
         self,
         d_node_logits: np.ndarray,
         d_edge_logits: np.ndarray,
+        max_grad_norm: float | None = None,
     ) -> None:
         """S10 : accumule les gradients sans appeler update. Utiliser avec apply_accumulated_gradients()."""
         if not hasattr(self.encoder, 'backward_node_dx'):
@@ -958,6 +1046,14 @@ class CGNPipeline:
                 UserWarning, stacklevel=2,
             )
             return
+        if max_grad_norm is not None:
+            _nn = float(np.linalg.norm(d_node_logits))
+            if _nn > max_grad_norm:
+                d_node_logits = d_node_logits * (max_grad_norm / _nn)
+            if d_edge_logits is not None and len(d_edge_logits) > 0:
+                _en = float(np.linalg.norm(d_edge_logits))
+                if _en > max_grad_norm:
+                    d_edge_logits = d_edge_logits * (max_grad_norm / _en)
 
         vecs = (self._cached_enriched_vecs
                 if self._cached_enriched_vecs is not None

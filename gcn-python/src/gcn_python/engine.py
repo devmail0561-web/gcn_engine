@@ -144,6 +144,8 @@ class GCNEngine:
         n_gat_heads = int(arch.get("n_gat_heads", 1))
         gat_layernorm = bool(arch.get("gat_layernorm", False))
         gat_output_activation = str(arch.get("gat_output_activation", "sigmoid"))
+        rgcn_output_activation = str(arch.get("rgcn_output_activation", "sigmoid"))
+        rgcn_layernorm = bool(arch.get("rgcn_layernorm", False))
         mlp_hidden = int(arch.get("mlp_hidden", 128))
         freeze_embeddings = bool(arch.get("freeze_embeddings", False))
 
@@ -189,7 +191,9 @@ class GCNEngine:
                                      use_layernorm=gat_layernorm)
             except ImportError:
                 warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning)
-                graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
+                graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
+                                  output_activation=rgcn_output_activation,
+                                  use_layernorm=rgcn_layernorm)
         elif graph_class == "RGCNLayerPT" and _has_pt:
             from .layer3.pytorch_rgcn import RGCNLayerPT
             graph = RGCNLayerPT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
@@ -197,7 +201,9 @@ class GCNEngine:
                                 drop_edge=_drop_edge,
                                 use_compgcn=_use_compgcn, d_rel_emb=_d_rel_emb)
         else:
-            graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
+            graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
+                              output_activation=rgcn_output_activation,
+                              use_layernorm=rgcn_layernorm)
 
         word_embedding = None
         if d_emb > 0:
@@ -235,6 +241,7 @@ class GCNEngine:
         pipeline.drop_edge = _drop_edge
         pipeline.use_compgcn = _use_compgcn
         pipeline.d_rel_emb = _d_rel_emb
+        pipeline.two_pass_val = bool(arch.get("two_pass_val", False))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : gcn-cli si disponible, sinon bridge heuristique
