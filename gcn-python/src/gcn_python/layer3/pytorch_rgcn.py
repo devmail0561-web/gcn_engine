@@ -64,11 +64,27 @@ class RGCNLayerPT(nn.Module):
         n_relations: int | None = None,
         device: str | torch.device | None = None,
         seed: int = 42,
+        pairnorm: bool = False,
+        drop_edge: float = 0.0,
+        use_compgcn: bool = False,
+        d_rel_emb: int = 32,
     ) -> None:
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
         self.n_relations = n_relations or len(RELATION_TYPES)
+        self.pairnorm = bool(pairnorm)
+        self.drop_edge = float(drop_edge)
+        if not (0.0 <= self.drop_edge < 1.0):
+            raise ValueError(
+                f"drop_edge doit être dans [0, 1[ (reçu {drop_edge!r})."
+            )
+        self.use_compgcn = bool(use_compgcn)
+        self.d_rel_emb = int(d_rel_emb)
+        if self.use_compgcn and self.d_rel_emb < 1:
+            raise ValueError(
+                f"d_rel_emb={d_rel_emb} doit être >= 1 quand use_compgcn=True."
+            )
 
         if device is None:
             device = (
@@ -84,9 +100,22 @@ class RGCNLayerPT(nn.Module):
         scale = (2.0 / d_in) ** 0.5
 
         # Relation-specific weights: (R, D_out, D_in)
-        self.W_r = nn.Parameter(
-            torch.randn(self.n_relations, d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
-        )
+        if self.use_compgcn:
+            # Phase D (CompGCN) : E_r ∈ R^{n_rel × d_rel}, W_effective = Linear(e_r).
+            self.E_r = nn.Parameter(
+                torch.randn(self.n_relations, self.d_rel_emb, generator=_gen,
+                            dtype=torch.float32, device=self._device) * 0.01
+            )
+            self.W_comp = nn.Parameter(
+                torch.randn(self.d_rel_emb, d_out * d_in, generator=_gen,
+                            dtype=torch.float32, device=self._device) * scale
+            )
+            # W_r conservé comme dummy non-Parameter pour que load_state() reste robuste.
+            self.register_buffer("W_r", torch.zeros(self.n_relations, d_out, d_in))
+        else:
+            self.W_r = nn.Parameter(
+                torch.randn(self.n_relations, d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
+            )
         # Self-loop weight: (D_out, D_in)
         self.W_0 = nn.Parameter(
             torch.randn(d_out, d_in, generator=_gen, dtype=torch.float32, device=self._device) * scale
@@ -131,6 +160,19 @@ class RGCNLayerPT(nn.Module):
         """Version PyTorch native (pour l'entraînement avec autograd)."""
         N = H.shape[0]
 
+        # Phase B (DropEdge) : masque NumPy avant conversion tensor
+        # (edge_index/edge_types arrivent comme np.ndarray ici).
+        # Appliqué en une seule expression (atomique), en train uniquement.
+        if self.training and self.drop_edge > 0.0:
+            mask = np.random.rand(edge_index.shape[1]) > self.drop_edge
+            edge_index, edge_types = edge_index[:, mask], edge_types[mask]
+
+        # Phase D (CompGCN) : W_r effectif depuis E_r @ W_comp.
+        if self.use_compgcn:
+            W_r = (self.E_r @ self.W_comp).view(self.n_relations, self.d_out, self.d_in)
+        else:
+            W_r = self.W_r
+
         # Self-loop : H @ W_0^T
         out = H @ self.W_0.t()  # (N, D_out)
 
@@ -153,12 +195,18 @@ class RGCNLayerPT(nn.Module):
                 counts = counts.clamp(min=1.0)
 
                 # Messages : (|E_r|, D_out) = H[src_r] @ W_r[r]^T
-                msgs = H[src_r] @ self.W_r[r].t()
+                msgs = H[src_r] @ W_r[r].t()
 
                 # Aggrégation dans les nœuds destination
                 agg = torch.zeros(N, self.d_out, device=self._device)
                 agg.scatter_add_(0, dst_r.unsqueeze(1).expand_as(msgs), msgs)
                 out = out + agg / counts.unsqueeze(1)
+
+        # Phase B (PairNorm) : recentrage + normalisation L2 par nœud,
+        # avant activation (anti-over-smoothing, couches profondes).
+        if self.pairnorm:
+            out = out - out.mean(dim=0, keepdim=True)
+            out = out / (out.norm(dim=1, keepdim=True) + 1e-8)
 
         return torch.sigmoid(out)
 
@@ -168,6 +216,12 @@ class RGCNLayerPT(nn.Module):
 
     def parameters(self) -> list[np.ndarray]:  # type: ignore[override]
         """Retourne les poids sous forme NumPy (compatibilité Protocol)."""
+        if self.use_compgcn:
+            return [
+                self.E_r.detach().cpu().numpy(),
+                self.W_comp.detach().cpu().numpy(),
+                self.W_0.detach().cpu().numpy(),  # FIX-1 : W_0 toujours entraînable
+            ]
         return [
             self.W_r.detach().cpu().numpy(),
             self.W_0.detach().cpu().numpy(),
@@ -178,8 +232,13 @@ class RGCNLayerPT(nn.Module):
         Les utilisateurs PyTorch préféreront optimizer.step() via torch_parameters().
         """
         with torch.no_grad():
-            self.W_r -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
-            self.W_0 -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
+            if self.use_compgcn:
+                self.E_r    -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
+                self.W_comp -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
+                self.W_0    -= lr * torch.as_tensor(grads[2], dtype=torch.float32, device=self._device)  # FIX-1
+            else:
+                self.W_r -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
+                self.W_0 -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
 
     def load_state(self, arrays: list[np.ndarray]) -> None:
         """
@@ -190,11 +249,40 @@ class RGCNLayerPT(nn.Module):
         PyTorch W_r et W_0.
         """
         # C1.2 : garde explicite — 2 arrays attendus (W_r, W_0), sinon IndexError
-        # cryptique sur arrays[1].
+        # cryptique sur arrays[1]. Avec CompGCN : [E_r, W_comp].
         if len(arrays) < 2:
             raise ValueError(
                 f"load_state : 2 arrays attendus (W_r, W_0), reçu {len(arrays)}."
             )
+        if self.use_compgcn:
+            # arrays = [E_r, W_comp, W_0]  (FIX-1 : W_0 inclus)
+            if len(arrays) < 3:
+                raise ValueError(
+                    f"load_state (CompGCN) : 3 arrays attendus (E_r, W_comp, W_0), reçu {len(arrays)}."
+                )
+            e_r = np.asarray(arrays[0])
+            w_c = np.asarray(arrays[1])
+            w0  = np.asarray(arrays[2])
+            if e_r.shape != (self.n_relations, self.d_rel_emb):
+                raise ValueError(
+                    f"E_r shape incompatible : {e_r.shape} "
+                    f"attendu ({self.n_relations}, {self.d_rel_emb})"
+                )
+            if w_c.shape != (self.d_rel_emb, self.d_out * self.d_in):
+                raise ValueError(
+                    f"W_comp shape incompatible : {w_c.shape} "
+                    f"attendu ({self.d_rel_emb}, {self.d_out * self.d_in})"
+                )
+            if w0.shape != (self.d_out, self.d_in):
+                raise ValueError(
+                    f"W_0 shape incompatible (CompGCN) : {w0.shape} "
+                    f"attendu ({self.d_out}, {self.d_in})"
+                )
+            with torch.no_grad():
+                self.E_r.copy_(torch.as_tensor(e_r, dtype=torch.float32, device=self._device))
+                self.W_comp.copy_(torch.as_tensor(w_c, dtype=torch.float32, device=self._device))
+                self.W_0.copy_(torch.as_tensor(w0, dtype=torch.float32, device=self._device))
+            return
         if arrays[0].shape != (self.n_relations, self.d_out, self.d_in):
             raise ValueError(
                 f"W_r shape incompatible : {arrays[0].shape} "

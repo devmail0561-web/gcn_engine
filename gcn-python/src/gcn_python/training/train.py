@@ -60,8 +60,12 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--embedding-dim", default=0, show_default=True, type=int,
               help="Activer les word embeddings apprenables (S1/S2). 0 = désactivé.")
 @click.option("--embedding-file", default=None, type=click.Path(path_type=Path),
-              help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
-                   "Active automatiquement --embedding-dim si non précisé.")
+               help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
+                    "Active automatiquement --embedding-dim si non précisé.")
+@click.option("--fasttext", default=None, type=click.Path(path_type=Path),
+               help="Modèle fastText multilingue .bin (cc.XX.300.bin, 157 langues, même API). "
+                    "Mutuellement exclusif avec --embedding-file. Impose d_emb=300, "
+                    "frozen=True par défaut. Préserve l'agnosticisme langue (pas de CamemBERT).")
 @click.option("--mini-batch-size", default=1, show_default=True, type=int,
               help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
 @click.option("--use-attention/--no-attention", default=False, show_default=True,
@@ -131,8 +135,27 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--edge-threshold", default=0.0, show_default=True, type=float,
               help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
 @click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
-              help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
-                   "pour simuler le bridge heuristique (parité train/inférence).")
+               help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
+                    "pour simuler le bridge heuristique (parité train/inférence).")
+@click.option("--global-attention/--no-global-attention", default=False, show_default=True,
+               help="Phase C : MHA globale sur les nœuds UD avant le MLP nœuds "
+                    "(TransformerMLPEncoder, poids fixes + résidu). Capte les arcs "
+                    "distants au-delà du voisinage k-hop R-GCN.")
+@click.option("--mha-heads", default=4, show_default=True, type=int,
+               help="Nombre de têtes de la MHA globale (Phase C). Requiert --global-attention. "
+                    "d_effective doit être divisible par cette valeur.")
+@click.option("--pairnorm/--no-pairnorm", default=False, show_default=True,
+               help="Phase B : PairNorm anti-over-smoothing dans RGCNLayerPT "
+                    "(recentrage + normalisation L2 avant activation).")
+@click.option("--drop-edge", default=0.0, show_default=True, type=float,
+               help="Phase B : probabilité de suppression d'arête en train (DropEdge, "
+                    "RGCNLayerPT uniquement). 0.0 = désactivé.")
+@click.option("--use-compgcn/--no-compgcn", default=False, show_default=True,
+               help="Phase D : embeddings relationnels continus (CompGCN, RGCNLayerPT). "
+                    "W_effective = Linear(E_r). Généralisation entre relations proches.")
+@click.option("--d-rel-emb", default=32, show_default=True, type=int,
+               help="Dimension des embeddings de relations CompGCN (Phase D). "
+                    "Requiert --use-compgcn.")
 @click.option("--seed", default=None, type=int,
               help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
@@ -147,6 +170,7 @@ def train_cmd(
     all_pairs: bool,
     embedding_dim: int,
     embedding_file: Path | None,
+    fasttext: Path | None,
     mini_batch_size: int,
     use_attention: bool,
     bidirectional: bool,
@@ -176,6 +200,12 @@ def train_cmd(
     legacy_decoder: bool,
     connectors_file: Path | None,
     verbalize_source_dir: Path | None,
+    global_attention: bool,
+    mha_heads: int,
+    pairnorm: bool,
+    drop_edge: float,
+    use_compgcn: bool,
+    d_rel_emb: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -194,7 +224,11 @@ def train_cmd(
     vocab = FeatureVocabulary()
 
     # Préconditions A/B/C/F (amelioration_v3)
-    _has_emb = embedding_file is not None or embedding_dim > 0
+    _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
+    if fasttext is not None and embedding_file is not None:
+        raise click.ClickException("--fasttext et --embedding-file sont mutuellement exclusifs.")
+    if fasttext is not None and embedding_dim not in (0, 300):
+        raise click.ClickException("--fasttext impose d_emb=300 (pas besoin de --embedding-dim).")
     if clause_pooling != "root" and not _has_emb:
         raise click.ClickException("--clause-pooling != root requiert --embedding-dim > 0.")
     if subject_object_emb and not _has_emb:
@@ -206,12 +240,19 @@ def train_cmd(
     if mlp_hidden < 1:
         raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
 
-    # S1/S2/S9 : word embeddings optionnels
+    # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings optionnels
     word_embedding = None
     d_emb = 0
+    _fasttext_path: Path | None = fasttext
     if _has_emb:
         from ..layer1.embedding import WordEmbedding
-        if embedding_file is not None and embedding_dim == 0:
+        if _fasttext_path is not None:
+            # Phase A : d_emb=300 imposé, frozen=True par défaut.
+            # Les vecteurs sont remplis après build_vocab (lemmes connus).
+            d_emb = 300
+            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True)
+            click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
+        elif embedding_file is not None and embedding_dim == 0:
             # Détecter la dimension depuis la première ligne du fichier
             with open(embedding_file, encoding="utf-8") as ef:
                 for line in ef:
@@ -237,10 +278,34 @@ def train_cmd(
     n_node_types = len(NODE_TYPES)
     d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
                                                  subject_object_emb)
-    encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
-                         weight_decay=weight_decay, mlp_hidden=mlp_hidden)
+    # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
+    # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
+    if global_attention:
+        from ..layer2.reference import TransformerMLPEncoder
+        try:
+            encoder = TransformerMLPEncoder(
+                d_clause=d_effective, d_edge=d_edge_closed,
+                weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                n_heads=mha_heads)
+        except ValueError as _e:
+            raise click.ClickException(str(_e)) from _e
+        click.echo(f"MHA globale : n_heads={mha_heads} (TransformerMLPEncoder, poids fixes)")
+    else:
+        if mha_heads != 4:
+            raise click.ClickException("--mha-heads requiert --global-attention.")
+        encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
+                             weight_decay=weight_decay, mlp_hidden=mlp_hidden)
 
     # Couche 3 : choix du graph selon les flags
+    # Phase B/D : PairNorm/DropEdge/CompGCN vivent dans RGCNLayerPT uniquement.
+    if use_attention and (pairnorm or drop_edge > 0.0 or use_compgcn):
+        raise click.ClickException(
+            "--pairnorm/--drop-edge/--use-compgcn requièrent le backend RGCNLayerPT "
+            "(incompatibles avec --use-attention/GAT).")
+    if not (0.0 <= drop_edge < 1.0):
+        raise click.ClickException(f"--drop-edge doit être dans [0, 1[ (reçu {drop_edge}).")
+    if d_rel_emb < 1:
+        raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
     n_rel = len(ALL_RELATION_TYPES) if bidirectional else len(RELATION_TYPES)  # L-6
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
@@ -255,8 +320,17 @@ def train_cmd(
             raise click.ClickException("--n-gat-heads requiert --use-attention.")
         if gat_layernorm:
             raise click.ClickException("--gat-layernorm requiert --use-attention.")
-        graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                          dropout=rgcn_dropout)
+        if pairnorm or drop_edge > 0.0 or use_compgcn:
+            # Phase B/D : backend PyTorch (seul à supporter ces options).
+            from ..layer3.pytorch_rgcn import RGCNLayerPT
+            graph = RGCNLayerPT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                                pairnorm=pairnorm, drop_edge=drop_edge,
+                                use_compgcn=use_compgcn, d_rel_emb=d_rel_emb)
+            click.echo(f"RGCNLayerPT : pairnorm={pairnorm} drop_edge={drop_edge} "
+                       f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
+        else:
+            graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                              dropout=rgcn_dropout)
 
     verb_loader: VerbalizerDataLoader | None = None
     verb_source_map: dict[str, list] = {}
@@ -308,6 +382,13 @@ def train_cmd(
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
+    # Phases B/C/D : flags d'arch persistés dans _arch_json (checkpoint.py).
+    pipeline.global_attention = global_attention
+    pipeline.mha_heads = mha_heads
+    pipeline.pairnorm = pairnorm
+    pipeline.drop_edge = drop_edge
+    pipeline.use_compgcn = use_compgcn
+    pipeline.d_rel_emb = d_rel_emb
 
     link_pred_head = None
     if link_pred:
@@ -396,6 +477,38 @@ def train_cmd(
         if word_embedding is not None and all_lemmas:
             word_embedding.build_vocab(all_lemmas)
             click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
+            if _fasttext_path is not None:
+                # Phase A : remplissage fastText après build_vocab (vocab connu).
+                # fastText subword → get_word_vector répond pour tout lemme.
+                try:
+                    import fasttext as _ft
+                    _ft_model = _ft.load_model(str(_fasttext_path))
+                except ImportError:
+                    try:
+                        import fasttext_wheel as _ft
+                        _ft_model = _ft.load_model(str(_fasttext_path))
+                    except ImportError as _e:
+                        raise click.ClickException(
+                            "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
+                            "pip install fasttext-wheel"
+                        ) from _e
+                _n_ft = 0
+                for _lemma in dict.fromkeys(all_lemmas):
+                    _vec = np.asarray(
+                        _ft_model.get_word_vector(_lemma), dtype=np.float32)
+                    if _vec.shape != (300,):
+                        continue
+                    _idx = word_embedding._vocab.get(_lemma)
+                    if _idx is not None:
+                        word_embedding._E[_idx] = _vec
+                        _n_ft += 1
+                # Plage pré-entraînée = tous les non-spéciaux (comme load_from_file
+                # appelé juste après __init__ : start=3). Spéciaux _absent (1-2)
+                # restent entraînables même avec frozen=True.
+                word_embedding._pretrained_start = 3
+                word_embedding._pretrained_end = len(word_embedding._lemmas)
+                word_embedding.frozen = True
+                click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 

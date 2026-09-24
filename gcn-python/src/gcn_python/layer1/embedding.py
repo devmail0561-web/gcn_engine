@@ -1,7 +1,9 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
+
 import numpy as np
 
 
@@ -145,6 +147,48 @@ class WordEmbedding:
         self._pretrained_end = len(self._lemmas)
         return loaded
 
+    @classmethod
+    def load_from_fasttext(cls, ft_model, vocab: list[str], d_emb: int = 300,
+                           frozen: bool = True) -> WordEmbedding:
+        """Construit un WordEmbedding depuis un modèle fastText multilingue.
+
+        Convertit fastText → format word2vec texte temporaire → délègue à
+        load_from_file() (qui gère _pretrained_start/_pretrained_end).
+        Contourne le fait que lookup() ne fait pas d'auto-add.
+
+        Parameters
+        ----------
+        ft_model : modèle fastText (ou fasttext-wheel) exposant get_word_vector(str).
+        vocab : lemmes à extraire.
+        d_emb : dimension (300 pour cc.XX.300.bin).
+        frozen : gel des pré-entraînés (défaut True).
+        """
+        try:
+            import fasttext  # noqa: F401
+        except ImportError:
+            try:
+                import fasttext_wheel  # noqa: F401
+            except ImportError as _e:
+                if not hasattr(ft_model, "get_word_vector"):
+                    raise ImportError(
+                        "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
+                        "pip install fasttext-wheel"
+                    ) from _e
+                # ft_model duck-typé (mock/test) exposant get_word_vector :
+                # on procède sans le package binaire.
+        import pathlib
+        import tempfile
+        obj = cls(d_emb=d_emb, frozen=frozen)
+        with tempfile.TemporaryDirectory() as _tmpdir:  # FIX-2 : nettoyage garanti
+            tmp = pathlib.Path(_tmpdir) / "_ft_vecs.txt"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(f"{len(vocab)} {d_emb}\n")
+                for lemma in vocab:
+                    vec = ft_model.get_word_vector(lemma)
+                    f.write(lemma + " " + " ".join(f"{v:.6f}" for v in vec) + "\n")
+            obj.load_from_file(str(tmp))
+        return obj
+
     # ── paramètres / checkpoint ───────────────────────────────────────
 
     def parameters(self) -> list[np.ndarray]:
@@ -159,7 +203,7 @@ class WordEmbedding:
         }, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, s: str, d_emb: int = 50) -> "WordEmbedding":
+    def from_json(cls, s: str, d_emb: int = 50) -> WordEmbedding:
         """Recrée le vocabulaire depuis to_json(). Les poids sont à restaurer séparément."""
         obj = cls(d_emb=d_emb)
         data = json.loads(s)

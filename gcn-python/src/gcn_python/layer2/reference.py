@@ -79,6 +79,7 @@ class MLPEncoder:
         self.grad_clip = grad_clip
         rng = np.random.default_rng(seed)
         self._rng = np.random.default_rng(seed)
+        self.d_clause = d_clause  # Phase C : requis par TransformerMLPEncoder et introspection
         self.n_node_types = n_node_types
         self.n_relation_types = n_relation_types
         self.edge_dropout = edge_dropout
@@ -248,3 +249,43 @@ class MLPEncoder:
     def update(self, grads: list[np.ndarray], lr: float) -> None:
         for p, g in zip(self.parameters(), grads):
             p -= lr * g
+
+
+class TransformerMLPEncoder(MLPEncoder):
+    """Encodeur nœuds avec self-attention globale (MHA) avant le MLP.
+
+    Sous-classe MLPEncoder exploitant le hook forward_batch() documenté
+    (« encodeurs Transformer surchargeront cette méthode pour la self-attention »).
+    La MHA opère sur les N nœuds UD (≤ 40 typiquement) — coût O(N²×d) négligeable.
+
+    Mode gradient (décision) : poids MHA fixes (réservoir + résidu). Le gradient
+    SGD NumPy (backward_node_dx) ne traverse pas la MHA — le gain vient du
+    contexte global injecté dans H_enriched, pas de l'optimisation des têtes.
+    forward_batch() applique .detach() implicite via torch.no_grad() avant le
+    retour vers NumPy ; backward reste par nœud via forward_node (MLP seul).
+
+    Agnosticisme langue préservé : la MHA opère sur des vecteurs de nœuds UD,
+    jamais sur des tokens de langue.
+    """
+
+    def __init__(self, *args, n_heads: int = 4, **kwargs) -> None:
+        try:
+            import torch as _torch
+        except ImportError as _e:
+            raise ImportError("TransformerMLPEncoder requiert PyTorch.") from _e
+        super().__init__(*args, **kwargs)
+        d = self.d_clause  # disponible grâce au prérequis self.d_clause = d_clause
+        if d % n_heads != 0:
+            raise ValueError(f"d_clause={d} non divisible par n_heads={n_heads}")
+        self.n_heads = n_heads
+        self._mha = _torch.nn.MultiheadAttention(d, n_heads, batch_first=True)
+        self._torch = _torch
+
+    def forward_batch(self, node_vecs: np.ndarray) -> np.ndarray:
+        if node_vecs.shape[0] == 0:  # FIX-3 : graphe vide → MHA lèverait RuntimeError
+            return super().forward_batch(node_vecs)
+        H = self._torch.as_tensor(node_vecs, dtype=self._torch.float32).unsqueeze(0)  # (1, N, d)
+        with self._torch.no_grad():   # poids fixes — pas de gradient à travers MHA
+            H_att, _ = self._mha(H, H, H)
+        H_enriched = (H + H_att).squeeze(0).cpu().numpy()   # résidu, retour NumPy
+        return super().forward_batch(H_enriched)

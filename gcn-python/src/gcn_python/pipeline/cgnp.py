@@ -140,6 +140,20 @@ class CGNPipeline:
                         _kwargs["n_heads"] = graph.n_heads
                         _kwargs["output_activation"] = "relu"
                         _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
+                    # Phase B/D (RGCNLayerPT) : propager pairnorm/drop_edge/compgcn
+                    # aux couches extra (défauts False/0.0 si absents → transparents).
+                    for _k in ("pairnorm", "drop_edge", "use_compgcn", "d_rel_emb"):
+                        if hasattr(graph, _k):
+                            _kwargs[_k] = getattr(graph, _k)
+                    # Filtrer par signature : RGCNLayerPT ignore 'dropout',
+                    # RGCNLayer/GAT ignorent pairnorm/drop_edge/use_compgcn/...
+                    # (sans filtre, TypeError → repli minimal sans les flags).
+                    try:
+                        import inspect as _insp
+                        _params = set(_insp.signature(LayerClass.__init__).parameters)
+                        _kwargs = {k: v for k, v in _kwargs.items() if k in _params}
+                    except (TypeError, ValueError):
+                        pass
                     try:
                         _extra = LayerClass(**_kwargs)
                     except TypeError:

@@ -93,6 +93,23 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
         "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
+        # Phase C : MHA globale — n_gat_heads_mha distinct de n_gat_heads (GAT).
+        "global_attention": bool(getattr(pipeline, 'global_attention',
+                                        type(pipeline.encoder).__name__ == "TransformerMLPEncoder")),
+        "n_gat_heads_mha": int(getattr(pipeline, 'mha_heads',
+                                      getattr(pipeline.encoder, 'n_heads', 4)
+                                      if type(pipeline.encoder).__name__ == "TransformerMLPEncoder"
+                                      else 4)),
+        # Phase B : anti-over-smoothing (RGCNLayerPT uniquement).
+        "pairnorm": bool(getattr(pipeline, 'pairnorm',
+                                getattr(graph0, 'pairnorm', False))),
+        "drop_edge": float(getattr(pipeline, 'drop_edge',
+                                  getattr(graph0, 'drop_edge', 0.0))),
+        # Phase D : CompGCN (RGCNLayerPT uniquement).
+        "use_compgcn": bool(getattr(pipeline, 'use_compgcn',
+                                   getattr(graph0, 'use_compgcn', False))),
+        "d_rel_emb": int(getattr(pipeline, 'd_rel_emb',
+                                getattr(graph0, 'd_rel_emb', 32))),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -260,6 +277,13 @@ def load_checkpoint(
              _arch.get("bidirectional", _arch.get("bidi_flag"))),
             ("all_pairs", bool(pipeline.all_pairs), _arch.get("all_pairs")),
             ("n_rgcn_layers", pipeline.n_rgcn_layers, _arch.get("n_rgcn_layers")),
+            # Phases C/D : mismatch silencieux = métriques trompeuses (MHA aléatoire
+            # différente, shapes CompGCN incompatibles). Vieux checkpoints (clés
+            # absentes) → skip silencieux (backward compat).
+            ("global_attention", bool(getattr(pipeline, 'global_attention', False)),
+             _arch.get("global_attention")),
+            ("use_compgcn", bool(getattr(pipeline, 'use_compgcn', False)),
+             _arch.get("use_compgcn")),
         ):
             if _found is not None and _found != _exp:
                 raise ValueError(

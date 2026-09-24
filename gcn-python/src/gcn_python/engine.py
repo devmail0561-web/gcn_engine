@@ -155,7 +155,24 @@ class GCNEngine:
         d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb,
                                           subject_object_emb)
 
-        encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden)
+        # Phase C : substitution pour from_pretrained — TransformerMLPEncoder
+        # si arch.get("global_attention", False). d_clause = D_effective (d_eff),
+        # jamais vocabulary.d_clause brut.
+        _global_attention = bool(arch.get("global_attention", False))
+        _mha_heads = int(arch.get("n_gat_heads_mha", 4))
+        if _global_attention:
+            from .layer2.reference import TransformerMLPEncoder
+            encoder = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge,
+                                            mlp_hidden=mlp_hidden,
+                                            n_heads=_mha_heads)
+        else:
+            encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden)
+
+        # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).
+        _pairnorm = bool(arch.get("pairnorm", False))
+        _drop_edge = float(arch.get("drop_edge", 0.0))
+        _use_compgcn = bool(arch.get("use_compgcn", False))
+        _d_rel_emb = int(arch.get("d_rel_emb", 32))
 
         # M5 : RGCNLayerPT accepte aussi device (comme GAT).
         try:
@@ -176,7 +193,9 @@ class GCNEngine:
         elif graph_class == "RGCNLayerPT" and _has_pt:
             from .layer3.pytorch_rgcn import RGCNLayerPT
             graph = RGCNLayerPT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                                device=device)
+                                device=device, pairnorm=_pairnorm,
+                                drop_edge=_drop_edge,
+                                use_compgcn=_use_compgcn, d_rel_emb=_d_rel_emb)
         else:
             graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
 
@@ -208,6 +227,14 @@ class GCNEngine:
             subject_object_emb=subject_object_emb,
             gat_residual=gat_residual,
         )
+        # Phases B/C/D : attrs d'arch lus par load_checkpoint (validation
+        # global_attention/use_compgcn) — posés avant load_checkpoint.
+        pipeline.global_attention = _global_attention
+        pipeline.mha_heads = _mha_heads
+        pipeline.pairnorm = _pairnorm
+        pipeline.drop_edge = _drop_edge
+        pipeline.use_compgcn = _use_compgcn
+        pipeline.d_rel_emb = _d_rel_emb
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : gcn-cli si disponible, sinon bridge heuristique

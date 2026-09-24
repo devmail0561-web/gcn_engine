@@ -5,6 +5,95 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [2.5.0] — 2026-09-24
+
+### Améliorations architecturales moteur — inductive bias, anti-over-smoothing, contexte global, relations continues
+
+Sprint en deux temps : correctifs silencieux post-audit (9 patches), puis 4 phases
+d'amélioration architecturale pour réduire le désavantage vs transformers tout en
+préservant l'agnosticisme langue (UD, pas de tokenisation sous-mot).
+
+#### Correctifs silencieux (9 patches — commit f52a5ce)
+
+**Annotation / biais entraînement :**
+- `balanced_auto.py` (C2.1) : `"_methode": "silver-auto-v2"` ajouté au niveau phrase —
+  `silver_weight` était un no-op total depuis l'ajout de `balanced_auto` (json_reader lisait
+  `_methode` au niveau phrase, balanced_auto écrivait `_silver` dans `cir`)
+- `train.py` (C2.2) : `val_loader` reçoit `silver_weight` — était 1.0 fixe en validation,
+  biais early stopping corrigé
+- `train.py` (C2.4) : `assembler_loss` accumulée séparément d'`epoch_loss` — `avg_loss`
+  était insensé quand `--assembler` actif ; `assembler_avg_loss` ajouté aux métriques CSV
+- `train.py` (C1.5) : `DictWriter(extrasaction='ignore')` — crash au resume si headers dérivent
+- `cgnp.py` (C2.6) : docstring `sample_weight` corrigée (nœuds intacts → BUG-8)
+- `train.py` (C2.3) : commentaires BUG-1 teacher-forcing documentés (asymétrie intentionnelle)
+
+**Compatibilité checkpoints / anti-crash :**
+- `pytorch_rgcn.py` (C1.2) : guard `len(arrays) + shape W_0` avant `copy_` — IndexError/
+  RuntimeError cryptiques remplacés par `ValueError` clair
+- `engine.py` (C1.1) : `from_pretrained` sans `_arch_json` → warn + défauts (était `raise ValueError`)
+- `checkpoint.py` (C1.3) : `mlp_hidden` mismatch → warn sans écraser les matrices
+- `embedding.py` (C1.4) : format ancien `from_json` → warn `_pretrained_start None`
+
+Migration A : 2 500 lignes JSONL silver marquées `_methode:silver-auto-v2`.
+
+#### Améliorations architecturales (4 phases)
+
+**Phase A — Embeddings pré-entraînés multilingues (`layer1/embedding.py`, `training/train.py`) :**
+- `WordEmbedding.load_from_fasttext(ft_model, vocab, d_emb, frozen)` : conversion fastText
+  → word2vec texte → `load_from_file()` (gère `_pretrained_start/_end`) ; fichier temporaire
+  nettoyé via `TemporaryDirectory` ; import conditionnel `fasttext-wheel` avec `ImportError` clair
+- CLI `--fasttext path/to/cc.XX.300.bin` — mutuellement exclusif avec `--embedding-file`
+  (`ClickException` si les deux), `d_emb=300` imposé, `frozen=True` par défaut
+- 157 langues supportées (fastText multilingue), agnosticisme langue préservé
+- `d_emb` déjà persisté dans `_arch_json` via `checkpoint.py:71`
+
+**Phase B — PairNorm + DropEdge (`layer3/pytorch_rgcn.py`, scope `RGCNLayerPT` uniquement) :**
+- Paramètres `pairnorm: bool = False` et `drop_edge: float = 0.0` ajoutés à `__init__`
+  (validation `[0, 1[`, backward-compatible)
+- DropEdge : masque NumPy atomique avant conversion tensor (`edge_index` est `np.ndarray`
+  en entrée de `_forward_pt`), actif en mode `.train()` seulement
+- PairNorm : `out = out - mean(dim=0); out = out / (norm(dim=1) + ε)` après agrégation,
+  avant `sigmoid` — anti-over-smoothing pour k ≥ 3 couches
+- `.train()` / `.eval()` propagés par `_set_training_mode` (train.py) aux couches graph
+
+**Phase C — MHA globale (`layer2/reference.py`, `training/train.py`, `engine.py`) :**
+- `MLPEncoder.__init__` : `self.d_clause = d_clause` ajouté (requis par sous-classe)
+- `TransformerMLPEncoder(MLPEncoder)` : `nn.MultiheadAttention(d, n_heads, batch_first=True)`
+  initialisée dans `__init__`, poids **fixes** (réservoir + résidu, `torch.no_grad()`) —
+  gradient SGD NumPy ne traverse pas la MHA intentionnellement
+- `forward_batch` : résidu `H + H_att` → `super().forward_batch(H_enriched)` ;
+  guard N=0 (graphe vide → délègue au parent sans appeler MHA)
+- Import `torch` conditionnel dans la classe, `ImportError` clair si absent
+- CLI `--global-attention [--mha-heads N]` ; flag `"global_attention"/"n_gat_heads_mha"`
+  persisté dans `_arch_json` ; reconstruction `TransformerMLPEncoder` dans `engine.py`
+- O(N²·d) sur N ≤ 40 nœuds UD — négligeable
+
+**Phase D — CompGCN (`layer3/pytorch_rgcn.py`) :**
+- Paramètres `use_compgcn: bool = False` et `d_rel_emb: int = 32` ; guard `d_rel_emb < 1`
+- `E_r ∈ R^{n_rel × d_rel}` + `W_comp ∈ R^{d_rel × (d_out·d_in)}` comme `nn.Parameter` ;
+  `W_r` → `register_buffer` (non-gradué) quand CompGCN actif ; `W_0` préservé
+- Forward : `W_effective = (E_r @ W_comp).view(n_rel, d_out, d_in)`
+- `parameters()`, `update()`, `load_state()` branchés sur `use_compgcn` :
+  retournent/chargent `[E_r, W_comp, W_0]` vs `[W_r, W_0]`
+- `"use_compgcn"/"d_rel_emb"` dans `_arch_json` ; reconstruction dans `train.py`/`engine.py`
+- Interprétabilité préservée : `E_r[i]` = embedding de la relation i (t-SNE exploitable)
+
+**Correctifs post-audit (4 bugs) :**
+- `pytorch_rgcn.py` : `W_0` absent de `parameters()`/`update()`/`load_state()` en mode
+  CompGCN (self-loop figé via Protocol) → `W_0` ajouté comme 3ème élément dans les 3 méthodes
+- `embedding.py` : `tempfile.mkdtemp()` non nettoyé → `TemporaryDirectory` context manager
+- `reference.py` : `TransformerMLPEncoder.forward_batch` sans guard N=0 → PyTorch MHA lève
+  `RuntimeError` sur séquence vide → garde ajoutée
+- `pytorch_rgcn.py` : `d_rel_emb=0` avec `use_compgcn=True` produisait un modèle silencieusement
+  dégénéré → `ValueError` dans `__init__`
+
+**Tests :**
+- `test_update_phases.py` (Phase A : 4, B : 3, C : 5, D : 4 + compatibilité) — 16 nouveaux tests
+- `test_balanced_auto.py` (C2.1) — 3 tests
+- Total : **385 tests Python** (+128 vs v2.4.1), 4 skipped stables
+
+---
+
 ## [2.4.1] — 2026-09-20
 
 ### Mise à niveau infrastructure — normalisation, schéma v2.0, robustesse pipeline
