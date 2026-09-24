@@ -130,7 +130,7 @@ class TrainableDecoder:
 
     def _init_layers(self, d_in: int) -> None:
         if self._layers is None:
-            self._attn_vec = np.zeros(d_in, dtype=np.float32)       # P2d: attention pooling
+            self._attn_vec = (self._rng.standard_normal(d_in) * 0.01).astype(np.float32)  # N-8
             _scale = np.sqrt(2.0 / (self.d_hidden + d_in))
             self._W_query = self._rng.normal(0, _scale, (self.d_hidden, d_in)).astype(np.float32)
             self._layers = [
@@ -478,7 +478,14 @@ class TrainableDecoder:
     def from_json(cls, s: str) -> "TrainableDecoder":
         data = json.loads(s)
         vocab = SurfaceVocabulary.from_json(data["vocab"])
-        dec = cls(vocab, d_hidden=data["d_hidden"], d_in=data.get("d_in"),
+        d_in_val = data.get("d_in")
+        if d_in_val is None:
+            warnings.warn(
+                "TrainableDecoder.from_json : d_in absent du checkpoint — "
+                "les poids ne seront pas restaurés. Checkpoint antérieur incomplet.",
+                UserWarning, stacklevel=2,
+            )
+        dec = cls(vocab, d_hidden=data["d_hidden"], d_in=d_in_val,
                   max_decode_len=data.get("max_decode_len", 20))
         # P2d: Restaurer attn_vec si présent (compatibilité checkpoints antérieurs)
         if data.get("attn_vec") and dec._layers is not None:

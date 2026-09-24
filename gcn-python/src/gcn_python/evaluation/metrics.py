@@ -238,10 +238,17 @@ def generation_bleu(hypothesis: str, references: list[str], max_n: int = 4) -> f
     """
     BLEU score simplifié — NumPy pur, sans dépendance externe.
 
-    Mesure la qualité de surface de la sortie du décodeur par rapport
-    aux surfaces gold du dataset. Utile pour les surfaces en langage naturel.
-    Pour le code source, préférer decoder_causal_fidelity.
+    .. deprecated::
+        Invalide pour les labels causaux (1-3 mots) — BLEU-4 toujours 0.0.
+        Utiliser connector_precision_at_1() à la place.
     """
+    warnings.warn(
+        "generation_bleu() est dépréciée : invalide sur les labels causaux courts "
+        "(BLEU-4 = 0.0 pour hypothèses ≤ 3 tokens). "
+        "Utiliser connector_precision_at_1() à la place.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     import math
     from collections import Counter
 

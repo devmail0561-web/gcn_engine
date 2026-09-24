@@ -112,8 +112,9 @@ class CausalGraph:
             self.reverse_adj[dst].append(src)
 
     def add_discourse_block(self, merged_cir: dict) -> None:
-        """Ajoute un bloc de discours multi-phrases (ids pré-préfixés sNNN_nMMM).
+        """Ajoute un bloc de discours multi-phrases (ids pré-préfixés bNNNNN_nMMM).
 
+        Format réel produit par index.py : b{block_idx:05d}_ (lettre b, 5 chiffres).
         Délègue à add_cir après validation minimale : les ids doivent être
         uniques dans le graphe courant (sinon warn, écrasement documenté).
         """

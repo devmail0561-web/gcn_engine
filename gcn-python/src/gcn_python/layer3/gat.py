@@ -341,9 +341,15 @@ class RGCNLayerGAT(nn.Module):
                 )
         else:
             raise ValueError(f"a_r ndim inattendu : {a_r.ndim} (attendu 2 ou 3).")
+        w0 = np.asarray(arrays[1])
+        if w0.shape != (self.d_out, self.d_in):
+            raise ValueError(
+                f"W_0 shape incompatible : {w0.shape} "
+                f"attendu ({self.d_out}, {self.d_in})"
+            )
         with torch.no_grad():
             self.W_r.copy_(torch.as_tensor(arrays[0], dtype=torch.float32, device=self._device))
-            self.W_0.copy_(torch.as_tensor(arrays[1], dtype=torch.float32, device=self._device))
+            self.W_0.copy_(torch.as_tensor(w0, dtype=torch.float32, device=self._device))
             self.a_r.copy_(torch.as_tensor(a_r, dtype=torch.float32, device=self._device))
             if self.norm is not None and len(arrays) > 4:
                 self.norm.weight.copy_(torch.as_tensor(arrays[3], dtype=torch.float32, device=self._device))

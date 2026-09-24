@@ -171,11 +171,7 @@ def _parse_edge(e: dict) -> EdgeRecord:
             warnings.warn("confidence invalide — None appliqué.", UserWarning, stacklevel=3)
             confidence = None
     else:
-        warnings.warn(
-            f"Arête {sources}→{target} sans confidence — None (annotation absente).",
-            UserWarning, stacklevel=3,
-        )
-        confidence = None
+        confidence = None  # N-3 : absence normale, pas de warning (28% des arêtes)
     # negated absent -> None (détection pipeline via root_morph)
     if "negated" in attrs or "negated" in e:
         negated = bool(attrs.get("negated", e.get("negated", False)))

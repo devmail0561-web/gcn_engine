@@ -13,7 +13,7 @@ SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unkn
 
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
 TEMPORAL_REF_DEFAULT = "unresolved"
-AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]
+AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]  # RÉSERVÉ — non utilisé v2.0
 
 # Universal Dependencies constants
 UPOS_TAGS = ["ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM",

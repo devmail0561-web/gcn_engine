@@ -67,15 +67,32 @@ class FeatureVocabulary:
             + 2                              # direction + distance
         )
 
+    def d_clause_effective(self, d_emb: int, subject_object_emb: bool = False) -> int:
+        """Dimension clause avec embeddings (Amélioration B — point unique de vérité).
+
+        Sans B : d_clause + d_emb (pooling/root).
+        Avec B  : d_clause + 3*d_emb (pooling + sujet + objet).
+        train.py doit appeler cette méthode — jamais recalculer manuellement.
+        """
+        return self.d_clause + d_emb + (2 * d_emb if subject_object_emb else 0)
+
     N_INTERACTION_FEATURES = 4  # shared_pos, shared_subject, clause_distance, obj_xor
 
     @property
     def d_edge(self) -> int:
         return 2 * self.d_clause + self.d_conn + self.N_INTERACTION_FEATURES
 
-    def d_edge_closed_loop(self, d_effective: int, n_node_types: int, d_emb: int = 0) -> int:
-        """Dimension du edge MLP en closed-loop."""
-        return self.d_edge + 2 * d_emb + 2 * d_effective + 2 * n_node_types
+    def d_edge_closed_loop(self, d_effective: int, n_node_types: int, d_emb: int = 0,
+                           subject_object_emb: bool = False) -> int:
+        """Dimension du edge MLP en closed-loop.
+
+        Base arête = d_edge + embeddings lexicaux des 2 clauses
+        (1×d_emb par clause sans B, 3×d_emb avec B : pooling + sujet + objet),
+        suivie de 2*d_effective (vecteurs R-GCN) + 2*n_node_types (probas types).
+        Identique à l'ancienne formule quand B est inactif.
+        """
+        _emb_per_clause = 3 * d_emb if subject_object_emb else d_emb
+        return self.d_edge + 2 * _emb_per_clause + 2 * d_effective + 2 * n_node_types
 
     def to_json(self) -> str:
         return json.dumps({
@@ -94,13 +111,99 @@ class FeatureVocabulary:
         return cls(**json.loads(s))
 
 
-def _one_hot(value: str, vocab: list[str]) -> np.ndarray:
+def _make_index(vocab: list[str]) -> dict[str, int]:
+    """Précalcule un index O(1) pour éviter list.index() O(n) (N-7)."""
+    return {v: i for i, v in enumerate(vocab)}
+
+
+def _one_hot(value: str, vocab: list[str],
+             _idx: dict[str, int] | None = None) -> np.ndarray:
     v = np.zeros(len(vocab), dtype=np.float32)
-    if value in vocab:
-        v[vocab.index(value)] = 1.0
-    elif "_unk" in vocab:
-        v[vocab.index("_unk")] = 1.0
+    idx = _idx if _idx is not None else {w: i for i, w in enumerate(vocab)}
+    if value in idx:
+        v[idx[value]] = 1.0
+    elif "_unk" in idx:
+        v[idx["_unk"]] = 1.0
     return v
+
+
+# Amélioration A — UPOS de contenu pour le pooling (mots grammaticaux exclus)
+CONTENT_POS = frozenset({'NOUN', 'VERB', 'ADJ', 'PROPN', 'ADV'})
+
+# Amélioration B — lemmes spéciaux d'absence (vecteurs appris, cf WordEmbedding)
+SUBJ_ABSENT_LEMMA = '_subj_absent'
+OBJ_ABSENT_LEMMA = '_obj_absent'
+SUBJ_DEP_RELS = frozenset({'nsubj', 'nsubj:pass'})
+OBJ_DEP_RELS = frozenset({'obj', 'iobj'})
+
+CLAUSE_POOLING_MODES = ("root", "mean", "max")
+
+
+def _pool_lemmas(rep, mode: str = "root") -> list[str]:
+    """Lemmes poolés selon le mode (A). Fallback tous tokens si aucun contenu."""
+    if mode == "root":
+        return [rep.root_lemma]
+    content = [t['lemma'] for t in rep.tokens if t.get('pos') in CONTENT_POS]
+    if content:
+        return content
+    return [t['lemma'] for t in rep.tokens]
+
+
+def _pool_tokens(rep, word_embedding, mode: str = "mean") -> np.ndarray:
+    """Pool embeddings des tokens de contenu (NOUN/VERB/ADJ/PROPN/ADV)."""
+    vecs = [word_embedding.lookup(lemma) for lemma in _pool_lemmas(rep, mode)]
+    if mode == 'max':
+        return np.max(vecs, axis=0).astype(np.float32)
+    return np.mean(vecs, axis=0).astype(np.float32)
+
+
+def _find_subj_obj_lemmas(rep) -> tuple[str, str]:
+    """Lemmes sujet/objet (B) avec fallback vers les spéciaux _absent."""
+    subj = next((t for t in rep.tokens if t.get('dep_rel') in SUBJ_DEP_RELS), None)
+    obj = next((t for t in rep.tokens if t.get('dep_rel') in OBJ_DEP_RELS), None)
+    return (
+        subj['lemma'] if subj else SUBJ_ABSENT_LEMMA,
+        obj['lemma'] if obj else OBJ_ABSENT_LEMMA,
+    )
+
+
+def embedding_routing(
+    rep,
+    word_embedding,
+    clause_pooling: str = "root",
+    subject_object_emb: bool = False,
+) -> list[tuple[str, int, np.ndarray]]:
+    """Routage des gradients d'embeddings (A+B) : [(lemma, offset, poids)].
+
+    offset : position du bloc dans la partie embedding du vecteur clause
+    (0 = pooling/root, d_emb = sujet, 2*d_emb = objet).
+    poids : vecteur (d_emb,) multiplié par le gradient du bloc.
+    mean → 1/K uniforme ; max → one-hot argmax par dim ; root/sujet/objet → 1.
+    Retourne [] si word_embedding est None.
+    """
+    if word_embedding is None:
+        return []
+    d_emb = word_embedding.d_emb
+    routing: list[tuple[str, int, np.ndarray]] = []
+    if clause_pooling == "root":
+        routing.append((rep.root_lemma, 0, np.ones(d_emb, dtype=np.float32)))
+    else:
+        lemmas = _pool_lemmas(rep, clause_pooling)
+        if clause_pooling == "max":
+            stacked = np.stack([word_embedding.lookup(l) for l in lemmas])
+            argmax = np.argmax(stacked, axis=0)  # (d_emb,)
+            for k, lemma in enumerate(lemmas):
+                routing.append((lemma, 0, (argmax == k).astype(np.float32)))
+        else:  # mean
+            w = np.full(d_emb, 1.0 / len(lemmas), dtype=np.float32)
+            for lemma in lemmas:
+                routing.append((lemma, 0, w))
+    if subject_object_emb:
+        subj_lemma, obj_lemma = _find_subj_obj_lemmas(rep)
+        ones = np.ones(d_emb, dtype=np.float32)
+        routing.append((subj_lemma, d_emb, ones))
+        routing.append((obj_lemma, 2 * d_emb, ones))
+    return routing
 
 
 def vectorize_clause(
@@ -108,6 +211,8 @@ def vectorize_clause(
     vocab: FeatureVocabulary,
     word_embedding=None,
     drop_morph: bool = False,
+    clause_pooling: str = "root",
+    subject_object_emb: bool = False,
 ) -> np.ndarray:
     """UDRepresentation → np.ndarray[d_clause (+ d_emb si word_embedding fourni)]
 
@@ -118,6 +223,13 @@ def vectorize_clause(
     drop_morph : si True, zérote les features Tense/Aspect/Mood/Polarity (→ _absent/0.0).
     Utilisé avec --drop-morph pour simuler le bridge heuristique à l'entraînement
     (parité train/inférence quand root_morph={} dans les UDRepresentation bridge).
+
+    clause_pooling (A) : "root" (défaut, rétrocompatible), "mean" ou "max" —
+    pool les embeddings des tokens de contenu au lieu du seul root_lemma.
+    Requiert word_embedding (ValueError sinon).
+
+    subject_object_emb (B) : si True, concatène les embeddings du sujet et de
+    l'objet (+2*d_emb, vecteurs _absent appris si absents). Requiert word_embedding.
     """
     if drop_morph:
         tense_vec  = _one_hot("_absent", vocab.tense_values)
@@ -141,7 +253,21 @@ def vectorize_clause(
                  dtype=np.float32),
     ]
     if word_embedding is not None:
-        parts.append(word_embedding.lookup(rep.root_lemma))
+        if clause_pooling not in CLAUSE_POOLING_MODES:
+            raise ValueError(
+                f"clause_pooling inconnu : {clause_pooling!r} "
+                f"(attendu parmi {CLAUSE_POOLING_MODES})."
+            )
+        parts.append(_pool_tokens(rep, word_embedding, clause_pooling))
+        if subject_object_emb:
+            subj_lemma, obj_lemma = _find_subj_obj_lemmas(rep)
+            parts.append(word_embedding.lookup(subj_lemma))
+            parts.append(word_embedding.lookup(obj_lemma))
+    elif clause_pooling != "root" or subject_object_emb:
+        raise ValueError(
+            "clause_pooling != 'root' ou subject_object_emb=True requiert "
+            "word_embedding (d_emb > 0)."
+        )
     return np.concatenate(parts)
 
 
@@ -180,12 +306,16 @@ def vectorize_edge(
     vocab: FeatureVocabulary,
     word_embedding=None,
     drop_morph: bool = False,
+    clause_pooling: str = "root",
+    subject_object_emb: bool = False,
 ) -> np.ndarray:
     """Two clauses + connector + interaction features → np.ndarray[d_edge (+ 2*d_emb)]"""
     interaction = _interaction_features(src, dst, src_idx, dst_idx, n_clauses)
     return np.concatenate([
-        vectorize_clause(src, vocab, word_embedding, drop_morph=drop_morph),
-        vectorize_clause(dst, vocab, word_embedding, drop_morph=drop_morph),
+        vectorize_clause(src, vocab, word_embedding, drop_morph=drop_morph,
+                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
+        vectorize_clause(dst, vocab, word_embedding, drop_morph=drop_morph,
+                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
         vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
         interaction,
     ])

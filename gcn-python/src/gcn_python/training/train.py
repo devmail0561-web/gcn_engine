@@ -14,7 +14,7 @@ from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..data.loader import GCNDataLoader, reps_from_sentence
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPES, RELATION_TYPES, ALL_RELATION_TYPES
 from ..evaluation.metrics import (
     node_accuracy, node_macro_f1, edge_accuracy, edge_macro_f1,
     graph_exact_match as _gem,
@@ -241,7 +241,7 @@ def train_cmd(
                          weight_decay=weight_decay, mlp_hidden=mlp_hidden)
 
     # Couche 3 : choix du graph selon les flags
-    n_rel = 22 if bidirectional else len(RELATION_TYPES)
+    n_rel = len(ALL_RELATION_TYPES) if bidirectional else len(RELATION_TYPES)  # L-6
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
