@@ -421,8 +421,10 @@ def train_cmd(
                    "Ajoutez --patience 15 pour activer l'arrêt anticipé.")
 
     # B4 : validation --n-rgcn-layers (restriction GAT levée — E4)
-    if n_rgcn_layers < 1:
-        raise click.ClickException(f"--n-rgcn-layers doit être ≥ 1 (reçu {n_rgcn_layers}).")
+    if n_rgcn_layers < 0:
+        raise click.ClickException(f"--n-rgcn-layers doit être ≥ 0 (reçu {n_rgcn_layers}).")
+    if n_rgcn_layers == 0:
+        click.echo("R-GCN désactivé (--n-rgcn-layers 0) — pipeline MLP seul.")
     if bfs_depth is not None and bfs_depth < 1:
         raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
 
@@ -570,6 +572,9 @@ def train_cmd(
                 click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
+
+    # Rng local pour scheduled sampling — séquence déterministe sans polluer le global.
+    _ss_rng = np.random.default_rng(_init_seed + 1)
 
     recorder = TrainingRecorder()
     history: list[dict] = []
@@ -773,7 +778,7 @@ def train_cmd(
                         continue
                     if scheduled_sampling and ss_final_epoch > 0:
                         _p_gold = max(0.0, 1.0 - (epoch - 1) / ss_final_epoch)
-                        _gold_map = sample.edge_map if (np.random.random() < _p_gold) else None
+                        _gold_map = sample.edge_map if (_ss_rng.random() < _p_gold) else None
                     else:
                         _gold_map = sample.edge_map  # teacher forcing standard
                     pipeline.forward(

@@ -319,6 +319,66 @@ def test_scheduled_sampling_p_gold_decreases():
     assert p_golds[13] == 0.0       # epoch 14 : reste 0.0
 
 
+def test_drop_edge_uses_local_rng():
+    """DropEdge utilise self._np_rng (pas le global) — deux instances indépendantes."""
+    from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        pytest.skip("PyTorch absent")
+    np.random.seed(0)  # global seed fixé
+    l1 = RGCNLayerPT(d_in=8, d_out=8, n_relations=3, device="cpu", seed=7, drop_edge=0.5)
+    l2 = RGCNLayerPT(d_in=8, d_out=8, n_relations=3, device="cpu", seed=7, drop_edge=0.5)
+    l1.train(); l2.train()
+    feats, edge_index, edge_types = _chain_graph(n=6)
+    # Même seed → même séquence de masques DropEdge
+    out1a = l1.message_pass(feats, edge_index, edge_types)
+    out2a = l2.message_pass(feats, edge_index, edge_types)
+    assert np.allclose(out1a, out2a), "Seeds identiques doivent produire les mêmes sorties"
+
+
+def test_gat_dropout_uses_local_generator():
+    """Dropout GAT utilise _dropout_gen local — déterministe avec même seed."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        pytest.skip("PyTorch absent")
+    from gcn_python.layer3.gat import RGCNLayerGAT
+    g1 = RGCNLayerGAT(d_in=8, d_out=8, n_relations=3, seed=7, dropout=0.5)
+    g2 = RGCNLayerGAT(d_in=8, d_out=8, n_relations=3, seed=7, dropout=0.5)
+    g1.train(); g2.train()
+    feats, edge_index, edge_types = _chain_graph(n=4)
+    out1 = g1.message_pass(feats, edge_index, edge_types)
+    out2 = g2.message_pass(feats, edge_index, edge_types)
+    assert np.allclose(out1, out2), "Seeds identiques doivent produire les mêmes sorties avec dropout"
+
+
+def test_rgcn_layers_zero_skips_message_pass():
+    """n_rgcn_layers=0 : pipeline MLP-seul, _graph_layers vide."""
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    vocab = FeatureVocabulary()
+    d = vocab.d_clause
+    d_edge = vocab.d_edge_closed_loop(d, 7)
+    enc = MLPEncoder(d_clause=d, d_edge=d_edge, seed=0)
+    graph = RGCNLayer(d_in=d, d_out=d, n_relations=3, seed=0)
+    pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab, n_rgcn_layers=0)
+    assert pipe._graph_layers == [], "_graph_layers doit être vide avec n_rgcn_layers=0"
+    # Forward ne crashe pas
+    from gcn_python.layer1.representation import UDRepresentation
+    rep = UDRepresentation(
+        tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+        root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
+        root_morph={}, subject_pos=None,
+        has_object=False, has_advcl=False, has_temporal_obl=False,
+        token_span=(0, 1),
+    )
+    result = pipe.forward([rep, rep], "A cause B.")
+    assert "nodes" in result
+
+
 def test_json_reader_rejects_missing_relation(tmp_path):
     """Arête sans champ relation lève ValueError (plus de substitution silencieuse)."""
     import json

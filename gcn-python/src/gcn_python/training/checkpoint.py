@@ -155,6 +155,17 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             arrays["word_emb_pretrained_start"] = np.array([we._pretrained_start])
             arrays["word_emb_pretrained_end"] = np.array([we._pretrained_end])
 
+    # Phase C : sauvegarder les poids MHA (fixes mais différents selon seed)
+    # Nécessaire pour la reproductibilité exacte à la reprise d'un checkpoint.
+    if type(pipeline.encoder).__name__ == "TransformerMLPEncoder":
+        try:
+            import torch as _pt
+            for _k, _v in pipeline.encoder._mha.state_dict().items():
+                safe_k = _k.replace('.', '__')
+                arrays[f"_mha_{safe_k}"] = _v.detach().cpu().numpy()
+        except Exception:
+            pass  # PyTorch absent ou erreur — checkpoint reste valide sans MHA
+
     # G2 : sauvegarder l'assembleur lexical si présent
     _asm = getattr(pipeline, 'assembler', None)
     if _asm is not None and hasattr(_asm, 'parameters'):
@@ -229,7 +240,7 @@ def load_checkpoint(
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
-                       "link_pred_", "hyperedge_", "assembler_")
+                       "link_pred_", "hyperedge_", "assembler_", "_mha_")
     _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E",
                     "_arch_json", "_link_pred_meta_json", "_assembler_meta_json",
                     "word_emb_pretrained_start", "word_emb_pretrained_end"}
@@ -492,6 +503,24 @@ def load_checkpoint(
                 else:
                     p[:] = data[key]
         pipeline.assembler = asm
+
+    # Phase C : restaurer les poids MHA si présents
+    _mha_keys = [k for k in data.files if k.startswith("_mha_")]
+    if _mha_keys and type(pipeline.encoder).__name__ == "TransformerMLPEncoder":
+        try:
+            import torch as _pt
+            sd = {}
+            for k in _mha_keys:
+                orig_k = k[5:].replace('__', '.')
+                sd[orig_k] = _pt.as_tensor(np.asarray(data[k]))
+            pipeline.encoder._mha.load_state_dict(sd, strict=False)
+        except Exception as _mha_exc:
+            import warnings as _w_mha
+            _w_mha.warn(
+                f"Checkpoint : restauration MHA échouée ({_mha_exc}) — "
+                "poids MHA ré-initialisés (run non reproductible exactement).",
+                UserWarning, stacklevel=2,
+            )
 
     # Restaurer LinkPredHead si présent dans le checkpoint
     if "_link_pred_meta_json" in data:

@@ -94,9 +94,11 @@ class RGCNLayerPT(nn.Module):
             )
         self._device = torch.device(device)
 
-        # M3 : générateur local — ne pollue plus le seed global torch.
+        # M3 : générateurs locaux — ne polluent plus le seed global torch/numpy.
         _gen = torch.Generator(device="cpu")
         _gen.manual_seed(seed)
+        # DropEdge nécessite son propre rng numpy pour ne pas dépendre du global.
+        self._np_rng = np.random.default_rng(seed)
         scale = (2.0 / d_in) ** 0.5
 
         # Relation-specific weights: (R, D_out, D_in)
@@ -164,7 +166,7 @@ class RGCNLayerPT(nn.Module):
         # (edge_index/edge_types arrivent comme np.ndarray ici).
         # Appliqué en une seule expression (atomique), en train uniquement.
         if self.training and self.drop_edge > 0.0:
-            mask = np.random.rand(edge_index.shape[1]) > self.drop_edge
+            mask = self._np_rng.random(edge_index.shape[1]) > self.drop_edge
             edge_index, edge_types = edge_index[:, mask], edge_types[mask]
 
         # Phase D (CompGCN) : W_r effectif depuis E_r @ W_comp.

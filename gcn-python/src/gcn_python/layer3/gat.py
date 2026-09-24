@@ -131,6 +131,10 @@ class RGCNLayerGAT(nn.Module):
         # E2 : LayerNorm optionnelle (identité à l'init : weight=1, bias=0)
         self.norm = nn.LayerNorm(d_out).to(self._device) if use_layernorm else None
 
+        # Générateur dédié au dropout — séquence déterministe sans polluer le global.
+        self._dropout_gen = torch.Generator(device="cpu")
+        self._dropout_gen.manual_seed(seed + 9999)
+
         # Cache pour backward_message_pass
         self._H_in_retained: torch.Tensor | None = None
         self._out_retained: torch.Tensor | None = None
@@ -218,10 +222,11 @@ class RGCNLayerGAT(nn.Module):
         H_in = torch.as_tensor(node_features, dtype=torch.float32, device=self._device)
         H_in.requires_grad_(True)  # BUG-2 : feuille AVANT dropout — masque inclus dans autograd
 
-        # Dropout sur les features d'entrée
+        # Dropout sur les features d'entrée (générateur local — reproductible avec --seed)
         if self.dropout_rate > 0.0 and self.training:
             mask = torch.bernoulli(
-                torch.full(H_in.shape, 1.0 - self.dropout_rate, device=self._device)
+                torch.full(H_in.shape, 1.0 - self.dropout_rate, device=self._device),
+                generator=self._dropout_gen,
             ) / (1.0 - self.dropout_rate)
             H_in = H_in * mask  # opération dans le graphe autograd, gradient correct
         out = self._gat_forward(H_in, edge_index, edge_types)

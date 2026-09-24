@@ -118,11 +118,12 @@ class CGNPipeline:
                 )
         self.bfs_depth = bfs_depth
 
-        # S5/E4 : liste des couches R-GCN (≥1). Couche 0 = graph passé en paramètre.
+        # S5/E4 : liste des couches R-GCN (≥0). Couche 0 = graph passé en paramètre.
+        # n_rgcn_layers=0 : pipeline MLP-seul (message passing ignoré).
         # E4 : les couches supplémentaires sont du même type que graph
         # (LayerClass = type(graph)) — GAT préserve l'attention à chaque couche.
         self.n_rgcn_layers = n_rgcn_layers
-        self._graph_layers: list = [graph]
+        self._graph_layers: list = [] if n_rgcn_layers == 0 else [graph]
         if n_rgcn_layers > 1:
             if hasattr(graph, 'd_in') and hasattr(graph, 'd_out') and hasattr(graph, 'n_relations'):
                 LayerClass = type(graph)
@@ -398,7 +399,7 @@ class CGNPipeline:
                 ], dtype=np.int64)
                 n_rel = len(self.relation_types)
                 edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, n_rel - 1)
-            elif self.two_pass_val and len(reps) >= 2:
+            elif self.two_pass_val and len(reps) >= 2 and self._graph_layers:
                 predicted_map = self._predict_edge_types_preliminary(
                     clause_vecs, node_logits, reps, clause_positions,
                     n_total_clauses, connector_reps,
