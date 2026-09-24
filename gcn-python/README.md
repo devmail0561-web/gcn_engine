@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-206-passing)](tests/)
+[![Tests](https://img.shields.io/badge/tests-409-passing)](tests/)
 
 ---
 
@@ -15,7 +15,7 @@ GCN est un **moteur d'extraction et de raisonnement causal vérifiable**.
 Il prend du texte brut, extrait la structure causale, et répond à des questions sur cette structure — avec traçabilité jusqu'aux sources.
 
 ```
-Texte brut (FR, EN, code — toute langue)
+Texte brut (FR, EN, code — autres langues : frontend Rust + connector_lemmas à fournir)
           │
           ▼  GCN Causal Engine
           │
@@ -28,7 +28,7 @@ CausalIR — graphe causal structuré
           │
           ├── Interrogeable : "what causes X ?"
           ├── Traceable    : "selon quel document ?"
-          ├── Pearl niveau 2 : "sans X, que se passe-t-il ?"
+          ├── Analyse contrefactuelle structurelle : "sans X, que se passe-t-il ?" (do-calculus complet dans gcn-backend Rust)
           └── Contradiction detection entre sources
 ```
 
@@ -38,8 +38,8 @@ CausalIR — graphe causal structuré
 |-|-----|-----|
 | Réponse causale | Plausible, non vérifiable | Tracée jusqu'à la source |
 | Requêtes formelles sur le graphe | ❌ | ✅ |
-| Détection de contradictions entre sources | ❌ | ✅ |
-| Raisonnement Pearl (do-calculus) | ❌ | ✅ |
+| Détection de contradictions entre sources | ❌ | ✅ (heuristique : co-occurrence prevent/filter+negated) |
+| Raisonnement Pearl (do-calculus, gcn-backend Rust) | ❌ | ✅ |
 | Entraînable sur corpus spécifique | Coûteux | ✅ léger (NumPy) |
 
 **Pour qui :**
@@ -86,11 +86,12 @@ gcn-discuss --checkpoint model.npz
   > What causes data exfiltration?
     causes_of: 'data exfiltration'
     ────────────────────────────────────────────────────
-    1. [action] authentication_bypass  --[enable]-->  (conf=91%)
+    1. [action] authentication_bypass  --[enable]-->  (conf=~0.72)
        source: APT28_2024.txt
-    2. [processus] credential_theft  --[cause]-->  (conf=87%)
+    2. [processus] credential_theft  --[cause]-->  (conf=~0.65)
        source: Mandiant_Q3.txt
     ⚠ CONTRADICTION : firewall_rule --[prevent]--> (SecPolicy.txt)
+    Note : les scores de confiance sont des softmax non calibrés — préférence relative, pas probabilité absolue.
     ────────────────────────────────────────────────────
 
   > /save session.json
@@ -269,7 +270,7 @@ Texte brut (fr/en/code)
 UD tokens (pos, dep_rel, morph, lemma)
      │
      ▼  Layer 1 — FeatureVocabulary  (gcn-python)
-79-dim vector par clause
+80-dim vector par clause (sans embeddings — voir FeatureVocabulary.d_clause)
      │
      ▼  Layer 2 — MLPEncoder  (remplaçable)
 node_logits (N×7) + edge_logits (E×11)
@@ -279,6 +280,14 @@ message passing — enrichissement des représentations
      │
      ▼  CGNPipeline.forward() → CausalIR
 ```
+
+**Précisions architecturales :**
+
+- **Traitement phrase par phrase** : le ML traite une phrase à la fois. Le graphe document est la réunion des CIR individuels — aucune coréférence inter-phrase, aucun raisonnement cross-sentence.
+- **Classification, pas prédiction** : le moteur classifie les nœuds (7 types) et les arêtes (11 relations) depuis le texte complet déjà disponible. Il ne prédit pas d'événements futurs.
+- **Features syntaxiques** : le vecteur clause contient POS, dep_rel, morphologie UD. Le moteur ne voit pas le sens des mots. Ajouter `--fasttext` pour les cas sans connecteur explicite.
+- **Teacher forcing** : en entraînement, le R-GCN reçoit les vrais types de relations pour stabiliser les premières epochs. À l'inférence, le two-pass prédit les types sans or. Utiliser `--scheduled-sampling` pour réduire progressivement cette asymétrie.
+- **Moteur vs checkpoint** : le moteur est le pipeline (chassis). Le checkpoint `.npz` contient les poids du classifieur embarqué. Charger uniquement des checkpoints de sources fiables (contient du JSON sérialisé, risque équivalent à un pickle).
 
 ---
 
@@ -306,6 +315,18 @@ from gcn_python.evaluation.metrics import (
     per_class_report,
 )
 ```
+
+---
+
+## Limitations connues — Classifieur ML
+
+| Limitation | Impact | Contournement |
+|-----------|--------|---------------|
+| Features syntaxiques uniquement | Le classifieur ne voit pas le sens des mots. Deux phrases avec le même patron UD reçoivent le même vecteur, même si leur causalité est différente. | Ajouter `--fasttext wiki.fr.bin` pour injecter des embeddings sémantiques. |
+| Causalité implicite (sans connecteur) | Difficile à classifier — les features UD ne portent pas l'information implicite. | Annoter des exemples explicitement sans connecteur dans le dataset. |
+| Traitement phrase par phrase | Aucune coréférence inter-phrase. Une chaîne causale sur 3 phrases ne sera pas résolue automatiquement. | Réunion manuelle des CIR via `CausalGraph.from_cirs()`. |
+| Scores de confiance non calibrés | Les probabilités softmax ne sont pas des probabilités épistémiques. conf=0.7 ≠ 70% de chance d'être correct. | Ne pas utiliser les scores comme seuils de décision absolus. |
+| Langues non FR/EN | ES, DE, etc. n'ont ni frontend Rust ni `connector_lemmas`. Nœuds extraits, arêtes absentes. | Implémenter un frontend Rust pour la langue cible + fournir `connector_lemmas`. |
 
 ---
 

@@ -1,7 +1,7 @@
 # Benchmark complet — GCN Engine (2026-09-18)
 
 **Objectif :** classifier les relations causales entre clauses françaises en 11 types de relations
-et 7 types de nœuds, à partir de 735 phrases annotées.
+et 7 types de nœuds, à partir de 536 phrases originales (735 avec oversampling C1).
 
 **Métriques cibles production :**
 
@@ -23,7 +23,7 @@ et 7 types de nœuds, à partir de 735 phrases annotées.
 
 | # | Configuration | Dataset | Epochs | LR | best_val_edge_f1 | @ep | val_node_f1 | val_gem | gap_edge |
 |---|--------------|---------|--------|-----|-----------------|-----|-------------|---------|---------|
-| 1 | **GAT + bidi + oversamp C1** | 735 oversampled | 100 | 0.0005 | **0.4676** | 92 | 0.273 | 0.123 | +0.069 |
+| 1 | **GAT + bidi + oversamp C1** | 735 oversampled | 100 | 0.0005 | **0.4676** | 92 | 0.273 | 0.123 | +0.069 | ¹ |
 | 2 | GAT + bidi (120 epochs) | 536 orig | 120 | 0.001 | 0.4207 | 91 | 0.313 | 0.053 | −0.116 |
 | 3 | GAT + bidi + oversamp C1 (lr=0.001) | 735 | 50 | 0.001 | 0.3884 | 31 | 0.269 | 0.105 | +0.180 |
 | 4 | GAT + bidi | 536 orig | 50 | 0.001 | 0.3179 | 46 | 0.266 | 0.026 | +0.029 |
@@ -40,6 +40,8 @@ et 7 types de nœuds, à partir de 735 phrases annotées.
 | 15 | GAT + bidi + C1_oversamp (lr=0.0005) | 735 C1 | 100 | 0.0005 | 0.1863 | 42 | 0.190 | 0.070 | +0.385 |
 | 16 | R-GCN + bidi + oversamp C1 | 735 | 100 | 0.0005 | 0.1627 | 100 | 0.262 | 0.097 | +0.370 |
 | 17 | **GAT + bidi + emb300 wiki.fr** | 735 | **5** | 0.0005 | 0.1202 | 4 | 0.019 | 0.000 | +0.083 |
+
+> ¹ **Note run #1** : Reproductibilité partielle — la seed CLI ne contrôlait pas les inits constructeurs avant v2.5.2 (corrigé). Le résultat 0.4676 peut varier selon l'environnement exact.
 
 > **Note run #17** : 5 epochs seulement (12 min/epoch × 300-dim). Non conclusif — le modèle
 > n'a pas convergé. À exclure de la comparaison.
@@ -109,6 +111,7 @@ GAT + bidirectionnel, 120 epochs, lr=0.001
 
 **Remarque :** La courbe oscille fortement avec LR=0.001. Le pic ep91=0.42 est atteint par
 chance — reproduire exactement ce résultat est difficile. Préférer #1.
+val > train ici : possible effet dropout actif en train (pas nécessairement une meilleure généralisation).
 
 ---
 
