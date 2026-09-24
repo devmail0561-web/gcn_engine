@@ -140,6 +140,14 @@ def run_eval(
                            clause_pooling=str(_arch.get("clause_pooling", "root")),
                            subject_object_emb=bool(_arch.get("subject_object_emb", False)),
                            gat_residual=bool(_arch.get("gat_residual", False)))
+    # Sécu : trusted=True uniquement si l'arch est présente et cohérente (fichier reconnu).
+    # Sans _arch_json, le checkpoint est potentiellement malveillant — refuser le chargement pickle.
+    if not _arch_trusted:
+        raise ValueError(
+            f"run_eval : {model_path} ne contient pas _arch_json — chargement refusé. "
+            "Seuls les checkpoints produits par gcn-train >= 2.1.0 sont acceptés par gcn-eval. "
+            "Pour forcer le chargement (risque RCE), passer trusted=True à load_checkpoint manuellement."
+        )
     load_checkpoint(pipeline, model_path, trusted=True)
     # D1 : load_checkpoint restaure les hyperparamètres depuis l'arch — re-appliquer
     # l'override après, sinon la valeur arch écrase l'override passé explicitement.
