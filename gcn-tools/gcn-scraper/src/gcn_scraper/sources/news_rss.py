@@ -153,7 +153,7 @@ class NewsRSSScraper:
         except Exception:
             return None
 
-    def scrape_feed(self, name: str, url: str, lang: str) -> list[dict]:
+    def scrape_feed(self, name: str, url: str, lang: str, tracker=None) -> list[dict]:
         resp, self.session = _retry_get(
             self.session, url, {}, user_agent=self.user_agent,
             min_interval=self._delay, base_delay=1.0, max_retries=2,
@@ -164,9 +164,24 @@ class NewsRSSScraper:
         raw_items = self._parse_feed(resp.text, lang, name, url)
         # Principe : scraper le SITE lié (l'article), pas la sortie du flux.
         items = []
+        art_ok, art_ko = 0, 0
         for it in raw_items:
+            if tracker is not None and tracker.is_globally_full():
+                break  # quota rempli ailleurs : stopper le crawl articles
             link = it.get("url", "")
-            text = self._fetch_article_text(link) if link and link != url else None
+            text = None
+            # Disjoncteur : si les articles de ce flux échouent en masse
+            # (anti-bot du journal), on bascule sur le texte RSS directement
+            # au lieu de marteler chaque URL.
+            fetch = link and link != url and not (
+                art_ko >= 10 and art_ko > 2 * art_ok
+            )
+            if fetch:
+                text = self._fetch_article_text(link)
+                if text:
+                    art_ok += 1
+                else:
+                    art_ko += 1
             time.sleep(self._delay)
             if not text:
                 text = it.get("text", "")
@@ -192,7 +207,7 @@ class NewsRSSScraper:
             for name, url in feeds:
                 if tracker is not None and tracker.is_globally_full():
                     break
-                items = self.scrape_feed(name, url, lang)
+                items = self.scrape_feed(name, url, lang, tracker=tracker)
                 if not items:
                     consecutive_failures += 1
                     if consecutive_failures >= 5:

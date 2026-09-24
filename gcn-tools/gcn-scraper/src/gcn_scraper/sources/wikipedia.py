@@ -208,7 +208,7 @@ class WikipediaLangScraper:
         # Phase 1 — recherche paginée (circuit-breaker: 3 échecs de suite → stop)
         consecutive_failures = 0
         for query in queries:
-            if tracker and tracker.is_full(lang):
+            if tracker and (tracker.is_full(lang) or tracker.is_globally_full()):
                 break
             print(f"  {lang.upper()}/search: '{query[:50]}'...", end=" ", flush=True)
             titles = self.search_articles_paginated(query, max_total=self._max_per_query * 2)
@@ -225,6 +225,8 @@ class WikipediaLangScraper:
             for title in titles:
                 if title in seen or (tracker and tracker.is_full(lang)):
                     continue
+                if tracker and tracker.is_globally_full():
+                    break  # quota rempli ailleurs : stopper le crawl articles
                 seen.add(title)
                 text = self.get_article_text(title)
                 if text:
@@ -255,6 +257,8 @@ class WikipediaLangScraper:
                 for title in self.get_category_articles(cat, max_articles=8):
                     if title in seen:
                         continue
+                    if tracker and tracker.is_globally_full():
+                        break  # quota rempli ailleurs
                     seen.add(title)
                     text = self.get_article_text(title)
                     if text:
@@ -279,6 +283,8 @@ class WikipediaLangScraper:
                 for title in self.get_category_articles(cat, self._max_per_query):
                     if title in seen:
                         continue
+                    if tracker and tracker.is_globally_full():
+                        break  # quota rempli ailleurs
                     seen.add(title)
                     text = self.get_article_text(title)
                     if text:

@@ -106,7 +106,7 @@ class ArXivScraper:
             print(f"  arXiv '{query}': flux Atom invalide ({e}), skip")
         return entries
 
-    def search(self, query: str, max_results: int = 100, start: int = 0) -> list[dict]:
+    def search(self, query: str, max_results: int = 100, start: int = 0, tracker=None) -> list[dict]:
         """Recherche des papers arXiv avec retry réseau + vraie pagination."""
         results = []
         offset = max(0, start)
@@ -117,6 +117,8 @@ class ArXivScraper:
             if not page:
                 break
             for entry in page:
+                if tracker is not None and tracker.is_globally_full():
+                    return results  # quota rempli ailleurs : stopper le crawl abs
                 # Principe : scraper le SITE lié (page abs), pas la sortie du moteur.
                 text = self._fetch_abs_text(entry["url"])
                 time.sleep(self._delay)
@@ -172,7 +174,7 @@ class ArXivScraper:
                 if tracker is not None and tracker.is_globally_full():
                     break
                 print(f"  arXiv [{relation_type}]: '{q}'...", end=" ", flush=True)
-                papers = self.search(q, max_results=max_per_query, start=start)
+                papers = self.search(q, max_results=max_per_query, start=start, tracker=tracker)
                 if not papers:
                     consecutive_failures += 1
                     print("0 abstract (échec/rate-limit)")

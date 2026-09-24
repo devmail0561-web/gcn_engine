@@ -170,4 +170,14 @@ class WordEmbedding:
         if isinstance(data, dict):
             obj._pretrained_start = data.get("__pretrained_start")
             obj._pretrained_end = data.get("__pretrained_end")
+        else:
+            # C1.4 : format ancien (liste) — plage non restaurée, gel silencieusement inopérant.
+            import warnings as _w_emb
+            _w_emb.warn(
+                "WordEmbedding.from_json : format ancien (liste) — "
+                "_pretrained_start/_pretrained_end non restaurés. "
+                "freeze_embeddings=True sans effet sur ce vocabulaire.",
+                UserWarning,
+                stacklevel=2,
+            )
         return obj

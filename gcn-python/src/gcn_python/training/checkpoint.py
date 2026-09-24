@@ -57,7 +57,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     # pour reconstruire le pipeline sans hardcoder les indices de shapes.
     we = getattr(pipeline, 'word_embedding', None)
     d_emb = we.d_emb if we is not None else 0
-    d_eff = pipeline.vocabulary.d_clause + d_emb
+    _sob = bool(getattr(pipeline, 'subject_object_emb', False))
+    d_eff = pipeline.vocabulary.d_clause_effective(d_emb, _sob)
     graph0 = pipeline._graph_layers[0]
     n_rel = getattr(graph0, 'n_relations', len(pipeline.relation_types))
     d_hidden = getattr(graph0, 'd_out', d_eff)
@@ -81,6 +82,17 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "temperature":  float(getattr(pipeline, 'temperature', 1.0)),
         "bfs_depth":    (None if getattr(pipeline, 'bfs_depth', None) is None
                          else int(pipeline.bfs_depth)),
+        # §1 (amelioration_v3) — clés absentes = défauts (vieux checkpoints lisibles)
+        "clause_pooling": str(getattr(pipeline, 'clause_pooling', 'root')),
+        "subject_object_emb": _sob,
+        "freeze_embeddings": bool(getattr(we, 'frozen', False)) if we is not None else False,
+        "n_gat_heads": int(getattr(graph0, 'n_heads', 1)),
+        "gat_residual": bool(getattr(pipeline, 'gat_residual', False)),
+        "gat_layernorm": bool(getattr(graph0, 'norm', None) is not None),
+        "gat_output_activation": str(getattr(graph0, 'output_activation', 'sigmoid')),
+        "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
+        "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
+        "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -117,12 +129,40 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         we = pipeline.word_embedding
         arrays["_word_emb_vocab_json"] = np.array([we.to_json()], dtype=object)
         arrays["word_emb_E"] = we._E
+        # C : plage pré-entraînée (gel partiel) — None si jamais chargé
+        if we._pretrained_start is not None and we._pretrained_end is not None:
+            arrays["word_emb_pretrained_start"] = np.array([we._pretrained_start])
+            arrays["word_emb_pretrained_end"] = np.array([we._pretrained_end])
+
+    # G2 : sauvegarder l'assembleur lexical si présent
+    _asm = getattr(pipeline, 'assembler', None)
+    if _asm is not None and hasattr(_asm, 'parameters'):
+        for i, p in enumerate(_asm.parameters()):
+            arrays[f"assembler_{i}"] = np.asarray(p)
+        if hasattr(_asm, 'to_json'):
+            arrays["_assembler_meta_json"] = np.array([_asm.to_json()], dtype=object)
 
     # Sauvegarde atomique : tmp + replace POSIX
     path = Path(path)
     tmp = path.with_suffix(".tmp.npz")
     np.savez_compressed(tmp, **arrays)
     tmp.replace(path)
+
+
+def _gat_ar_2d_compatible(layer, j: int, arr) -> bool:
+    """Cas D (§1) : a_r 2-D d'un vieux checkpoint mono-tête, convertible par load_state.
+
+    True si la couche est GAT (n_heads==1), clé = a_r (index 2) et shape (R, 2*D).
+    """
+    if j != 2 or getattr(layer, 'n_heads', None) != 1:
+        return False
+    try:
+        _shape = tuple(arr.shape)
+    except (AttributeError, TypeError):
+        return False
+    n_rel = getattr(layer, 'n_relations', None)
+    d_out = getattr(layer, 'd_out', None)
+    return len(_shape) == 2 and _shape == (n_rel, 2 * d_out)
 
 
 def load_checkpoint(
@@ -168,9 +208,10 @@ def load_checkpoint(
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
-                       "link_pred_", "hyperedge_")
+                       "link_pred_", "hyperedge_", "assembler_")
     _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E",
-                    "_arch_json", "_link_pred_meta_json"}
+                    "_arch_json", "_link_pred_meta_json", "_assembler_meta_json",
+                    "word_emb_pretrained_start", "word_emb_pretrained_end"}
     unexpected = set(data.files) - _VALID_EXACT
     unexpected = {k for k in unexpected if not any(k.startswith(p) for p in _VALID_PREFIXES)}
     if unexpected:
@@ -206,7 +247,8 @@ def load_checkpoint(
     if isinstance(_arch, dict):
         _we = getattr(pipeline, 'word_embedding', None)
         _d_emb = _we.d_emb if _we is not None else 0
-        _d_eff = pipeline.vocabulary.d_clause + _d_emb
+        _d_eff = pipeline.vocabulary.d_clause_effective(
+            _d_emb, bool(getattr(pipeline, 'subject_object_emb', False)))
         _g0 = pipeline._graph_layers[0] if getattr(pipeline, '_graph_layers', None) else pipeline.graph
         _d_hid = getattr(_g0, 'd_out', _d_eff)
         _n_rel = getattr(_g0, 'n_relations', len(pipeline.relation_types))
@@ -277,6 +319,8 @@ def load_checkpoint(
         for j, p in enumerate(layer.parameters()):
             key = f"{prefix}_{j}"
             if key in data and data[key].shape != p.shape:
+                if _gat_ar_2d_compatible(layer, j, data[key]):
+                    continue  # Cas D : load_state() convertit (R,2D) → (1,R,2D)
                 raise ValueError(
                     f"Incompatibilité de dimension pour {key} : "
                     f"checkpoint={data[key].shape} ≠ pipeline={p.shape}."
@@ -303,6 +347,39 @@ def load_checkpoint(
         _bd = _arch.get("bfs_depth")
         if _bd is not None:
             pipeline.bfs_depth = int(_bd)
+        # §1 (amelioration_v3) : restaurer les hyperparamètres d'inférence —
+        # clés absentes (vieux checkpoints) → défauts, jamais d'erreur.
+        _cp = _arch.get("clause_pooling")
+        if _cp is not None:
+            pipeline.clause_pooling = str(_cp)
+        _so = _arch.get("subject_object_emb")
+        if _so is not None:
+            pipeline.subject_object_emb = bool(_so)
+        _gr = _arch.get("gat_residual")
+        if _gr is not None:
+            pipeline.gat_residual = bool(_gr)
+        _vm = _arch.get("verbalize_mode")
+        if _vm is not None:
+            pipeline.verbalize_mode = str(_vm)
+        _sw = _arch.get("silver_weight")
+        if _sw is not None:
+            pipeline.silver_weight = float(_sw)
+        _mh = _arch.get("mlp_hidden")
+        if _mh is not None and hasattr(pipeline.encoder, 'mlp_hidden'):
+            _mh_int = int(_mh)
+            if _mh_int != pipeline.encoder.mlp_hidden:
+                # C1.3 : ne pas écraser — les matrices du pipeline ont été
+                # construites avec la valeur du pipeline, pas avec l'arch.
+                import warnings as _w_mh
+                _w_mh.warn(
+                    f"mlp_hidden archivé={_mh_int} != pipeline={pipeline.encoder.mlp_hidden} "
+                    "— attribut non mis à jour (matrices incompatibles). "
+                    f"Reconstruire avec mlp_hidden={_mh_int}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            else:
+                pipeline.encoder.mlp_hidden = _mh_int
 
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"
@@ -332,6 +409,19 @@ def load_checkpoint(
         we = WordEmbedding.from_json(str(data["_word_emb_vocab_json"][0]), d_emb=d_emb)
         if "word_emb_E" in data:
             we._E = data["word_emb_E"].astype(np.float32)
+        # C : plage pré-entraînée + flag frozen depuis l'arch (§1)
+        if "word_emb_pretrained_start" in data and "word_emb_pretrained_end" in data:
+            we._pretrained_start = int(data["word_emb_pretrained_start"][0])
+            we._pretrained_end = int(data["word_emb_pretrained_end"][0])
+        elif isinstance(_arch, dict) and _arch.get("freeze_embeddings"):
+            import warnings as _wfro
+            _wfro.warn(
+                f"Checkpoint {Path(path).name} : freeze_embeddings demandé mais plage "
+                "pré-entraînée absente (vieux checkpoint) — gel total appliqué.",
+                UserWarning, stacklevel=2,
+            )
+        if isinstance(_arch, dict) and _arch.get("freeze_embeddings") is not None:
+            we.frozen = bool(_arch.get("freeze_embeddings"))
         pipeline.word_embedding = we
 
     if "_decoder_meta_json" in data:
@@ -353,6 +443,24 @@ def load_checkpoint(
             if key in data:
                 p[:] = data[key]
         pipeline.decoder = decoder
+
+    # Restaurer LexicalConnectorAssembler (G2) si présent dans le checkpoint
+    if "_assembler_meta_json" in data:
+        from ..verbalizer.trainable import LexicalConnectorAssembler
+        asm = LexicalConnectorAssembler.from_json(str(data["_assembler_meta_json"][0]))
+        for i, p in enumerate(asm.parameters()):
+            key = f"assembler_{i}"
+            if key in data:
+                if p.ndim == 0:
+                    p[()] = data[key].item() if hasattr(data[key], "item") else data[key]
+                elif data[key].shape != p.shape:
+                    raise ValueError(
+                        f"Incompatibilité de dimension pour {key} : "
+                        f"checkpoint={data[key].shape} ≠ assembler={p.shape}."
+                    )
+                else:
+                    p[:] = data[key]
+        pipeline.assembler = asm
 
     # Restaurer LinkPredHead si présent dans le checkpoint
     if "_link_pred_meta_json" in data:

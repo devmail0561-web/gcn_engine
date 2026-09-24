@@ -161,7 +161,7 @@ def test_news_failures_are_per_language(monkeypatch):
                  "en": [("en0", "http://en0.example.com")]},
     )
 
-    def fake_feed(self, name, url, lang):
+    def fake_feed(self, name, url, lang, tracker=None):
         if lang == "fr":
             return []
         return [{"text": "x" * 60, "url": url, "source": "news:en0", "lang": "en"}]

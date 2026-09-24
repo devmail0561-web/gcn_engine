@@ -136,3 +136,18 @@ def test_read_texts_diagnostics_go_to_stderr(tmp_path, capsys):
     captured = capsys.readouterr()
     assert captured.out == "", f"stdout pollué : {captured.out!r}"
     assert "non supporté" in captured.err
+
+
+# ── Amélioration G3 — connector_precision@1 ────────────────────────────────────
+
+def test_connector_precision_at_1_perfect():
+    from gcn_python.evaluation.metrics import connector_precision_at_1
+    assert connector_precision_at_1([0, 1, 2], [0, 1, 2]) == 1.0
+
+
+def test_connector_precision_at_1_none_gold_excluded():
+    from gcn_python.evaluation.metrics import connector_precision_at_1
+    # 1/2 corrects parmi les gold non-None ; le None est exclu
+    assert connector_precision_at_1([0, 1, 2], [0, 0, None]) == 0.5
+    assert connector_precision_at_1([5], [None]) == 0.0
+    assert connector_precision_at_1([], []) == 0.0

@@ -105,3 +105,86 @@ def test_node_labels_aligned(examples_dir):
         assert len(sample.node_labels) == sample.node_type_embeddings.shape[0], \
             (f"len(node_labels)={len(sample.node_labels)} != "
              f"N={sample.node_type_embeddings.shape[0]}")
+
+
+# ── Améliorations G1/G2 — clause_texts + connector_gold_idx ───────────────────
+
+def _write_source_dataset(d: Path) -> None:
+    doc = {"document": {"lang": "fr", "sentences": [{
+        "id": "s0001",
+        "text": "Le chat dort car il est fatigué.",
+        "tokens": [
+            {"id": 1, "form": "Le", "lemma": "le", "pos": "DET", "dep_rel": "det", "dep_head": 2},
+            {"id": 2, "form": "chat", "lemma": "chat", "pos": "NOUN", "dep_rel": "nsubj", "dep_head": 3},
+            {"id": 3, "form": "dort", "lemma": "dormir", "pos": "VERB", "dep_rel": "root", "dep_head": 0},
+            {"id": 4, "form": "car", "lemma": "car", "pos": "SCONJ", "dep_rel": "mark", "dep_head": 6},
+            {"id": 5, "form": "il", "lemma": "il", "pos": "PRON", "dep_rel": "nsubj", "dep_head": 6},
+            {"id": 6, "form": "fatigué", "lemma": "fatigué", "pos": "ADJ", "dep_rel": "advcl", "dep_head": 3},
+        ],
+        "cir": {
+            "nodes": [
+                {"id": "n001", "type": "entite", "label": "chat", "token_span": [1, 3],
+                 "scope": "specific", "temporal_index": 0, "origin": "explicit"},
+                {"id": "n002", "type": "processus", "label": "fatigué", "token_span": [5, 6],
+                 "scope": "specific", "temporal_index": 0, "origin": "explicit"},
+            ],
+            "edges": [{"sources": ["n001"], "target": "n002", "relation": "cause"}],
+        },
+    }]}}
+    (d / "train.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_verbalize_pair(d: Path) -> None:
+    doc = {"schema_version": "2.0", "examples": [{
+        "id": "s0001",
+        "causal_ir": {
+            "source_text": "Le chat dort car il est fatigué.",
+            "nodes": [
+                {"id": 0, "node_type": "entite", "label": "chat"},
+                {"id": 1, "node_type": "processus", "label": "fatigué"},
+            ],
+            "edges": [[0, 1, {"relation": "cause"}]],
+        },
+        "surfaces": [{"text": "le chat dort car il est fatigué", "quality": "gold"}],
+    }]}
+    (d / "verbalize_test.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+
+def test_verbalize_loader_extracts_clause_texts(tmp_path: Path):
+    src = tmp_path / "src"
+    src.mkdir()
+    _write_source_dataset(src)
+    vdir = tmp_path / "verb"
+    vdir.mkdir()
+    _write_verbalize_pair(vdir)
+    loader = VerbalizerDataLoader(vdir, source_json_dir=src)
+    assert len(loader) == 1
+    s = next(iter(loader))
+    assert s.clause_texts is not None
+    assert s.clause_texts[0] == "Le chat dort", s.clause_texts
+    assert s.clause_texts[1] == "il fatigué", s.clause_texts
+
+
+def test_verbalize_loader_extracts_connector_gold_idx(tmp_path: Path):
+    src = tmp_path / "src"
+    src.mkdir()
+    _write_source_dataset(src)
+    vdir = tmp_path / "verb"
+    vdir.mkdir()
+    _write_verbalize_pair(vdir)
+    loader = VerbalizerDataLoader(vdir, source_json_dir=src,
+                                  connector_vocab=["car", "parce que"])
+    s = next(iter(loader))
+    assert s.edge_triples == [(0, 1, 0)], s.edge_triples  # cause = index 0
+    assert s.connector_gold_idx == [0], s.connector_gold_idx  # "car" matché
+
+
+def test_verbalize_loader_no_source_dir_gives_none(tmp_path: Path):
+    vdir = tmp_path / "verb"
+    vdir.mkdir()
+    _write_verbalize_pair(vdir)
+    loader = VerbalizerDataLoader(vdir)
+    s = next(iter(loader))
+    assert s.clause_texts is None
+    assert s.connector_gold_idx is None
+    assert s.edge_triples == [(0, 1, 0)]

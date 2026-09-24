@@ -273,6 +273,8 @@ class ScrapingPipeline:
                     print(f"=== {key}: déjà fait ({count} phrases), skip ===")
                     return key, count
                 print(f"=== {key} : démarrage ===", flush=True)
+                import time as _time
+                _t0 = _time.time()
                 try:
                     items = scraper_fn()
                 except Exception as exc:
@@ -290,7 +292,8 @@ class ScrapingPipeline:
                                             **process_kw)
                     self._warn_zero(key, n)
                     checkpoint.mark_done(key, n, dict(tracker.counts))
-                    print(f"  [{key}] → {n} phrases | {tracker.progress_bar()}")
+                    print(f"  [{key}] → {n} phrases | {tracker.progress_bar()} "
+                          f"({_time.time() - _t0:.0f}s)")
                 return key, n
 
             # --- Construction de la liste des tâches ---

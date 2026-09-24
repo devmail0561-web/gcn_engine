@@ -341,7 +341,8 @@ def train_cmd(
 
     val_loader = None
     if val_dir is not None:
-        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False)
+        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
+                                   silver_weight=silver_weight)
         if len(val_loader) == 0:
             raise click.ClickException(f"Aucune sentence dans {val_dir}")
         click.echo(f"Val : {len(val_loader)} sentences")
@@ -445,6 +446,10 @@ def train_cmd(
                 if not reps:
                     n_skipped += 1
                     continue
+                # C2.3-doc : gold_edge_map intentionnellement absent ici —
+                # évaluation sans oracle (asymétrie teacher-forcing BUG-1).
+                # Ne pas symétriser par le gold : ferait passer le R-GCN val
+                # sur types réels → F1 val optimiste → early stopping biaisé.
                 pipeline.forward(
                     reps, sample.sentence.text,
                     clause_positions=valid_clause_idxs,
@@ -551,19 +556,25 @@ def train_cmd(
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
             if assembler is not None:
                 csv_fieldnames.append("verbalize_connector_prec1")
+                csv_fieldnames.append("assembler_avg_loss")  # C2.4 : loss assembleur
             if val_loader is not None:
                 csv_fieldnames.extend([
                     "val_loss", "val_node_accuracy", "val_node_macro_f1",
                     "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
                 ])
             csv_file = open(log_csv, "w", newline="", encoding="utf-8")
-            csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames)
+            # C1.5 : extrasaction='ignore' — un resume avec headers différents
+            # (decoder/assembler apparu-disparu) ne doit pas crasher writerow.
+            csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames,
+                                        extrasaction='ignore')
             csv_writer.writeheader()
 
         for epoch in range(1, epochs + 1):
             epoch_loss = 0.0
             epoch_dec_loss = 0.0   # L-3 : loss décodeur séparée
+            epoch_asm_loss = 0.0   # C2.4 : loss assembleur séparée (par arête)
             n_dec_samples = 0
+            n_asm_samples = 0      # C2.4 : compteur assembleur séparé (par arête)
             n_samples = 0
             batch_step_count = 0
             epoch_node_preds: list[str] = []
@@ -590,7 +601,7 @@ def train_cmd(
                         clause_positions=valid_clause_idxs,
                         n_total_clauses=len(sample.sentence.clauses),
                         connector_reps=connector_reps,
-                        gold_edge_map=sample.edge_map,  # BUG-1 : types réels pour R-GCN
+                        gold_edge_map=sample.edge_map,  # BUG-1 teacher-forcing : types réels en train uniquement
                     )
                 except ValueError:
                     raise
@@ -787,8 +798,8 @@ def train_cmd(
                             _asm_gold_idxs.append(_g)
                             _a_loss, _a_grads = assembler.loss_and_grad(_r, _g)
                             assembler.update(_a_grads, lr)
-                            epoch_loss += _a_loss
-                            n_samples += 1
+                            epoch_asm_loss += _a_loss   # C2.4 : séparé de epoch_loss
+                            n_asm_samples += 1          # C2.4 : n_samples reste par phrase
 
             avg_loss = epoch_loss / max(n_samples, 1)
             metrics = {
@@ -810,6 +821,10 @@ def train_cmd(
                 from ..evaluation.metrics import connector_precision_at_1
                 metrics["verbalize_connector_prec1"] = connector_precision_at_1(
                     _asm_pred_idxs, _asm_gold_idxs)
+                # C2.4 : loss assembleur rapportée séparément (jamais dans epoch_loss)
+                metrics["assembler_avg_loss"] = (
+                    epoch_asm_loss / max(n_asm_samples, 1)
+                )
 
             # Val pass
             if val_loader is not None:

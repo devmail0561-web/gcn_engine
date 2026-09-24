@@ -117,29 +117,45 @@ class GCNEngine:
 
         # Lire les métadonnées d'architecture sauvegardées par save_checkpoint
         if "_arch_json" not in data:
-            raise ValueError(
-                f"Checkpoint {checkpoint.name} ne contient pas _arch_json. "
-                "Re-entraîner avec gcn-train >= 2.1.0 pour générer ce champ."
+            # C1.1 : aligné sur load_checkpoint/eval_runner (warn, pas raise).
+            # Warn fort car défauts = métriques potentiellement trompeuses.
+            warnings.warn(
+                f"Checkpoint {checkpoint.name} sans _arch_json — repli sur défauts. "
+                "Re-entraîner avec gcn-train >= 2.1.0 pour supprimer cet avertissement.",
+                UserWarning,
+                stacklevel=2,
             )
-        # M5 : checkpoints .npz = artefacts locaux de confiance (allow_pickle requis
-        # pour _arch_json/_vocab_json). Ne jamais charger un .npz non fiable.
-        arch = json.loads(str(data["_arch_json"][0]))
-        d_eff        = arch["d_eff"]
-        d_emb        = arch["d_emb"]
-        n_rel        = arch["n_relations"]
-        bidirectional = arch["bidirectional"]
+            arch: dict = {}
+        else:
+            # M5 : checkpoints .npz = artefacts locaux de confiance (allow_pickle requis
+            # pour _arch_json/_vocab_json). Ne jamais charger un .npz non fiable.
+            arch = json.loads(str(data["_arch_json"][0]))
+        d_eff         = int(arch.get("d_eff", FeatureVocabulary().d_clause))
+        d_emb         = int(arch.get("d_emb", 0))
+        n_rel         = int(arch.get("n_relations", len(RELATION_TYPES)))
+        bidirectional = bool(arch.get("bidirectional", arch.get("bidi_flag", False)))
         all_pairs = bool(arch.get("all_pairs", False))
         n_rgcn_layers = int(arch.get("n_rgcn_layers", 1))
         graph_class  = arch.get("graph_class", "RGCNLayer")
+        # §1 (amelioration_v3) — défauts = comportement historique
+        clause_pooling = str(arch.get("clause_pooling", "root"))
+        subject_object_emb = bool(arch.get("subject_object_emb", False))
+        gat_residual = bool(arch.get("gat_residual", False))
+        n_gat_heads = int(arch.get("n_gat_heads", 1))
+        gat_layernorm = bool(arch.get("gat_layernorm", False))
+        gat_output_activation = str(arch.get("gat_output_activation", "sigmoid"))
+        mlp_hidden = int(arch.get("mlp_hidden", 128))
+        freeze_embeddings = bool(arch.get("freeze_embeddings", False))
 
         vocab = FeatureVocabulary()
         if "_vocab_json" in data:
             vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
 
         from .constants import NODE_TYPES
-        d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
+        d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb,
+                                          subject_object_emb)
 
-        encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+        encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden)
 
         # M5 : RGCNLayerPT accepte aussi device (comme GAT).
         try:
@@ -151,7 +167,9 @@ class GCNEngine:
             try:
                 from .layer3.gat import RGCNLayerGAT
                 graph = RGCNLayerGAT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                                     device=device)
+                                     device=device, n_heads=n_gat_heads,
+                                     output_activation=gat_output_activation,
+                                     use_layernorm=gat_layernorm)
             except ImportError:
                 warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning)
                 graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel)
@@ -166,6 +184,8 @@ class GCNEngine:
         if d_emb > 0:
             from .layer1.embedding import WordEmbedding
             word_embedding = WordEmbedding(d_emb=d_emb)
+            if freeze_embeddings:
+                word_embedding.frozen = True
 
         # Restaurer les hyperparamètres d'inférence depuis l'arch — sans ça,
         # analyze() utilise les défauts (seuil 0.0, morph actif, temp 1.0) même
@@ -184,6 +204,9 @@ class GCNEngine:
             all_pairs=all_pairs, n_rgcn_layers=n_rgcn_layers,
             edge_threshold=edge_threshold, drop_morph=drop_morph,
             temperature=temperature, bfs_depth=bfs_depth,
+            clause_pooling=clause_pooling,
+            subject_object_emb=subject_object_emb,
+            gat_residual=gat_residual,
         )
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
@@ -325,7 +348,9 @@ class GCNEngine:
 
     def __repr__(self) -> str:
         _we = getattr(self._pipeline, 'word_embedding', None)
-        d_eff = self._pipeline.vocabulary.d_clause + (_we.d_emb if _we is not None else 0)
+        d_eff = self._pipeline.vocabulary.d_clause_effective(
+            _we.d_emb if _we is not None else 0,
+            bool(getattr(self._pipeline, 'subject_object_emb', False)))
         n_rel = len(self._pipeline.relation_types)
         parser = "gcn-cli" if self._text_parser else "bridge heuristique"
         return (

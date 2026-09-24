@@ -90,13 +90,22 @@ def run_eval(
     if _d_emb > 0:
         from ..layer1.embedding import WordEmbedding
         _word_embedding = WordEmbedding(d_emb=_d_emb)
+        if bool(_arch.get("freeze_embeddings", False)):
+            _word_embedding.frozen = True
+    _mlp_hidden = int(_arch.get("mlp_hidden", 128))
+    _sob_eval = bool(_arch.get("subject_object_emb", False))
     encoder = MLPEncoder(d_clause=_d_eff,
-                         d_edge=vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb))
+                         d_edge=vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb,
+                                                         _sob_eval),
+                         mlp_hidden=_mlp_hidden)
     if _gclass == "RGCNLayerGAT":
         try:
             from ..layer3.gat import RGCNLayerGAT
             graph = RGCNLayerGAT(d_in=_d_eff, d_out=int(_arch.get("d_hidden", _d_eff)),
-                                 n_relations=_n_rel)
+                                 n_relations=_n_rel,
+                                 n_heads=int(_arch.get("n_gat_heads", 1)),
+                                 output_activation=str(_arch.get("gat_output_activation", "sigmoid")),
+                                 use_layernorm=bool(_arch.get("gat_layernorm", False)))
         except ImportError:
             warnings.warn("run_eval : PyTorch absent — repli sur RGCNLayer (NumPy).",
                           UserWarning, stacklevel=2)
@@ -109,7 +118,10 @@ def run_eval(
                            word_embedding=_word_embedding, bidirectional=_bidi,
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
-                           temperature=_temperature, bfs_depth=_bfs_depth)
+                           temperature=_temperature, bfs_depth=_bfs_depth,
+                           clause_pooling=str(_arch.get("clause_pooling", "root")),
+                           subject_object_emb=bool(_arch.get("subject_object_emb", False)),
+                           gat_residual=bool(_arch.get("gat_residual", False)))
     load_checkpoint(pipeline, model_path, trusted=True)
     # D1 : load_checkpoint restaure les hyperparamètres depuis l'arch — re-appliquer
     # l'override après, sinon la valeur arch écrase l'override passé explicitement.

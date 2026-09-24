@@ -152,6 +152,8 @@ class HALScraper:
                 continue
             consecutive_failures = 0
             for doc in docs:
+                if tracker is not None and tracker.is_globally_full():
+                    break  # quota rempli ailleurs : stopper le crawl pages
                 item = self._doc_to_item(doc, query)
                 if item:
                     all_papers.append(item)

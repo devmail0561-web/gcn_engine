@@ -44,7 +44,7 @@ class _LinearLayer:
 class MLPEncoder:
     """
     Implémentation de référence de la Couche 2 en NumPy pur.
-    Architecture : fc(D_in→128)+ReLU → fc(128→64)+ReLU → fc(64→out)
+    Architecture : fc(D_in→mlp_hidden)+ReLU → fc(mlp_hidden→64)+ReLU → fc(64→out)
 
     Le data scientist substitue par son propre CausalEncoder
     (PyTorch, JAX, etc.) sans modifier le pipeline.
@@ -62,6 +62,7 @@ class MLPEncoder:
         edge_dropout: float = 0.3,
         weight_decay: float = 0.0,
         grad_clip: float | None = None,
+        mlp_hidden: int = 128,
     ):
         if not (0.0 <= edge_dropout < 1.0):
             raise ValueError(
@@ -83,11 +84,12 @@ class MLPEncoder:
         self.edge_dropout = edge_dropout
         self.weight_decay = weight_decay
         self.training = True
+        self.mlp_hidden = mlp_hidden  # Amélioration B : 256 recommandé avec subj/obj
 
-        # Node MLP : d_clause → 128 → 64 → n_node_types
+        # Node MLP : d_clause → mlp_hidden → 64 → n_node_types
         self._node_layers = [
-            _LinearLayer(d_clause, 128, rng),
-            _LinearLayer(128, 64, rng),
+            _LinearLayer(d_clause, mlp_hidden, rng),
+            _LinearLayer(mlp_hidden, 64, rng),
             _LinearLayer(64, n_node_types, rng),
         ]
 

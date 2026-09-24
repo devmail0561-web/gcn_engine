@@ -216,21 +216,21 @@ def test_a3_gat_softmax_denominator_not_detached():
     # Gradient analytique
     layer.message_pass(features, edge_index, edge_types)
     _, grads = layer.backward_message_pass(d_output)
-    da_analytical = float(grads[2][0, 0])
+    da_analytical = float(grads[2][0, 0, 0])  # v3 : a_r 3-D (H, R, 2*D_head)
 
-    # Gradient par différences finies sur a_r[0, 0]
+    # Gradient par différences finies sur a_r[0, 0, 0] (v3 : 3-D)
     eps = 1e-4
 
     with torch.no_grad():
-        layer.a_r[0, 0] += eps
+        layer.a_r[0, 0, 0] += eps
     out_plus = layer.message_pass(features, edge_index, edge_types)
 
     with torch.no_grad():
-        layer.a_r[0, 0] -= 2 * eps
+        layer.a_r[0, 0, 0] -= 2 * eps
     out_minus = layer.message_pass(features, edge_index, edge_types)
 
     with torch.no_grad():
-        layer.a_r[0, 0] += eps  # restaurer
+        layer.a_r[0, 0, 0] += eps  # restaurer
 
     da_fd = float(np.sum((out_plus - out_minus) * d_output) / (2 * eps))
 

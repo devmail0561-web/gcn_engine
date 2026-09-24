@@ -595,3 +595,69 @@ def test_apply_accumulated_lr_validation(pipeline: CGNPipeline):
         pipeline.apply_accumulated_gradients(lr=0.0)
     with pytest.raises(ValueError, match="lr"):
         pipeline.apply_accumulated_gradients(lr=-0.1)
+
+
+# ── Amélioration F — Pondération silver ───────────────────────────────────────
+
+def _silver_json(tmp_path: Path, methode: str | None) -> Path:
+    sent: dict = {
+        "id": "s0001",
+        "text": "Le chat dort car il est fatigué.",
+        "tokens": [
+            {"id": 1, "form": "Le", "lemma": "le", "pos": "DET", "dep_rel": "det", "dep_head": 2},
+            {"id": 2, "form": "chat", "lemma": "chat", "pos": "NOUN", "dep_rel": "nsubj", "dep_head": 3},
+            {"id": 3, "form": "dort", "lemma": "dormir", "pos": "VERB", "dep_rel": "root", "dep_head": 0},
+            {"id": 4, "form": "car", "lemma": "car", "pos": "SCONJ", "dep_rel": "mark", "dep_head": 6},
+            {"id": 5, "form": "il", "lemma": "il", "pos": "PRON", "dep_rel": "nsubj", "dep_head": 6},
+            {"id": 6, "form": "fatigué", "lemma": "fatigué", "pos": "ADJ", "dep_rel": "advcl", "dep_head": 3},
+        ],
+        "cir": {
+            "nodes": [
+                {"id": "n001", "type": "entite", "label": "chat", "token_span": [1, 3],
+                 "scope": "specific", "temporal_index": 0, "origin": "explicit"},
+                {"id": "n002", "type": "processus", "label": "fatigué", "token_span": [5, 6],
+                 "scope": "specific", "temporal_index": 0, "origin": "explicit"},
+            ],
+            "edges": [
+                {"sources": ["n001"], "target": "n002", "relation": "cause"},
+            ],
+        },
+    }
+    if methode is not None:
+        sent["_methode"] = methode
+    doc = {"document": {"lang": "fr", "sentences": [sent]}}
+    p = tmp_path / "train.json"
+    import json as _json
+    p.write_text(_json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return tmp_path
+
+
+def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
+    """F : phrase _methode=silver-* → weight=0.7 ; loss arêtes réduite vs gold."""
+    from gcn_python.data.loader import GCNDataLoader
+    d = _silver_json(tmp_path, "silver-fr-moi-types")
+    loader = GCNDataLoader(d, silver_weight=0.7)
+    samples = list(loader)
+    assert len(samples) == 1
+    assert samples[0].sentence.weight == 0.7
+
+    d_gold = _silver_json(tmp_path, None)  # réécrit sans _methode → gold
+    # gold : _methode absente → 1.0
+    import json as _json
+    loader_gold = GCNDataLoader(tmp_path)
+    assert list(loader_gold)[0].sentence.weight == 1.0
+
+    # loss : même phrase, poids 0.7 < poids 1.0 sur la partie arêtes
+    vocab = FeatureVocabulary()
+    encoder = MLPEncoder(d_clause=vocab.d_clause,
+                         d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0)
+    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
+    pipe = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    rng = np.random.default_rng(1)
+    nl = rng.normal(0, 1, (2, 7)).astype(np.float32)
+    el = rng.normal(0, 1, (1, 11)).astype(np.float32)
+    loss_gold, _, _ = pipe.loss(nl, el, np.array([0, 1]), np.array([3]),
+                                sample_weight=1.0)
+    loss_silver, _, _ = pipe.loss(nl, el, np.array([0, 1]), np.array([3]),
+                                  sample_weight=0.7)
+    assert loss_silver < loss_gold

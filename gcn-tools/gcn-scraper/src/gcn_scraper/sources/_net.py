@@ -29,6 +29,28 @@ DEFAULT_USER_AGENT = "GCN-Dataset/2.0 (research; contact: gcn-research@example.o
 _HOST_COOLDOWN_UNTIL: dict[str, float] = {}
 # host -> timestamp du dernier appel (throttle)
 _HOST_LAST_CALL: dict[str, float] = {}
+# host -> échecs consécutifs non-retryables (403 WAF, 4xx fatals, timeouts
+# épuisés). Au seuil -> quarantaine longue (évite de marteler un hôte mort
+# URL après URL, ex : presse avec anti-bot).
+_HOST_FAILS: dict[str, int] = {}
+_QUARANTINE_THRESHOLD = 5
+_QUARANTINE_SECONDS = 3600.0
+
+
+def _note_success(url: str) -> None:
+    _HOST_FAILS.pop(_host(url), None)
+
+
+def _note_failure(url: str) -> bool:
+    """Incrémente les échecs consécutifs ; True si quarantaine déclenchée."""
+    host = _host(url)
+    n = _HOST_FAILS.get(host, 0) + 1
+    _HOST_FAILS[host] = n
+    if n >= _QUARANTINE_THRESHOLD:
+        _HOST_COOLDOWN_UNTIL[host] = time.time() + _QUARANTINE_SECONDS
+        print(f"    {host} : {n} échecs consécutifs, quarantaine 60min (skip).")
+        return True
+    return False
 
 
 def _host(url: str) -> str:
@@ -51,9 +73,11 @@ def clear_cooldown(url: str | None = None) -> None:
     if url is None:
         _HOST_COOLDOWN_UNTIL.clear()
         _HOST_LAST_CALL.clear()
+        _HOST_FAILS.clear()
     else:
         _HOST_COOLDOWN_UNTIL.pop(_host(url), None)
         _HOST_LAST_CALL.pop(_host(url), None)
+        _HOST_FAILS.pop(_host(url), None)
 
 
 def _parse_retry_after(value: str | None) -> float | None:
@@ -137,6 +161,7 @@ def retry_get(
             _HOST_LAST_CALL[host] = time.time()
 
             if resp.status_code == 200:
+                _note_success(url)
                 return resp, session
 
             if resp.status_code == 429:
@@ -147,6 +172,7 @@ def retry_get(
                     # Dernier échec → cooldown host pour que les requêtes
                     # suivantes échouent vite au lieu de bloquer chacune.
                     _set_cooldown(url, max(wait, 60.0))
+                    _note_failure(url)
                     print(f"    HTTP 429 sur {host}, cooldown 60s (abandon).")
                     return None, session
                 print(f"    HTTP 429, attente {wait:.1f}s (tentative {attempt + 1}/{max_retries})...")
@@ -167,17 +193,20 @@ def retry_get(
                     continue
                 # 403 WAF/ban/auth → fatal, ne pas marteler.
                 print(f"    HTTP 403 sur {host} (accès refusé, non retryable), skip.")
+                _note_failure(url)
                 return None, session
 
             if resp.status_code in (500, 502, 503, 504):
                 wait = _backoff(base_delay, attempt, max_wait)
                 if attempt >= max_retries - 1:
+                    _note_failure(url)
                     return None, session
                 print(f"    HTTP {resp.status_code}, attente {wait:.1f}s...")
                 time.sleep(wait)
                 continue
 
             # Autres 4xx : fatal, retour immédiat.
+            _note_failure(url)
             return None, session
 
         except (
@@ -197,7 +226,9 @@ def retry_get(
                     resp = session.get(url, params=params, timeout=timeout, headers=extra_headers)
                     _HOST_LAST_CALL[host] = time.time()
                     if resp.status_code == 200:
+                        _note_success(url)
                         return resp, session
                 except Exception:
                     pass
+    _note_failure(url)
     return None, session

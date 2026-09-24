@@ -349,3 +349,24 @@ Sous la même règle, l'entraînement neuf fait jeu égal avec les poids anciens
 - Le biais C1-val (3 types absents du val, §1 note #15/#16) persiste sous le schéma 11 types.
 - Prochain run utile : seed-sweep (7, 42, 123) de #4-bis pour mesurer la variance seed
   avant toute conclusion sur les hyperparamètres — ~12 min pour 3×50ep.
+
+## 10. Run supervision v2 2026-09-22 — fusion silver FR+EN+code (NON COMPARABLE §1/§9)
+
+**Données :** `DATA/supervision/fusion_v2.json` — 2398 uniques
+(1661 existant + 358 silver FR + 348 silver EN + 31 code, tous ACCEPTés aveugle 0 critique),
+split `combined_v2` 1666/350/382 stratifié (relation × langue) seed 42.
+**Train :** `DATA/supervision/train_v2/model_v2.npz` — 100ep lr 0.0005 GAT+bidi weighted-loss,
+loss 4.62→3.39, edge_acc 0.10→0.40. **Éval** (`gcn-eval`, harnais actuel, `trusted: true`) :
+
+| Modèle (mêmes données) | val edge_f1 (350) | test edge_f1 (382) | val node_f1 |
+|------------------------|-------------------|-------------------|-------------|
+| model_v2 (supervision) | **0.3124** | **0.3392** | 0.2357 |
+| baseline prod mêmes données | 0.1880 | 0.2431 | 0.1225 |
+| **Δ supervision** | **+0.124** | **+0.096** | +0.113 |
+
+**Ne pas comparer** au 0.468 (§1) : harnais et données ont changé (§9b).
+**Limites actées** (cf `verdicts_supervision.json` + `errata_supervision_v2.json`) :
+7 arêtes backward légitimes non supervisables (0.3%, limite harnais forward-consécutif),
+3 spans inversées en quarantaine (s0057 train, s0259/s0643 test — garde-fous loader actifs, exclusion au prochain run),
+241 existant en tokens provisoires (10%, 0 dans le silver — réinjection UD au prochain run),
+IDs sXXXX non uniques inter-langues (pré-existant, silver namespaced).

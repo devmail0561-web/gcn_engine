@@ -609,7 +609,7 @@ class CGNPipeline:
         Retourne (total_loss, d_node_logits, d_edge_logits).
         Gradients normalisés par le nombre d'exemples.
         edge_loss_weight permet d'équilibrer la contribution des arêtes dans la loss totale.
-        sample_weight (F) multiplie la loss arêtes et son gradient (nœuds intacts).
+        sample_weight (F) multiplie la loss et les gradients nœuds ET arêtes (BUG-8).
         Si gold_surface est fourni et que le décodeur a produit des logits (forward()),
         la loss décodeur est ajoutée au total et son gradient est caché pour backward().
         """
