@@ -4,6 +4,20 @@ from __future__ import annotations
 from ..constants import NODE_ORIGIN_VALUES, TEMPORAL_REF_DEFAULT
 
 
+def _infer_temporal_ref(rep) -> str:
+    """Dérive temporal_ref depuis les features UD déjà calculées (S-1)."""
+    tense = getattr(rep, 'tense', '_absent')
+    if tense == 'Past':
+        return 'past'
+    if tense in ('Fut', 'Futur'):
+        return 'future'
+    if tense == 'Pres':
+        return 'present'
+    if getattr(rep, 'has_temporal_obl', False):
+        return 'anchored'
+    return TEMPORAL_REF_DEFAULT
+
+
 def emit(
     text: str,
     node_types: list[str],
@@ -14,6 +28,7 @@ def emit(
     node_origins: list[str] | None = None,
     node_attributes: list[dict] | None = None,
     node_inferred: list[bool] | None = None,
+    temporal_refs: list[str] | None = None,  # S-1 : temporal_ref par nœud
 ) -> dict:
     """
     Produit un dict CausalIR conforme au schéma serde Rust de gcn-ir.
@@ -48,7 +63,7 @@ def emit(
             "source_span": {"token_span": {"start": span[0], "end": span[1]}},
             "scope": scope,
             "modifiers": [],
-            "temporal_ref": TEMPORAL_REF_DEFAULT,
+            "temporal_ref": temporal_refs[i] if temporal_refs and i < len(temporal_refs) else TEMPORAL_REF_DEFAULT,
             "temporal_index": i,
             "origin": origin,
             "is_inferred": inferred,
@@ -74,6 +89,46 @@ def emit(
             "in_cycle": None,
         }])
 
+    # S-7 : détection de cycles par DFS sur le graphe d'arêtes
+    adj: dict[int, list[int]] = {i: [] for i in range(len(nodes))}
+    for src, dst, _ in edges:
+        adj[src].append(dst)
+        adj[dst].append(src)  # non-orienté pour détection de cycles simples
+
+    visited: set[int] = set()
+    cycle_node_sets: list[frozenset[int]] = []
+
+    def _dfs_cycle(node: int, parent: int, path: list[int]) -> None:
+        visited.add(node)
+        path.append(node)
+        for nb in adj[node]:
+            if nb == parent:
+                continue
+            if nb in visited:
+                # Cycle détecté : extraire la boucle
+                idx = path.index(nb)
+                cycle_node_sets.append(frozenset(path[idx:]))
+            else:
+                _dfs_cycle(nb, node, path)
+        path.pop()
+
+    for start in range(len(nodes)):
+        if start not in visited:
+            _dfs_cycle(start, -1, [])
+
+    # Dédupliquer les cycles
+    unique_cycles = list({frozenset(c) for c in cycle_node_sets})
+    cycles_output = [sorted(c) for c in unique_cycles]
+
+    # Marquer in_cycle sur les arêtes
+    in_cycle_nodes: set[int] = set()
+    for c in unique_cycles:
+        in_cycle_nodes.update(c)
+    for edge in edges:
+        src_e, dst_e = edge[0], edge[1]
+        edge[2]["in_cycle"] = (src_e in in_cycle_nodes and dst_e in in_cycle_nodes)
+
+    import datetime
     return {
         # Moteur language-agnostic : "und" volontaire (la langue n'est jamais
         # passée au modèle, même à l'entraînement).
@@ -81,11 +136,11 @@ def emit(
         "source_text": text,
         "nodes": nodes,
         "edges": edges,
-        "cycles": [],
+        "cycles": cycles_output,
         "unresolved": [],
         "metadata": {
             "schema_version": "2.0",
             "pipeline": ["cgnp-layer1", "cgnp-layer2", "cgnp-layer3"],
-            "created_at": None,
+            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
         },
     }

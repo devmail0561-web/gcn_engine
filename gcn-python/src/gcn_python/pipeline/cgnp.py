@@ -11,7 +11,7 @@ from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
 from ..constants import NODE_TYPES, RELATION_TYPES
 from .label_builder import build_label
-from .ir_emitter import emit
+from .ir_emitter import emit, _infer_temporal_ref
 
 
 class CGNPipeline:
@@ -439,14 +439,17 @@ class CGNPipeline:
                 nt,
                 (connector_reps[i] if connector_reps and i < len(connector_reps) else None)
                 or (connector_reps[i - 1] if connector_reps and i > 0 else None),
+                rep=reps[i],  # S-3 : détection mood=Cnd/Sub → "hypothetical"
             )
             for i, nt in enumerate(node_types)
         ]
+        temporal_refs = [_infer_temporal_ref(r) for r in reps]  # S-1
 
         return emit(text, node_types, node_labels, token_spans,
                     scopes, edge_triples, node_origins=node_origins,
                     node_attributes=node_attributes,
-                    node_inferred=[o == "inferred" for o in node_origins])
+                    node_inferred=[o == "inferred" for o in node_origins],
+                    temporal_refs=temporal_refs)
 
     def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
         """Filtre les caches MLP d'arêtes aux seuls indices valides.
@@ -1221,25 +1224,40 @@ def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
     return False
 
 
-def _infer_scope(rep, scope_hints: dict) -> str:
-    """Dérive le scope depuis les déterminants/pronoms du span.
+_SCOPE_UNIVERSAL = frozenset({
+    "tout", "tous", "toute", "toutes", "chaque", "toujours", "systématiquement",
+    "invariablement", "nécessairement", "every", "all", "always", "necessarily",
+})
+_SCOPE_EXISTENTIAL = frozenset({
+    "parfois", "souvent", "généralement", "habituellement", "quelquefois",
+    "occasionally", "fréquemment", "régulièrement", "sometimes", "often", "usually",
+})
 
-    scope_hints : mapping lemme→valeur fourni par l'appelant (language-agnostic).
-    Vide par défaut → toujours "specific". L'utilisateur injecte son propre
-    lexique via CGNPipeline(scope_hints={...}).
+
+def _infer_scope(rep, scope_hints: dict) -> str:
+    """Dérive le scope depuis les tokens du span (L-5).
+
+    Priorité : scope_hints (externe) > universal/existential intégrés > "specific".
     """
-    if not scope_hints:
-        return "specific"
     for tok in rep.tokens:
-        if tok.get("dep_rel") in {"det", "nsubj"} and tok.get("pos") in {"DET", "PRON"}:
-            hint = scope_hints.get(tok["lemma"].lower())
+        lemma = tok.get("lemma", "").lower()
+        dep_rel = tok.get("dep_rel", "")
+        pos = tok.get("pos", "")
+        if scope_hints:
+            hint = scope_hints.get(lemma)
             if hint:
                 return hint
+        if lemma in _SCOPE_UNIVERSAL and dep_rel in {"det", "advmod", "nsubj", "dep"}:
+            return "universal"
+        if lemma in _SCOPE_EXISTENTIAL and dep_rel in {"advmod", "dep"}:
+            return "existential"
     return "specific"
 
 
-def _infer_origin(node_type: str, connector_rep) -> str:
-    """Un nœud condition sans connecteur explicite dans le texte est inféré."""
+def _infer_origin(node_type: str, connector_rep, rep=None) -> str:
+    """Dérive origin : hypothetical si mood conditionnel/subjonctif (S-3)."""
+    if rep is not None and getattr(rep, 'mood', '_absent') in ('Cnd', 'Sub'):
+        return "hypothetical"
     if node_type == "condition" and connector_rep is None:
         return "inferred"
     return "explicit"
