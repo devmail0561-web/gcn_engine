@@ -36,19 +36,22 @@ class TrainingSample:
     gold_node_labels: np.ndarray  # (N,) int — indices dans NODE_TYPES
     edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
     hyperedge_map: dict = field(default_factory=dict)  # {(frozenset(sources_str), tgt_idx): rel_idx} N-aires
+    edge_conf_map: dict = field(default_factory=dict)  # {(src, tgt): float} — confidence par arête (S-5)
 
 
 class GCNDataLoader:
     """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
     def __init__(self, data_dir: Path, repeat: bool = False,
-                 all_pairs: bool = False, shuffle: bool = False, seed: int = 42):
+                  all_pairs: bool = False, shuffle: bool = False, seed: int = 42,
+                  silver_weight: float = 1.0):
         self.data_dir = data_dir
         self.repeat = repeat
         self.all_pairs = all_pairs
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
-        self._records = load_all_sentences(data_dir)
+        self.silver_weight = silver_weight  # Amélioration F (1.0 = aucun effet)
+        self._records = load_all_sentences(data_dir, silver_weight)
         # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
         self._total_long_distance = 0
         self._warned_total = False
@@ -110,6 +113,7 @@ class GCNDataLoader:
             dtype=np.int64,
         )
         edge_map: dict[tuple[int, int], int] = {}
+        edge_conf_map: dict[tuple[int, int], float] = {}
         hyperedge_map: dict[tuple[frozenset, int], int] = {}
         n_backward = 0
         n_long_distance = 0
@@ -159,12 +163,17 @@ class GCNDataLoader:
                     )
                 else:
                     edge_map[key] = rel_idx
+                    if e.confidence is not None:
+                        edge_conf_map[key] = float(e.confidence)
                 n_backward += 1
                 if e.relation in {"cause", "enable", "prevent"}:
                     if hasattr(self, '_total_backward_asymmetric'):
                         self._total_backward_asymmetric += 1
             else:
-                edge_map[(src_idx, tgt_idx)] = rel_idx
+                key = (src_idx, tgt_idx)
+                edge_map[key] = rel_idx
+                if e.confidence is not None:
+                    edge_conf_map[key] = float(e.confidence)
         if n_long_distance and not getattr(self, 'all_pairs', False):
             warnings.warn(
                 f"[{rec.id}] {n_long_distance} arête(s) longue distance ignorées (gap > 1) "
@@ -181,7 +190,7 @@ class GCNDataLoader:
                 UserWarning,
                 stacklevel=2,
             )
-        return TrainingSample(rec, node_labels, edge_map, hyperedge_map)
+        return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map)
 
 
 def reps_from_sentence(

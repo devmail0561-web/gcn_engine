@@ -588,7 +588,8 @@ class CGNPipeline:
         node_class_weights: np.ndarray | None = None,  # (7,) float — poids par classe nœud
         edge_class_weights: np.ndarray | None = None,  # (11,) float — poids par classe arête
         label_smoothing: float = 0.0,  # lissage des labels [0, 1]
-        sample_weight: float = 1.0,  # F : poids gold/silver de la phrase (arêtes seules)
+        sample_weight: float = 1.0,  # F : poids gold/silver de la phrase
+        edge_sample_weights: np.ndarray | None = None,  # S-5 : (E,) poids par arête (confidence)
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -625,7 +626,8 @@ class CGNPipeline:
                     f"Désalignement edge_logits/gold_edge : {len(edge_logits)} logits vs {len(gold_edge)} labels"
                 )
             edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights,
-                                                label_smoothing=label_smoothing)
+                                                label_smoothing=label_smoothing,
+                                                sample_weights=edge_sample_weights)
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
@@ -1136,6 +1138,7 @@ def _cross_entropy(
     labels: np.ndarray,   # (N,) int
     class_weights: np.ndarray | None = None,  # (C,) float — poids par classe
     label_smoothing: float = 0.0,
+    sample_weights: np.ndarray | None = None,  # (N,) float — poids par exemple (S-5)
 ) -> tuple[float, np.ndarray]:
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
 
@@ -1186,23 +1189,35 @@ def _cross_entropy(
             d_logits *= class_weights[labels][:, np.newaxis]
         d_logits /= N
 
+    if sample_weights is not None:
+        w = np.asarray(sample_weights, dtype=np.float32)
+        per_sample_loss = per_sample_loss * w
+        d_logits = d_logits * w[:, np.newaxis]
+
     loss = float(per_sample_loss.mean())
     return loss, d_logits
 
 
-def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
-    """Détecte la négation depuis is_negative des représentations UD.
+_NEG_LEMMAS = frozenset({"pas", "plus", "jamais", "rien", "guère", "nullement", "point",
+                          "personne", "aucun", "aucune"})
 
-    is_negative repose sur Polarity=Neg (morphologie UD). Les négations
-    analytiques (ne...pas) dont 'pas' n'est pas le root ne sont pas
-    détectées. Voir phase 10 pour la couverture complète.
+
+def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
+    """Détecte la négation morphologique ET analytique (ne…pas).
+
+    Couverture :
+    - Polarity=Neg sur le root (morphologique)
+    - Lemme négatif (pas, jamais, rien…) avec dep_rel advmod dans les tokens
     """
-    if getattr(src_rep, 'is_negative', False):
-        return True
-    if getattr(dst_rep, 'is_negative', False):
-        return True
-    if connector_rep is not None and getattr(connector_rep, 'is_negative', False):
-        return True
+    for rep in (src_rep, dst_rep, connector_rep):
+        if rep is None:
+            continue
+        if getattr(rep, 'is_negative', False):
+            return True
+        for tok in getattr(rep, 'tokens', []):
+            if (tok.get('lemma') in _NEG_LEMMAS
+                    and tok.get('dep_rel') == 'advmod'):
+                return True
     return False
 
 

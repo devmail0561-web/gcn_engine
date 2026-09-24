@@ -624,12 +624,21 @@ def train_cmd(
                         gold_edge = gold_edge_full[valid_edge_idxs]
                         edge_logits_arg = edge_logits[valid_edge_idxs]
                         pipeline.filter_edge_cache(valid_edge_idxs)
+                        # S-5 : confidence par arête depuis edge_conf_map
+                        _edge_confs = [
+                            sample.edge_conf_map.get(pairs[i], 1.0)
+                            for i in valid_edge_idxs
+                        ]
+                        _edge_sw = np.array(_edge_confs, dtype=np.float32) if any(
+                            p in sample.edge_conf_map for p in pairs) else None
                     else:
                         gold_edge = None
                         edge_logits_arg = None
+                        _edge_sw = None
                 else:
                     gold_edge = None
                     edge_logits_arg = None
+                    _edge_sw = None
 
                 _gold_surface = None
                 if verb_source_map:
@@ -644,7 +653,8 @@ def train_cmd(
                     node_class_weights=node_class_weights,
                     edge_class_weights=edge_class_weights,
                     label_smoothing=label_smoothing,
-                    sample_weight=sample.sentence.weight,  # F (1.0 si silver_weight=1.0)
+                    sample_weight=sample.sentence.weight,
+                    edge_sample_weights=_edge_sw,  # S-5 : confidence par arête
                 )
 
                 if not decoder_only:

@@ -37,7 +37,7 @@ class EdgeRecord:
     target: str = ""           # "n002"
     relation: str = ""         # RelationType snake_case
     confidence: Optional[float] = None   # None = annotation absente (≠ 0.0)
-    explicit: Optional[bool] = True
+    explicit: Optional[bool] = None      # None = non renseigné ; True = connecteur présent
     negated: Optional[bool] = None       # None = non renseigné (détection pipeline)
     marker_token: Optional[int] = None
     sources: Optional[list[str]] = None  # champ canonique v2 (remplace source)
@@ -52,7 +52,7 @@ class EdgeRecord:
     @classmethod
     def from_legacy(cls, source: str, target: str = "", relation: str = "",
                     confidence: Optional[float] = None,
-                    explicit: Optional[bool] = True,
+                    explicit: Optional[bool] = None,
                     negated: Optional[bool] = None,
                     marker_token: Optional[int] = None) -> "EdgeRecord":
         return cls(source=source, target=target, relation=relation,
@@ -69,3 +69,4 @@ class SentenceRecord:
     edges: list[EdgeRecord]
     lang: str = ""  # conservé comme métadonnée, non utilisé en calcul
     causal_pattern: str = ""  # métadonnée pour split stratifié uniquement, pas propagé aux features
+    weight: float = 1.0  # Amélioration F : pondération gold=1.0 / silver=silver_weight

@@ -9,8 +9,13 @@ from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
 from ..constants import RELATION_TYPES
 
 
-def load_sentences(path: Path) -> list[SentenceRecord]:
-    """Charge un fichier JSON GCN-NL → List[SentenceRecord]."""
+def load_sentences(path: Path, silver_weight: float = 1.0) -> list[SentenceRecord]:
+    """Charge un fichier JSON GCN-NL → List[SentenceRecord].
+
+    silver_weight (Amélioration F) : poids appliqué aux phrases silver
+    (champ _methode commençant par "silver-"). gold (absent) = 1.0.
+    1.0 = rétrocompatible (aucun effet).
+    """
     doc = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         return []
@@ -29,7 +34,7 @@ def load_sentences(path: Path) -> list[SentenceRecord]:
     if "document" in doc:
         doc_lang = doc["document"].get("lang", "")
         sentences = doc["document"].get("sentences") or []
-        return [_parse_dataset_sentence(s, doc_lang) for s in sentences if "cir" in s]
+        return [_parse_dataset_sentence(s, doc_lang, silver_weight) for s in sentences if "cir" in s]
 
     # M-PL : Format non reconnu (possiblement "snippets" pour gcn-pl)
     warnings.warn(
@@ -41,11 +46,11 @@ def load_sentences(path: Path) -> list[SentenceRecord]:
     return []
 
 
-def load_all_sentences(data_dir: Path) -> list[SentenceRecord]:
+def load_all_sentences(data_dir: Path, silver_weight: float = 1.0) -> list[SentenceRecord]:
     """Charge tous les fichiers JSON d'un répertoire."""
     records = []
     for p in sorted(data_dir.glob("*.json")):
-        records.extend(load_sentences(p))
+        records.extend(load_sentences(p, silver_weight))
     return records
 
 
@@ -62,11 +67,14 @@ def _parse_paper_example(ex: dict) -> SentenceRecord:
     )
 
 
-def _parse_dataset_sentence(s: dict, lang: str = "") -> SentenceRecord:
+def _parse_dataset_sentence(s: dict, lang: str = "", silver_weight: float = 1.0) -> SentenceRecord:
     tokens = [_parse_token(t) for t in s.get("tokens", [])]
     cir = s.get("cir", {})
     clauses = [_parse_clause_node(n) for n in cir.get("nodes", [])]
     edges = [_parse_edge(e) for e in cir.get("edges", [])]
+    # Amélioration F : pondération par confiance d'annotation via _methode
+    methode = str(s.get("_methode", "gold"))
+    weight = silver_weight if methode.startswith("silver") else 1.0
     return SentenceRecord(
         id=s.get("id", ""),
         text=s.get("text", ""),
@@ -75,6 +83,7 @@ def _parse_dataset_sentence(s: dict, lang: str = "") -> SentenceRecord:
         clauses=clauses,
         edges=edges,
         causal_pattern=s.get("causal_pattern", ""),
+        weight=weight,
     )
 
 
@@ -172,7 +181,8 @@ def _parse_edge(e: dict) -> EdgeRecord:
         negated = bool(attrs.get("negated", e.get("negated", False)))
     else:
         negated = None
-    explicit = bool(attrs.get("explicit", e.get("explicit", True)))
+    _exp_raw = attrs.get("explicit", e.get("explicit"))
+    explicit = bool(_exp_raw) if _exp_raw is not None else None  # N-4 : None si absent
     return EdgeRecord(
         source=sources[0] if sources else "",
         target=target,
