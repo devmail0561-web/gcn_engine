@@ -1,14 +1,14 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import click
 
-from ..constants import NODE_TYPES, RELATION_TYPES, SCOPE_VALUES, NODE_ORIGIN_VALUES
+from ..constants import NODE_ORIGIN_VALUES, NODE_TYPES, RELATION_TYPES, SCOPE_VALUES
 
 # Mappings node_type → UPOS / dep_rel pour la tokenisation synthétique.
 # Identiques à frontend/bridge.py : NODE_TYPE_TO_POS / NODE_TYPE_TO_DEP.
@@ -70,7 +70,7 @@ def bootstrap_cmd(
     produit au format gcn-nl (document.sentences), et écrit les fichiers dans out-dir.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    texts = [l.strip() for l in input_file.read_text("utf-8").splitlines() if l.strip()]
+    texts = [line.strip() for line in input_file.read_text("utf-8").splitlines() if line.strip()]
 
     if not texts:
         raise click.ClickException(f"Aucune phrase dans {input_file}")
@@ -80,7 +80,8 @@ def bootstrap_cmd(
     errors = 0
 
     # Résoudre gcn_bin une seule fois (évite la résolution PATH répétée + cohérence)
-    from ..frontend.bridge import _resolve_gcn_bin, GCNBridgeError as _GCNBridgeError
+    from ..frontend.bridge import GCNBridgeError as _GCNBridgeError
+    from ..frontend.bridge import _resolve_gcn_bin
     try:
         gcn_bin_resolved = _resolve_gcn_bin(gcn_bin)
     except _GCNBridgeError as exc:
@@ -100,6 +101,7 @@ def bootstrap_cmd(
                 text=True,
                 encoding='utf-8',
                 timeout=30,
+                check=False,
             )
             if result.returncode != 0:
                 click.echo(f"  [{i+1}] Erreur gcn-cli : {result.stderr.strip()}", err=True)

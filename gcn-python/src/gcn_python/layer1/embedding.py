@@ -176,6 +176,15 @@ class WordEmbedding:
                     ) from _e
                 # ft_model duck-typé (mock/test) exposant get_word_vector :
                 # on procède sans le package binaire.
+        # Contrat du modèle : vérifié INDÉPENDAMMENT de la présence du package.
+        # Sans ce contrôle, un modèle invalide déclenchait un AttributeError
+        # au milieu de la boucle d'écriture, ou un ImportError trompeur selon
+        # que fasttext est installé ou non (test non déterministe).
+        if not hasattr(ft_model, "get_word_vector"):
+            raise TypeError(
+                "load_from_fasttext : ft_model doit exposer get_word_vector(lemma) "
+                f"— type reçu : {type(ft_model).__name__}"
+            )
         import pathlib
         import tempfile
         obj = cls(d_emb=d_emb, frozen=frozen)

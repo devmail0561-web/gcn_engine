@@ -1,9 +1,12 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import sys
 import warnings
+
 import click
+
 from .decoder import ReferenceDecoder
 
 
@@ -31,7 +34,7 @@ def verbalize_cmd(ir: click.File, quiet: bool) -> None:
                 result = decoder.decode(ir_json)
         else:
             result = decoder.decode(ir_json)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # CLI : message d'erreur sur stderr puis exit(1)
         click.echo(f"error: {exc}", err=True)
         sys.exit(1)
     click.echo(result)

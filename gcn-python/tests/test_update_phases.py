@@ -4,6 +4,7 @@
 C (MHA globale), D (CompGCN)."""
 import numpy as np
 import pytest
+
 from gcn_python.layer1.embedding import WordEmbedding
 
 # ─── Phase A ───────────────────────────────────────────────────────────────
@@ -43,13 +44,36 @@ def test_frozen_embedding_does_not_update_on_backward():
     np.testing.assert_array_equal(emb._E[idx], before)
 
 
-def test_load_from_fasttext_requires_package_for_unknown_model():
-    with pytest.raises(ImportError):
+def test_load_from_fasttext_requires_package_for_unknown_model(monkeypatch):
+    """Sans fasttext/fasttext_wheel, un modèle non duck-typé → ImportError.
+
+    L'absence du package est simulée (sys.modules = None) : le test ne dépend
+    plus de ce qui est installé dans l'environnement de CI.
+    """
+    import sys as _sys
+    monkeypatch.setitem(_sys.modules, "fasttext", None)
+    monkeypatch.setitem(_sys.modules, "fasttext_wheel", None)
+    with pytest.raises(ImportError, match="fasttext-wheel"):
+        WordEmbedding.load_from_fasttext(object(), ["x"], d_emb=300)
+
+
+def test_load_from_fasttext_rejects_invalid_model_when_package_present(monkeypatch):
+    """Même avec le package importable, un modèle sans get_word_vector → TypeError.
+
+    Ici le contrat porte sur le modèle : le type d'erreur ne doit plus dépendre
+    de l'environnement (avant : AttributeError en plein milieu de la boucle).
+    """
+    import sys as _sys
+    import types as _types
+    monkeypatch.setitem(_sys.modules, "fasttext", _types.ModuleType("fasttext"))
+    monkeypatch.setitem(_sys.modules, "fasttext_wheel", None)
+    with pytest.raises(TypeError, match="get_word_vector"):
         WordEmbedding.load_from_fasttext(object(), ["x"], d_emb=300)
 
 
 def test_cli_fasttext_embedding_file_mutually_exclusive():
     from click.testing import CliRunner
+
     from gcn_python.training.train import train_cmd
     runner = CliRunner()
     result = runner.invoke(train_cmd, [
@@ -245,12 +269,12 @@ def test_pipeline_routes_transformer_through_forward_batch():
     (donc la MHA) avec TransformerMLPEncoder — pas la boucle forward_node.
     Sans l'opt-in prefers_batch_forward, --global-attention serait un no-op
     silencieux (mêmes métriques que la référence, constaté sur R1)."""
+    from gcn_python.constants import NODE_TYPES
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.constants import NODE_TYPES
 
     def _rep(lemma):
         return UDRepresentation(
@@ -294,7 +318,7 @@ def test_seed_propagation_mlpencoder():
     """Deux MLPEncoder avec la même seed produisent les mêmes poids."""
     e1 = MLPEncoder(d_clause=20, d_edge=50, seed=7)
     e2 = MLPEncoder(d_clause=20, d_edge=50, seed=7)
-    for l1, l2 in zip(e1._node_layers, e2._node_layers):
+    for l1, l2 in zip(e1._node_layers, e2._node_layers, strict=False):
         assert np.allclose(l1.W, l2.W)
     e3 = MLPEncoder(d_clause=20, d_edge=50, seed=99)
     assert not np.allclose(e1._node_layers[0].W, e3._node_layers[0].W)
@@ -329,7 +353,8 @@ def test_drop_edge_uses_local_rng():
     np.random.seed(0)  # global seed fixé
     l1 = RGCNLayerPT(d_in=8, d_out=8, n_relations=3, device="cpu", seed=7, drop_edge=0.5)
     l2 = RGCNLayerPT(d_in=8, d_out=8, n_relations=3, device="cpu", seed=7, drop_edge=0.5)
-    l1.train(); l2.train()
+    l1.train()
+    l2.train()
     feats, edge_index, edge_types = _chain_graph(n=6)
     # Même seed → même séquence de masques DropEdge
     out1a = l1.message_pass(feats, edge_index, edge_types)
@@ -346,7 +371,8 @@ def test_gat_dropout_uses_local_generator():
     from gcn_python.layer3.gat import RGCNLayerGAT
     g1 = RGCNLayerGAT(d_in=8, d_out=8, n_relations=3, seed=7, dropout=0.5)
     g2 = RGCNLayerGAT(d_in=8, d_out=8, n_relations=3, seed=7, dropout=0.5)
-    g1.train(); g2.train()
+    g1.train()
+    g2.train()
     feats, edge_index, edge_types = _chain_graph(n=4)
     out1 = g1.message_pass(feats, edge_index, edge_types)
     out2 = g2.message_pass(feats, edge_index, edge_types)
@@ -382,6 +408,7 @@ def test_rgcn_layers_zero_skips_message_pass():
 def test_json_reader_rejects_missing_relation(tmp_path):
     """Arête sans champ relation lève ValueError (plus de substitution silencieuse)."""
     import json
+
     from gcn_python.data.json_reader import load_all_sentences
     bad = {
         "document": {"sentences": [{
@@ -396,7 +423,7 @@ def test_json_reader_rejects_missing_relation(tmp_path):
     f = tmp_path / "bad.json"
     f.write_text(json.dumps(bad), encoding="utf-8")
     import warnings
-    with warnings.catch_warnings(record=True) as w:
+    with warnings.catch_warnings(record=True) as _w:
         warnings.simplefilter("always")
         records = load_all_sentences(tmp_path)
     # Le sample doit être ignoré (ValueError attrapée) avec un warning

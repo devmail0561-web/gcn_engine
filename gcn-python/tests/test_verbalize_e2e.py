@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests e2e verbalizer — enriched_vecs, engine.verbalize(), gradient cohérence, B3."""
 from __future__ import annotations
+
 import numpy as np
 import pytest
+
 from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
@@ -81,8 +83,8 @@ def test_gradient_scale_coherence():
     gold = np.array(dec.vocab.encode("a b c"), dtype=np.int64)
 
     logits = dec.forward_decode(vecs, gold)
-    loss, d_logits = dec.loss_decode(logits, gold)
-    d_node_embs, grads, d_attn = dec.backward_decode(d_logits)
+    _loss, d_logits = dec.loss_decode(logits, gold)
+    d_node_embs, grads, _d_attn = dec.backward_decode(d_logits)
 
     norm_dnode = float(np.linalg.norm(d_node_embs))
     norm_grad = float(np.linalg.norm(grads[0][0]))
@@ -111,8 +113,8 @@ def test_decode_idempotent():
 def test_engine_verbalize_neural():
     """engine.verbalize(use_neural=True) retourne {'cir': dict, 'text': str}."""
     from gcn_python.engine import GCNEngine
-    from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.frontend.bridge import GCNBridgeParser
+    from gcn_python.layer1.representation import UDRepresentation
 
     class _MockBridgeParser(GCNBridgeParser):
         def __init__(self):

@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -9,7 +10,6 @@ import pytest
 
 from gcn_python.data.verbalize_loader import VerbalizerDataLoader, VerbalizeSample
 from gcn_python.verbalizer.trainable import SurfaceVocabulary
-
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "gcn-datasets" / "examples"
 

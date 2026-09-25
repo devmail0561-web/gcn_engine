@@ -107,7 +107,7 @@ class LinkPredHead:
         return json.dumps({"d_in": self.d_in, "src_aggregation": self.src_aggregation})
 
     @classmethod
-    def from_json(cls, s: str) -> "LinkPredHead":
+    def from_json(cls, s: str) -> LinkPredHead:
         data = json.loads(s)
         return cls(d_in=int(data["d_in"]),
                    src_aggregation=data.get("src_aggregation", "mean"))
@@ -123,7 +123,7 @@ def sample_negatives(edge_pairs: list[tuple[int, int]], n_nodes: int,
     rng = np.random.default_rng(seed)
     positive = set(edge_pairs)
     n_want = int(len(edge_pairs) * neg_ratio)
-    negatives: list[tuple[int, int]] = []
+    _negatives: list[tuple[int, int]] = []
     candidates = [(i, j) for i in range(n_nodes) for j in range(n_nodes)
                   if i != j and (i, j) not in positive]
     if not candidates:

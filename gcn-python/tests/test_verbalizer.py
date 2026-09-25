@@ -1,8 +1,9 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
-import pytest
+
 from gcn_python.verbalizer import ReferenceDecoder, VerbalizerDecoder
 
 
@@ -106,6 +107,7 @@ def test_decode_with_programming_lang():
 def test_verbalize_cmd_quiet_stdout_is_pure_text():
     """gcn-verbalize --quiet : stdout = texte verbalisé pur, exit 0."""
     from click.testing import CliRunner
+
     from gcn_python.verbalizer.cli import verbalize_cmd
 
     ir_json = _make_ir(FR_LANG, NODES, [EDGE])

@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour training/bootstrap.py — corrections issues CRITICAL #1-3."""
 import json
-import pytest
 from pathlib import Path
-from gcn_python.training.bootstrap import _extract_token_span, _cir_to_doc
 
+import pytest
+
+from gcn_python.training.bootstrap import _cir_to_doc, _extract_token_span
 
 # ── Tests Issue #3 CRITICAL : null handling dans token_span ────────────────────
 
@@ -226,15 +227,65 @@ def test_cir_to_doc_with_tuple_edges():
 
 
 # ── Tests Issue #1 et #2 (intégration CLI) ────────────────────────────────────
-# Note : Tests d'intégration nécessitent le binaire gcn-cli Rust.
-# Créer tests séparés avec pytest.mark.integration si disponible.
+# Nécessitent le binaire gcn-cli Rust : PATH d'abord, sinon target/{release,debug}.
 
 
-@pytest.mark.skip(reason="Nécessite binaire gcn-cli Rust installé")
+def _find_gcn_bin():
+    """Chemin du binaire gcn (PATH, sinon artefact du workspace Rust)."""
+    import shutil
+    found = shutil.which("gcn")
+    if found:
+        return found
+    root = Path(__file__).resolve().parents[2]
+    for profile in ("release", "debug"):
+        candidate = root / "gcn-core" / "target" / profile / "gcn"
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+GCN_BIN = _find_gcn_bin()
+
+
+@pytest.mark.skipif(
+    GCN_BIN is None,
+    reason="Binaire gcn-cli absent (cargo build --workspace)",
+)
 def test_bootstrap_cmd_integration(tmp_path):
-    """Issue #1 et #2 : bootstrap doit appeler gcn avec text comme arg positionnel."""
-    # Test d'intégration complet à implémenter si gcn-cli disponible
-    pass
+    """Issue #1 : gcn-bootstrap appelle `gcn analyze --data-dir … -- <texte>`.
+
+    Issue #2 : sortie UTF-8 décodée puis écrite en JSON gcn-nl valide.
+    """
+    from click.testing import CliRunner
+
+    from gcn_python.training.bootstrap import bootstrap_cmd
+
+    input_file = tmp_path / "phrases.txt"
+    input_file.write_text("Les ventes baissent.\n", encoding="utf-8")
+    out_dir = tmp_path / "out"
+    taxonomy_dir = Path(__file__).resolve().parents[2] / "gcn-references" / "taxonomies"
+
+    result = CliRunner().invoke(
+        bootstrap_cmd,
+        [
+            "--input", str(input_file),
+            "--out-dir", str(out_dir),
+            "--taxonomy-dir", str(taxonomy_dir),
+            "--gcn-bin", GCN_BIN,
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"exit={result.exit_code}\n{result.output}"
+
+    produced = sorted(out_dir.glob("generated_*.json"))
+    assert len(produced) == 1, f"1 fichier attendu, {len(produced)} produit(s)\n{result.output}"
+
+    doc = json.loads(produced[0].read_text(encoding="utf-8"))
+    sentences = doc["document"]["sentences"]
+    assert len(sentences) == 1
+    assert sentences[0]["text"] == "Les ventes baissent."
+    assert sentences[0]["tokens"], "aucun token synthétique"
+    assert sentences[0]["cir"]["nodes"], "aucun nœud CIR"
 
 
 # ── Tests B1 : données bootstrappées utilisables à l'entraînement ────────────
@@ -264,11 +315,13 @@ def test_cir_to_doc_has_tokens():
 
 def test_cir_to_doc_bootstrapped_data_trainable():
     """B1 régression : données bootstrappées doivent produire des reps valides via reps_from_sentence."""
-    from gcn_python.training.bootstrap import _cir_to_doc
+    import json
+    import tempfile
+    from pathlib import Path
+
     from gcn_python.data.json_reader import load_sentences
     from gcn_python.data.loader import reps_from_sentence
-    import tempfile, json
-    from pathlib import Path
+    from gcn_python.training.bootstrap import _cir_to_doc
 
     cir = {
         "nodes": [
@@ -289,7 +342,7 @@ def test_cir_to_doc_bootstrapped_data_trainable():
         sentences = load_sentences(path)
 
     assert len(sentences) == 1, "une phrase dans le doc"
-    reps, valid_idxs, connector_reps = reps_from_sentence(sentences[0])
+    reps, _valid_idxs, _connector_reps = reps_from_sentence(sentences[0])
     assert len(reps) == 2, (
         f"2 reps attendues, {len(reps)} obtenues — "
         "les données bootstrappées sont ignorées à l'entraînement (correctif B1 manquant)."

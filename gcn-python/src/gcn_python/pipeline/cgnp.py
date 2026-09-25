@@ -1,17 +1,21 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import numpy as np
 
+from ..constants import NODE_TYPES, RELATION_TYPES
 from ..layer1.features import (
-    FeatureVocabulary, vectorize_clause, vectorize_edge,
-    embedding_routing, CLAUSE_POOLING_MODES,
+    CLAUSE_POOLING_MODES,
+    FeatureVocabulary,
+    embedding_routing,
+    vectorize_clause,
+    vectorize_edge,
 )
 from ..layer2.interface import CausalEncoder
 from ..layer3.interface import CausalGraph
-from ..constants import NODE_TYPES, RELATION_TYPES
+from .ir_emitter import _infer_temporal_ref, emit
 from .label_builder import build_label
-from .ir_emitter import emit, _infer_temporal_ref
 
 
 class CGNPipeline:
@@ -128,11 +132,11 @@ class CGNPipeline:
             if hasattr(graph, 'd_in') and hasattr(graph, 'd_out') and hasattr(graph, 'n_relations'):
                 LayerClass = type(graph)
                 for extra_i in range(1, n_rgcn_layers):
-                    _kwargs: dict = dict(
-                        d_in=graph.d_in, d_out=graph.d_out,
-                        n_relations=graph.n_relations,
-                        seed=extra_i * 100 + 42,
-                    )
+                    _kwargs: dict = {
+                        "d_in": graph.d_in, "d_out": graph.d_out,
+                        "n_relations": graph.n_relations,
+                        "seed": extra_i * 100 + 42,
+                    }
                     _kwargs["dropout"] = getattr(
                         graph, 'dropout_rate', getattr(graph, 'dropout', 0.0))
                     if hasattr(graph, 'n_heads'):
@@ -444,10 +448,9 @@ class CGNPipeline:
             for _layer in self._graph_layers:
                 _h = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
                 # E3 : résidu (h + prev) si shapes compatibles, sinon h seul
-                if self.gat_residual and _h.shape == enriched.shape:
-                    enriched = _h + enriched
-                else:
-                    enriched = _h
+                enriched = _h + enriched if (
+                    self.gat_residual and _h.shape == enriched.shape
+                ) else _h
 
         # Deuxième passage nœuds sur les vecteurs enrichis
         if len(reps) > 1:
@@ -515,10 +518,8 @@ class CGNPipeline:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
                 rel_idx = int(np.argmax(edge_logit))
                 rel_conf = float(_softmax((edge_logit / self.temperature).reshape(1, -1))[0, rel_idx])
-                if not np.isfinite(rel_conf):
-                    rel_conf = 0.0
-                else:
-                    rel_conf = min(1.0, max(0.0, rel_conf))
+                rel_conf = (0.0 if not np.isfinite(rel_conf)
+                            else min(1.0, max(0.0, rel_conf)))
                 marker_tok_id = connector.token_span[0] if connector is not None else None
                 negated = _detect_negation(reps[src_i], reps[dst_i], connector)
                 if rel_conf >= self.edge_threshold:
@@ -537,7 +538,7 @@ class CGNPipeline:
 
         node_labels_attrs = [
             build_label(r, nt, self.taxonomies_dir)
-            for r, nt in zip(reps, node_types)
+            for r, nt in zip(reps, node_types, strict=False)
         ]
         node_labels = [la[0] for la in node_labels_attrs]
         node_attributes = [la[1] for la in node_labels_attrs]
@@ -631,6 +632,7 @@ class CGNPipeline:
             GCNBridgeError: si gcn-cli est absent ou l'appel échoue (quand text_parser=None).
         """
         import warnings
+
         from ..frontend.bridge import GCNBridgeParser
         if text_parser is None:
             warnings.warn(
@@ -643,8 +645,8 @@ class CGNPipeline:
         reps, connector_reps = text_parser.parse(text)
         # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
         _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
-        for _l in getattr(self, '_graph_layers', []):
-            _layers_tr.append((_l, getattr(_l, 'training', False)))
+        _layers_tr.extend((_l, getattr(_l, 'training', False))
+                          for _l in getattr(self, '_graph_layers', []))
         for _obj, _was in _layers_tr:
             if _was and hasattr(_obj, 'training'):
                 _obj.training = False
@@ -672,11 +674,16 @@ class CGNPipeline:
             CausalIR dict, ou None si gcn_bin introuvable ou erreur.
         """
         import shutil
-        from ..frontend.bridge import _call_gcn_analyze, _cir_to_reps_and_connectors, GCNBridgeError
+
+        from ..frontend.bridge import (
+            GCNBridgeError,
+            _call_gcn_analyze,
+            _cir_to_reps_and_connectors,
+        )
         if shutil.which(gcn_bin) is None:
             return None
         # BUG-6 : basculer encoder + TOUTES les couches graph + decoder
-        _to_toggle = [self.encoder] + list(getattr(self, '_graph_layers', [])) + [self.decoder]
+        _to_toggle = [self.encoder, *list(getattr(self, '_graph_layers', [])), self.decoder]
         _layers_tr = [(_obj, getattr(_obj, 'training', False))
                       for _obj in _to_toggle if _obj is not None and hasattr(_obj, 'training')]
         for _obj, _ in _layers_tr:
@@ -977,7 +984,7 @@ class CGNPipeline:
                         d_curr = d_input
                     if weight_decay > 0.0:
                         params = _layer.parameters()
-                        graph_grads = [g + weight_decay * p for g, p in zip(graph_grads, params)]
+                        graph_grads = [g + weight_decay * p for g, p in zip(graph_grads, params, strict=False)]
                     _layer.update(graph_grads, lr)
                 else:
                     _w2.warn(
@@ -1145,7 +1152,7 @@ class CGNPipeline:
                 return new
             if new is None:
                 return existing
-            return [(e[0] + n[0], e[1] + n[1]) for e, n in zip(existing, new)]
+            return [(e[0] + n[0], e[1] + n[1]) for e, n in zip(existing, new, strict=False)]
 
         self._accum_node_grads = _acc(self._accum_node_grads, all_node_grads)
         self._accum_edge_grads = _acc(self._accum_edge_grads, all_edge_grads)
@@ -1196,7 +1203,7 @@ class CGNPipeline:
             if self._accum_rgcn_grads is None:
                 self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
             else:
-                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list):
+                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list, strict=False):
                     for i in range(len(acc_g)):
                         acc_g[i] += new_g[i]
 
@@ -1231,7 +1238,7 @@ class CGNPipeline:
                 normed = [g / n_samples for g in acc_g]
                 if weight_decay > 0.0:
                     params = _layer.parameters()
-                    normed = [g + weight_decay * p for g, p in zip(normed, params)]
+                    normed = [g + weight_decay * p for g, p in zip(normed, params, strict=False)]
                 _layer.update(normed, lr)
         if self._accum_dec_grads is not None and self.decoder is not None:
             norm_grads = [(dW / n_samples, db / n_samples) for dW, db in self._accum_dec_grads]
@@ -1370,7 +1377,7 @@ def _infer_scope(rep, scope_hints: dict) -> str:
     for tok in rep.tokens:
         lemma = tok.get("lemma", "").lower()
         dep_rel = tok.get("dep_rel", "")
-        pos = tok.get("pos", "")
+        _pos = tok.get("pos", "")
         if scope_hints:
             hint = scope_hints.get(lemma)
             if hint:

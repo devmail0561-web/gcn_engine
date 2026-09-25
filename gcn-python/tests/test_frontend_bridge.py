@@ -7,14 +7,12 @@ import warnings
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from gcn_python.frontend.bridge import (
-    GCNBridgeError,
     NODE_TYPE_TO_DEP,
     NODE_TYPE_TO_POS,
-    _build_connector_rep,
+    GCNBridgeError,
     _cir_to_reps_and_connectors,
     _extract_lemma,
     _extract_span,
@@ -249,7 +247,7 @@ def test_parse_edges_invalid_ignored():
 
 def test_connector_from_marker_token():
     """marker_token=4 → UDRep SCONJ avec token_span=(4,4)."""
-    reps, connectors = _cir_to_reps_and_connectors(_CIR_TWO_NODES)
+    _reps, connectors = _cir_to_reps_and_connectors(_CIR_TWO_NODES)
     assert len(connectors) == 1
     assert connectors[0] is not None
     assert connectors[0].root_pos == "SCONJ"
@@ -266,7 +264,7 @@ def test_connector_none_without_marker():
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": None}]],
     }
-    reps, connectors = _cir_to_reps_and_connectors(cir)
+    _reps, connectors = _cir_to_reps_and_connectors(cir)
     assert len(connectors) == 1
     assert connectors[0] is None
 
@@ -280,7 +278,7 @@ def test_connector_marker_zero_ignored():
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": 0}]],
     }
-    reps, connectors = _cir_to_reps_and_connectors(cir)
+    _reps, connectors = _cir_to_reps_and_connectors(cir)
     assert connectors[0] is None
 
 
@@ -332,10 +330,10 @@ def test_reps_from_text_gcn_not_found():
     """gcn absent du PATH → GCNBridgeError avec 'introuvable' dans le message."""
     # _resolve_gcn_bin lève GCNBridgeError si shutil.which retourne None.
     # Le test s'exécute sans subprocess mocké (l'erreur arrive avant).
-    with patch("shutil.which", return_value=None):
-        with pytest.raises(GCNBridgeError, match="introuvable"):
-            with warnings.catch_warnings(record=True):
-                reps_from_text("test")
+    with (patch("shutil.which", return_value=None),
+          pytest.raises(GCNBridgeError, match="introuvable"),
+          warnings.catch_warnings(record=True)):
+        reps_from_text("test")
 
 
 @patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
@@ -344,9 +342,8 @@ def test_reps_from_text_timeout(mock_run, _resolve):
     """TimeoutExpired → GCNBridgeError avec 'Timeout' dans le message."""
     import subprocess
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="gcn", timeout=30)
-    with pytest.raises(GCNBridgeError, match="Timeout"):
-        with warnings.catch_warnings(record=True):
-            reps_from_text("test")
+    with pytest.raises(GCNBridgeError, match="Timeout"), warnings.catch_warnings(record=True):
+        reps_from_text("test")
 
 
 @patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
@@ -354,9 +351,8 @@ def test_reps_from_text_timeout(mock_run, _resolve):
 def test_reps_from_text_nonzero_return(mock_run, _resolve):
     """returncode=1 → GCNBridgeError avec 'échoué' dans le message."""
     mock_run.return_value = _make_mock_result({}, returncode=1, stderr="erreur")
-    with pytest.raises(GCNBridgeError, match="échoué"):
-        with warnings.catch_warnings(record=True):
-            reps_from_text("test")
+    with pytest.raises(GCNBridgeError, match="échoué"), warnings.catch_warnings(record=True):
+        reps_from_text("test")
 
 
 @patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
@@ -367,21 +363,47 @@ def test_reps_from_text_invalid_json(mock_run, _resolve):
     mock.returncode = 0
     mock.stdout = "not valid json"
     mock_run.return_value = mock
-    with pytest.raises(GCNBridgeError, match="JSON"):
-        with warnings.catch_warnings(record=True):
-            reps_from_text("test")
+    with pytest.raises(GCNBridgeError, match="JSON"), warnings.catch_warnings(record=True):
+        reps_from_text("test")
 
 
-@pytest.mark.skipif(shutil.which("gcn") is None, reason="Requiert gcn-cli installé")
+def _find_gcn_bin():
+    """Chemin du binaire gcn (PATH, sinon artefact du workspace Rust).
+
+    Même résolution que tests/test_bootstrap.py::_find_gcn_bin — un clone
+    compilé (cargo build --workspace) n'a pas besoin d'installer gcn-cli.
+    """
+    found = shutil.which("gcn")
+    if found:
+        return found
+    root = Path(__file__).resolve().parents[2]
+    for profile in ("release", "debug"):
+        candidate = root / "gcn-core" / "target" / profile / "gcn"
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+GCN_BIN = _find_gcn_bin()
+
+
+@pytest.mark.skipif(
+    GCN_BIN is None,
+    reason="Binaire gcn-cli absent (cargo build --workspace)",
+)
 def test_reps_from_text_integration():
     """Test d'intégration complet avec vrai binaire gcn."""
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
-        reps = reps_from_text("Les ventes baissent.")
+        reps = reps_from_text("Les ventes baissent.", gcn_bin=GCN_BIN)
     assert len(reps) >= 1
     for rep in reps:
         assert rep.root_pos in {"VERB", "NOUN", "SCONJ", "ADJ", "_unk"}
-        assert rep.lang == "fr"
+        # UDRepresentation n'a pas de champ `lang` (assertion obsolète) : on
+        # vérifie les champs réellement produits par _rep_from_cir_node.
+        assert rep.root_lemma, "root_lemma vide"
+        start, end = rep.token_span
+        assert 0 <= start <= end, f"token_span invalide : {rep.token_span}"
 
 
 # ── Tests CGNPipeline.analyze() et analyze_or_skip() ─────────────────────────

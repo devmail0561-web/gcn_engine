@@ -8,9 +8,10 @@ sa boucle d'entraînement. Le recorder stocke l'historique et permet
 l'export CSV pour visualisation externe (matplotlib, Excel, etc.).
 """
 from __future__ import annotations
+
 import csv
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -157,4 +158,4 @@ class TrainingRecorder:
 
 
 def _is_nan(v: float) -> bool:
-    return v != v  # NaN check without math import
+    return v != v  # noqa: PLR0124  # test NaN idiomatique : v != v ↔ isnan, sans import math

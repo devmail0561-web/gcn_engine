@@ -40,7 +40,7 @@ def normalize_node_id(raw: Any) -> str:
     - autre str non convertible -> conservée (sanitisée), warn.
     """
     if isinstance(raw, bool):
-        raise ValueError(f"id de nœud invalide : {raw!r}")
+        raise ValueError(f"id de nœud invalide : {raw!r}")  # noqa: TRY004  # API publique : ValueError attendu par les appelants (bootstrap)
     if isinstance(raw, int):
         if raw < 0:
             raise ValueError(f"id de nœud négatif : {raw!r}")
@@ -66,8 +66,8 @@ def normalize_node_id(raw: Any) -> str:
     # float entier, etc.
     try:
         return f"n{int(raw):03d}"
-    except (TypeError, ValueError):
-        raise ValueError(f"id de nœud invalide : {raw!r}")
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"id de nœud invalide : {raw!r}") from err
 
 
 def _get_relation(attrs: dict, outer: dict) -> Any:

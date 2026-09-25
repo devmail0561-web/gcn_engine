@@ -1,6 +1,8 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 import json
+from typing import ClassVar
+
 from gcn_python.pipeline.ir_emitter import emit
 
 
@@ -176,7 +178,7 @@ def test_l5_scope_universal_token():
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
-        tokens = [{"lemma": "tout", "dep_rel": "det", "pos": "DET"}]
+        tokens: ClassVar[list] = [{"lemma": "tout", "dep_rel": "det", "pos": "DET"}]
 
     assert _infer_scope(MockRep(), {}) == "universal"
 
@@ -186,7 +188,7 @@ def test_l5_scope_existential_token():
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
-        tokens = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
+        tokens: ClassVar[list] = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
 
     assert _infer_scope(MockRep(), {}) == "existential"
 
@@ -196,7 +198,7 @@ def test_l5_scope_specific_default():
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
-        tokens = [{"lemma": "chien", "dep_rel": "nsubj", "pos": "NOUN"}]
+        tokens: ClassVar[list] = [{"lemma": "chien", "dep_rel": "nsubj", "pos": "NOUN"}]
 
     assert _infer_scope(MockRep(), {}) == "specific"
 
@@ -206,6 +208,6 @@ def test_l5_scope_hints_override():
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
-        tokens = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
+        tokens: ClassVar[list] = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
 
     assert _infer_scope(MockRep(), {"parfois": "partial"}) == "partial"

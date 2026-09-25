@@ -34,8 +34,8 @@ import subprocess
 import warnings
 from pathlib import Path
 
-from ..layer1.representation import UDRepresentation
 from ..constants import NODE_TYPES
+from ..layer1.representation import UDRepresentation
 
 
 class GCNBridgeError(RuntimeError):
@@ -259,8 +259,8 @@ def _resolve_gcn_bin(gcn_bin: str) -> str:
     Raises:
         GCNBridgeError: binaire introuvable ou invalide.
     """
-    import shutil as _shutil
     import os as _os
+    import shutil as _shutil
     if not gcn_bin or not gcn_bin.strip():
         raise GCNBridgeError("gcn_bin vide — chemin invalide.")
     # Nom nu (pas de séparateur) → résolution via PATH au moment de l'appel
@@ -296,6 +296,33 @@ def _validate_gcn_bin(gcn_bin: str) -> None:
         )
 
 
+def _resolve_taxonomy_dir(taxonomy_dir: Path | None) -> Path:
+    """Répertoire des taxonomies passé à `gcn analyze --data-dir`.
+
+    --data-dir est obligatoire côté CLI (clap) : l'omettre fait échouer l'appel
+    avec « required arguments were not provided ». Ordre de résolution :
+    argument explicite → variable GCN_TAXONOMY_DIR → dépôt source
+    gcn-references/taxonomies (doit contenir fr/).
+
+    Raises:
+        GCNBridgeError: aucun répertoire de taxonomies trouvable.
+    """
+    import os as _os
+    if taxonomy_dir is not None:
+        return Path(taxonomy_dir)
+    env = _os.environ.get("GCN_TAXONOMY_DIR")
+    if env:
+        return Path(env)
+    repo = Path(__file__).resolve().parents[4] / "gcn-references" / "taxonomies"
+    if (repo / "fr").is_dir():
+        return repo
+    raise GCNBridgeError(
+        "`gcn analyze` exige --data-dir et aucun répertoire de taxonomies n'est "
+        "trouvable : passez taxonomy_dir=<répertoire> ou export "
+        "GCN_TAXONOMY_DIR=…."
+    )
+
+
 def _call_gcn_analyze(
     text: str,
     gcn_bin: str,
@@ -308,9 +335,8 @@ def _call_gcn_analyze(
         GCNBridgeError: binaire absent, timeout, code non-zéro, JSON invalide.
     """
     gcn_bin = _resolve_gcn_bin(gcn_bin)  # résout + vérifie existence; lève GCNBridgeError
-    cmd = [gcn_bin, "analyze"]
-    if taxonomy_dir is not None:
-        cmd += ["--data-dir", str(taxonomy_dir)]
+    # --data-dir est toujours transmis : sans lui, clap rejette la commande.
+    cmd = [gcn_bin, "analyze", "--data-dir", str(_resolve_taxonomy_dir(taxonomy_dir))]
     # -- sépare explicitement les options du texte (évite "--option" passé comme texte)
     cmd += ["--", text]
 
@@ -321,6 +347,7 @@ def _call_gcn_analyze(
             text=True,
             encoding="utf-8",
             timeout=30,
+            check=False,
         )
     except FileNotFoundError:
         raise GCNBridgeError(

@@ -17,16 +17,13 @@ Questions libres (sans préfixe /) :
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 
-from .verbalizer.instructions import InstructionHandler, CausalGraph, parse_command
-from .verbalizer.query_report import QueryVerbalizer
 from .verbalizer.decoder import ReferenceDecoder
-
+from .verbalizer.instructions import CausalGraph, InstructionHandler, parse_command
+from .verbalizer.query_report import QueryVerbalizer
 
 # ---------------------------------------------------------------------------
 # Lecture des fichiers texte (raw text — pas de JSON annoté)
@@ -49,7 +46,7 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
             try:
                 content = path.read_text(encoding="utf-8", errors="replace")
                 results.append((path.name, content))
-            except Exception as e:
+            except OSError as e:  # read_text(errors="replace") : seul un échec d'E/S est possible
                 click.echo(f"  ⚠ Impossible de lire {path.name} : {e}", err=True)
         else:
             click.echo(f"  ⚠ Format non supporté : {path.suffix}. "
@@ -63,7 +60,7 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
             try:
                 content = f.read_text(encoding="utf-8", errors="replace")
                 results.append((f.name, content))
-            except Exception as e:
+            except OSError as e:  # read_text(errors="replace") : seul un échec d'E/S est possible
                 click.echo(f"  ⚠ {f.name} : {e}", err=True)
     else:
         click.echo(f"  ⚠ Chemin introuvable : {path}", err=True)
@@ -77,7 +74,7 @@ def _split_lines(text: str, min_line_len: int = 10) -> list[str]:
     Chaque ligne est traitée comme une unité d'analyse.
     min_line_len remplace l'ancien magic number 10 (défaut rétrocompat).
     """
-    return [l.strip() for l in text.splitlines() if len(l.strip()) >= min_line_len]
+    return [line.strip() for line in text.splitlines() if len(line.strip()) >= min_line_len]
 
 
 def extract_concepts_from_cir(cir: dict) -> list[str]:
@@ -88,7 +85,7 @@ def extract_concepts_from_cir(cir: dict) -> list[str]:
     """
     try:
         from .frontend.bridge import _LABEL_RE
-    except Exception:
+    except Exception:  # noqa: BLE001  # repli sur regex locale si l'import interne échoue
         import re as _re
         _LABEL_RE = _re.compile(r'^([^(?\s]+)')
     concepts = []
@@ -113,7 +110,7 @@ def _format_response(handler: InstructionHandler, question: str) -> str:
     Détecte le type de requête depuis la structure (pas la langue).
     """
     vb = QueryVerbalizer(handler.graph)
-    q  = question.lower().strip().rstrip("?.,!")
+    _q  = question.lower().strip().rstrip("?.,!")
 
     # Commandes formelles (explain:, effects:, chain:, counterfactual:)
     cmd, arg = parse_command(question)
@@ -193,27 +190,28 @@ HELP_TEXT = """
 """
 
 
-def _write_log(log_path: Optional[Path], entry: dict) -> None:
+def _write_log(log_path: Path | None, entry: dict) -> None:
     """Ajoute une entrée au fichier de log JSON (une entrée par ligne)."""
     if log_path is None:
         return
-    import json, datetime
-    entry["ts"] = datetime.datetime.utcnow().isoformat()
+    import datetime
+    import json
+    entry["ts"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat()
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def run_discuss(
-    checkpoint: Optional[Path] = None,
-    graph_path: Optional[Path] = None,
+    checkpoint: Path | None = None,
+    graph_path: Path | None = None,
     gcn_bin: str = "gcn",
-    log_path: Optional[Path] = None,
-    session_dir: Optional[Path] = None,
-    taxonomy_dir: Optional[Path] = None,
+    log_path: Path | None = None,
+    session_dir: Path | None = None,
+    taxonomy_dir: Path | None = None,
 ) -> None:
     """Lance la session de discussion."""
-    from .engine import GCNEngine
     from .cli.session import SessionStore
+    from .engine import GCNEngine
 
     # Session persistante : graphe + vecs + historique (anti-perte)
     session = SessionStore(session_dir)
@@ -234,7 +232,7 @@ def run_discuss(
                 checkpoint, gcn_bin=gcn_bin, trusted=True, taxonomy_dir=taxonomy_dir
             )
             engine._pipeline.encoder.training = False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # checkpoint illisible : message d'erreur CLI, sans moteur
             print(f"\n  Erreur de chargement du checkpoint : {e}")
             print("  Impossible d'analyser sans checkpoint.")
 
@@ -247,7 +245,7 @@ def run_discuss(
         try:
             handler.graph = CausalGraph.load(graph_path)
             print(f"\n  Graphe chargé : {graph_path.name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # graphe JSON invalide : message d'erreur CLI, graphe conservé
             print(f"\n  Erreur de chargement du graphe : {e}")
     # F4c : reprendre la numérotation après les blocs déjà présents (session
     # restaurée ou --graph préchargé) — sinon d00001_ est réutilisé et les
@@ -347,7 +345,7 @@ def run_discuss(
                                 # Aussi stocké dans le graphe pour les requêtes
                                 handler.add_cir(cir)
                                 n_new += len(cir["edges"])
-                        except Exception as _e:
+                        except Exception as _e:  # noqa: BLE001  # phrase invalide : warn + phrase suivante
                             import warnings as _dw
                             _dw.warn(
                                 f"discuss: erreur analyse/verbalisation CIR : {_e}",
@@ -383,7 +381,7 @@ def run_discuss(
                 try:
                     handler.graph.save(Path(arg))
                     print(f"  Graphe sauvegardé : {arg}  ({len(handler.graph.edges)} relations)")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # sauvegarde impossible : message d'erreur CLI
                     print(f"  Erreur de sauvegarde : {e}")
 
             elif cmd == "load":
@@ -394,7 +392,7 @@ def run_discuss(
                     handler.graph = CausalGraph.load(Path(arg))
                     n = len(handler.graph.edges)
                     print(f"  Graphe chargé : {arg}  ({n} relations)")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # chargement impossible : message d'erreur CLI
                     print(f"  Erreur de chargement : {e}")
 
             else:
@@ -424,7 +422,7 @@ def run_discuss(
                             session.collect(engine, user_input, cir)
                     elif concepts:
                         response += f"\n  (concepts détectés dans la question : {', '.join(concepts)} — source=question, non corpus)"
-                except Exception as _e:
+                except Exception as _e:  # noqa: BLE001  # fallback best-effort : réponse enrichie d'une note
                     response += f"\n  (fallback analyze impossible : {_e})"
             print(response)
             print()
@@ -461,12 +459,12 @@ def run_discuss(
               help="Répertoire des taxonomies causales (transmis à gcn-cli --data-dir). "
                    "Parité avec gcn-bootstrap et gcn-index.")
 def discuss_cmd(
-    ckpt: Optional[Path],
-    graph_path: Optional[Path],
+    ckpt: Path | None,
+    graph_path: Path | None,
     gcn_bin: str,
-    log_path: Optional[Path],
-    session_dir: Optional[Path],
-    taxonomy_dir: Optional[Path],
+    log_path: Path | None,
+    session_dir: Path | None,
+    taxonomy_dir: Path | None,
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
     run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,

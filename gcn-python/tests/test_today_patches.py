@@ -74,6 +74,7 @@ def _make_pipeline(mlp_hidden: int = 128):
 def test_val_loader_receives_silver_weight(tmp_path: Path):
     """train.py doit passer silver_weight=… au GCNDataLoader du val_dir (C2.2)."""
     from click.testing import CliRunner
+
     from gcn_python.training.train import GCNDataLoader, train_cmd
 
     train_dir = _write_dataset(tmp_path, methode=None)
@@ -134,6 +135,7 @@ def test_train_cmd_logs_assembler_avg_loss(tmp_path: Path):
     (teacher-forcing decodeur avec enriched d_eff=79 vs one-hot d=7 → lock d_in).
     """
     from click.testing import CliRunner
+
     from gcn_python.training.train import train_cmd
 
     data_dir = _write_dataset(tmp_path, methode="silver-auto-v2")

@@ -1,13 +1,19 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-from dataclasses import dataclass, field
+
 import json
+from dataclasses import dataclass, field
+
 import numpy as np
 
 from ..constants import (
-    UPOS_TAGS, UD_DEP_RELS, UD_TENSE_VALUES, UD_ASPECT_VALUES,
-    UD_MOOD_VALUES, SUBJECT_POS_CATS,
+    SUBJECT_POS_CATS,
+    UD_ASPECT_VALUES,
+    UD_DEP_RELS,
+    UD_MOOD_VALUES,
+    UD_TENSE_VALUES,
+    UPOS_TAGS,
 )
 from .representation import UDRepresentation
 
@@ -118,7 +124,7 @@ class FeatureVocabulary:
         }, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, s: str) -> "FeatureVocabulary":
+    def from_json(cls, s: str) -> FeatureVocabulary:
         return cls(**json.loads(s))
 
 
@@ -201,14 +207,13 @@ def embedding_routing(
     else:
         lemmas = _pool_lemmas(rep, clause_pooling)
         if clause_pooling == "max":
-            stacked = np.stack([word_embedding.lookup(l) for l in lemmas])
+            stacked = np.stack([word_embedding.lookup(lemma) for lemma in lemmas])
             argmax = np.argmax(stacked, axis=0)  # (d_emb,)
             for k, lemma in enumerate(lemmas):
                 routing.append((lemma, 0, (argmax == k).astype(np.float32)))
         else:  # mean
             w = np.full(d_emb, 1.0 / len(lemmas), dtype=np.float32)
-            for lemma in lemmas:
-                routing.append((lemma, 0, w))
+            routing.extend((lemma, 0, w) for lemma in lemmas)
     if subject_object_emb:
         subj_lemma, obj_lemma = _find_subj_obj_lemmas(rep)
         ones = np.ones(d_emb, dtype=np.float32)

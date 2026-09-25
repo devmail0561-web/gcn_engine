@@ -44,8 +44,8 @@ def test_edge_norm_sanitize():
 
 
 def test_hyperedge_bypass():
-    from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
     from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
     def _cl(nid):
         return ClauseRecord(node_id=nid, node_type="action", label=nid,
                             token_span=(0, 0), scope="specific",
@@ -94,7 +94,11 @@ def test_query_truncation_word_aware():
 
 
 def test_graph_vecs_roundtrip(tmp_path):
-    from gcn_python.data.graph_vecs import save_graph_vecs, load_graph_vec, stable_key, checkpoint_hash
+    from gcn_python.data.graph_vecs import (
+        checkpoint_hash,
+        load_graph_vec,
+        save_graph_vecs,
+    )
     vecs = {"k1": np.ones(4, dtype=np.float32)}
     h = checkpoint_hash({"w": np.ones((2, 2))})
     p = save_graph_vecs(tmp_path / "v.npz", vecs, h, 4, {"k1": {"node_id": "n001"}})
@@ -107,7 +111,7 @@ def test_checkpoint_atomic_and_arch(tmp_path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
@@ -121,7 +125,7 @@ def test_checkpoint_atomic_and_arch(tmp_path):
     enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
-    with warnings.catch_warnings(record=True) as w:
+    with warnings.catch_warnings(record=True) as _w:
         warnings.simplefilter("always")
         load_checkpoint(p2, ckpt, trusted=True)
     # double-absent warn attendu (pas de decoder des deux côtés)
@@ -138,7 +142,7 @@ def test_migrate_no_loss(tmp_path):
     src.write_text(json.dumps(doc), encoding="utf-8")
     script = Path(__file__).parents[2] / "gcn-datasets" / "scripts" / "migrate_v1_v2.py"
     r = subprocess.run([sys.executable, str(script),
-                        str(src), str(dst)], capture_output=True, text=True)
+                        str(src), str(dst)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     out = json.loads(dst.read_text(encoding="utf-8"))
     assert out["schema_version"] == "2.0"
@@ -158,6 +162,7 @@ def _make_pipeline(d=16):
 
 def test_session_save_load_roundtrip(tmp_path):
     import numpy as np
+
     from gcn_python.cli.session import SessionStore
     from gcn_python.data.graph_vecs import stable_key
     sdir = tmp_path / "sess"
@@ -178,8 +183,12 @@ def test_session_save_load_roundtrip(tmp_path):
 
 def test_linkpred_score_and_checkpoint(tmp_path):
     import numpy as np
-    from gcn_python.layer3.link_pred import (LinkPredHead, sample_negatives,
-                                             candidates_within_depth)
+
+    from gcn_python.layer3.link_pred import (
+        LinkPredHead,
+        candidates_within_depth,
+        sample_negatives,
+    )
     head = LinkPredHead(d_in=8, src_aggregation="mean")
     u = np.ones(8, dtype=np.float32)
     v = np.ones(8, dtype=np.float32)
@@ -192,9 +201,9 @@ def test_linkpred_score_and_checkpoint(tmp_path):
     assert len(negs) == 1 and negs[0] != (0, 1)
     assert candidates_within_depth({0: [1], 1: [2]}, 0, 2) == {1, 2}
     # round-trip checkpoint
-    pipe, vocab = _make_pipeline()
+    pipe, _vocab = _make_pipeline()
     pipe.link_predictor = head
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
     ckpt = tmp_path / "lp.npz"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -218,13 +227,13 @@ def test_predict_links_requires_head():
 def test_run_eval_respects_checkpoint_arch(tmp_path):
     """run_eval reconstruit bidi/all_pairs depuis l'arch (pas de crash ni mode faux)."""
     import json
-    import numpy as np
+
+    from gcn_python.evaluation.eval_runner import run_eval
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
-    from gcn_python.evaluation.eval_runner import run_eval
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=22)
@@ -286,8 +295,9 @@ def test_backward_edge_mismatch_raises():
 
 def test_decoder_source_bias_and_is_inferred():
     import numpy as np
-    from gcn_python.verbalizer.trainable import TrainableDecoder, SurfaceVocabulary
+
     from gcn_python.pipeline.ir_emitter import emit
+    from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
     vocab = SurfaceVocabulary()
     vocab.build(["les ventes baissent"])
     dec = TrainableDecoder(vocab, d_hidden=8, d_in=6)

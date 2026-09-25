@@ -18,8 +18,6 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict, deque
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Commandes reconnues (fixes, indépendantes de la langue)
@@ -38,7 +36,7 @@ COMMANDS = {
 }
 
 
-def parse_command(text: str) -> tuple[str, Optional[str]]:
+def parse_command(text: str) -> tuple[str, str | None]:
     """
     Parse une entrée utilisateur en (commande, argument).
 
@@ -58,11 +56,11 @@ def parse_command(text: str) -> tuple[str, Optional[str]]:
     # Format "commande: argument" ou "commande argument"
     for cmd in COMMANDS:
         # Avec deux-points
-        if re.match(rf"^{cmd}\s*:", t, re.I):
-            arg = re.sub(rf"^{cmd}\s*:\s*", "", t, flags=re.I).strip()
+        if re.match(rf"^{cmd}\s*:", t, re.IGNORECASE):
+            arg = re.sub(rf"^{cmd}\s*:\s*", "", t, flags=re.IGNORECASE).strip()
             return cmd.lower(), arg or None
         # Sans deux-points, si la commande est en premier mot seul
-        if re.match(rf"^{cmd}\s*$", t, re.I):
+        if re.match(rf"^{cmd}\s*$", t, re.IGNORECASE):
             return cmd.lower(), None
 
     return "text", None
@@ -145,7 +143,7 @@ class CausalGraph:
         _P(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path) -> "CausalGraph":
+    def load(cls, path) -> CausalGraph:
         """Charge un graphe depuis un fichier JSON produit par save()."""
         import json
         from pathlib import Path as _P
@@ -164,7 +162,7 @@ class CausalGraph:
         return g
 
     @classmethod
-    def from_cirs(cls, cirs: list) -> "CausalGraph":
+    def from_cirs(cls, cirs: list) -> CausalGraph:
         """Construit depuis une liste de CIR."""
         g = cls()
         for cir in cirs:
@@ -191,7 +189,7 @@ class CausalGraph:
     def find_causes(self, keyword: str, min_level: int = 2) -> list[tuple]:
         """Arêtes dont la cible matche keyword. attrs['_match_level'] stocké sans breaking (4-tuple conservé)."""
         import warnings as _w
-        kw = keyword.lower()
+        _kw = keyword.lower()
         scored = []
         n_substring = 0
         for idx, (src, dst, attrs, text) in enumerate(self.edges):
@@ -262,7 +260,7 @@ class CausalGraph:
                 for nb in sorted(self.adjacency.get(path[-1], [])):
                     if nb not in visited:
                         visited.add(nb)
-                        queue.append(path + [nb])
+                        queue.append([*path, nb])
         return []
 
     def _label(self, nid) -> str:
@@ -294,7 +292,7 @@ class InstructionHandler:
     def clear(self) -> None:
         self.graph.clear()
 
-    def execute(self, text: str) -> Optional[str]:
+    def execute(self, text: str) -> str | None:
         """
         Parse et exécute une commande. Retourne None si c'est du texte à analyser.
         """
@@ -322,14 +320,14 @@ class InstructionHandler:
 
     # ------------------------------------------------------------------
 
-    def _explain(self, keyword: Optional[str]) -> str:
+    def _explain(self, keyword: str | None) -> str:
         if not keyword:
             return "explain: <concept>  — missing argument"
         causes = self.graph.find_causes(keyword)
         if not causes:
             return f"explain: no causes found for '{keyword}'"
         lines = [f"explain: {keyword}"]
-        for src, dst, attrs, src_text in causes:
+        for src, dst, attrs, _src_text in causes:
             conf = attrs.get("confidence")
             rel  = attrs.get("relation", "?")
             neg  = " [negated]" if attrs.get("negated") else ""
@@ -342,14 +340,14 @@ class InstructionHandler:
             )
         return "\n".join(lines)
 
-    def _effects(self, keyword: Optional[str]) -> str:
+    def _effects(self, keyword: str | None) -> str:
         if not keyword:
             return "effects: <concept>  — missing argument"
         effects = self.graph.find_effects(keyword)
         if not effects:
             return f"effects: no effects found for '{keyword}'"
         lines = [f"effects: {keyword}"]
-        for src, dst, attrs, _ in effects:
+        for _src, dst, attrs, _ in effects:
             rel = attrs.get("relation", "?")
             neg = " [negated]" if attrs.get("negated") else ""
             lines.append(
@@ -358,7 +356,7 @@ class InstructionHandler:
             )
         return "\n".join(lines)
 
-    def _chain(self, arg: Optional[str]) -> str:
+    def _chain(self, arg: str | None) -> str:
         if not arg:
             return "chain: <concept_a> <concept_b>  — missing arguments"
         parts = arg.split()
@@ -374,7 +372,7 @@ class InstructionHandler:
         ]
         return "chain:\n  " + " --> ".join(steps)
 
-    def _counterfactual(self, keyword: Optional[str]) -> str:
+    def _counterfactual(self, keyword: str | None) -> str:
         if not keyword:
             return "counterfactual: <concept>  — missing argument"
         effects  = self.graph.find_effects(keyword)

@@ -1,7 +1,9 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 from typing import Protocol, runtime_checkable
+
 import numpy as np
 
 

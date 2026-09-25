@@ -1,14 +1,13 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
-
 
 # ── SurfaceVocabulary ─────────────────────────────────────────────────────────
 
@@ -117,7 +116,7 @@ def test_update_changes_weights():
     params_before = [p.copy() for p in dec.parameters()]
     dec.update(grads, d_attn_vec, lr=0.1)
     params_after = dec.parameters()
-    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
+    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after, strict=False))
 
 
 def test_checkpoint_roundtrip(tmp_path: Path):
@@ -134,7 +133,7 @@ def test_checkpoint_roundtrip(tmp_path: Path):
     params = dec.parameters()
     params2 = dec2.parameters()
     # shapes must match for weight copy
-    for p, p2 in zip(params, params2):
+    for p, p2 in zip(params, params2, strict=False):
         assert p.shape == p2.shape
     # to_json/from_json restaure attn_vec et W_query (inline dans le JSON)
     # Les poids layer0/1 sont random (nécessitent load_checkpoint pour être restaurés)
@@ -213,7 +212,7 @@ def test_attention_weights_nonuniform_after_update():
     dec.update(grads, d_attn_vec, lr=0.5)
 
     # Forward après update — weights doivent avoir changé
-    logits2 = dec.forward_decode(node_embs)
+    _logits2 = dec.forward_decode(node_embs)
     attn_weights_after = dec._cached_attn_weights
     assert not np.allclose(attn_weights_after, attn_weights_before, atol=1e-4), \
         "Poids d'attention modifiés après update"
@@ -297,11 +296,10 @@ def test_pipeline_decoder_none_unchanged():
 def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     """save + load checkpoint avec decoder — poids restaurés."""
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
@@ -326,7 +324,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
 
     assert p2.decoder is not None
     assert len(p2.decoder.parameters()) == len(dec.parameters())
-    for orig, loaded in zip(dec.parameters(), p2.decoder.parameters()):
+    for orig, loaded in zip(dec.parameters(), p2.decoder.parameters(), strict=False):
         assert np.allclose(orig, loaded)
 
 
@@ -335,7 +333,7 @@ import warnings as _warnings
 
 
 def test_trainable_decoder_deprecation_warning():
-    from gcn_python.verbalizer.trainable import TrainableDecoder, SurfaceVocabulary
+    from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
     v = SurfaceVocabulary()
     v.build(["le chat dort"])
     with _warnings.catch_warnings(record=True) as caught:

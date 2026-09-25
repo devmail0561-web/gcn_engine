@@ -1,8 +1,8 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour RGCNLayerGAT — skip automatique si PyTorch n'est pas installé."""
-import pytest
 import numpy as np
+import pytest
 
 torch = pytest.importorskip("torch", reason="PyTorch non installé — test ignoré")
 
@@ -144,7 +144,7 @@ def test_checkpoint_roundtrip_n22():
     layer.load_state(params_before)
     params_after = layer.parameters()
 
-    for p_before, p_after in zip(params_before, params_after):
+    for p_before, p_after in zip(params_before, params_after, strict=False):
         np.testing.assert_array_equal(p_before, p_after)
 
 
@@ -198,7 +198,6 @@ def test_repr():
 
 
 # ── Amélioration D — Attention multi-tête ─────────────────────────────────────
-import torch as _torch
 
 
 def _gat_features(N: int = 5, D: int = 128, seed: int = 0):
@@ -288,12 +287,12 @@ def test_relu_activation_output_can_exceed_1():
 
 
 def test_relu_backward_uses_step_derivative():
-    rng = np.random.default_rng(5)
+    _rng = np.random.default_rng(5)
     layer = RGCNLayerGAT(d_in=16, d_out=16, n_relations=3, output_activation="relu",
                          device="cpu", seed=1)
     H, ei, et = _gat_features_n4(D=16)
     layer.message_pass(H, ei, et)
-    pre = layer._out_retained.detach().cpu().numpy()
+    _pre = layer._out_retained.detach().cpu().numpy()
     d_in, _ = layer.backward_message_pass(np.ones((4, 16), dtype=np.float32))
     assert d_in.shape == (4, 16)
     assert np.isfinite(d_in).all()
@@ -329,9 +328,9 @@ def test_residual_gradient_nonzero_even_if_layer_dead():
     # Couche morte (poids nuls + activation none → sortie 0, jacobienne 0)
     # mais le résidu fait passer le gradient identité.
     from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.layer1.representation import UDRepresentation
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause
@@ -385,9 +384,9 @@ def test_checkpoint_layernorm_missing_keys_inits_identity():
 
 def test_stacked_gat_without_residual_baseline_equivalent():
     from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.layer1.representation import UDRepresentation
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause

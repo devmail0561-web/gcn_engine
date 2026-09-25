@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Tests](https://img.shields.io/badge/tests-412-passing)](tests/)
+[![Tests](https://img.shields.io/badge/tests-424-passing)](tests/)
 
 ---
 
@@ -270,7 +270,9 @@ Texte brut (fr/en/code)
 UD tokens (pos, dep_rel, morph, lemma)
      │
      ▼  Layer 1 — FeatureVocabulary  (gcn-python)
-80-dim vector par clause (sans embeddings — voir FeatureVocabulary.d_clause)
+207-dim vector par clause par défaut (79-dim syntaxe + 128-dim lexical apprenable ;
+voir FeatureVocabulary.d_clause_effective). Sans embeddings (--embedding-dim 0,
+déconseillé) : 79-dim syntaxe seule.
      │
      ▼  Layer 2 — MLPEncoder  (remplaçable)
 node_logits (N×7) + edge_logits (E×11)
@@ -285,7 +287,12 @@ message passing — enrichissement des représentations
 
 - **Traitement phrase par phrase** : le ML traite une phrase à la fois. Le graphe document est la réunion des CIR individuels — aucune coréférence inter-phrase, aucun raisonnement cross-sentence.
 - **Classification, pas prédiction** : le moteur classifie les nœuds (7 types) et les arêtes (11 relations) depuis le texte complet déjà disponible. Il ne prédit pas d'événements futurs.
-- **Features syntaxiques** : le vecteur clause contient POS, dep_rel, morphologie UD. Le moteur ne voit pas le sens des mots. Ajouter `--fasttext` pour les cas sans connecteur explicite.
+- **Features syntaxiques + lexicales** : le vecteur clause contient POS, dep_rel, morphologie UD
+  **plus, par défaut, un embedding lexical apprenable** (`--embedding-dim 128`). Mesuré sur
+  1665 phrases (`BENCHMARK.md` §11) : emb128 apporte +34% val_edge_f1 vs baseline syntaxique.
+  Pour un gain supplémentaire : `--embedding-file wiki.fr.vec` sans `--freeze-embeddings`
+  (fine-tuning, +45% val_edge_f1 mesuré). Le moteur voit les lemmes mais pas le contexte
+  phrastique complet.
 - **Teacher forcing** : en entraînement, le R-GCN reçoit les vrais types de relations pour stabiliser les premières epochs. À l'inférence, le two-pass prédit les types sans or. Utiliser `--scheduled-sampling` pour réduire progressivement cette asymétrie.
 - **Moteur vs checkpoint** : le moteur est le pipeline (chassis). Le checkpoint `.npz` contient les poids du classifieur embarqué. Charger uniquement des checkpoints de sources fiables (contient du JSON sérialisé, risque équivalent à un pickle).
 
@@ -322,7 +329,7 @@ from gcn_python.evaluation.metrics import (
 
 | Limitation | Impact | Contournement |
 |-----------|--------|---------------|
-| Features syntaxiques uniquement | Le classifieur ne voit pas le sens des mots. Deux phrases avec le même patron UD reçoivent le même vecteur, même si leur causalité est différente. | Ajouter `--fasttext wiki.fr.bin` pour injecter des embeddings sémantiques. |
+| Features syntaxiques uniquement (si `--embedding-dim 0`) | Sans embeddings, le classifieur ne voit pas le sens des mots. Deux phrases avec le même patron UD reçoivent le même vecteur. | Ne pas désactiver : les embeddings sont ACTIFS PAR DÉFAUT (`--embedding-dim 128`, +34% val_edge_f1 mesuré). Pour un signal plus riche : `--embedding-file wiki.fr.vec` sans `--freeze-embeddings` (fine-tuning, +45% val_edge_f1 mesuré, `BENCHMARK.md` §11). |
 | Causalité implicite (sans connecteur) | Difficile à classifier — les features UD ne portent pas l'information implicite. | Annoter des exemples explicitement sans connecteur dans le dataset. |
 | Traitement phrase par phrase | Aucune coréférence inter-phrase. Une chaîne causale sur 3 phrases ne sera pas résolue automatiquement. | Réunion manuelle des CIR via `CausalGraph.from_cirs()`. |
 | Scores de confiance non calibrés | Les probabilités softmax ne sont pas des probabilités épistémiques. conf=0.7 ≠ 70% de chance d'être correct. | Ne pas utiliser les scores comme seuils de décision absolus. |
@@ -380,4 +387,4 @@ Pour la production, privilégier les données annotées via `gcn-train` avec `GC
 
 ## Licence
 
-MIT — © Michel Tendeng
+Apache-2.0 — © Michel Tendeng

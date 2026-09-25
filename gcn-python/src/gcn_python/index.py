@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -63,14 +62,15 @@ def index_cmd(
     gcn_bin: str,
     append: bool,
     min_line_len: int,
-    vecs_out: Optional[Path],
-    taxonomy_dir: Optional[Path],
+    vecs_out: Path | None,
+    taxonomy_dir: Path | None,
 ) -> None:
     """Indexe un corpus de fichiers texte → graphe causal JSON."""
-    from .engine import GCNEngine
-    from .data.graph_vecs import save_graph_vecs, stable_key, checkpoint_hash as _ckpt_hash
-
     import numpy as _np
+
+    from .data.graph_vecs import checkpoint_hash as _ckpt_hash
+    from .data.graph_vecs import save_graph_vecs, stable_key
+    from .engine import GCNEngine
 
     if not corpus.exists():
         raise click.ClickException(f"Corpus introuvable : {corpus}")
@@ -108,7 +108,7 @@ def index_cmd(
     # F4 : préfixe par bloc (sentence avec arêtes), pas par fichier — évite les
     # collisions d'ids quand deux phrases du même fichier produisent les mêmes ids.
     block_idx = 0
-    for file_idx, (filename, content) in enumerate(texts, 1):
+    for _file_idx, (filename, content) in enumerate(texts, 1):
         lines = _split_lines(content, min_line_len=min_line_len)
         n_new = 0
         for line in lines:
@@ -117,7 +117,7 @@ def index_cmd(
             for sent in segment_sentences(line):
                 try:
                     cir = engine.analyze(sent)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001  # phrase invalide : log + phrase suivante
                     log.warning("index: analyze impossible (%s) : %s", filename, exc)
                     continue
                 if cir.get("edges"):
@@ -138,7 +138,7 @@ def index_cmd(
                                         "shape": [int(v) for v in _np.asarray(_ev[_pos]).shape],
                                         "source_text": sent[:200],
                                     }
-                        except Exception as exc:
+                        except Exception as exc:  # noqa: BLE001  # vecs best-effort : log, indexation poursuivie
                             log.warning("index: vecs non collectés (%s) : %s", filename, exc)
                     prefix = f"b{block_idx:05d}_"
                     for n in cir.get("nodes", []):
@@ -160,7 +160,7 @@ def index_cmd(
                     cir["edges"] = remapped
                     try:
                         graph.add_discourse_block(cir)
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001  # bloc rejeté par le graphe : log + bloc suivant
                         log.warning("index: bloc ignoré (%s) : %s", filename, exc)
                         continue
                     n_new += len(cir["edges"])
@@ -183,5 +183,5 @@ def index_cmd(
             _d = int(next(iter(collected.values())).shape[-1])
             save_graph_vecs(vecs_out, collected, _ckpt_hash(_params), _d, collected_meta)
             click.echo(f"Vecteurs sauvegardés : {vecs_out}  ({len(collected)} vecteur(s) + manifest)")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # sauvegarde vecs best-effort : log, graphe déjà écrit
             log.warning("index: sauvegarde vecs impossible : %s", exc)

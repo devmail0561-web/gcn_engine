@@ -7,7 +7,6 @@ V2 : eval_runner.py — vocab chargé depuis le checkpoint avant l'encodeur.
 V3 : cgnp.py — gradient word_embedding utilise d_curr (post-RGCN) pas d_enriched.
 """
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,7 +19,6 @@ from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 from gcn_python.training.checkpoint import save_checkpoint
-
 
 # ---------------------------------------------------------------------------
 # Helpers partagés
@@ -431,6 +429,7 @@ def test_run_eval_edge_threshold_override(tmp_path: Path):
 def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
     """--test-dir ajoute les métriques held-out sous la clé 'test' dans le rapport."""
     from click.testing import CliRunner
+
     from gcn_python.evaluation.eval_runner import eval_cmd
 
     pipeline = _make_pipeline()
@@ -474,7 +473,9 @@ def test_eval_cmd_quiet_guarantees_pure_json_despite_warnings(tmp_path: Path):
     ou avec -W default / flux combinés 2>&1).
     """
     import warnings
+
     from click.testing import CliRunner
+
     from gcn_python.evaluation.eval_runner import eval_cmd
 
     pipeline = _make_pipeline()
@@ -525,8 +526,8 @@ def test_run_eval_all_pairs_passed_to_loader(tmp_path: Path):
     les arêtes gold avec gap > 1 étaient droppées de edge_map silencieusement →
     edge_macro_f1 structurellement sous-estimé sans aucun signal.
     """
-    from gcn_python.evaluation.eval_runner import run_eval
     from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.evaluation.eval_runner import run_eval
 
     pipeline = _make_pipeline(all_pairs=True)
     ckpt = tmp_path / "model_ap.npz"
@@ -568,8 +569,8 @@ def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
     2. Intégration run_eval (patch transparent _to_sample) : assert len(edge_map) > 0
        pour au moins une sentence — prouve que l'arête traverse loader→run_eval.
     """
-    from gcn_python.evaluation.eval_runner import run_eval
     from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.evaluation.eval_runner import run_eval
 
     pipeline = _make_pipeline(all_pairs=True)
     ckpt = tmp_path / "model_gap2.npz"

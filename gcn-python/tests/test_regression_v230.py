@@ -36,7 +36,7 @@ def _enc(seed=42, edge_dropout=0.3, d_eff=None, n_node_types=7):
 
 def test_a1_backward_edge_dx_src_slice_nonzero():
     """La tranche dx[d_base:d_base+d_eff] (→ src) est non-nulle."""
-    enc, vocab, d_cl, d_eff = _enc(edge_dropout=0.0)
+    enc, vocab, _d_cl, d_eff = _enc(edge_dropout=0.0)
     n_node_types = enc.n_node_types
     d_base = vocab.d_edge
     d_edge_total = d_base + 2 * d_eff + 2 * n_node_types
@@ -57,7 +57,7 @@ def test_a1_backward_edge_dx_src_slice_nonzero():
 
 def test_a1_backward_edge_dx_dst_slice_nonzero():
     """La tranche dx[d_base+d_eff:d_base+2*d_eff] (→ dst) est non-nulle."""
-    enc, vocab, d_cl, d_eff = _enc(edge_dropout=0.0)
+    enc, vocab, _d_cl, d_eff = _enc(edge_dropout=0.0)
     n_node_types = enc.n_node_types
     d_base = vocab.d_edge
     d_edge_total = d_base + 2 * d_eff + 2 * n_node_types
@@ -77,7 +77,7 @@ def test_a1_backward_edge_dx_dst_slice_nonzero():
 
 def test_a1_backward_edge_dx_direction_reduces_loss():
     """Une étape gradient descent via dx réduit la cross-entropy edge."""
-    enc, vocab, d_cl, d_eff = _enc(edge_dropout=0.0)
+    enc, vocab, _d_cl, d_eff = _enc(edge_dropout=0.0)
     n_node_types = enc.n_node_types
     d_edge_total = vocab.d_edge_closed_loop(d_eff, n_node_types)
 
@@ -148,7 +148,7 @@ def test_a2_same_seed_same_dropout_masks():
     enc2.forward_edge(x)
 
     assert len(enc1._edge_dropout_masks) > 0, "Aucun masque dropout généré (edge_dropout=0.3)"
-    for m1, m2 in zip(enc1._edge_dropout_masks, enc2._edge_dropout_masks):
+    for m1, m2 in zip(enc1._edge_dropout_masks, enc2._edge_dropout_masks, strict=False):
         np.testing.assert_array_equal(m1, m2, err_msg="Masques dropout différents pour seed=42")
 
 
@@ -174,7 +174,7 @@ def test_a2_different_seeds_differ():
 
 torch = pytest.importorskip("torch", reason="PyTorch non installé — tests GAT ignorés")
 
-from gcn_python.layer3.gat import RGCNLayerGAT  # noqa: E402 (après importorskip)
+from gcn_python.layer3.gat import RGCNLayerGAT
 
 
 def test_a3_gat_ar_gradient_nonzero():

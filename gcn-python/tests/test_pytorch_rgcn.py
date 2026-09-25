@@ -1,13 +1,13 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour RGCNLayerPT — skip automatique si PyTorch n'est pas installé."""
-import pytest
 import numpy as np
+import pytest
 
 torch = pytest.importorskip("torch", reason="PyTorch non installé — test ignoré")
 
-from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
 from gcn_python.layer3.interface import CausalGraph
+from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
 
 
 def make_graph(n: int = 4, e: int = 4, n_rel: int = 3, seed: int = 0) -> tuple:

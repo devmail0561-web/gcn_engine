@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 from ..constants import NODE_ORIGIN_VALUES, TEMPORAL_REF_DEFAULT
 
 
@@ -52,7 +53,7 @@ def emit(
 
     nodes = []
     for i, (nt, label, span, scope, origin) in enumerate(
-        zip(node_types, node_labels, token_spans, scopes, node_origins)
+        zip(node_types, node_labels, token_spans, scopes, node_origins, strict=False)
     ):
         attrs = node_attributes[i] if node_attributes and i < len(node_attributes) else {
             "entity": None,
@@ -153,6 +154,6 @@ def emit(
         "metadata": {
             "schema_version": "2.0",
             "pipeline": ["cgnp-layer1", "cgnp-layer2", "cgnp-layer3"],
-            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat() + "Z",
         },
     }

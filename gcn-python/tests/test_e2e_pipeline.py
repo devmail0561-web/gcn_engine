@@ -12,7 +12,7 @@ Méthode : _cir_to_reps_and_connectors() remplace l'appel au binaire gcn
 (non disponible dans l'environnement de test). Le reste du pipeline est réel.
 """
 import json
-import numpy as np
+
 import pytest
 
 from gcn_python.frontend.bridge import _cir_to_reps_and_connectors
@@ -20,7 +20,6 @@ from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
-
 
 # ─── CIR synthétiques ────────────────────────────────────────────────────────
 

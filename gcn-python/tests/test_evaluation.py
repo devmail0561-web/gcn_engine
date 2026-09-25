@@ -1,16 +1,26 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
-from gcn_python.evaluation.metrics import (
-    node_accuracy, node_f1_per_class, node_macro_f1,
-    edge_accuracy, edge_macro_f1, causal_graph_similarity,
-    decoder_causal_fidelity, cross_modal_consistency,
-    roundtrip_similarity, generation_bleu,
-    graph_exact_match, confusion_matrix, per_class_report,
-)
-from gcn_python.evaluation.recorder import TrainingRecorder
 import tempfile
 from pathlib import Path
 
+import pytest
+
+from gcn_python.evaluation.metrics import (
+    causal_graph_similarity,
+    confusion_matrix,
+    cross_modal_consistency,
+    decoder_causal_fidelity,
+    edge_accuracy,
+    edge_macro_f1,
+    generation_bleu,
+    graph_exact_match,
+    node_accuracy,
+    node_f1_per_class,
+    node_macro_f1,
+    per_class_report,
+    roundtrip_similarity,
+)
+from gcn_python.evaluation.recorder import TrainingRecorder
 
 # ---------------------------------------------------------------------------
 # Métriques nœuds
@@ -241,7 +251,7 @@ def test_generation_bleu_multiple_references():
 # ---------------------------------------------------------------------------
 
 def pytest_approx(x, rel=1e-6):
-    class Approx:
+    class Approx:  # noqa: PLW1641  # helper d'approximation local : hash non requis
         def __eq__(self, other):
             return abs(other - x) <= rel * max(abs(x), 1e-12)
         def __repr__(self):
@@ -284,7 +294,7 @@ def test_graph_exact_match_empty_list():
 def test_graph_exact_match_mismatched_lengths():
     try:
         graph_exact_match([["action"]], [["action"], ["etat"]], [[]], [[]])
-        assert False, "Should have raised ValueError"
+        pytest.fail("Should have raised ValueError")
     except ValueError:
         pass
 

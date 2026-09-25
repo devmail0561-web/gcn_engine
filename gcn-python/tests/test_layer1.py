@@ -2,7 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 import pytest
-from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause, vectorize_edge
+
+from gcn_python.layer1.features import (
+    FeatureVocabulary,
+    vectorize_clause,
+    vectorize_edge,
+)
 from gcn_python.layer1.representation import UDRepresentation
 
 
@@ -51,10 +56,10 @@ def test_causal_pattern_absent_de_vectorize_clause():
     Deux UDRepresentation identiques produisent le même vecteur clause.
     """
     vocab = FeatureVocabulary()
-    base = dict(tokens=[], root_lemma="baisser", root_pos="VERB",
-                root_dep_rel="root", root_morph={}, subject_pos=None,
-                has_object=False, has_advcl=False, has_temporal_obl=False,
-                token_span=(1, 2))
+    base = {"tokens": [], "root_lemma": "baisser", "root_pos": "VERB",
+            "root_dep_rel": "root", "root_morph": {}, "subject_pos": None,
+            "has_object": False, "has_advcl": False, "has_temporal_obl": False,
+            "token_span": (1, 2)}
     rep1 = UDRepresentation(**base)
     rep2 = UDRepresentation(**base)
     vec1 = vectorize_clause(rep1, vocab)
@@ -65,10 +70,11 @@ def test_causal_pattern_absent_de_vectorize_clause():
 
 
 # ── Amélioration A — Pooling des tokens de contenu ────────────────────────────
-from gcn_python.layer1.features import (
-    CONTENT_POS, _pool_lemmas, embedding_routing,
-)
 from gcn_python.layer1.embedding import WordEmbedding
+from gcn_python.layer1.features import (
+    CONTENT_POS,
+    _pool_lemmas,
+)
 
 
 def make_content_rep() -> UDRepresentation:

@@ -1,9 +1,11 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 import re
 import warnings
+
 import numpy as np
 
 from ..layer2.reference import _LinearLayer
@@ -58,7 +60,7 @@ class SurfaceVocabulary:
         return json.dumps(self._i2t)
 
     @classmethod
-    def from_json(cls, s: str) -> "SurfaceVocabulary":
+    def from_json(cls, s: str) -> SurfaceVocabulary:
         v = cls()
         tokens: list[str] = json.loads(s)
         v._i2t = tokens
@@ -316,12 +318,14 @@ class TrainableDecoder:
             self._layers[1]._cache["x"] = step["h1"]
             dx_h1, dW1, db1 = self._layers[1].backward(step_logits)
             dx_h1 += d_h_next  # gradient depuis l'étape future
-            dW1_total += dW1; db1_total += db1
+            dW1_total += dW1
+            db1_total += db1
 
             # Couche RNN backward
             d_pre_tanh = dx_h1 * (1.0 - step["h1"] ** 2)
             dx_rnn, dW0, db0 = self._layers[0].backward(d_pre_tanh)
-            dW0_total += dW0; db0_total += db0
+            dW0_total += dW0
+            db0_total += db0
 
             d_context_t = dx_rnn[:self._last_d_in]   # (d_in,)
             d_h_from_rnn = dx_rnn[self._last_d_in:]  # (d_hidden,) → h_prev
@@ -401,7 +405,7 @@ class TrainableDecoder:
             self._W_query -= lr * (self._d_W_query / _nwq)
             self._d_W_query = None
             self._n_wq_steps = 0
-        for layer, (dW, db) in zip(self._layers, grads):
+        for layer, (dW, db) in zip(self._layers, grads, strict=False):
             layer.W -= lr * dW
             layer.b -= lr * db
 
@@ -475,7 +479,7 @@ class TrainableDecoder:
         })
 
     @classmethod
-    def from_json(cls, s: str) -> "TrainableDecoder":
+    def from_json(cls, s: str) -> TrainableDecoder:
         data = json.loads(s)
         vocab = SurfaceVocabulary.from_json(data["vocab"])
         d_in_val = data.get("d_in")
@@ -586,7 +590,7 @@ class LexicalConnectorAssembler:
         }, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, s: str) -> "LexicalConnectorAssembler":
+    def from_json(cls, s: str) -> LexicalConnectorAssembler:
         data = json.loads(s)
         return cls(data["connector_vocab"], d_rel=data.get("d_rel", 16),
                    n_relations=data.get("n_relations", 11))

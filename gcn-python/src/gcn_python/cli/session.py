@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..data.graph_vecs import save_graph_vecs, stable_key, checkpoint_hash
+from ..data.graph_vecs import checkpoint_hash, save_graph_vecs, stable_key
 from ..verbalizer.instructions import CausalGraph
 
 GRAPH_NAME = "graph.json"
@@ -51,7 +51,7 @@ class SessionStore:
         """
         try:
             vecs = engine._pipeline.get_enriched_vectors()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # résilience : warn + 0 si pipeline indisponible
             warnings.warn(f"session : vecteurs inaccessibles ({exc}) — non collectés.",
                           UserWarning, stacklevel=2)
             return 0
@@ -78,11 +78,11 @@ class SessionStore:
                 for i, p in enumerate(engine._pipeline.encoder.parameters()):
                     params[f"encoder_{i}"] = np.asarray(p)
                 self._checkpoint_hash = checkpoint_hash(params)
-                self._d_eff = int(vecs.shape[1]) if getattr(vecs, "ndim", 1) == 2 else int(len(vecs[0]))
-            except Exception:
+                self._d_eff = int(vecs.shape[1]) if getattr(vecs, "ndim", 1) == 2 else len(vecs[0])
+            except Exception:  # noqa: S110, BLE001  # hash du checkpoint best-effort, silencieux
                 pass
         self.history.append({
-            "ts": datetime.datetime.utcnow().isoformat(),
+            "ts": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
             "event": "analyze",
             "text": text[:500],
             "n_nodes": len(nodes),
@@ -96,7 +96,7 @@ class SessionStore:
 
     def record_exchange(self, question: str, answered: bool) -> None:
         self.history.append({
-            "ts": datetime.datetime.utcnow().isoformat(),
+            "ts": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
             "event": "query",
             "question": question[:500],
             "answered": bool(answered),
@@ -136,7 +136,7 @@ class SessionStore:
             try:
                 self.graph = CausalGraph.load(gpath)
                 report["graph_edges"] = len(self.graph.edges)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # graphe corrompu : warn + session vide
                 warnings.warn(f"session : graphe illisible ({exc}) — session vide.",
                               UserWarning, stacklevel=2)
         vpath = self.session_dir / VECS_NAME
@@ -153,7 +153,7 @@ class SessionStore:
                     for k, meta in (manifest.get("entries") or {}).items():
                         if k in self.vecs:
                             self.vecs_meta[k] = meta
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # npz illisible : warn + vecs ignorés
                 warnings.warn(f"session : vecs illisibles ({exc}) — ignorés.",
                               UserWarning, stacklevel=2)
         hpath = self.session_dir / HISTORY_NAME
@@ -167,7 +167,7 @@ class SessionStore:
                 for e in self.history:
                     e["_saved"] = True
                 report["history"] = len(self.history)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # jsonl corrompu : warn + historique ignoré
                 warnings.warn(f"session : historique illisible ({exc}) — ignoré.",
                               UserWarning, stacklevel=2)
         return report

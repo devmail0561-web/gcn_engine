@@ -21,7 +21,7 @@ from __future__ import annotations
 
 try:
     import torch
-    import torch.nn as nn
+    from torch import nn
 except ImportError as e:  # pragma: no cover
     raise ImportError(
         "PyTorch est requis pour RGCNLayerGAT. "
@@ -29,6 +29,7 @@ except ImportError as e:  # pragma: no cover
     ) from e
 
 import numpy as np
+
 from ..constants import RELATION_TYPES
 
 
@@ -375,7 +376,7 @@ class RGCNLayerGAT(nn.Module):
     ) -> torch.Tensor:
         return self._gat_forward(H, edge_index, edge_types)
 
-    def to_device(self, device: str | torch.device) -> "RGCNLayerGAT":
+    def to_device(self, device: str | torch.device) -> RGCNLayerGAT:
         self._device = torch.device(device)
         # M2 : les caches retiennent des tenseurs sur l'ancien device — les invalider.
         self._H_in_retained = None

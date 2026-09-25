@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
@@ -193,19 +194,19 @@ class MLPEncoder:
     def snapshot_node_cache(self) -> list:
         """Snapshot du cache node + inputs des couches (pour backward par nœud)."""
         return [
-            ((z.copy(), h.copy()), l._cache.get("x", np.zeros(0)).copy())
-            for (z, h), l in zip(self._node_cache, self._node_layers)
+            ((z.copy(), h.copy()), layer._cache.get("x", np.zeros(0)).copy())
+            for (z, h), layer in zip(self._node_cache, self._node_layers, strict=False)
         ]
 
     def restore_node_cache(self, snapshot: list) -> None:
         self._node_cache = [(z.copy(), h.copy()) for (z, h), _ in snapshot]
-        for ((_, _), x), layer in zip(snapshot, self._node_layers):
+        for ((_, _), x), layer in zip(snapshot, self._node_layers, strict=False):
             layer._cache["x"] = x.copy()
 
     def snapshot_edge_cache(self) -> tuple:
         cache_snap = [
-            ((z.copy(), h.copy()), l._cache.get("x", np.zeros(0)).copy())
-            for (z, h), l in zip(self._edge_cache, self._edge_layers)
+            ((z.copy(), h.copy()), layer._cache.get("x", np.zeros(0)).copy())
+            for (z, h), layer in zip(self._edge_cache, self._edge_layers, strict=False)
         ]
         mask_snap = [m.copy() for m in self._edge_dropout_masks]
         return cache_snap, mask_snap
@@ -213,7 +214,7 @@ class MLPEncoder:
     def restore_edge_cache(self, snapshot: tuple) -> None:
         cache_snap, mask_snap = snapshot
         self._edge_cache = [(z.copy(), h.copy()) for (z, h), _ in cache_snap]
-        for ((_, _), x), layer in zip(cache_snap, self._edge_layers):
+        for ((_, _), x), layer in zip(cache_snap, self._edge_layers, strict=False):
             layer._cache["x"] = x.copy()
         self._edge_dropout_masks = [m.copy() for m in mask_snap]
 
@@ -229,7 +230,7 @@ class MLPEncoder:
     ) -> None:
         if not np.isfinite(lr) or lr < 0:
             raise ValueError(f"lr doit être un nombre fini >= 0 (reçu {lr!r}).")
-        for layer, (dW, db) in zip(layers, grads):
+        for layer, (dW, db) in zip(layers, grads, strict=False):
             if self.grad_clip is not None:
                 nW = float(np.linalg.norm(dW))
                 if nW > self.grad_clip:
@@ -247,7 +248,7 @@ class MLPEncoder:
         self._apply_grads(self._edge_layers, grads, lr)
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
-        for p, g in zip(self.parameters(), grads):
+        for p, g in zip(self.parameters(), grads, strict=False):
             p -= lr * g
 
 

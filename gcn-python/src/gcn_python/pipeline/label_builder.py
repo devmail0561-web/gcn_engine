@@ -1,11 +1,12 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
-from ..layer1.representation import UDRepresentation
 from ..constants import NODE_TYPES
+from ..layer1.representation import UDRepresentation
 
 _NT_CONDITION  = NODE_TYPES[4]   # "condition"
 _NT_ENTITE     = NODE_TYPES[5]   # "entite"
@@ -43,14 +44,13 @@ def build_label(
         label = entity or rep.root_lemma
     elif node_type == _NT_ACTION:
         label = f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
+    # etat, transition, processus
+    elif entity:
+        label = f"{nom}({entity})"
+    elif subject:
+        label = f"{rep.root_lemma}({subject})"
     else:
-        # etat, transition, processus
-        if entity:
-            label = f"{nom}({entity})"
-        elif subject:
-            label = f"{rep.root_lemma}({subject})"
-        else:
-            label = nom
+        label = nom
 
     attributes = {
         "entity": entity,
@@ -114,7 +114,7 @@ def _load_nominalizations(taxonomies_dir: Path) -> dict[str, str]:
             doc = json.load(f)
         if not isinstance(doc, dict):
             continue
-        for _cls, cls_data in (doc.get("classes") or {}).items():
+        for cls_data in (doc.get("classes") or {}).values():
             for key in ("examples_fr", "examples"):  # essayer les deux clés
                 for entry in (cls_data or {}).get(key) or []:
                     if isinstance(entry, dict) and "lemma" in entry and "note" in entry:

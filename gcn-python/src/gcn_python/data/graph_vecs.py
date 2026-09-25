@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import datetime
 import hashlib
 import json
@@ -30,13 +31,14 @@ def stable_key(sentence_text: str, node_pos: int) -> str:
 def checkpoint_hash(arrays: dict) -> str:
     parts = []
     for k in sorted(arrays.keys()):
-        if k.startswith("_") or k.startswith("link_pred") or k.startswith("hyperedge"):
-            # inclure quand même les poids, exclure les JSON d'arch/vocab
-            if k.endswith("_json") or k.startswith("_"):
-                continue
+        # inclure quand même les poids, exclure les JSON d'arch/vocab
+        if k.startswith(("_", "link_pred", "hyperedge")) and (
+            k.endswith("_json") or k.startswith("_")
+        ):
+            continue
         try:
             parts.append(np.ascontiguousarray(arrays[k]).tobytes())
-        except Exception:
+        except Exception:  # noqa: S112, BLE001  # poids non sérialisables : on saute cet élément
             continue
     return "sha256:" + hashlib.sha256(b"".join(parts)).hexdigest()
 
@@ -52,7 +54,7 @@ def save_graph_vecs(path: Path, vecs: dict[str, np.ndarray],
     manifest = {
         "checkpoint_hash": checkpoint_hash_str,
         "d_eff": int(d_eff),
-        "created_at": datetime.datetime.utcnow().isoformat(),
+        "created_at": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
         "entries": {
             k: {"shape": list(np.asarray(v).shape),
                 **(meta.get(k, {}) if meta else {})}
@@ -72,10 +74,8 @@ def _get_handle(path: Path):
     if len(_HANDLES) >= _MAX_HANDLES:
         # FIFO : éjecter le handle inséré le plus tôt (pas LRU)
         oldest = next(iter(_HANDLES))
-        try:
+        with contextlib.suppress(Exception):
             _HANDLES[oldest].close()
-        except Exception:
-            pass
         del _HANDLES[oldest]
     _HANDLES[key] = handle
     return handle
@@ -96,7 +96,7 @@ def load_graph_vec(path: Path, key: str,
                     UserWarning, stacklevel=2,
                 )
                 return None
-        except Exception:
+        except Exception:  # noqa: S110, BLE001  # manifest corrompu : ignoré, fallback dégradé
             pass
     elif not manifest_p.exists():
         warnings.warn("graph_vecs : manifest absent — qualité dégradée (fallback).",
@@ -106,7 +106,7 @@ def load_graph_vec(path: Path, key: str,
         if key not in handle.files:
             return None
         return np.array(handle[key])
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # npz illisible/corrompu : warn + fallback None
         warnings.warn(f"graph_vecs : lecture impossible ({exc}) — fallback.",
                       UserWarning, stacklevel=2)
         return None

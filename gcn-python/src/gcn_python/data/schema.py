@@ -1,8 +1,8 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -14,8 +14,8 @@ class TokenRecord:
     dep_rel: str      # UD dep relation
     dep_head: int     # 0 = root
     morph: dict[str, str] = field(default_factory=dict)
-    gcn_causal_type: Optional[str] = None
-    gcn_causal_class: Optional[str] = None
+    gcn_causal_type: str | None = None
+    gcn_causal_class: str | None = None
 
 
 @dataclass
@@ -36,11 +36,11 @@ class EdgeRecord:
     source: str = ""           # legacy mono-source (from_legacy / shim)
     target: str = ""           # "n002"
     relation: str = ""         # RelationType snake_case
-    confidence: Optional[float] = None   # None = annotation absente (≠ 0.0)
-    explicit: Optional[bool] = None      # None = non renseigné ; True = connecteur présent
-    negated: Optional[bool] = None       # None = non renseigné (détection pipeline)
-    marker_token: Optional[int] = None
-    sources: Optional[list[str]] = None  # champ canonique v2 (remplace source)
+    confidence: float | None = None   # None = annotation absente (≠ 0.0)
+    explicit: bool | None = None      # None = non renseigné ; True = connecteur présent
+    negated: bool | None = None       # None = non renseigné (détection pipeline)
+    marker_token: int | None = None
+    sources: list[str] | None = None  # champ canonique v2 (remplace source)
 
     def __post_init__(self):
         # Shim rétrocompat : sources est canonique, source reste lisible.
@@ -51,10 +51,10 @@ class EdgeRecord:
 
     @classmethod
     def from_legacy(cls, source: str, target: str = "", relation: str = "",
-                    confidence: Optional[float] = None,
-                    explicit: Optional[bool] = None,
-                    negated: Optional[bool] = None,
-                    marker_token: Optional[int] = None) -> "EdgeRecord":
+                    confidence: float | None = None,
+                    explicit: bool | None = None,
+                    negated: bool | None = None,
+                    marker_token: int | None = None) -> EdgeRecord:
         return cls(source=source, target=target, relation=relation,
                    confidence=confidence, explicit=explicit, negated=negated,
                    marker_token=marker_token, sources=[source] if source else [])

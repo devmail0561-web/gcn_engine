@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 import pytest
+
 from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
 from gcn_python.layer1.representation import UDRepresentation
 from gcn_python.layer2.reference import MLPEncoder
@@ -104,7 +105,7 @@ def test_forward_rgcn_dout_mismatch_raises():
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
-    with pytest.raises(ValueError, match="d_out=.*≠.*d_clause"):
+    with pytest.raises(ValueError, match="≠ d_effective="):
         CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
 

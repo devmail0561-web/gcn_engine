@@ -1,8 +1,9 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
-import pytest
+
 import numpy as np
+import pytest
 
 
 def test_checkpoint_pytorch_rgcn(tmp_path: Path):
@@ -13,7 +14,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
@@ -45,7 +46,7 @@ def test_checkpoint_untrusted_refused(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
@@ -65,12 +66,12 @@ def test_checkpoint_untrusted_refused(tmp_path: Path):
 
 def test_checkpoint_allpairs_roundtrip(tmp_path: Path):
     """Item 6 : all_pairs + bidirectional persistés et restaurés via from_pretrained."""
+    from gcn_python.engine import GCNEngine
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
-    from gcn_python.engine import GCNEngine
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
@@ -88,6 +89,7 @@ def test_checkpoint_allpairs_roundtrip(tmp_path: Path):
 def test_backward_slice_mismatch_raises():
     """Item 6 : backward refuse les gradients désalignés (pas de min() silencieux)."""
     import numpy as np
+
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
@@ -116,7 +118,10 @@ def test_backward_slice_mismatch_raises():
 
 def test_arch_json_stores_inference_hyperparams(tmp_path: Path):
     """edge_threshold, drop_morph et temperature persistés dans _arch_json."""
-    import json, numpy as np
+    import json
+
+    import numpy as np
+
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
@@ -144,12 +149,12 @@ def test_from_pretrained_restores_inference_hyperparams(tmp_path: Path):
     Sans ce correctif, analyze() utilisait les défauts (seuil=0.0, morph actif,
     temp=1.0) même si le modèle avait été entraîné avec d'autres valeurs.
     """
+    from gcn_python.engine import GCNEngine
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
-    from gcn_python.engine import GCNEngine
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
@@ -174,6 +179,7 @@ def test_from_pretrained_restores_inference_hyperparams(tmp_path: Path):
 def test_check_path_safe_refuses_symlink(tmp_path: Path):
     """_check_path_safe refuse un symlink leaf."""
     import os
+
     from gcn_python.training.checkpoint import _check_path_safe
 
     real = tmp_path / "real.npz"
@@ -190,6 +196,7 @@ def test_check_path_safe_refuses_symlink(tmp_path: Path):
 def test_check_path_safe_refuses_hardlink(tmp_path: Path):
     """_check_path_safe refuse un hardlink (nlink > 1)."""
     import os
+
     from gcn_python.training.checkpoint import _check_path_safe
 
     real = tmp_path / "real.npz"
@@ -204,6 +211,7 @@ def test_check_path_safe_refuses_hardlink(tmp_path: Path):
 def test_check_path_safe_refuses_dir_symlink(tmp_path: Path):
     """_check_path_safe refuse un chemin dont un répertoire parent est un symlink."""
     import os
+
     from gcn_python.training.checkpoint import _check_path_safe
 
     real_dir = tmp_path / "real_dir"
@@ -228,7 +236,7 @@ def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -263,12 +271,14 @@ def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_p
     Vieux checkpoint pré-2.1.0 sans ces clés : load_checkpoint doit conserver
     les valeurs déjà dans le pipeline (CLI ou défauts), pas les remplacer par None.
     """
-    import json as _json, warnings as _w
+    import json as _json
+    import warnings as _w
+
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -327,9 +337,11 @@ def test_checkpoint_bfs_depth_roundtrip_and_absent_key(tmp_path: Path):
     'en prédiction (engine/gcn-eval)' alors que gcn-eval n'a pas l'option.
     """
     import json as _json
+
     import numpy as _np
+
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     assert _make_bfs_pipeline(vocab).bfs_depth is None, (
@@ -374,7 +386,7 @@ def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -404,7 +416,7 @@ def test_load_checkpoint_validates_n_rgcn_layers_reverse(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -433,7 +445,7 @@ def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -468,12 +480,14 @@ def test_load_checkpoint_n_rgcn_layers_absent_warns_for_multilayer(tmp_path: Pat
     2 couches, la validation est désactivée → couche extra reste aléatoire.
     Le warn signale ce danger au lieu de le laisser silencieux.
     """
-    import json as _json, warnings as _w
+    import json as _json
+    import warnings as _w
+
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
@@ -512,7 +526,8 @@ def test_load_checkpoint_warns_when_arch_json_absent(tmp_path: Path):
     Un checkpoint sans _arch_json désactive la validation de shapes — l'appelant
     doit en être informé, pas obtenir un silence silencieux.
     """
-    import json, warnings as _w
+    import warnings as _w
+
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
@@ -550,13 +565,14 @@ def test_load_checkpoint_warns_when_arch_json_absent(tmp_path: Path):
 def test_e2e_train_save_reload_inference(tmp_path: Path):
     """Prod gate : forward→loss→backward→save→from_pretrained→forward identique."""
     import numpy as np
+
+    from gcn_python.engine import GCNEngine
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
-    from gcn_python.engine import GCNEngine
 
     def _rep(lemma: str, dep: str = "root") -> UDRepresentation:
         return UDRepresentation(

@@ -32,10 +32,8 @@ from __future__ import annotations
 
 import json
 import warnings
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
-
-import numpy as np
 
 # Imports locaux tardifs (inside methods) pour éviter les imports circulaires
 
@@ -78,7 +76,7 @@ class GCNEngine:
         device: str = "cpu",
         trusted: bool = False,
         taxonomy_dir=None,
-    ) -> "GCNEngine":
+    ) -> GCNEngine:
         """
         Charge un modèle depuis un checkpoint .npz et retourne un GCNEngine prêt.
 
@@ -96,12 +94,13 @@ class GCNEngine:
         device     : "cpu" ou "cuda" (pour RGCNLayerGAT PyTorch)
         trusted    : opt-in explicite pour un fichier local de confiance
         """
-        from .training.checkpoint import load_checkpoint
+        from .constants import NODE_TYPES, RELATION_TYPES
         from .layer1.features import FeatureVocabulary
         from .layer2.reference import MLPEncoder
         from .layer3.reference import RGCNLayer
         from .pipeline.cgnp import CGNPipeline
-        from .constants import NODE_TYPES, RELATION_TYPES
+        from .security import guarded_np_load
+        from .training.checkpoint import load_checkpoint
 
         checkpoint = Path(checkpoint)
         if not checkpoint.exists():
@@ -113,7 +112,9 @@ class GCNEngine:
                 "pour un fichier local de confiance."
             )
 
-        data = np.load(checkpoint, allow_pickle=True)
+        # Garde anti-RCE : audit pickle (allowlist numpy) AVANT toute
+        # désérialisation, même quand l'appelant a posé trusted=True.
+        data = guarded_np_load(checkpoint)
 
         # Lire les métadonnées d'architecture sauvegardées par save_checkpoint
         if "_arch_json" not in data:
@@ -153,7 +154,6 @@ class GCNEngine:
         if "_vocab_json" in data:
             vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
 
-        from .constants import NODE_TYPES
         d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb,
                                           subject_object_emb)
 
@@ -178,7 +178,7 @@ class GCNEngine:
 
         # M5 : RGCNLayerPT accepte aussi device (comme GAT).
         try:
-            from .layer3.pytorch_rgcn import RGCNLayerPT  # noqa: F401
+            from .layer3.pytorch_rgcn import RGCNLayerPT
             _has_pt = True
         except ImportError:
             _has_pt = False
@@ -190,7 +190,8 @@ class GCNEngine:
                                      output_activation=gat_output_activation,
                                      use_layernorm=gat_layernorm)
             except ImportError:
-                warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning)
+                warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning,
+                              stacklevel=2)
                 graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
                                   output_activation=rgcn_output_activation,
                                   use_layernorm=rgcn_layernorm)

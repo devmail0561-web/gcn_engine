@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 import warnings
 from dataclasses import dataclass
@@ -8,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 
-from ..verbalizer.trainable import SurfaceVocabulary
 from ..constants import NODE_TYPES, RELATION_TYPES
+from ..verbalizer.trainable import SurfaceVocabulary
 from .json_reader import load_all_sentences
 
 

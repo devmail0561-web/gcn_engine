@@ -56,3 +56,61 @@ packages = ["src/gcn_python"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+
+# ── Lint ─────────────────────────────────────────────────────────────────────
+# Configuration explicite (auparavant : aucun [tool.ruff], ruff utilisait ses
+# défauts opaques). `ruff check .` depuis gcn-python/ doit passer à 0 erreur.
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",        # erreurs de syntaxe / pyflakes / avertissements
+    "I",                  # imports triés (isort)
+    "UP",                 # modernisation Python 3.10+
+    "B",                  # bugbear (pièges connus)
+    "BLE",                # exceptions aveugles — chaque occurrence justifiée
+    "SIM", "C4", "PIE",   # simplifications de code
+    "RUF",                # règles propres à ruff
+    "PLC", "PLE", "PLR", "PLW",  # pylint : correctness / errors / refactoring / warnings
+    "PERF",               # pièges de performance
+    "S",                  # sécurité (bandit)
+    "DTZ",                # dates/timezones naïves
+    "TRY",                # gestion d'erreurs
+]
+ignore = [
+    # Longueur de ligne : 100 retenue ci-dessus, docstrings et formules numpy
+    # restent au-delà ; E501 n'est pas un défaut de correction.
+    "E501",
+    # Imports locaux (dans une fonction) : volontaires — dépendances optionnelles
+    # (torch, fasttext) et imports en fin de module pour éviter les cycles.
+    "PLC0415",
+    # raise ValueError("message long") : les messages détaillés sont destinés à
+    # l'affichage CLI (gcn-train, gcn-eval) et aux utilisateurs finaux.
+    "TRY003",
+    # assert : assertions de pytest et invariants internes documentés.
+    "S101",
+    # subprocess.run([...], shell=False) avec liste d'arguments contrôlée
+    # (bridge, bootstrap) : S603 ne peut pas vérifier la provenance des args.
+    "S603",
+    # Réassignation d'une variable dans une boucle (PLW2901) : style utilisé
+    # volontairement pour accumuler un résultat sans variable de fusion.
+    "PLW2901",
+    # Documentation FR : guillemets et caractères accentués ambigus assumés.
+    "RUF001", "RUF002", "RUF003",
+    # try/except dans une boucle : la lisibilité prime sur le micro-gain (3 cas).
+    "PERF203",
+    # Valeurs magiques (tolérances numpy, seuils de perte) : documentées en
+    # ligne ; extraire des constantes ici nuirait à la lisibilité des formules.
+    "PLR2004",
+    # Complexité des fonctions (arguments, branches, statements, returns) :
+    # refactoring hors périmètre — les signatures publiques sont stables.
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest.importorskip() / mise en sys.path doivent précéder les imports.
+"tests/**" = ["E402"]

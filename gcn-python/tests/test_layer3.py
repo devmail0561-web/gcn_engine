@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
+
 from gcn_python.layer3.reference import RGCNLayer
 
 
@@ -48,9 +49,9 @@ def test_rgcn_gradient_finite_differences():
     edge_types = np.array([0, 1, 0], dtype=np.int64)
 
     def scalar_loss(W_r, W_0):
-        l = RGCNLayer(d_in=D, d_out=D, n_relations=n_rel)
-        l.W_r, l.W_0 = W_r, W_0
-        out = l.message_pass(node_feats, edge_index, edge_types)
+        lay = RGCNLayer(d_in=D, d_out=D, n_relations=n_rel)
+        lay.W_r, lay.W_0 = W_r, W_0
+        out = lay.message_pass(node_feats, edge_index, edge_types)
         return float(out.sum())
 
     # Backward analytique
@@ -62,8 +63,10 @@ def test_rgcn_gradient_finite_differences():
     # Gradient numérique W_r (un élément représentatif)
     for idx in [(0, 0, 0), (1, 2, 3), (2, 0, 1)]:
         r, i, j = idx
-        W_r_plus = layer.W_r.copy(); W_r_plus[r, i, j] += eps
-        W_r_minus = layer.W_r.copy(); W_r_minus[r, i, j] -= eps
+        W_r_plus = layer.W_r.copy()
+        W_r_plus[r, i, j] += eps
+        W_r_minus = layer.W_r.copy()
+        W_r_minus[r, i, j] -= eps
         fd = (scalar_loss(W_r_plus, layer.W_0) - scalar_loss(W_r_minus, layer.W_0)) / (2 * eps)
         assert abs(dW_r_analytic[r, i, j] - fd) < 1e-3, (
             f"dW_r[{r},{i},{j}] analytique={dW_r_analytic[r,i,j]:.6f} ≠ fd={fd:.6f}"
@@ -72,8 +75,10 @@ def test_rgcn_gradient_finite_differences():
     # Gradient numérique W_0 (un élément représentatif)
     for idx in [(0, 0), (2, 3), (4, 1)]:
         i, j = idx
-        W_0_plus = layer.W_0.copy(); W_0_plus[i, j] += eps
-        W_0_minus = layer.W_0.copy(); W_0_minus[i, j] -= eps
+        W_0_plus = layer.W_0.copy()
+        W_0_plus[i, j] += eps
+        W_0_minus = layer.W_0.copy()
+        W_0_minus[i, j] -= eps
         fd = (scalar_loss(layer.W_r, W_0_plus) - scalar_loss(layer.W_r, W_0_minus)) / (2 * eps)
         assert abs(dW_0_analytic[i, j] - fd) < 1e-3, (
             f"dW_0[{i},{j}] analytique={dW_0_analytic[i,j]:.6f} ≠ fd={fd:.6f}"
@@ -125,9 +130,9 @@ def test_rgcn_gradient_finite_differences_relu():
     edge_types = np.array([0, 1, 0], dtype=np.int64)
 
     def scalar_loss(W_r, W_0):
-        l = RGCNLayer(d_in=D, d_out=D, n_relations=n_rel, output_activation="relu")
-        l.W_r, l.W_0 = W_r, W_0
-        out = l.message_pass(node_feats, edge_index, edge_types)
+        lay = RGCNLayer(d_in=D, d_out=D, n_relations=n_rel, output_activation="relu")
+        lay.W_r, lay.W_0 = W_r, W_0
+        out = lay.message_pass(node_feats, edge_index, edge_types)
         return float(out.sum())
 
     layer.message_pass(node_feats, edge_index, edge_types)
@@ -138,8 +143,10 @@ def test_rgcn_gradient_finite_differences_relu():
 
     for idx in [(0, 0, 0), (1, 2, 3), (2, 0, 1)]:
         r, i, j = idx
-        W_r_plus = layer.W_r.copy(); W_r_plus[r, i, j] += eps
-        W_r_minus = layer.W_r.copy(); W_r_minus[r, i, j] -= eps
+        W_r_plus = layer.W_r.copy()
+        W_r_plus[r, i, j] += eps
+        W_r_minus = layer.W_r.copy()
+        W_r_minus[r, i, j] -= eps
         fd = (scalar_loss(W_r_plus, layer.W_0) - scalar_loss(W_r_minus, layer.W_0)) / (2 * eps)
         assert abs(dW_r_analytic[r, i, j] - fd) < 1e-3, (
             f"dW_r[{r},{i},{j}] relu analytique={dW_r_analytic[r,i,j]:.6f} ≠ fd={fd:.6f}"
@@ -147,8 +154,10 @@ def test_rgcn_gradient_finite_differences_relu():
 
     for idx in [(0, 0), (2, 3), (4, 1)]:
         i, j = idx
-        W_0_plus = layer.W_0.copy(); W_0_plus[i, j] += eps
-        W_0_minus = layer.W_0.copy(); W_0_minus[i, j] -= eps
+        W_0_plus = layer.W_0.copy()
+        W_0_plus[i, j] += eps
+        W_0_minus = layer.W_0.copy()
+        W_0_minus[i, j] -= eps
         fd = (scalar_loss(layer.W_r, W_0_plus) - scalar_loss(layer.W_r, W_0_minus)) / (2 * eps)
         assert abs(dW_0_analytic[i, j] - fd) < 1e-3, (
             f"dW_0[{i},{j}] relu analytique={dW_0_analytic[i,j]:.6f} ≠ fd={fd:.6f}"
@@ -182,17 +191,21 @@ def test_layernorm_backward_finite_differences():
 
     y = ln.forward(x)
     d_out = np.ones_like(y)
-    dx_ana, dg_ana, db_ana = ln.backward(d_out)
+    dx_ana, dg_ana, _db_ana = ln.backward(d_out)
 
     dx_fd = np.zeros_like(x)
     for i in range(N):
         for j in range(D):
-            x_p = x.copy(); x_p[i, j] += eps
-            x_m = x.copy(); x_m[i, j] -= eps
+            x_p = x.copy()
+            x_p[i, j] += eps
+            x_m = x.copy()
+            x_m[i, j] -= eps
             ln2 = LayerNormNumPy(d=D)
-            ln2.gamma = ln.gamma.copy(); ln2.beta = ln.beta.copy()
+            ln2.gamma = ln.gamma.copy()
+            ln2.beta = ln.beta.copy()
             y_p = ln2.forward(x_p).sum()
-            ln2.gamma = ln.gamma.copy(); ln2.beta = ln.beta.copy()
+            ln2.gamma = ln.gamma.copy()
+            ln2.beta = ln.beta.copy()
             y_m = ln2.forward(x_m).sum()
             dx_fd[i, j] = (y_p - y_m) / (2 * eps)
     assert np.allclose(dx_ana, dx_fd, atol=1e-3), f"dx max err={np.abs(dx_ana - dx_fd).max()}"
@@ -200,9 +213,13 @@ def test_layernorm_backward_finite_differences():
     dg_fd = np.zeros(D, dtype=np.float64)
     for j in range(D):
         ln3 = LayerNormNumPy(d=D)
-        ln3.gamma = ln.gamma.copy(); ln3.gamma[j] += eps; ln3.beta = ln.beta.copy()
+        ln3.gamma = ln.gamma.copy()
+        ln3.gamma[j] += eps
+        ln3.beta = ln.beta.copy()
         y_p = ln3.forward(x).sum()
-        ln3.gamma = ln.gamma.copy(); ln3.gamma[j] -= eps; ln3.beta = ln.beta.copy()
+        ln3.gamma = ln.gamma.copy()
+        ln3.gamma[j] -= eps
+        ln3.beta = ln.beta.copy()
         y_m = ln3.forward(x).sum()
         dg_fd[j] = (y_p - y_m) / (2 * eps)
     assert np.allclose(dg_ana, dg_fd, atol=1e-3), f"dgamma max err={np.abs(dg_ana - dg_fd).max()}"
@@ -264,7 +281,7 @@ def test_rgcn_layernorm_checkpoint_roundtrip(tmp_path):
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     d_edge = vocab.d_edge_closed_loop(vocab.d_clause, 7)

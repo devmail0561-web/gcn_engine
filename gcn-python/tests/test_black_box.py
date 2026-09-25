@@ -5,10 +5,6 @@ import json
 import warnings
 from pathlib import Path
 
-import numpy as np
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -58,6 +54,7 @@ def _make_data_dir(tmp_path: Path, name: str = "data") -> Path:
 def test_eval_cmd_empty_dir_warns_stderr(tmp_path: Path):
     """F1 : gcn-eval --data-dir vide émet ATTENTION sur stderr, JSON propre sur stdout."""
     from click.testing import CliRunner
+
     from gcn_python.evaluation.eval_runner import eval_cmd
 
     ckpt = _make_minimal_checkpoint(tmp_path)
@@ -80,6 +77,7 @@ def test_eval_cmd_empty_dir_warns_stderr(tmp_path: Path):
 def test_eval_cmd_empty_dir_quiet_still_warns_stderr(tmp_path: Path):
     """F1 : --quiet ne supprime pas le warn n_samples=0 (click.echo err=True)."""
     from click.testing import CliRunner
+
     from gcn_python.evaluation.eval_runner import eval_cmd
 
     ckpt = _make_minimal_checkpoint(tmp_path)
@@ -102,6 +100,7 @@ def test_eval_cmd_empty_dir_quiet_still_warns_stderr(tmp_path: Path):
 def test_eval_cmd_corrupt_checkpoint_click_error(tmp_path: Path):
     """F2 : .npz corrompu → Error: propre, pas de traceback brut."""
     from click.testing import CliRunner
+
     from gcn_python.evaluation.eval_runner import eval_cmd
 
     corrupt = tmp_path / "corrupt.npz"
@@ -125,6 +124,7 @@ def test_eval_cmd_corrupt_checkpoint_click_error(tmp_path: Path):
 def test_index_append_corrupt_graph_click_error(tmp_path: Path):
     """F3 : index --append sur graphe JSON corrompu → Error: propre, pas de traceback."""
     from click.testing import CliRunner
+
     from gcn_python.index import index_cmd
 
     corpus = tmp_path / "corpus"

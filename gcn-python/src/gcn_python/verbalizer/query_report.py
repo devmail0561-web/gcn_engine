@@ -53,7 +53,7 @@ class QueryVerbalizer:
     - Contradictions flaggées explicitement
     """
 
-    def __init__(self, graph: "CausalGraph", max_source_chars: int = 200):
+    def __init__(self, graph: CausalGraph, max_source_chars: int = 200):
         self.graph = graph
         self.max_source_chars = int(max_source_chars)
 
@@ -76,13 +76,13 @@ class QueryVerbalizer:
             effects_by_src.setdefault(key, []).append((src, dst, attrs, text))
 
         # Chercher les contradictions (même src, relations opposées)
-        prevent_srcs = {
+        _prevent_srcs = {
             self.graph._label(src)
             for src, dst, attrs, _ in self.graph.find_effects(keyword)
             if attrs.get("relation") in _BLOCKING_RELS
         }
 
-        for i, (src, dst, attrs, text) in enumerate(results, 1):
+        for i, (src, _dst, attrs, text) in enumerate(results, 1):
             src_lbl  = self.graph._label(src)
             src_type = self.graph._type(src)
             rel      = attrs.get("relation", "?")
@@ -99,7 +99,7 @@ class QueryVerbalizer:
 
         # Groupement sources convergentes : (frozenset(src_ids), dst, rel) -> (n, min, max)
         _groups: dict[tuple, list] = {}
-        for src, dst, attrs, text in results:
+        for src, dst, attrs, _text in results:
             key = (frozenset([src]), dst, attrs.get("relation"))
             conf = attrs.get("confidence")
             c = float(conf) if isinstance(conf, (int, float)) else 0.0
@@ -123,7 +123,7 @@ class QueryVerbalizer:
         ]
         if contradictions:
             lines.append(f"\n  ⚠ CONTRADICTION — {len(contradictions)} source(s) bloquantes:")
-            for src, dst, attrs, text in contradictions:
+            for src, _dst, attrs, text in contradictions:
                 lines.append(f"     {self.graph._label(src)} --[{attrs.get('relation')}]--> {keyword!r}")
                 if text:
                     lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
@@ -142,7 +142,7 @@ class QueryVerbalizer:
             return f"  effects_of: {keyword!r} — not found in corpus."
 
         lines = [f"  effects_of: {keyword!r}", _SEP]
-        for i, (src, dst, attrs, text) in enumerate(results, 1):
+        for i, (_src, dst, attrs, text) in enumerate(results, 1):
             dst_lbl  = self.graph._label(dst)
             dst_type = self.graph._type(dst)
             rel      = attrs.get("relation", "?")
@@ -170,16 +170,14 @@ class QueryVerbalizer:
             return f"  chain: no causal path from {kw_from!r} to {kw_to!r}."
 
         lines = [f"  chain: {kw_from!r} → {kw_to!r}", _SEP]
-        steps = []
-        for nid in path_ids:
-            steps.append(f"[{self.graph._type(nid)}] {self.graph._label(nid)}")
+        steps = [f"[{self.graph._type(nid)}] {self.graph._label(nid)}" for nid in path_ids]
         lines.append("  " + " --> ".join(steps))
 
         # Collecter les sources des arêtes du chemin
         sources = set()
         for i in range(len(path_ids) - 1):
             src, dst = path_ids[i], path_ids[i + 1]
-            for s, d, attrs, text in self.graph.edges:
+            for s, d, _attrs, text in self.graph.edges:
                 if s == src and d == dst and text:
                     sources.add(_truncate(text, self.max_source_chars))
         if sources:
