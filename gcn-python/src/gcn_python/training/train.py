@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import csv
 import json
 import warnings
@@ -9,17 +10,22 @@ from pathlib import Path
 import click
 import numpy as np
 
+from ..constants import ALL_RELATION_TYPES, NODE_TYPES, RELATION_TYPES
+from ..data.loader import GCNDataLoader, reps_from_sentence
+from ..evaluation.metrics import (
+    edge_accuracy,
+    edge_macro_f1,
+    node_accuracy,
+    node_macro_f1,
+)
+from ..evaluation.metrics import (
+    graph_exact_match as _gem,
+)
+from ..evaluation.recorder import TrainingRecorder
 from ..layer1.features import FeatureVocabulary
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
-from ..data.loader import GCNDataLoader, reps_from_sentence
-from ..constants import NODE_TYPES, RELATION_TYPES, ALL_RELATION_TYPES
-from ..evaluation.metrics import (
-    node_accuracy, node_macro_f1, edge_accuracy, edge_macro_f1,
-    graph_exact_match as _gem,
-)
-from ..evaluation.recorder import TrainingRecorder
 from .checkpoint import save_checkpoint
 
 
@@ -27,7 +33,7 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
     """UDRepresentation minimaux depuis labels CIR pour le verbalizer (enriched_vecs réels)."""
     from ..layer1.representation import UDRepresentation
     reps = []
-    for label, ntype in zip(node_labels, node_types):
+    for label, ntype in zip(node_labels, node_types, strict=False):
         lemma = label.split()[0] if label.strip() else ntype
         reps.append(UDRepresentation(
             tokens=[{"lemma": lemma, "pos": "VERB", "dep_rel": "root", "morph": {}}],
@@ -57,8 +63,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--all-pairs/--no-all-pairs", default=False, show_default=True,
               help="Superviser toutes les paires (i,j) avec i<j, pas seulement consécutives. "
                    "Requiert dataset re-annoté avec des arêtes gap>1.")
-@click.option("--embedding-dim", default=0, show_default=True, type=int,
-              help="Activer les word embeddings apprenables (S1/S2). 0 = désactivé.")
+@click.option("--embedding-dim", default=128, show_default=True, type=int,
+              help="Dimension des word embeddings apprenables (S1/S2), ACTIVÉS PAR DÉFAUT. "
+                   "0 = désactivé (DÉCONSEILLÉ : aucun signal lexical, "
+                   "cf REMEDIATION-DIAGNOSTIC.md).")
 @click.option("--embedding-file", default=None, type=click.Path(path_type=Path),
                help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
                     "Active automatiquement --embedding-dim si non précisé.")
@@ -254,11 +262,20 @@ def train_cmd(
 
     vocab = FeatureVocabulary()
 
+    # Embeddings NON OPTIONNELS (REMEDIATION-DIAGNOSTIC.md §2/§11) : activés par
+    # défaut (--embedding-dim 128). _dim_from_cli distingue le défaut d'une valeur
+    # passée explicitement (pour --fasttext/--embedding-file seuls).
+    try:
+        _dim_source = click.get_current_context().get_parameter_source("embedding_dim")
+        _dim_from_cli = _dim_source != click.core.ParameterSource.DEFAULT
+    except RuntimeError:  # appel direct de la fonction (tests) : pas de contexte click
+        _dim_from_cli = embedding_dim != 128
+
     # Préconditions A/B/C/F (amelioration_v3)
     _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
     if fasttext is not None and embedding_file is not None:
         raise click.ClickException("--fasttext et --embedding-file sont mutuellement exclusifs.")
-    if fasttext is not None and embedding_dim not in (0, 300):
+    if fasttext is not None and _dim_from_cli and embedding_dim not in (0, 300):
         raise click.ClickException("--fasttext impose d_emb=300 (pas besoin de --embedding-dim).")
     if clause_pooling != "root" and not _has_emb:
         raise click.ClickException("--clause-pooling != root requiert --embedding-dim > 0.")
@@ -270,8 +287,16 @@ def train_cmd(
         raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
     if mlp_hidden < 1:
         raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
+    if not _has_emb:
+        # Désactivation explicite : fortement déconseillé (moteur aveugle au lexique).
+        click.echo(
+            "AVERTISSEMENT : embeddings lexicaux DÉSACTIVÉS (--embedding-dim 0). "
+            "Fortement déconseillé : sans signal lexical, le moteur ne voit que la "
+            "syntaxe (cf REMEDIATION-DIAGNOSTIC.md §1). Préférez le défaut --embedding-dim 128.",
+            err=True,
+        )
 
-    # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings optionnels
+    # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings activés par défaut
     word_embedding = None
     d_emb = 0
     _fasttext_path: Path | None = fasttext
@@ -283,8 +308,9 @@ def train_cmd(
             d_emb = 300
             word_embedding = WordEmbedding(d_emb=d_emb, frozen=True)
             click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
-        elif embedding_file is not None and embedding_dim == 0:
+        elif embedding_file is not None and (embedding_dim == 0 or not _dim_from_cli):
             # Détecter la dimension depuis la première ligne du fichier
+            # (cas --embedding-file seul : le défaut 128 ne doit pas écraser le fichier)
             with open(embedding_file, encoding="utf-8") as ef:
                 for line in ef:
                     parts = line.strip().split()
@@ -464,6 +490,16 @@ def train_cmd(
                            silver_weight=silver_weight, seed=_init_seed)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    # Provenance — enregistrée dans _arch_json pour traçabilité complète.
+    import hashlib as _hl
+    import datetime as _dt
+    _h = _hl.sha256()
+    for _p in sorted(data_dir.glob("*.json")):
+        _h.update(_p.read_bytes())
+    pipeline.training_seed = _init_seed
+    pipeline.training_data_hash = _h.hexdigest()[:16]
+    pipeline.training_n_epochs = epochs
+    pipeline.training_timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
     if silver_weight < 1.0:
         click.echo(f"Silver-weight : {silver_weight} (F — loss arêtes pondérée)")
     # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
@@ -490,14 +526,14 @@ def train_cmd(
     edge_class_weights = None
     if weighted_loss or word_embedding is not None:
         from collections import Counter
-        node_counts: Counter = Counter() if weighted_loss else Counter()
-        edge_counts: Counter = Counter() if weighted_loss else Counter()
-        all_lemmas: list[str] = [] if word_embedding is not None else []
+        node_counts: Counter = Counter()
+        edge_counts: Counter = Counter()
+        all_lemmas: list[str] = []
         for sample in loader:
             if weighted_loss:
                 for label in sample.gold_node_labels:
                     node_counts[int(label)] += 1
-                for (src, tgt), rel in sample.edge_map.items():
+                for rel in sample.edge_map.values():
                     edge_counts[int(rel)] += 1
             if word_embedding is not None:
                 reps_s, _, _ = reps_from_sentence(sample.sentence)
@@ -506,7 +542,7 @@ def train_cmd(
                 if clause_pooling == "root" and not subject_object_emb:
                     all_lemmas.extend(r.root_lemma for r in reps_s)
                 else:
-                    from ..layer1.features import _pool_lemmas, _find_subj_obj_lemmas
+                    from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
                     for r in reps_s:
                         if clause_pooling == "root":
                             all_lemmas.append(r.root_lemma)
@@ -524,7 +560,7 @@ def train_cmd(
                     node_class_weights[c] = total_nodes / (n_node_classes * count)
                 if max_class_weight > 0:
                     node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
-                click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3)))}")
+                click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3), strict=False))}")
             if edge_counts:
                 total_edges = sum(edge_counts.values())
                 n_edge_classes = encoder.n_relation_types
@@ -534,7 +570,7 @@ def train_cmd(
                     edge_class_weights[c] = total_edges / (n_edge_classes * count)
                 if max_class_weight > 0:
                     edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3)))}")
+                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3), strict=False))}")
         if word_embedding is not None and all_lemmas:
             word_embedding.build_vocab(all_lemmas)
             click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
@@ -742,7 +778,7 @@ def train_cmd(
                     "val_loss", "val_node_accuracy", "val_node_macro_f1",
                     "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
                 ])
-            csv_file = open(log_csv, "w", newline="", encoding="utf-8")
+            csv_file = open(log_csv, "w", newline="", encoding="utf-8")  # noqa: SIM115  # handle référencé puis fermé dans le finally de train()
             # C1.5 : extrasaction='ignore' — un resume avec headers différents
             # (decoder/assembler apparu-disparu) ne doit pas crasher writerow.
             csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fieldnames,
@@ -901,10 +937,14 @@ def train_cmd(
                             _n_lp = 0
                             for (_a, _b) in _true:
                                 _, _g = link_pred_head.loss_and_grad(_ev[_a], _ev[_b], 1)
-                                _gW += _g[0]; _gb += _g[1]; _n_lp += 1
+                                _gW += _g[0]
+                                _gb += _g[1]
+                                _n_lp += 1
                             for (_a, _b) in _neg:
                                 _, _g = link_pred_head.loss_and_grad(_ev[_a], _ev[_b], 0)
-                                _gW += _g[0]; _gb += _g[1]; _n_lp += 1
+                                _gW += _g[0]
+                                _gb += _g[1]
+                                _n_lp += 1
                             if _n_lp:
                                 link_pred_head.update([_gW / _n_lp, _gb / _n_lp], lr)
 
@@ -942,8 +982,8 @@ def train_cmd(
                 batch_step_count = 0
 
             if verb_loader is not None and pipeline.decoder is not None:
-                from ..verbalizer.trainable import SurfaceVocabulary as _SV
                 from ..data.verbalize_loader import _node_type_embeddings
+                from ..verbalizer.trainable import SurfaceVocabulary as _SV
                 for vsample in verb_loader:
                     if len(vsample.gold_tokens) == 0:
                         continue
@@ -1095,7 +1135,6 @@ def train_cmd(
     if patience > 0 and val_loader is not None:
         import shutil
         if best_epoch_num > 0:
-            import tempfile as _tf
             _tmp = Path(str(output) + ".tmp.restore")
             shutil.copy2(best_checkpoint_path, str(_tmp))
             Path(_tmp).replace(output)  # atomique POSIX

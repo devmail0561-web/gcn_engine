@@ -7,10 +7,12 @@ Le data scientist appelle ces fonctions après chaque epoch pour
 mesurer la qualité des prédictions. Aucune dépendance à PyTorch/sklearn.
 """
 from __future__ import annotations
-import warnings
-import numpy as np
-from ..constants import NODE_TYPES, RELATION_TYPES
 
+import warnings
+
+import numpy as np
+
+from ..constants import NODE_TYPES, RELATION_TYPES
 
 # ---------------------------------------------------------------------------
 # Types de base
@@ -33,7 +35,7 @@ def node_accuracy(pred: Predictions, gold: GoldLabels) -> float:
             f"node_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
             f"doivent avoir la même longueur."
         )
-    correct = sum(p == g for p, g in zip(pred, gold))
+    correct = sum(p == g for p, g in zip(pred, gold, strict=False))
     return correct / len(gold)
 
 
@@ -69,7 +71,7 @@ def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
             f"edge_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
             f"doivent avoir la même longueur."
         )
-    correct = sum(p == g for p, g in zip(pred, gold))
+    correct = sum(p == g for p, g in zip(pred, gold, strict=False))
     return correct / len(gold)
 
 
@@ -150,7 +152,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
 
     # overall : ignore NaN (L-1 — seules les valeurs définies contribuent)
     defined = [v for v in [node_count_ratio, node_type_acc, edge_count_ratio, edge_rel_acc]
-               if not (isinstance(v, float) and v != v)]  # v != v ↔ isnan
+               if not (isinstance(v, float) and v != v)]  # noqa: PLR0124  # test NaN idiomatique : v != v ↔ isnan
     overall = float(np.mean(defined)) if defined else float('nan')
 
     # L-2 : edge_relation_f1 — macro F1 sur les types de relations (fiable même si |pred|≠|gold|)
@@ -170,7 +172,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     else:
         edge_rel_f1 = 1.0  # deux graphes sans arêtes sont identiques
 
-    def _r(v): return round(v, 4) if v == v else float('nan')
+    def _r(v): return round(v, 4) if v == v else float('nan')  # noqa: PLR0124  # test NaN idiomatique : v == v ↔ not isnan
     return {
         "node_count_ratio": _r(node_count_ratio),
         "node_type_accuracy": _r(node_type_acc),
@@ -323,7 +325,7 @@ def graph_exact_match(
         node_pred == node_gold and edge_pred == edge_gold
         for node_pred, node_gold, edge_pred, edge_gold
         in zip(sentences_node_pred, sentences_node_gold,
-               sentences_edge_pred, sentences_edge_gold)
+               sentences_edge_pred, sentences_edge_gold, strict=False)
     )
     return n_exact / len(sentences_node_gold)
 
@@ -340,7 +342,7 @@ def confusion_matrix(pred: list[str], gold: list[str], classes: list[str]) -> np
     n = len(classes)
     idx = {c: i for i, c in enumerate(classes)}
     cm = np.zeros((n, n), dtype=np.int64)
-    for p, g in zip(pred, gold):
+    for p, g in zip(pred, gold, strict=False):
         if g in idx and p in idx:
             cm[idx[g], idx[p]] += 1
     return cm
@@ -367,9 +369,9 @@ def _f1_per_class(
 ) -> dict[str, dict[str, float]]:
     result = {}
     for cls in classes:
-        tp = sum(p == cls and g == cls for p, g in zip(pred, gold))
-        fp = sum(p == cls and g != cls for p, g in zip(pred, gold))
-        fn = sum(p != cls and g == cls for p, g in zip(pred, gold))
+        tp = sum(p == cls and g == cls for p, g in zip(pred, gold, strict=False))
+        fp = sum(p == cls and g != cls for p, g in zip(pred, gold, strict=False))
+        fn = sum(p != cls and g == cls for p, g in zip(pred, gold, strict=False))
         support = sum(g == cls for g in gold)
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -394,7 +396,7 @@ def connector_precision_at_1(
     Les gold None (aucun match vocab) sont exclus du calcul.
     Baseline aléatoire : 1/|C|. Cible raisonnable : > 0.50.
     """
-    pairs = [(p, g) for p, g in zip(pred_idxs, gold_idxs) if g is not None]
+    pairs = [(p, g) for p, g in zip(pred_idxs, gold_idxs, strict=False) if g is not None]
     if not pairs:
         return 0.0
     return sum(1 for p, g in pairs if p == g) / len(pairs)

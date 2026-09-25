@@ -1,12 +1,14 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-from pathlib import Path
-from typing import Any
+
 import json
 import warnings
-from .schema import SentenceRecord, TokenRecord, ClauseRecord, EdgeRecord
+from pathlib import Path
+from typing import Any
+
 from ..constants import RELATION_TYPES
+from .schema import ClauseRecord, EdgeRecord, SentenceRecord, TokenRecord
 
 
 def load_sentences(path: Path, silver_weight: float = 1.0) -> list[SentenceRecord]:
@@ -19,6 +21,26 @@ def load_sentences(path: Path, silver_weight: float = 1.0) -> list[SentenceRecor
     doc = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         return []
+
+    # Guard fuite final/ — real/augmented/final/train.json partage 113/114 textes avec val.json
+    if "final" in path.parts:
+        warnings.warn(
+            f"'{path}' : le répertoire 'final' contient des données quasi-identiques à val.json "
+            "(113/114 textes en commun dans real/augmented/). "
+            "Utiliser final/train.json avec real/val.json fuite 99 % des métriques. "
+            "Régénérer le split ou exclure ce répertoire.",
+            UserWarning, stacklevel=2,
+        )
+
+    # Warning schema_version legacy
+    schema_v = doc.get("schema_version") or doc.get("document", {}).get("schema_version", "")
+    if schema_v and schema_v != "2.0":
+        warnings.warn(
+            f"'{path.name}' : schema_version='{schema_v}' (attendu '2.0'). "
+            "Les champs legacy (gcn.causal_type, expected_cir, etc.) sont absorbés "
+            "silencieusement — annotations potentiellement incohérentes avec le modèle.",
+            UserWarning, stacklevel=2,
+        )
 
     # Format paper_examples.json (legacy — préférer le format 'document')
     if "examples" in doc:

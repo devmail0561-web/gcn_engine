@@ -1,12 +1,15 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 from pathlib import Path
+
 import numpy as np
 
-from ..pipeline.cgnp import CGNPipeline
 from ..layer1.features import FeatureVocabulary
+from ..pipeline.cgnp import CGNPipeline
+from ..security import guarded_np_load
 
 
 def _check_path_safe(path: Path, *, allow_symlink: bool = False) -> None:
@@ -15,22 +18,20 @@ def _check_path_safe(path: Path, *, allow_symlink: bool = False) -> None:
     Appelé avant lecture (load_checkpoint) ET avant écriture (save_checkpoint)
     pour éliminer les vecteurs de substitution silencieuse.
     """
-    import os
     import stat as _stat
     # Vérifier chaque composant du chemin (pas seulement la feuille)
-    check = path if not path.exists() else path
-    p = path.resolve().parent  # on vérifie les parents d'abord
+    _check = path
+    _p = path.resolve().parent  # on vérifie les parents d'abord
     # Vérifier la feuille ET chaque parent jusqu'à la racine
-    parts_to_check = [path] + list(path.parents)
+    parts_to_check = [path, *list(path.parents)]
     for part in parts_to_check:
         if not part.exists():
             continue
-        if part.is_symlink():
-            if not allow_symlink:
-                raise RuntimeError(
-                    f"Chemin suspect (symlink) : {part}. "
-                    "Passez allow_symlink=True si vous avez vérifié la cible."
-                )
+        if part.is_symlink() and not allow_symlink:
+            raise RuntimeError(
+                f"Chemin suspect (symlink) : {part}. "
+                "Passez allow_symlink=True si vous avez vérifié la cible."
+            )
     # Vérifier la feuille si elle existe : hardlink et FIFO
     if path.exists() and not path.is_symlink():
         st = path.stat()
@@ -114,6 +115,11 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
                                 getattr(graph0, 'd_rel_emb', 32))),
         "two_pass_val": bool(getattr(pipeline, 'two_pass_val', True)),
         "rgcn_layernorm": bool(getattr(graph0, 'use_layernorm', False)),
+        # Provenance — traçabilité du run (audit data §4)
+        "training_seed": getattr(pipeline, 'training_seed', None),
+        "training_data_hash": getattr(pipeline, 'training_data_hash', None),
+        "training_n_epochs": getattr(pipeline, 'training_n_epochs', None),
+        "training_timestamp": getattr(pipeline, 'training_timestamp', None),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
 
@@ -159,12 +165,11 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
     # Nécessaire pour la reproductibilité exacte à la reprise d'un checkpoint.
     if type(pipeline.encoder).__name__ == "TransformerMLPEncoder":
         try:
-            import torch as _pt
             for _k, _v in pipeline.encoder._mha.state_dict().items():
                 safe_k = _k.replace('.', '__')
                 arrays[f"_mha_{safe_k}"] = _v.detach().cpu().numpy()
-        except Exception:
-            pass  # PyTorch absent ou erreur — checkpoint reste valide sans MHA
+        except Exception:  # noqa: S110, BLE001  # PyTorch absent ou erreur — checkpoint reste valide sans MHA
+            pass
 
     # G2 : sauvegarder l'assembleur lexical si présent
     _asm = getattr(pipeline, 'assembler', None)
@@ -224,10 +229,7 @@ def load_checkpoint(
             "pour un fichier local de confiance."
         )
     if not _skip_path_check:
-        try:
-            _check_path_safe(Path(path), allow_symlink=allow_symlink)
-        except RuntimeError:
-            raise
+        _check_path_safe(Path(path), allow_symlink=allow_symlink)
         if allow_symlink and Path(path).is_symlink():
             import warnings as _w
             _w.warn(
@@ -236,7 +238,9 @@ def load_checkpoint(
                 UserWarning,
                 stacklevel=2,
             )
-    data = np.load(path, allow_pickle=True)
+    # Garde anti-RCE : audit pickle (allowlist numpy) AVANT toute
+    # désérialisation, même quand l'appelant a posé trusted=True.
+    data = guarded_np_load(path)
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
@@ -261,7 +265,7 @@ def load_checkpoint(
         import json as _json
         try:
             _arch = _json.loads(str(data["_arch_json"][0]))
-        except Exception as _exc:
+        except ValueError as _exc:  # json.JSONDecodeError ⊂ ValueError : _arch_json corrompu
             import warnings as _w_arch
             _w_arch.warn(
                 f"Checkpoint {Path(path).name} : _arch_json illisible ({_exc}) — "
@@ -346,10 +350,17 @@ def load_checkpoint(
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"
         if key in data and data[key].shape != p.shape:
+            _hint = ""
+            if (new_vocab is not None and not new_vocab.connector_lemmas
+                    and data[key].shape[1] != p.shape[1]):
+                _hint = (" Indice : _vocab_json ne contient pas connector_lemmas "
+                         "(vocab legacy, ex. prod_v1.npz) — le d_edge du checkpoint "
+                         "est plus large que celui reconstruit.")
             raise ValueError(
                 f"Incompatibilité de dimension pour encoder_{i} : "
                 f"checkpoint={data[key].shape} ≠ pipeline={p.shape}. "
                 f"Reconstruisez le pipeline avec la même taxonomie que le checkpoint."
+                f"{_hint}"
             )
 
     # S5 : valider toutes les couches R-GCN
@@ -367,7 +378,33 @@ def load_checkpoint(
 
     # Toutes les formes validées — mutation sûre
     if new_vocab is not None:
-        pipeline.vocabulary = new_vocab
+        # _vocab_json est incomplet sur les checkpoints legacy (ex. prod_v1 :
+        # pas de connector_lemmas → d_conn=31 au lieu de 85). Remplacer un vocab
+        # validé par un vocab de dimensions différentes désynchronise les poids
+        # qui viennent d'être validés : le premier forward lève un matmul
+        # (565 ≠ 619). On ne remplace que si le vocab du checkpoint reproduit
+        # exactement les dimensions du vocab déjà en place.
+        from ..constants import NODE_TYPES as _NODE_TYPES_V
+        _we_v = getattr(pipeline, 'word_embedding', None)
+        _d_emb_v = _we_v.d_emb if _we_v is not None else 0
+        _sob_v = bool(getattr(pipeline, 'subject_object_emb', False))
+        _d_eff_v = pipeline.vocabulary.d_clause_effective(_d_emb_v, _sob_v)
+        _old_dims = (_d_eff_v, pipeline.vocabulary.d_edge_closed_loop(
+            _d_eff_v, len(_NODE_TYPES_V), _d_emb_v, _sob_v))
+        _d_eff_n = new_vocab.d_clause_effective(_d_emb_v, _sob_v)
+        _new_dims = (_d_eff_n, new_vocab.d_edge_closed_loop(
+            _d_eff_n, len(_NODE_TYPES_V), _d_emb_v, _sob_v))
+        if _new_dims == _old_dims:
+            pipeline.vocabulary = new_vocab
+        else:
+            import warnings as _w_vocab
+            _w_vocab.warn(
+                f"Checkpoint {Path(path).name} : vocabulaire de dimensions "
+                f"incompatibles (d_eff/d_edge {_new_dims} ≠ {_old_dims}) — vocab "
+                "du pipeline conservé. Les anciens _vocab_json omettent "
+                "connector_lemmas ; re-entraîner ou élargir le vocab chargé.",
+                UserWarning, stacklevel=2,
+            )
 
     # D1 : restaurer les hyperparamètres d'inférence depuis l'arch — cohérent avec vocab.
     # from_pretrained et run_eval le font au constructeur ; load_checkpoint doit le faire
@@ -514,7 +551,7 @@ def load_checkpoint(
                 orig_k = k[5:].replace('__', '.')
                 sd[orig_k] = _pt.as_tensor(np.asarray(data[k]))
             pipeline.encoder._mha.load_state_dict(sd, strict=False)
-        except Exception as _mha_exc:
+        except Exception as _mha_exc:  # noqa: BLE001  # restauration MHA best-effort : warn, poids ré-initialisés
             import warnings as _w_mha
             _w_mha.warn(
                 f"Checkpoint : restauration MHA échouée ({_mha_exc}) — "

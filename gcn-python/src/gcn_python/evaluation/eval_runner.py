@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
 import json
 import warnings
 from pathlib import Path
@@ -8,18 +9,21 @@ from pathlib import Path
 import click
 import numpy as np
 
+from ..constants import NODE_TYPES, RELATION_TYPES
 from ..data.loader import GCNDataLoader, reps_from_sentence
-from ..pipeline.cgnp import CGNPipeline
+from ..evaluation.metrics import (
+    causal_graph_similarity,
+    edge_accuracy,
+    edge_macro_f1,
+    node_accuracy,
+    node_macro_f1,
+)
 from ..layer1.features import FeatureVocabulary
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
+from ..pipeline.cgnp import CGNPipeline
+from ..security import guarded_np_load
 from ..training.checkpoint import load_checkpoint
-from ..evaluation.metrics import (
-    node_accuracy, node_macro_f1,
-    edge_accuracy, edge_macro_f1,
-    causal_graph_similarity,
-)
-from ..constants import NODE_TYPES, RELATION_TYPES
 
 
 def run_eval(
@@ -39,25 +43,28 @@ def run_eval(
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
     # all_pairs / multi-couches crashe au load (shapes) ou est évalué dans le
     # mauvais mode (métriques fausses silencieusement).
-    _arch: dict = {}
-    _raw = None
+    # SÉCURITÉ (P0) : la vérification du fichier précède TOUTE désérialisation.
+    # Historiquement, np.load(allow_pickle=True) était appelé en premier et le
+    # refus n'arrivait qu'après la lecture de _arch_json/_vocab_json — or c'est
+    # précisément cette lecture qui exécute le pickle : un .npz piégé faisait
+    # donc feu avant le « refus ». guarded_np_load audite chaque membre object
+    # avec un Unpickler restreint avant d'ouvrir l'archive, puis le _arch_json
+    # doit exister et être du JSON valide avant de poursuivre.
+    _raw = guarded_np_load(model_path)
+    if "_arch_json" not in _raw:
+        raise ValueError(
+            f"run_eval : {model_path} ne contient pas _arch_json — chargement refusé. "
+            "Seuls les checkpoints produits par gcn-train >= 2.1.0 sont acceptés par gcn-eval. "
+            "Pour forcer le chargement (risque RCE), passer trusted=True à load_checkpoint manuellement."
+        )
     try:
-        _raw = np.load(model_path, allow_pickle=True)
-        if "_arch_json" not in _raw:
-            warnings.warn(
-                "run_eval : checkpoint sans _arch_json — hyperparamètres d'inférence "
-                "(edge_threshold, temperature, all_pairs…) inconnus, pipeline par défaut. "
-                "Re-entraîner avec gcn-train >= 2.1.0 pour générer ce champ.",
-                UserWarning, stacklevel=2,
-            )
-        else:
-            _arch = json.loads(str(_raw["_arch_json"][0]))
+        _arch: dict = json.loads(str(_raw["_arch_json"][0]))
     except Exception as exc:
-        warnings.warn(f"run_eval : arch illisible ({exc}) — pipeline par défaut.",
-                      UserWarning, stacklevel=2)
-    # trusted=False si l'arch est absente/illisible → hyperparamètres inconnus,
-    # métriques potentiellement non représentatives du modèle réel.
-    _arch_trusted = bool(_arch)
+        raise ValueError(
+            f"run_eval : {model_path} — _arch_json illisible ({exc}) — chargement refusé."
+        ) from exc
+    # Trust établi : audit pickle OK + _arch_json présent et parseable.
+    _arch_trusted = True
     _d_eff = int(_arch.get("d_eff", FeatureVocabulary().d_clause))
     _d_emb = int(_arch.get("d_emb", 0))
     _n_rel = int(_arch.get("n_relations", len(RELATION_TYPES)))
@@ -80,10 +87,10 @@ def run_eval(
     # identique à GCNEngine.from_pretrained — évite un crash shape mismatch si
     # le modèle a été entraîné avec connector_lemmas (d_edge différent du défaut).
     vocab = FeatureVocabulary()
-    if _raw is not None and "_vocab_json" in _raw:
+    if "_vocab_json" in _raw:
         try:
             vocab = FeatureVocabulary.from_json(str(_raw["_vocab_json"][0]))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # checkpoint hétérogène : warn + vocab par défaut
             warnings.warn(f"run_eval : vocab illisible ({exc}) — vocab par défaut.",
                           UserWarning, stacklevel=2)
     _word_embedding = None
@@ -94,10 +101,15 @@ def run_eval(
             _word_embedding.frozen = True
     _mlp_hidden = int(_arch.get("mlp_hidden", 128))
     _sob_eval = bool(_arch.get("subject_object_emb", False))
-    encoder = MLPEncoder(d_clause=_d_eff,
-                         d_edge=vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb,
-                                                         _sob_eval),
-                         mlp_hidden=_mlp_hidden)
+    _global_attention = bool(_arch.get("global_attention", False))
+    _mha_heads = int(_arch.get("n_gat_heads_mha", 4))
+    _d_edge_val = vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb, _sob_eval)
+    if _global_attention:
+        from ..layer2.reference import TransformerMLPEncoder
+        encoder = TransformerMLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val,
+                                        mlp_hidden=_mlp_hidden, n_heads=_mha_heads)
+    else:
+        encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden)
     if _gclass == "RGCNLayerGAT":
         try:
             from ..layer3.gat import RGCNLayerGAT
@@ -140,14 +152,8 @@ def run_eval(
                            clause_pooling=str(_arch.get("clause_pooling", "root")),
                            subject_object_emb=bool(_arch.get("subject_object_emb", False)),
                            gat_residual=bool(_arch.get("gat_residual", False)))
-    # Sécu : trusted=True uniquement si l'arch est présente et cohérente (fichier reconnu).
-    # Sans _arch_json, le checkpoint est potentiellement malveillant — refuser le chargement pickle.
-    if not _arch_trusted:
-        raise ValueError(
-            f"run_eval : {model_path} ne contient pas _arch_json — chargement refusé. "
-            "Seuls les checkpoints produits par gcn-train >= 2.1.0 sont acceptés par gcn-eval. "
-            "Pour forcer le chargement (risque RCE), passer trusted=True à load_checkpoint manuellement."
-        )
+    # Trust acquis plus haut : audit pickle (guarded_np_load) + _arch_json
+    # présent et parseable. load_checkpoint refait de son côté le même audit.
     load_checkpoint(pipeline, model_path, trusted=True)
     # D1 : load_checkpoint restaure les hyperparamètres depuis l'arch — re-appliquer
     # l'override après, sinon la valeur arch écrase l'override passé explicitement.
@@ -184,7 +190,7 @@ def run_eval(
                 n_total_clauses=len(sample.sentence.clauses),
                 connector_reps=connector_reps,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # échantillon défaillant : warn + skip, reste de l'eval continue
             warnings.warn(f"[{sample.sentence.id}] forward ignoré : {exc}", stacklevel=2)
             n_skipped += 1
             continue

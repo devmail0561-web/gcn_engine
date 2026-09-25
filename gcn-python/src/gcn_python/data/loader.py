@@ -1,15 +1,17 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-import warnings
+
 import numpy as np
 
-from .json_reader import load_all_sentences
-from .schema import SentenceRecord, TokenRecord, ClauseRecord
 from ..constants import NODE_TYPES, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
+from .json_reader import load_all_sentences
+from .schema import ClauseRecord, SentenceRecord, TokenRecord
 
 
 def _node_type_idx(node_type: str, sentence_id: str) -> int:
@@ -154,6 +156,17 @@ class GCNDataLoader:
                 continue
             rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
+                n_backward += 1
+                if e.relation in {"cause", "enable", "prevent"}:
+                    warnings.warn(
+                        f"[{rec.id}] arête asymétrique ignorée : {e.relation} "
+                        f"({src_id}→{tgt}) src={src_idx} > tgt={tgt_idx}. "
+                        "Annoter dans la direction src < tgt pour éviter l'inversion cause/effet.",
+                        UserWarning, stacklevel=2,
+                    )
+                    if hasattr(self, '_total_backward_asymmetric'):
+                        self._total_backward_asymmetric += 1
+                    continue
                 key = (tgt_idx, src_idx)
                 if key in edge_map:
                     warnings.warn(
@@ -165,10 +178,6 @@ class GCNDataLoader:
                     edge_map[key] = rel_idx
                     if e.confidence is not None:
                         edge_conf_map[key] = float(e.confidence)
-                n_backward += 1
-                if e.relation in {"cause", "enable", "prevent"}:
-                    if hasattr(self, '_total_backward_asymmetric'):
-                        self._total_backward_asymmetric += 1
             else:
                 key = (src_idx, tgt_idx)
                 edge_map[key] = rel_idx
@@ -182,11 +191,10 @@ class GCNDataLoader:
             )
         if n_backward:
             warnings.warn(
-                f"[{rec.id}] {n_backward} arête(s) gold en direction inverse "
-                f"(src > tgt) — stockées comme arêtes (tgt→src) avec la même relation. "
-                "Pour les relations asymétriques (cause, enable, prevent), cela peut "
-                "introduire des erreurs de supervision. Annoter les arêtes dans la "
-                "direction correcte (src < tgt) pour éviter cette remappitude.",
+                f"[{rec.id}] {n_backward} arête(s) gold en direction inverse (src > tgt). "
+                "Les relations asymétriques (cause, enable, prevent) sont ignorées. "
+                "Les relations symétriques sont remappées (tgt→src). "
+                "Annoter dans la direction src < tgt pour éviter toute perte.",
                 UserWarning,
                 stacklevel=2,
             )

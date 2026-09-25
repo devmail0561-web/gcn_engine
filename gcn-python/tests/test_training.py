@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests de la boucle d'entraînement Phase 2b."""
 from __future__ import annotations
+
 from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -11,7 +13,6 @@ from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
-
 
 # ---------------------------------------------------------------------------
 # Fixture : pipeline minimal sans spaCy
@@ -68,7 +69,7 @@ def test_loss_gradient_sums_near_zero():
 def test_rgcn_backward_shape():
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    N, E = 4, 3
+    N, _E = 4, 3
     rng = np.random.default_rng(42)
 
     graph = RGCNLayer(d_in=D, d_out=D, seed=0)
@@ -142,7 +143,7 @@ def test_backward_updates_encoder_weights(pipeline: CGNPipeline):
     pipeline.backward(d_node, d_edge, lr=0.1)
 
     params_after = pipeline.encoder.parameters()
-    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
+    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after, strict=False))
 
 
 def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
@@ -186,10 +187,10 @@ def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
 # ---------------------------------------------------------------------------
 
 def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     params_orig = [p.copy() for p in pipeline.encoder.parameters()]
 
@@ -205,7 +206,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     load_checkpoint(p2, ckpt, trusted=True)
     params_loaded = p2.encoder.parameters()
 
-    for orig, loaded in zip(params_orig, params_loaded):
+    for orig, loaded in zip(params_orig, params_loaded, strict=False):
         assert np.allclose(orig, loaded), "Poids non restaurés correctement"
 
 
@@ -230,11 +231,10 @@ def test_edge_map_alignment():
     Avec all_pairs=True, elles sont insérées dans edge_map.
     """
     import warnings
-    from gcn_python.data.loader import GCNDataLoader
-    from gcn_python.data.schema import (
-        SentenceRecord, ClauseRecord, EdgeRecord
-    )
+
     from gcn_python.constants import RELATION_TYPES
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
 
     clauses = [
         ClauseRecord(node_id="n001", node_type="etat", label="A",
@@ -277,7 +277,11 @@ def test_edge_map_alignment():
 def test_reps_from_sentence_alignment():
     """Les valid_indices doivent aligner reps et gold_node_labels sans décalage."""
     from gcn_python.data.loader import reps_from_sentence
-    from gcn_python.data.schema import SentenceRecord, ClauseRecord, TokenRecord, EdgeRecord
+    from gcn_python.data.schema import (
+        ClauseRecord,
+        SentenceRecord,
+        TokenRecord,
+    )
 
     tokens = [
         TokenRecord(id=1, form="Les", lemma="le", pos="DET", dep_rel="det", dep_head=2),
@@ -306,7 +310,6 @@ def test_reps_from_sentence_alignment():
     assert valid_indices == [1, 2]
 
     # Les gold labels indexés par valid_indices correspondent aux bonnes clauses
-    from gcn_python.data.loader import GCNDataLoader
     from gcn_python.constants import NODE_TYPES
     gold_all = np.array(
         [NODE_TYPES.index(c.node_type) if c.node_type in NODE_TYPES else 0
@@ -328,8 +331,9 @@ def test_reps_from_sentence_alignment():
 def test_invalid_node_type_warns_not_crashes():
     """C1 : node_type invalide émet un warning et ne crashe pas l'itération."""
     import warnings
+
     from gcn_python.data.loader import GCNDataLoader
-    from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
+    from gcn_python.data.schema import ClauseRecord, SentenceRecord
 
     clauses = [
         ClauseRecord(node_id="n001", node_type="evenement", label="A",
@@ -350,11 +354,15 @@ def test_invalid_node_type_warns_not_crashes():
 
 
 def test_backward_edge_not_supervised():
-    """M1 : arête gold backward (src > tgt) stockée comme arête inversée (tgt→src)."""
+    """M1 : arête asymétrique backward (cause/enable/prevent, src > tgt) ignorée depuis v2.5.1.
+
+    Comportement antérieur (< v2.5.1) : l'arête était remappée comme (tgt, src) — supervision inversée.
+    Comportement actuel : l'arête est rejetée (edge_map vide) et un warning est émis.
+    """
     import warnings
+
     from gcn_python.data.loader import GCNDataLoader
-    from gcn_python.data.schema import SentenceRecord, ClauseRecord, EdgeRecord
-    from gcn_python.constants import RELATION_TYPES
+    from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
 
     clauses = [
         ClauseRecord(node_id="n001", node_type="etat", label="A",
@@ -374,18 +382,23 @@ def test_backward_edge_not_supervised():
         warnings.simplefilter("always")
         sample = loader._to_sample(rec)
 
-    # L'arête backward est stockée comme arête inversée (0, 1) avec même relation
-    from gcn_python.constants import RELATION_TYPES
-    assert (0, 1) in sample.edge_map
-    assert sample.edge_map[(0, 1)] == RELATION_TYPES.index("cause")
-    # Un warning signale l'arête inversée
-    assert any(issubclass(x.category, UserWarning) and "direction inverse" in str(x.message) for x in w)
+    # L'arête asymétrique backward est rejetée — edge_map vide
+    assert (0, 1) not in sample.edge_map
+    assert (1, 0) not in sample.edge_map
+    assert sample.edge_map == {}
+    # Un warning signale le rejet
+    assert any(
+        issubclass(x.category, UserWarning) and "asymétrique ignorée" in str(x.message)
+        for x in w
+    )
 
 
 def test_train_cmd_cli(tmp_path: Path):
     """M7 : test d'intégration CLI — gcn-train s'exécute sans erreur sur un dataset minimal."""
     import json
+
     from click.testing import CliRunner
+
     from gcn_python.training.train import train_cmd
 
     # Dataset minimal au format document
@@ -443,10 +456,11 @@ def test_train_cmd_cli(tmp_path: Path):
 def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipeline):
     """M3 : load_checkpoint avec poids de forme incompatible lève ValueError."""
     import pytest
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+    from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipeline, ckpt)
@@ -534,7 +548,7 @@ def test_backward_grad_clip(pipeline: CGNPipeline):
     params_before = [p.copy() for p in pipeline.encoder.parameters()]
     pipeline.backward(dn, de, lr=0.01, max_grad_norm=1e-6)
     params_after = pipeline.encoder.parameters()
-    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after))
+    assert any(not np.allclose(b, a) for b, a in zip(params_before, params_after, strict=False))
 
 
 def test_backward_weight_decay_changes_rgcn(pipeline: CGNPipeline):
@@ -641,11 +655,10 @@ def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
     assert len(samples) == 1
     assert samples[0].sentence.weight == 0.7
 
-    d_gold = _silver_json(tmp_path, None)  # réécrit sans _methode → gold
+    _d_gold = _silver_json(tmp_path, None)  # réécrit sans _methode → gold
     # gold : _methode absente → 1.0
-    import json as _json
     loader_gold = GCNDataLoader(tmp_path)
-    assert list(loader_gold)[0].sentence.weight == 1.0
+    assert next(iter(loader_gold)).sentence.weight == 1.0
 
     # loss : même phrase, poids 0.7 < poids 1.0 sur la partie arêtes
     vocab = FeatureVocabulary()

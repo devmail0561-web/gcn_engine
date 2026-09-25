@@ -5,6 +5,69 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [Unreleased] — Correctifs audit v2.5.0 (2026-09-25)
+
+### BREAKING — Supervision des arêtes asymétriques inversée
+
+**`GCNDataLoader._to_sample` : rejet des arêtes `cause/enable/prevent` backward**
+
+Avant : une arête `cause` annotée `src > tgt` était silencieusement remappée en `(tgt, src)`
+avec la même étiquette `cause`, inversant cause et effet dans la supervision.
+
+Après : ces arêtes sont **rejetées** (ignorées de `edge_map`) et un `UserWarning` explicite
+est émis. Les relations symétriques (`condition`, `sequence`, etc.) restent remappées.
+
+**Impact entraînement :** tout dataset contenant des arêtes `cause/enable/prevent` annotées
+à l'envers produira désormais moins d'arêtes supervisées. Les métriques des modèles
+pré-existants entraînés sur ces données ne sont plus directement comparables.
+**Recommandation :** ré-annoter les arêtes concernées dans la direction `src < tgt`,
+puis ré-entraîner avant toute comparaison de performance.
+
+### Correctifs P0 (bugs métriques / supervision)
+
+- **`eval_runner.py`** : branchement `TransformerMLPEncoder` si `global_attention=True` dans
+  `_arch_json` — les modèles Phase-C Transformer étaient évalués avec un MLP aléatoire
+  (métriques entièrement fausses).
+- **`gcn-frontend-code` (python/rust/js)** : `root.has_error()` vérifié après parse
+  tree-sitter — l'IR n'est plus construit silencieusement sur code syntaxiquement invalide.
+- **`gcn-transformers/base.py`** : `UserWarning` si `d_clause=79` (dim base sans embedding) —
+  anticipe un crash shape mismatch `proj_ud` lors du chargement du checkpoint.
+
+### Correctifs P1 (cohérence sémantique)
+
+- **`gcn-frontend-en/rules.rs`** : `conjunction_class_to_direction` : `"concession"` →
+  `Backward` ajouté (alignement avec le frontend FR).
+- **`gcn-middleend/graph.rs`** : `eprintln!` supprimé de la lib ; les arêtes dangling sont
+  collectées dans `CausalGraph.dangling_edges: Vec<usize>` (diagnostic structuré).
+- **`gcn-knowledge/lexicon.rs`** : `lookup_verb` et `lookup_by_pos` scrutent désormais
+  `examples` (entrées langage-agnostiques) en plus de `examples_fr` — frontend-EN
+  débloqué pour les taxonomies sans tag de langue.
+
+### Hygiène P2
+
+- `gcn-core/Cargo.toml` : dépendance `rayon` supprimée (0 usage).
+- `gcn-core/Cargo.toml` : `edition` workspace alignée sur `"2024"` (toutes les crates
+  déclaraient déjà `edition = "2024"` individuellement).
+
+---
+
+## [Unreleased] — Remédiation diagnostic sémantique (2026-09-25)
+
+### Changement de comportement (REMEDIATION-DIAGNOSTIC.md)
+- **`gcn-train --embedding-dim` : défaut `0` → `128`.** Les word embeddings lexicaux
+  apprenables sont désormais ACTIFS PAR DÉFAUT — l'embedding n'est plus optionnel.
+  `--embedding-dim 0` reste accepté (compatibilité anciens checkpoints) mais émet un
+  AVERTISSEMENT explicite (déconseillé : moteur aveugle au lexique).
+- `--fasttext` seul et `--embedding-file` seul restent valides : la détection explicite/défaut
+  du paramètre préserve l'auto-détection (`d_emb=300` imposé par fastText, dimension lue
+  depuis la première ligne pour `--embedding-file`).
+- Dimensions effectives par défaut : `d_clause` 79 → 207, `d_edge` 365 → 877 (formules
+  `d_clause_effective` / `d_edge_closed_loop` inchangées).
+- Round-trip checkpoint vérifié : `_arch_json` enregistre `d_emb`, `gcn-eval` restaure
+  vocabulaire + poids (`word_emb_E`) à l'identique.
+
+---
+
 ## [2.5.0] — 2026-09-24
 
 ### Améliorations architecturales moteur — inductive bias, anti-over-smoothing, contexte global, relations continues
