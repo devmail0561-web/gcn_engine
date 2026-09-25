@@ -4,8 +4,8 @@
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Rust tests](https://img.shields.io/badge/tests%20Rust-144%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-256%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Version](https://img.shields.io/badge/version-2.4.1-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Python tests](https://img.shields.io/badge/tests%20Python-531%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -76,7 +76,6 @@ projet_CNM/
 │   │   ├── gcn-backend/        Raisonnement Pearl 1-2-3 + GCN-QL + export
 │   │   ├── gcn-verbalizer/     Décodeur CausalIR → surface (pont Rust)
 │   │   └── gcn-cli/            Interface ligne de commande
-│   └── SAD.md                  Software Architecture Document
 │
 ├── gcn-python/         ← Couches ML Python (framework-agnostique)
 │   └── src/gcn_python/
@@ -235,7 +234,9 @@ gcn-discuss --checkpoint model.npz
 # Générer des données d'entraînement (JSON annoté) depuis des textes bruts
 gcn-bootstrap --input phrases_fr.txt --out-dir gcn-datasets/generated/
 
-# Lancer l'entraînement — configuration de référence v2.4.0 (val_edge_f1=0.468)
+# Lancer l'entraînement — configuration de référence v2.4.0
+# (val_edge_f1=0.468 mesuré sous l'harnais d'alors — non comparable, 0.1867
+#  sous le harnais actuel ; voir BENCHMARK.md §9b et la caveat plus bas)
 gcn-train \
   --data-dir  gcn-datasets/real/augmented/c1_oversampled/ \
   --val-dir   gcn-datasets/real/val/ \
@@ -505,18 +506,28 @@ Structure minimale d'un exemple annoté :
 cd gcn-core && cargo test --workspace
 
 # Par crate
-cargo test -p gcn-ir
-cargo test -p gcn-frontend-fr      # 21 tests
-cargo test -p gcn-frontend-en      # 16 tests (dont isomorphisme fr↔en)
-cargo test -p gcn-frontend-code    # 26 tests (Python, Rust, JS)
+cargo test -p gcn-ir              #  4 tests
+cargo test -p gcn-knowledge        # 23 tests
+cargo test -p gcn-frontend-fr      # 23 tests
+cargo test -p gcn-frontend-en      # 17 tests (dont isomorphisme fr↔en)
+cargo test -p gcn-frontend-code    # 28 tests (Python, Rust, JS)
 cargo test -p gcn-middleend        # 17 tests
-cargo test -p gcn-backend          # 34 tests (Pearl 1-2-3)
+cargo test -p gcn-backend          # 29 tests (Pearl 1-2-3)
+cargo test -p gcn-verbalizer       #  3 tests
+cargo test -p gcn-cli              #  0 test (binaire seul)
 
-# Python (256 tests)
+# Python — gcn-python (425 tests, 0 skipped, 1 xfail strict)
 cd gcn-python && python -m pytest
 # Dont :
 #   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
 #   test_e2e_pipeline.py     —  8 tests e2e texte brut → CIR JSON
+#   test_robustness.py       — 1 xfail : prod_v1 prédit 'cause' pour tous les
+#                              connecteurs (biais de classe, ré-entraînement requis)
+
+# Python — autres suites
+cd ../gcn-transformers && python -m pytest    # 31 tests, 10 skipped
+cd ../gcn-tools/gcn-scraper  && python -m pytest   # 50 tests
+cd ../gcn-tools/gcn-annotate && python -m pytest   # 26 tests, 4 skipped
 ```
 
 ---
@@ -547,7 +558,7 @@ cd gcn-python && python -m pytest
 | Fichier | `gcn-datasets/checkpoints/model_v2.4.0.npz` |
 |---------|---------------------------------------------|
 | Métriques | `gcn-datasets/checkpoints/model_v2.4.0_metrics.json` |
-| Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz")` |
+| Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz", trusted=True)` |
 
 ### Résultats sur le val set (114 phrases françaises)
 
@@ -557,6 +568,12 @@ cd gcn-python && python -m pytest
 | `val_node_macro_f1` | 0.274 | > 0.60 | ✗ (données insuffisantes) |
 | `val_graph_exact_match` | 0.123 | > 0.20 | ✗ (bloqué par node) |
 | gap train−val (arêtes) | 0.069 | < 0.15 | ✅ |
+
+> **Caveat (audit v2.5.0) — chiffre non comparable.** Le `0.468` a été mesuré
+> avec le harnais d'évaluation de l'époque ; **reprise sous le harnais actuel,
+> le même checkpoint donne 0.1867**. `BENCHMARK.md` §9b marque explicitement
+> cette calibration croisée « NON COMPARABLE ». Ne pas citer le 0.468 comme
+> performance courante sans rappeler cette réserve.
 
 ### Meilleure configuration d'entraînement
 
@@ -648,6 +665,6 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 
 - **Benchmark complet (17 runs ML) :** [BENCHMARK.md](BENCHMARK.md)
 - **Cas d'usage :** [USECASES_AUDIT.md](USECASES_AUDIT.md)
-- **Architecture détaillée :** `gcn-core/SAD.md`
+- **Architecture détaillée :** un `README.md` par crate Rust (`gcn-core/crates/*/README.md`) — le `SAD.md` d'origine n'est plus versionné.
 - **Limitations connues GCNBridgeParser :** `gcn-python/README.md#limitations`
 - **Auteur :** Michel Tendeng — Université Numérique Cheikh Hamidou Kane (UN-CHK), L3 Cybersécurité, Ziguinchor, Sénégal

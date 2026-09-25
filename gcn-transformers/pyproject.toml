@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gcn-transformers"
+version = "1.0.0"
+description = "Transformer-based encoders for GCN Causal Engine (CamemBERT, XLM-RoBERTa, CodeBERT)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    {name = "Michel Tendeng", email = "devmail0561-web@gcn-engine.org"},
+]
+dependencies = [
+    "gcn-python>=2.5.0",
+    "transformers>=4.30.0",
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+[project.urls]
+Homepage = "https://github.com/devmail0561-web/gcn_engine"
+Repository = "https://github.com/devmail0561-web/gcn_engine"
+Issues = "https://github.com/devmail0561-web/gcn_engine/issues"
+
+[project.optional-dependencies]
+benchmark = [
+    # Utilisé par benchmark_comparison.py (import try/except, non bloquant
+    # s'il est absent, mais nécessaire pour la métrique mémoire RSS).
+    "psutil>=5.9",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gcn_transformers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = [
+    "E501",  # Line too long (géré par line-length)
+    # Convention ML : W, D, H, M... pour matrices/tenseurs (maths), pas de
+    # renommage snake_case — la lisibilité mathématique prime ici.
+    "N806",
+    "N803",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest.importorskip() / mise en sys.path précèdent les imports.
+"tests/**" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

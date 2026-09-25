@@ -13,10 +13,23 @@ Cibles minimales (exemples d'arêtes) :
   motivation : 3  → ~30 (×10)
   sequence : 2   → ~30 (×15)
 """
+import hashlib
 import json
 import copy
 from pathlib import Path
 from collections import Counter
+
+
+def _text_hashes(path: Path) -> set[str]:
+    """Hashes SHA-256 des textes de phrases dans un fichier JSON."""
+    with open(path, encoding="utf-8") as f:
+        doc = json.load(f)
+    hashes = set()
+    for s in doc.get("document", {}).get("sentences", []):
+        txt = s.get("text", "").strip()
+        if txt:
+            hashes.add(hashlib.sha256(txt.encode()).hexdigest())
+    return hashes
 
 
 RARE_TARGETS = {
@@ -99,6 +112,23 @@ def oversample(input_path: Path, output_path: Path, *, allow_non_train: bool = F
         old = edge_counts[rel]
         marker = " ↑" if cnt > old else ""
         print(f"  {rel:<22} {cnt:4d}  (était {old}){marker}")
+
+    # Garde anti-fuite sur le contenu (pas seulement les noms de fichiers)
+    _aug_hashes = {
+        hashlib.sha256(s.get("text", "").strip().encode()).hexdigest()
+        for s in augmented if s.get("text", "").strip()
+    }
+    for _check_name in ("val.json", "test.json"):
+        for _check_dir in (input_path.parent, input_path.parent.parent):
+            _check_path = _check_dir / _check_name
+            if _check_path.exists():
+                _overlap = _aug_hashes & _text_hashes(_check_path)
+                if _overlap:
+                    print(
+                        f"AVERTISSEMENT FUITE : {len(_overlap)} texte(s) de la sortie "
+                        f"présent(s) dans {_check_path}. "
+                        "Dédupliquer avant tout entraînement + évaluation."
+                    )
 
     out = copy.deepcopy(raw)
     out["document"]["sentences"] = augmented

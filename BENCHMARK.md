@@ -1,7 +1,7 @@
-# Benchmark complet — GCN Engine (2026-09-18)
+# Benchmark complet — GCN Engine (2026-09-25)
 
 **Objectif :** classifier les relations causales entre clauses françaises en 11 types de relations
-et 7 types de nœuds, à partir de 536 phrases originales (735 avec oversampling C1).
+et 7 types de nœuds, à partir de données annotées (536–1665 phrases selon le dataset).
 
 **Métriques cibles production :**
 
@@ -232,19 +232,16 @@ Le modèle ne peut pas apprendre correctement ces 5 types de nœuds rares :
 **Ce qu'il faut** : annoter ~800 phrases supplémentaires ciblant ces types de nœuds.
 Aucun hyperparamètre (LR, dropout, embeddings, architecture) ne peut compenser l'absence de données.
 
-### Chemin pour tester correctement les embeddings pré-entraînés
+### Embeddings pré-entraînés : premières mesures (§11)
 
-Pour valider l'apport de wiki.fr.vec 300d :
-```bash
-# Option A : réduire à 50d par troncature
-head -1 wiki.fr.vec > wiki.fr.50d.vec
-tail -n +2 wiki.fr.vec | awk '{printf $1; for(i=2;i<=51;i++) printf " "$i; print ""}' >> wiki.fr.50d.vec
+Les 4 configurations embeddings ont été testées le 2026-09-25 sur `DATA/supervision/train_v2/`
+(1665 train / 350 val, GAT+bidi, 20 epochs). Résultat : **fine-tuning wiki.fr 300d = 0.2292
+val_edge_f1** (+45% relatif vs baseline 0.1579). Détails complets en §11.
 
-# Option B : lancer overnight (100ep × 12 min = ~20h)
-gcn-train --embedding-file wiki.fr.vec --epochs 100 ...
-
-# Option C : GPU (réduirait à ~1-2 min/epoch)
-```
+Prochaines étapes pour confirmer :
+- Run 50–100 epochs (convergence non atteinte à 20 ep)
+- Seed-sweep pour mesurer la variance
+- Tester `cc.fr.300.bin` (2M mots, couverture vocabulaire plus large)
 
 ---
 
@@ -271,8 +268,8 @@ Par ordre de priorité et impact attendu :
 2. **[DONNÉES — MOYEN]** Compléter le val set avec les 3 types C1 (filter, data_dep, control_dep)
    pour avoir une évaluation non-biaisée. Les 3 types sont actuellement absents du val set.
 
-3. **[TECHNIQUE — MOYEN]** Tester embeddings wiki.fr.vec 50d (troncature ou PCA depuis 300d).
-   Impact attendu si les pré-entraînés généralisent mieux que les aléatoires : val_edge_f1 0.468 → 0.52+.
+3. **[TECHNIQUE — MOYEN]** Prolonger le fine-tuning wiki.fr 300d à 50–100 epochs (§11 : +45%
+   mesuré à 20 ep, convergence non atteinte). Tester `cc.fr.300.bin` (2M mots vs 22k wiki.fr.vec).
 
 4. **[TECHNIQUE — MOYEN]** Entraîner le `TrainableDecoder` (CIR → texte) via `gcn-train --train-decoder`.
    La feature est planifiée (plan approuvé) ; les données existent déjà dans `--data-dir`.
@@ -373,3 +370,122 @@ loss 4.62→3.39, edge_acc 0.10→0.40. **Éval** (`gcn-eval`, harnais actuel, `
 3 spans inversées en quarantaine (s0057 train, s0259/s0643 test — garde-fous loader actifs, exclusion au prochain run),
 241 existant en tokens provisoires (10%, 0 dans le silver — réinjection UD au prochain run),
 IDs sXXXX non uniques inter-langues (pré-existant, silver namespaced).
+
+## 11. Validation embeddings 2026-09-25 — 4 configurations mesurées
+
+### 11a. Protocole
+
+**Dataset :** `DATA/supervision/train_v2/` — 1665 phrases train / 350 phrases val
+(split stratifié seed 42, supervision silver FR+EN+code fusionnée §10).
+
+**Backend :** GAT + bidirectionnel + weighted-loss (config de référence production).
+20 epochs, lr=0.001, seed 42. **1 seul run par config** → ordres de grandeur, pas conclusions définitives.
+
+**Configs testées :**
+
+| # | Config | Embeddings | Dimension | Paramètres ajoutés |
+|---|--------|------------|-----------|--------------------|
+| A | Baseline | aucun (`--embedding-dim 0`) | 79 (syntaxe) | — |
+| B | Emb128 apprenables | table aléatoire, backprop | 207 (79+128) | ~vocab×128 |
+| C | wiki.fr 300d gelé | `wiki.fr.vec` (22 218 mots) | 379 (79+300) | 0 (gelé) |
+| D | wiki.fr 300d fine-tuné | idem, backprop activé | 379 (79+300) | ~vocab×300 |
+
+```bash
+# A — baseline
+gcn-train --data-dir DATA/supervision/train_v2/train/ \
+  --val-dir DATA/supervision/train_v2/val/ \
+  --epochs 20 --lr 0.001 --seed 42 \
+  --weighted-loss --use-attention --bidirectional \
+  --embedding-dim 0 --output benchmark-validation/v2_baseline_20ep.npz
+
+# B — emb128 apprenables (défaut moteur)
+gcn-train ... --embedding-dim 128 --output benchmark-validation/v2_emb128_20ep.npz
+
+# C — wiki.fr 300d gelé
+gcn-train ... --embedding-file gcn-python/models/wiki.fr.vec \
+  --freeze-embeddings --output benchmark-validation/v2_fasttext_frozen_20ep.npz
+
+# D — wiki.fr 300d fine-tuné
+gcn-train ... --embedding-file gcn-python/models/wiki.fr.vec \
+  --output benchmark-validation/v2_fasttext_finetune_20ep.npz
+```
+
+### 11b. Résultats — meilleure valeur par métrique
+
+| Config | best val_edge_f1 | @ep | best val_node_f1 | @ep | best val_loss | @ep | val_gem (ep20) |
+|--------|-----------------|-----|------------------|-----|---------------|-----|----------------|
+| A — Baseline (dim 0) | 0.1579 | 3 | 0.1176 | 20 | 4.0564 | 15 | 0.029 |
+| B — Emb128 apprenables | 0.2120 | 17 | **0.1519** | 20 | 3.9744 | 19 | 0.031 |
+| C — wiki.fr 300d gelé | 0.2027 | 14 | 0.1152 | 19 | 3.9445 | 18 | 0.029 |
+| D — wiki.fr 300d fine-tuné | **0.2292** | **20** | 0.1190 | 12 | **3.9271** | 18 | 0.031 |
+
+### 11c. Détail epoch 20 — toutes les métriques val
+
+| Config | val_loss | val_node_acc | val_node_f1 | val_edge_acc | val_edge_f1 | val_gem |
+|--------|----------|-------------|-------------|-------------|-------------|---------|
+| A — Baseline | 4.0768 | 0.172 | 0.118 | 0.160 | 0.134 | 0.029 |
+| B — Emb128 | 3.9989 | 0.188 | **0.152** | 0.223 | 0.186 | 0.031 |
+| C — Frozen 300d | 3.9999 | 0.136 | 0.095 | 0.263 | 0.202 | 0.029 |
+| D — Fine-tuned 300d | **3.9551** | 0.134 | 0.093 | **0.300** | **0.229** | **0.031** |
+
+### 11d. Analyse overfitting (epoch 20)
+
+| Config | train_loss | val_loss | gap loss | train_edge_f1 | val_edge_f1 | gap edge_f1 |
+|--------|-----------|---------|----------|---------------|-------------|-------------|
+| A — Baseline | 3.701 | 4.077 | +0.376 | 0.346 | 0.134 | +0.212 |
+| B — Emb128 | 3.821 | 3.999 | +0.178 | 0.344 | 0.186 | +0.158 |
+| C — Frozen 300d | 3.463 | 4.000 | **+0.537** | 0.426 | 0.202 | +0.224 |
+| D — Fine-tuned 300d | 3.452 | 3.955 | +0.503 | 0.445 | 0.229 | +0.216 |
+
+### 11e. Courbes val_loss — convergence non atteinte
+
+Les 4 configurations montrent une val_loss **décroissante** sur 20 epochs (pas de remontée) :
+
+| Config | val_loss ep1 | val_loss ep10 | val_loss ep20 | Tendance |
+|--------|-------------|---------------|---------------|----------|
+| A — Baseline | 4.237 | 4.089 | 4.077 | ↓ lente |
+| B — Emb128 | 4.214 | 4.022 | 3.999 | ↓ régulière |
+| C — Frozen 300d | 4.222 | 3.987 | 4.000 | ↓ puis plateau |
+| D — Fine-tuned 300d | 4.221 | 3.978 | 3.955 | ↓ régulière |
+
+**Aucune configuration n'a convergé à 20 epochs.** Le fine-tuning (D) est encore en
+progression active à ep20 (val_edge_f1 = best à ep20). Un run à 50–100 epochs est
+nécessaire pour mesurer le vrai potentiel.
+
+### 11f. Conclusions
+
+1. **Les embeddings améliorent les edges.** Toutes les configs avec embeddings (B/C/D)
+   dépassent la baseline (A) en val_edge_f1 : +34% (B), +28% (C), **+45%** (D) relatif.
+   C'est un revirement par rapport aux résultats §1 run #12 (emb50 aléatoires : −0.096)
+   — la différence clé est le dataset (1665 vs 536 phrases) et le backend (GAT+bidi vs R-GCN).
+
+2. **Fine-tuning (D) meilleur pour les edges** : 0.2292 > 0.2120 > 0.2027 > 0.1579.
+   L'adaptation des poids wiki.fr aux lemmes du corpus surpasse le gel et l'apprentissage
+   from scratch.
+
+3. **Emb128 (B) meilleur pour les nœuds** : val_node_f1 0.1519 > baseline 0.1176.
+   Les pré-entraînés (C/D) dégradent les nœuds par rapport à la baseline — cause probable :
+   vocabulaire wiki.fr (22k mots) mal adapté au vocabulaire spécialisé des nœuds causaux.
+
+4. **Loin de la cible production** : meilleur val_edge_f1 = 0.2292 (cible > 0.40).
+   Les projections 0.55–0.65 de l'ancien diagnostic sont **abandonnées**. L'écart reste
+   attribuable aux données (§5 : types de nœuds rares) plus qu'aux features.
+
+5. **Overfitting wiki.fr** : les configs C/D ont le plus gros gap loss (~0.5) — les
+   dimensions supplémentaires (300d) apprennent davantage sur le train sans généraliser
+   proportionnellement. À surveiller sur des runs plus longs.
+
+6. **20 epochs insuffisantes** : aucune convergence. Le fine-tuning progresse encore à ep20.
+
+### 11g. Recommandations
+
+| Priorité | Action | Impact attendu |
+|----------|--------|----------------|
+| 1 | Run 50–100 epochs sur config D (fine-tuned) | Convergence + potentiel val_edge_f1 0.28+ |
+| 2 | Seed-sweep (7, 42, 123) sur configs B et D | Mesurer la variance avant conclusion |
+| 3 | Annoter 800 phrases ciblant nœuds rares (§5) | Seul levier pour val_node_f1 > 0.30 |
+| 4 | Tester `cc.fr.300.bin` (2M mots vs 22k wiki.fr.vec) | Vocabulaire plus large = moins de _unk |
+
+**Défaut moteur conservé** : `--embedding-dim 128` (config B). Inoffensif, active le signal
+lexical, et sert de base au fine-tuning futur. Pour exploitation des pré-entraînés :
+`--embedding-file wiki.fr.vec` sans `--freeze-embeddings` (config D).

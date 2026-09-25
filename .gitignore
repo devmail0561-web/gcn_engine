@@ -31,8 +31,12 @@ gcn-python/models/
 /*.csv
 /*.json
 /*.npz
+benchmark-validation/*.npz
 /DATA/
 /Integration-post-pub.txt
+/CORRECTIONS-Integration-post-pub.md
+/gcn-transformers-SYNTHESE-FINALE.md
+/REMEDIATION-DIAGNOSTIC.md
 
 # Documents internes de développement
 docs/
