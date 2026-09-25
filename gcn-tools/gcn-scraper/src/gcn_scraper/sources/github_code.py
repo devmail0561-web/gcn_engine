@@ -110,71 +110,66 @@ class GitHubCodeScraper:
             return None
         return text[:self._max_chars]
 
-    def extract_comments(self, content: str, language: str) -> list[str]:
-        """Extrait les commentaires/docstrings d'un fichier source."""
-        lines = content.split('\n')
-        results = []
+    def extract_functions(self, content: str, language: str) -> list[str]:
+        """Extrait les blocs fonction/méthode réels depuis un fichier source.
+
+        Retourne une liste de chaînes, chacune contenant le source complet d'une
+        fonction (signature + corps). Taille minimale : 50 caractères.
+        """
         if language == "python":
-            in_docstring = False
-            docstring_marker: str | None = None
-            docstring_lines: list[str] = []
-            for raw_line in lines:
-                stripped = raw_line.strip()
-                if not in_docstring:
-                    if stripped.startswith('#'):
-                        c = stripped[1:].strip()
-                        if len(c) > 20:
-                            results.append(c)
-                    else:
-                        for marker in ('"""', "'''"):
-                            if stripped.startswith(marker):
-                                rest = stripped[3:]
-                                close = rest.find(marker)
-                                if close >= 0:
-                                    # docstring sur une seule ligne
-                                    c = rest[:close].strip()
-                                    if len(c) > 20:
-                                        results.append(c)
-                                else:
-                                    in_docstring = True
-                                    docstring_marker = marker
-                                    docstring_lines = [rest] if rest.strip() else []
-                                break
-                else:
-                    assert docstring_marker is not None
-                    close = stripped.find(docstring_marker)
-                    if close >= 0:
-                        last = stripped[:close].strip()
-                        if last:
-                            docstring_lines.append(last)
-                        text = " ".join(docstring_lines).strip()
-                        if len(text) > 20:
-                            results.append(text)
-                        in_docstring = False
-                        docstring_lines = []
-                        docstring_marker = None
-                    else:
-                        if stripped:
-                            docstring_lines.append(stripped)
-        else:
-            for line in lines:
-                line = line.strip()
-                if not line:
+            return self._extract_python_functions(content)
+        return self._extract_brace_functions(content, language)
+
+    @staticmethod
+    def _extract_python_functions(content: str) -> list[str]:
+        import ast as _ast
+        lines = content.splitlines()
+        try:
+            tree = _ast.parse(content)
+        except SyntaxError:
+            return []
+        results = []
+        for node in _ast.walk(tree):
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                if not hasattr(node, "end_lineno"):
                     continue
-                if language == "rust":
-                    if line.startswith('//'):
-                        c = line.lstrip('/').strip()
-                        if len(c) > 20:
-                            results.append(c)
-                elif language in ("javascript", "typescript", "java", "go", "csharp"):
-                    if line.startswith('//'):
-                        c = line[2:].strip()
-                        if len(c) > 20:
-                            results.append(c)
-                    elif line.startswith('*') and not line.startswith('*/'):
-                        c = line.lstrip('*').strip()
-                        if len(c) > 20:
-                            results.append(c)
+                src = "\n".join(lines[node.lineno - 1:node.end_lineno]).strip()
+                if len(src) >= 50:
+                    results.append(src)
+        return results
+
+    @staticmethod
+    def _extract_brace_functions(content: str, language: str) -> list[str]:
+        import re as _re
+        patterns: dict[str, str] = {
+            "rust":       r"\bfn\s+\w[\w<>\']*\s*(?:<[^>]*>)?\s*\([^)]*\)",
+            "go":         r"\bfunc\s+(?:\([^)]*\)\s*)?\w+\s*\([^)]*\)",
+            "java":       r"(?:public|private|protected|static|final|\s)+\w[\w<>\[\]]*\s+\w+\s*\([^)]*\)",
+            "csharp":     r"(?:public|private|protected|static|override|virtual|\s)+\w[\w<>\[\]]*\s+\w+\s*\([^)]*\)",
+            "javascript": r"(?:function\s+\w+\s*\([^)]*\)|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>)",
+            "typescript": r"(?:function\s+\w+\s*\([^)]*\)|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>)",
+        }
+        pattern_str = patterns.get(language)
+        if pattern_str is None:
+            return []
+        results = []
+        for match in _re.finditer(pattern_str, content):
+            brace_start = content.find("{", match.end())
+            if brace_start == -1:
+                continue
+            depth = 0
+            i = brace_start
+            while i < len(content):
+                if content[i] == "{":
+                    depth += 1
+                elif content[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        block = content[match.start():i + 1].strip()
+                        if len(block) >= 50:
+                            results.append(block)
+                        break
+                i += 1
         return results
 
     def scrape(
@@ -228,10 +223,14 @@ class GitHubCodeScraper:
                             content_url, item.get("download_url")
                         )
                         if content:
-                            comments = self.extract_comments(content, lang)
-                            for comment in comments:
+                            # NOTE : les blocs de code ont un ratio chars/mots
+                            # élevé — QualityScorer peut les rejeter avec le
+                            # seuil par défaut (0.3). Utiliser --min-quality 0.0
+                            # lors d'un run code-only, ou adapter le scorer.
+                            functions = self.extract_functions(content, lang)
+                            for func in functions:
                                 results.append({
-                                    "text": comment,
+                                    "text": func,
                                     "lang": "code",
                                     "source": f"github_{lang}",
                                     "url": item.get("html_url", content_url),

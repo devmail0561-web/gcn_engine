@@ -23,7 +23,7 @@ class DocScraper:
         cfg = get_source_config("doc")
         self._delay = float(cfg.get("rate_limit_delay", 1.0))
 
-    def scrape_url(self, url: str, source_label: str) -> dict | None:
+    def scrape_url(self, url: str, source_label: str, prog_lang: str = "code") -> dict | None:
         """Scrape une URL et extrait le texte avec trafilatura."""
         label = url.rstrip("/").split("/")[-1][:40] or url[:40]
         print(f"  {source_label}: {label}...", end=" ", flush=True)
@@ -40,7 +40,7 @@ class DocScraper:
             print(f"OK ({len(text)} chars)")
             return {
                 "text": text[:5000],
-                "lang": "code",
+                "lang": f"code_{prog_lang}",
                 "source": source_label,
                 "url": url,
             }
@@ -67,7 +67,7 @@ class DocScraper:
         for lang, url in items:
             if tracker is not None and tracker.is_globally_full():
                 break
-            result = self.scrape_url(url, f"{lang}_doc")
+            result = self.scrape_url(url, f"{lang}_doc", prog_lang=lang)
             if result:
                 results.append(result)
             time.sleep(self._delay)

@@ -14,16 +14,20 @@ def _compute_budget(
     target_total: int,
     include_code: bool = True,
     code_ratio: float = 0.10,
+    prog_langs: list[str] | None = None,
 ) -> dict[str, int]:
     """Budget proportionnel aux poids des langues sélectionnées.
 
-    include_code=False (--prog-langs none) : pas de bucket "code" — sinon
+    include_code=False (--prog-langs none) : pas de bucket code — sinon
     is_globally_full() ne devient jamais vrai et 10% du budget est perdu
     (audit-2 Fix 4).
 
     code_ratio : fraction du budget total allouée au code (0.0–1.0).
-    Si selected_langs est vide et include_code=True → budget code-only
-    {"code": target_total} quel que soit code_ratio.
+    Si selected_langs est vide et include_code=True → budget code-only.
+
+    prog_langs : si fourni, crée un bucket "code_{lang}" par langage de
+    programmation (quota équitable par langage). Si None, repli sur le bucket
+    global "code" (comportement historique, rétro-compatible).
     """
     try:
         from .config.loader import get_config
@@ -31,8 +35,14 @@ def _compute_budget(
     except Exception:
         cfg = {}
 
+    effective_prog = prog_langs if prog_langs is not None else []
+    use_sub_buckets = bool(effective_prog)
+
     # Code-only : pas de langues humaines sélectionnées.
     if not selected_langs and include_code:
+        if use_sub_buckets:
+            per = max(50, target_total // len(effective_prog))
+            return {f"code_{pl}": per for pl in effective_prog}
         return {"code": target_total}
 
     weights: dict[str, float] = {}
@@ -44,7 +54,12 @@ def _compute_budget(
     total_weight = sum(weights.values()) or 1.0
     budget = {lang: max(100, int(text_budget * w / total_weight)) for lang, w in weights.items()}
     if include_code:
-        budget["code"] = code_budget
+        if use_sub_buckets:
+            per = max(50, code_budget // len(effective_prog))
+            for pl in effective_prog:
+                budget[f"code_{pl}"] = per
+        else:
+            budget["code"] = code_budget
     return budget
 
 

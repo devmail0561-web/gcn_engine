@@ -294,9 +294,12 @@ def annotate_sentence(text: str, nlp) -> dict | None:
     tokens_before = [t for t in tokens_full if t.idx < connector_idx]
     tokens_after  = [t for t in tokens_full if t.idx >= connector_idx + len(connector)]
 
+    tokens_conn = [t for t in tokens_full
+                   if t.idx >= connector_idx and t.idx < connector_idx + len(connector)]
+    conn_size = max(1, len(tokens_conn))
     src_start = 1
     src_end   = max(1, len(tokens_before))
-    dst_start = min(T, src_end + 2)
+    dst_start = min(T, src_end + conn_size)
     dst_end   = T
 
     # Label = lemme du root

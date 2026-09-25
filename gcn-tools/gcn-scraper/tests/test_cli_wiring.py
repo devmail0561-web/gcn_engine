@@ -115,7 +115,7 @@ def test_langs_none_sets_empty_langs(tmp_path):
 
 
 def test_langs_none_budget_is_code_only():
-    """--langs none → budget {"code": target} sans aucune langue humaine."""
+    """--langs none sans prog_langs → bucket global {"code": target} (rétro-compat)."""
     from gcn_scraper.balance_tracker import _compute_budget
     budget = _compute_budget([], 20000, include_code=True, code_ratio=0.10)
     assert budget == {"code": 20000}
@@ -123,9 +123,32 @@ def test_langs_none_budget_is_code_only():
     assert "en" not in budget
 
 
+def test_langs_none_budget_with_prog_langs():
+    """--langs none + prog_langs → sous-buckets code_python, code_rust."""
+    from gcn_scraper.balance_tracker import _compute_budget
+    budget = _compute_budget([], 20000, include_code=True, code_ratio=0.10,
+                             prog_langs=["python", "rust"])
+    assert "code" not in budget
+    assert "code_python" in budget
+    assert "code_rust" in budget
+    assert budget["code_python"] == budget["code_rust"]
+    assert budget["code_python"] + budget["code_rust"] <= 20000
+
+
 def test_code_ratio_applied_in_budget():
-    """--code-ratio 0.5 avec langs=[fr] → fr=10000, code=10000 sur 20000."""
+    """--code-ratio 0.5 avec langs=[fr] sans prog_langs → fr=10000, code=10000 (rétro-compat)."""
     from gcn_scraper.balance_tracker import _compute_budget
     budget = _compute_budget(["fr"], 20000, include_code=True, code_ratio=0.5)
     assert budget["code"] == 10000
+    assert budget["fr"] == 10000
+
+
+def test_code_ratio_applied_with_prog_langs():
+    """--code-ratio 0.5 avec langs=[fr] + prog_langs → sous-buckets équitables."""
+    from gcn_scraper.balance_tracker import _compute_budget
+    budget = _compute_budget(["fr"], 20000, include_code=True, code_ratio=0.5,
+                             prog_langs=["python", "rust"])
+    assert "code" not in budget
+    assert budget["code_python"] == budget["code_rust"]
+    assert budget["code_python"] + budget["code_rust"] <= 10000 + 100
     assert budget["fr"] == 10000

@@ -109,6 +109,7 @@ class ScrapingPipeline:
             selected_langs, target_total,
             include_code=bool(selected_prog_langs),
             code_ratio=_code_ratio,
+            prog_langs=selected_prog_langs if selected_prog_langs else None,
         )
         tracker = BalanceTracker(budget)
 

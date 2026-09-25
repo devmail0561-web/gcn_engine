@@ -155,15 +155,33 @@ def analyze_sentence(text: str) -> dict | None:
     if len(significant_words) < 2:
         return None
     
-    # Creer les nœuds
+    # Localiser chaque mot significatif dans les tokens 1-based
+    tokens = text.split()
+    T = len(tokens)
+    tokens_lower = [t.lower() for t in tokens]
+    used_positions: set[int] = set()
+
+    def _find_pos(word: str) -> int:
+        for j, tok in enumerate(tokens_lower):
+            if word in tok and (j + 1) not in used_positions:
+                used_positions.add(j + 1)
+                return j + 1
+        # Fallback : position distribuée, sans collision
+        pos = max(1, min(T, (len(used_positions) + 1) * max(1, T // (len(significant_words[:3]) + 1))))
+        while pos in used_positions and pos < T:
+            pos += 1
+        used_positions.add(pos)
+        return pos
+
     nodes = []
     for i, word in enumerate(significant_words[:3]):
         node_type = "entite" if i == 0 else "processus"
+        pos = _find_pos(word)
         nodes.append({
             "id": f"n{i+1:03d}",
             "type": node_type,
             "label": word,
-            "token_span": [0, len(text.split()) - 1]
+            "token_span": [pos, pos],
         })
     
     # Creer les aretes
