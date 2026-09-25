@@ -198,7 +198,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "gcn-backend"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-ir",
  "gcn-middleend",
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-cli"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "clap",
  "gcn-backend",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-frontend-code"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-frontend-fr",
  "gcn-ir",
@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-frontend-en"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-frontend-fr",
  "gcn-ir",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-frontend-fr"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-ir",
  "gcn-knowledge",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-ir"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "proptest",
  "serde",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-knowledge"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-ir",
  "proptest",
@@ -290,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-middleend"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-ir",
  "gcn-knowledge",
@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "gcn-verbalizer"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "gcn-ir",
  "serde_json",

@@ -1,0 +1,19 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Tests fixtures (ne pas publier sur crates.io)
+tests/fixtures/*.json
+tests/fixtures/*.txt
+
+# Documentation interne développement
+SAD.md
+ARCHITECTURE.md

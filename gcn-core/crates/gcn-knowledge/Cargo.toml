@@ -8,7 +8,7 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "2.1.0" }
+gcn-ir = { path = "../gcn-ir", version = "2.5.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 yaml_serde = { workspace = true }
