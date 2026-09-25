@@ -4,9 +4,9 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use gcn_ir::{CausalIR, NodeId, RelationType};
-use gcn_middleend::graph::{build, CausalGraph};
-use petgraph::graph::NodeIndex;
+use gcn_middleend::graph::{CausalGraph, build};
 use petgraph::Direction;
+use petgraph::graph::NodeIndex;
 
 #[derive(Debug, Clone)]
 pub struct CausalLink {
@@ -180,9 +180,21 @@ fn bfs_descendants(nm: &NodeMap, em: &EdgeMap, g: &CausalGraph, start: NodeId) -
     links
 }
 
-fn bfs_path_links(nm: &NodeMap, em: &EdgeMap, g: &CausalGraph, from: NodeId, to: NodeId) -> Vec<CausalLink> {
-    let si = match g.node_indices.get(&from) { Some(&x) => x, None => return vec![] };
-    let di = match g.node_indices.get(&to) { Some(&x) => x, None => return vec![] };
+fn bfs_path_links(
+    nm: &NodeMap,
+    em: &EdgeMap,
+    g: &CausalGraph,
+    from: NodeId,
+    to: NodeId,
+) -> Vec<CausalLink> {
+    let si = match g.node_indices.get(&from) {
+        Some(&x) => x,
+        None => return vec![],
+    };
+    let di = match g.node_indices.get(&to) {
+        Some(&x) => x,
+        None => return vec![],
+    };
 
     let mut prev: HashMap<NodeIndex, NodeIndex> = HashMap::new();
     let mut queue = VecDeque::new();
@@ -191,7 +203,9 @@ fn bfs_path_links(nm: &NodeMap, em: &EdgeMap, g: &CausalGraph, from: NodeId, to:
     visited.insert(si);
 
     'bfs: while let Some(ni) = queue.pop_front() {
-        if ni == di { break 'bfs; }
+        if ni == di {
+            break 'bfs;
+        }
         for nb in g.g.neighbors_directed(ni, Direction::Outgoing) {
             if visited.insert(nb) {
                 prev.insert(nb, ni);
@@ -205,7 +219,10 @@ fn bfs_path_links(nm: &NodeMap, em: &EdgeMap, g: &CausalGraph, from: NodeId, to:
     path_ids.push(g.g[cur]);
     while cur != si {
         match prev.get(&cur) {
-            Some(&p) => { path_ids.push(g.g[p]); cur = p; }
+            Some(&p) => {
+                path_ids.push(g.g[p]);
+                cur = p;
+            }
             None => return vec![],
         }
     }
@@ -219,8 +236,14 @@ fn bfs_path_links(nm: &NodeMap, em: &EdgeMap, g: &CausalGraph, from: NodeId, to:
 
 fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<CausalLink> {
     em.get(&(src.0, dst.0)).map(|e| CausalLink {
-        from_label: nm.get(&src).map(|n| n.label.clone()).unwrap_or_else(|| format!("node_{}", src.0)),
-        to_label: nm.get(&dst).map(|n| n.label.clone()).unwrap_or_else(|| format!("node_{}", dst.0)),
+        from_label: nm
+            .get(&src)
+            .map(|n| n.label.clone())
+            .unwrap_or_else(|| format!("node_{}", src.0)),
+        to_label: nm
+            .get(&dst)
+            .map(|n| n.label.clone())
+            .unwrap_or_else(|| format!("node_{}", dst.0)),
         to_id: dst,
         relation: e.relation,
         confidence: e.confidence,
@@ -260,7 +283,10 @@ pub fn intervene(ir: &CausalIR, target_label: &str) -> Option<(String, Intervent
     let g = build(ir);
     let effects = bfs_descendants(&nm, &em, &g, target.id);
 
-    Some((target.label.clone(), InterventionResult { severed, effects }))
+    Some((
+        target.label.clone(),
+        InterventionResult { severed, effects },
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +321,13 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
         .map(|link| link.to_label.clone())
         .collect();
 
-    Some((target.label.clone(), CounterfactualResult { actual_effects, unique_effects }))
+    Some((
+        target.label.clone(),
+        CounterfactualResult {
+            actual_effects,
+            unique_effects,
+        },
+    ))
 }
 
 /// Calcule l'ensemble des nœuds atteignables depuis les VRAIES racines originelles du graphe

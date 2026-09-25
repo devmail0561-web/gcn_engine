@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::error::CodeParserError;
 use crate::mapper::{
-    label_strategy_str_to_enum, node_type_str_to_enum, relation_type_str_to_enum, LabelStrategy,
+    LabelStrategy, label_strategy_str_to_enum, node_type_str_to_enum, relation_type_str_to_enum,
 };
 
 #[derive(Debug, Deserialize)]
@@ -56,14 +56,23 @@ impl CodeResources {
             if let Some(rt) = relation_type_str_to_enum(&m.edge_type) {
                 kind_to_edge_type.insert(m.node_kind.clone(), rt);
             }
-            if let Some(ls) = m.label_strategy.as_deref().and_then(label_strategy_str_to_enum) {
+            if let Some(ls) = m
+                .label_strategy
+                .as_deref()
+                .and_then(label_strategy_str_to_enum)
+            {
                 kind_to_label_strategy.insert(m.node_kind.clone(), ls);
             }
         }
 
         let transparent = taxonomy.transparent.into_iter().collect();
 
-        Ok(CodeResources { kind_to_node_type, kind_to_edge_type, kind_to_label_strategy, transparent })
+        Ok(CodeResources {
+            kind_to_node_type,
+            kind_to_edge_type,
+            kind_to_label_strategy,
+            transparent,
+        })
     }
 
     pub fn load_python(taxonomies_root: &Path) -> Result<Self, CodeParserError> {

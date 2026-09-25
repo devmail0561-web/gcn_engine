@@ -1,9 +1,9 @@
 # gcn-frontend-fr — Parser Causal Français
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-frontend-fr)](https://crates.io/crates/gcn-frontend-fr)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 Frontend symbolique français du moteur **GCN-Core**. Analyse du texte naturel français et produit un `CausalIR` : tokenisation, étiquetage POS, détection de marqueurs causaux, annotation de clauses, émission du graphe.
 
@@ -30,7 +30,7 @@ Frontend symbolique français du moteur **GCN-Core**. Analyse du texte naturel f
 
 ```toml
 [dependencies]
-gcn-frontend-fr = "2.0"
+gcn-frontend-fr = "2.5.0"
 ```
 
 ---
@@ -234,4 +234,4 @@ pub struct CausalMarkerEntry {
 
 ## Licence
 
-MIT — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)
+Apache-2.0 — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)

@@ -1,13 +1,12 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
 use gcn_frontend_en::EnglishParser;
 use gcn_ir::{NaturalLanguage, RelationType, SourceLanguage};
+use std::path::PathBuf;
 
 fn taxonomy_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../gcn-references/taxonomies")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../gcn-references/taxonomies")
 }
 
 fn parser() -> EnglishParser {
@@ -28,7 +27,12 @@ fn source_language_is_english() {
     let p = parser();
     let ir = p.parse("Sales fall because costs rise.").unwrap();
     assert!(
-        matches!(ir.source_lang, SourceLanguage::Natural { lang: NaturalLanguage::English }),
+        matches!(
+            ir.source_lang,
+            SourceLanguage::Natural {
+                lang: NaturalLanguage::English
+            }
+        ),
         "source_lang should be English"
     );
 }
@@ -37,7 +41,11 @@ fn source_language_is_english() {
 fn pipeline_tag_is_gcn_frontend_en() {
     let p = parser();
     let ir = p.parse("The crisis causes unemployment.").unwrap();
-    assert!(ir.metadata.pipeline.contains(&"gcn-frontend-en".to_string()));
+    assert!(
+        ir.metadata
+            .pipeline
+            .contains(&"gcn-frontend-en".to_string())
+    );
 }
 
 // ─── Cause backward ("because") ─────────────────────────────────────────────
@@ -82,7 +90,10 @@ fn although_concession() {
     let ir = p.parse("Sales fell although costs decreased.").unwrap();
     assert!(!ir.edges.is_empty());
     let (_, _, edge) = &ir.edges[0];
-    assert!(matches!(edge.relation, RelationType::Concession | RelationType::Opposition));
+    assert!(matches!(
+        edge.relation,
+        RelationType::Concession | RelationType::Opposition
+    ));
 }
 
 // ─── Causal verbs ───────────────────────────────────────────────────────────
@@ -148,7 +159,9 @@ fn single_word_still_produces_one_node() {
 #[test]
 fn in_order_to_motivation() {
     let p = parser();
-    let ir = p.parse("The government intervened in order to prevent collapse.").unwrap();
+    let ir = p
+        .parse("The government intervened in order to prevent collapse.")
+        .unwrap();
     assert!(!ir.edges.is_empty());
     let (_, _, edge) = &ir.edges[0];
     assert_eq!(edge.relation, RelationType::Motivation);
@@ -175,12 +188,21 @@ fn en_fr_condition_isomorphism() {
     let fr_parser = FrenchParser::new(&taxonomy_dir()).expect("failed to load French taxonomies");
 
     let en_ir = en_parser.parse("If costs rise, sales fall.").unwrap();
-    let fr_ir = fr_parser.parse("Si les coûts augmentent, les ventes baissent.").unwrap();
+    let fr_ir = fr_parser
+        .parse("Si les coûts augmentent, les ventes baissent.")
+        .unwrap();
 
-    assert_eq!(en_ir.nodes.len(), fr_ir.nodes.len(), "même nombre de nœuds fr↔en");
+    assert_eq!(
+        en_ir.nodes.len(),
+        fr_ir.nodes.len(),
+        "même nombre de nœuds fr↔en"
+    );
     let (_, _, en_edge) = &en_ir.edges[0];
     let (_, _, fr_edge) = &fr_ir.edges[0];
-    assert_eq!(en_edge.relation, fr_edge.relation, "même type de relation Condition");
+    assert_eq!(
+        en_edge.relation, fr_edge.relation,
+        "même type de relation Condition"
+    );
 }
 
 // T-3 : chaîne A→B→C — temporal_index strictement croissant
@@ -195,7 +217,9 @@ fn three_clause_chain_temporal_indices_strictly_increasing() {
         return;
     }
 
-    let ti: Vec<i32> = ir.nodes.iter()
+    let ti: Vec<i32> = ir
+        .nodes
+        .iter()
         .map(|n| n.temporal_index.unwrap_or(-1))
         .collect();
 

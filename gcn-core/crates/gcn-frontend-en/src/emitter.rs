@@ -65,7 +65,9 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
     }
 
     CausalIR {
-        source_lang: SourceLanguage::Natural { lang: NaturalLanguage::English },
+        source_lang: SourceLanguage::Natural {
+            lang: NaturalLanguage::English,
+        },
         source_text,
         nodes,
         edges,
@@ -100,7 +102,10 @@ fn build_node(id: NodeId, clause: &ClauseAnnotation, temporal_index: Option<i32>
     let source_span = if clause.origin == NodeOrigin::Hypothetical || clause.span == (0, 0) {
         SourceSpan::Synthetic
     } else {
-        SourceSpan::TokenSpan { start: clause.span.0, end: clause.span.1 }
+        SourceSpan::TokenSpan {
+            start: clause.span.0,
+            end: clause.span.1,
+        }
     };
 
     CausalNode {

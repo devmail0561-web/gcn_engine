@@ -1,9 +1,9 @@
 # gcn-ir — Représentation Intermédiaire Causale
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-ir)](https://crates.io/crates/gcn-ir)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 Crate fondatrice du moteur **GCN-Core**. Définit le contrat central `CausalIR` : le graphe causal typé qui traverse tout le pipeline (parsers → middle-end → backend → verbalizer).
 
@@ -28,7 +28,7 @@ Tous les frontends produisent un `CausalIR`. Tous les backends le consomment. `g
 
 ```toml
 [dependencies]
-gcn-ir = "2.0"
+gcn-ir = "2.5.0"
 ```
 
 ---
@@ -206,4 +206,4 @@ let ir2: CausalIR = serde_json::from_str(&json)?;
 
 ## Licence
 
-MIT
+Apache-2.0

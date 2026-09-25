@@ -43,7 +43,11 @@ pub fn emit_node(
 }
 
 pub fn node_label(node: tree_sitter::Node<'_>, src: &[u8], res: &CodeResources) -> String {
-    let strategy = res.kind_to_label_strategy.get(node.kind()).copied().unwrap_or_default();
+    let strategy = res
+        .kind_to_label_strategy
+        .get(node.kind())
+        .copied()
+        .unwrap_or_default();
     match strategy {
         LabelStrategy::ConditionField => node
             .child_by_field_name("condition")
@@ -60,7 +64,12 @@ pub fn node_label(node: tree_sitter::Node<'_>, src: &[u8], res: &CodeResources) 
 }
 
 pub fn full_text_label(node: tree_sitter::Node<'_>, src: &[u8]) -> String {
-    node.utf8_text(src).unwrap_or("?").trim().chars().take(64).collect()
+    node.utf8_text(src)
+        .unwrap_or("?")
+        .trim()
+        .chars()
+        .take(64)
+        .collect()
 }
 
 pub fn control_edge(relation: RelationType) -> CausalEdge {

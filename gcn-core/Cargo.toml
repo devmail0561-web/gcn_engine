@@ -18,11 +18,11 @@ authors = ["Michel Tendeng"]
 description = "GCN Causal Engine — symbolic causal extraction from natural language and code"
 repository = "https://github.com/devmail0561-web/gcn_engine"
 homepage = "https://github.com/devmail0561-web/gcn_engine"
-documentation = "https://github.com/devmail0561-web/gcn_engine/blob/master/gcn-core/SAD.md"
+documentation = "https://github.com/devmail0561-web/gcn_engine"
 license = "Apache-2.0"
 keywords = ["nlp", "causal", "graph", "extraction", "reasoning"]
 categories = ["science", "text-processing"]
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -31,6 +31,5 @@ yaml_serde = "0.10"
 petgraph = "0.8"
 thiserror = "2.0"
 clap = { version = "4.6", features = ["derive", "env"] }
-rayon = "1.12"
 smallvec = { version = "1.13", features = ["serde"] }
 proptest = "1.11"

@@ -1,7 +1,7 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_ir::{NodeType, RelationType, Scope, AgentType};
+use gcn_ir::{AgentType, NodeType, RelationType, Scope};
 use unicode_normalization::UnicodeNormalization;
 
 // ---------------------------------------------------------------------------
@@ -12,41 +12,40 @@ use unicode_normalization::UnicodeNormalization;
 /// Map a taxonomy `causal_direction` string (from verbes.yaml) → NodeType.
 pub fn causal_direction_to_node_type(dir: &str) -> Option<NodeType> {
     match dir {
-        "maintien"    => Some(NodeType::Etat),
-        "production"  => Some(NodeType::Action),
-        "rupture"     => Some(NodeType::Transition),
+        "maintien" => Some(NodeType::Etat),
+        "production" => Some(NodeType::Action),
+        "rupture" => Some(NodeType::Transition),
         "propagation" => Some(NodeType::Processus),
-        _             => None,
+        _ => None,
     }
 }
 
 /// Map a taxonomy `relation_type` string → RelationType.
 pub fn relation_type_str_to_enum(rt: &str) -> Option<RelationType> {
     match rt {
-        "cause_directe" | "cause"              => Some(RelationType::Cause),
-        "effet_direct"                          => Some(RelationType::Cause),
-        "cause_conditionnelle" | "condition"   => Some(RelationType::Condition),
-        "cause_attendue_non_réalisée" |
-        "concession"                            => Some(RelationType::Concession),
-        "séquence_temporelle" | "sequence"      => Some(RelationType::Sequence),
-        "contraste_causal" | "opposition"       => Some(RelationType::Opposition),
-        "enable"                                => Some(RelationType::Enable),
-        "prevent"                               => Some(RelationType::Prevent),
-        "motivation"                            => Some(RelationType::Motivation),
-        _                                       => None,
+        "cause_directe" | "cause" => Some(RelationType::Cause),
+        "effet_direct" => Some(RelationType::Cause),
+        "cause_conditionnelle" | "condition" => Some(RelationType::Condition),
+        "cause_attendue_non_réalisée" | "concession" => Some(RelationType::Concession),
+        "séquence_temporelle" | "sequence" => Some(RelationType::Sequence),
+        "contraste_causal" | "opposition" => Some(RelationType::Opposition),
+        "enable" => Some(RelationType::Enable),
+        "prevent" => Some(RelationType::Prevent),
+        "motivation" => Some(RelationType::Motivation),
+        _ => None,
     }
 }
 
 /// Map a taxonomy `scope` string → Scope.
 pub fn scope_str_to_enum(s: &str) -> Option<Scope> {
     match s {
-        "specific"     => Some(Scope::Specific),
-        "existential"  => Some(Scope::Existential),
-        "partial"      => Some(Scope::Partial),
-        "null"         => Some(Scope::Null),
-        "universal"    => Some(Scope::Universal),
-        "unknown"      => Some(Scope::Unknown),
-        _              => None,
+        "specific" => Some(Scope::Specific),
+        "existential" => Some(Scope::Existential),
+        "partial" => Some(Scope::Partial),
+        "null" => Some(Scope::Null),
+        "universal" => Some(Scope::Universal),
+        "unknown" => Some(Scope::Unknown),
+        _ => None,
     }
 }
 
@@ -94,10 +93,10 @@ pub fn pron_class_to_agent_type(class_name: &str, lemma: &str) -> AgentType {
 pub fn noun_class_to_node_type(class_name: &str) -> Option<NodeType> {
     match class_name {
         "etat_systemique" => Some(NodeType::EtatSystemique),
-        "processus"       => Some(NodeType::Processus),
-        "agent"           => Some(NodeType::Entite),
-        "patient"         => Some(NodeType::Entite),
-        _                 => None,
+        "processus" => Some(NodeType::Processus),
+        "agent" => Some(NodeType::Entite),
+        "patient" => Some(NodeType::Entite),
+        _ => None,
     }
 }
 
@@ -133,17 +132,18 @@ pub fn lemmatize_verb(form: &str) -> String {
     }
     if f.ends_with("és") || f.ends_with("ées") {
         let end = if f.ends_with("ées") { 4 } else { 3 };
-        return format!("{}er", &f[..f.len()-end]);
+        return format!("{}er", &f[..f.len() - end]);
     }
     if let Some(stripped) = f.strip_suffix('é') {
         return format!("{}er", stripped);
     }
 
     // Passé composé 2nd group: -i → stem + ir
-    if f.ends_with('i') && f.len() > 3
+    if f.ends_with('i')
+        && f.len() > 3
         && !["qui", "si", "merci", "aussi", "demi", "semi"].contains(&f)
     {
-        let stem = &f[..f.len()-1];
+        let stem = &f[..f.len() - 1];
         // Disambiguate: if already ends in -rir/-fir etc, just return
         if !stem.ends_with('r') {
             return format!("{}ir", stem);
@@ -163,7 +163,7 @@ pub fn lemmatize_verb(form: &str) -> String {
 
     // Present 3rd plural -ent: baissent → baisser
     if f.ends_with("ent") && f.len() > 4 {
-        let stem = &f[..f.len()-3];
+        let stem = &f[..f.len() - 3];
         // Avoid matching "lent", "vent" etc.
         if stem.len() > 2 {
             return format!("{}er", stem);
@@ -173,7 +173,7 @@ pub fn lemmatize_verb(form: &str) -> String {
     // Present 3rd singular -e: baisse → baisser, travaille → travailler
     if f.ends_with('e') && f.len() > 3 {
         // Avoid matching determiners and conjunctions (short tokens)
-        let stem = &f[..f.len()-1];
+        let stem = &f[..f.len() - 1];
         if stem.len() > 3 {
             return format!("{}er", stem);
         }
@@ -189,8 +189,14 @@ pub fn lemmatize_verb(form: &str) -> String {
 
 /// Nominalize a verb using a pre-loaded lookup table (from nominalizations.yaml).
 /// Falls back to the lemma itself for regular or unknown verbs.
-pub fn nominalize_with_table<'a>(verb_lemma: &'a str, table: &'a std::collections::HashMap<String, String>) -> &'a str {
-    table.get(verb_lemma).map(|s| s.as_str()).unwrap_or(verb_lemma)
+pub fn nominalize_with_table<'a>(
+    verb_lemma: &'a str,
+    table: &'a std::collections::HashMap<String, String>,
+) -> &'a str {
+    table
+        .get(verb_lemma)
+        .map(|s| s.as_str())
+        .unwrap_or(verb_lemma)
 }
 
 /// Heuristic: does this token look like a verb form?

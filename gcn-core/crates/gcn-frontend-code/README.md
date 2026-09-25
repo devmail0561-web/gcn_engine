@@ -1,9 +1,9 @@
 # gcn-frontend-code — Code Source → CausalIR
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-frontend-code)](https://crates.io/crates/gcn-frontend-code)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 Frontend code source du moteur **GCN-Core**. Analyse l'AST de code Python, Rust ou JavaScript via tree-sitter et produit un `CausalIR` structurellement isomorphe à celui produit par les frontends texte.
 
@@ -31,7 +31,7 @@ if x < y:
 
 ```toml
 [dependencies]
-gcn-frontend-code = "2.0"
+gcn-frontend-code = "2.5.0"
 ```
 
 ---
@@ -139,4 +139,4 @@ Le label de chaque nœud AST est extrait selon la stratégie définie dans le YA
 
 ## Licence
 
-MIT — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)
+Apache-2.0 — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)

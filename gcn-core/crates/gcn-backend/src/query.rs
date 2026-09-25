@@ -22,7 +22,13 @@ pub enum Query {
 
 impl Query {
     pub fn parse(input: &str) -> Result<Self, BackendError> {
-        let s = input.trim().trim_end_matches('?').trim();
+        let trimmed = input.trim().trim_end_matches('?').trim();
+        // Normalize only the keyword (first word) to uppercase — label case is preserved.
+        let normalized = match trimmed.find(' ') {
+            Some(pos) => format!("{}{}", trimmed[..pos].to_ascii_uppercase(), &trimmed[pos..]),
+            None => trimmed.to_ascii_uppercase(),
+        };
+        let s = normalized.as_str();
 
         if let Some(label) = s.strip_prefix("WHY ") {
             return Ok(Query::Why(label.trim().to_string()));
@@ -53,7 +59,7 @@ impl Query {
 
         Err(BackendError::QueryParseError(format!(
             "unknown query '{}'. Valid: WHY <label>, WHAT <label>, CHAIN <a> -> <b>, CYCLES, GAPS, DO <label>, COUNTERFACTUAL <label>",
-            input
+            if input.len() > 200 { &input[..200] } else { input }
         )))
     }
 }
@@ -133,7 +139,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (target, links) = results.drain(..).next().ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let (target, links) = results
+                .drain(..)
+                .next()
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             Ok(QueryResult::Causes {
                 target,
                 links: links.iter().map(link_to_dto).collect(),
@@ -145,7 +154,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (source, links) = results.drain(..).next().ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let (source, links) = results
+                .drain(..)
+                .next()
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             Ok(QueryResult::Effects {
                 source,
                 links: links.iter().map(link_to_dto).collect(),

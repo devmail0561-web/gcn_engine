@@ -1,7 +1,7 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_backend::{execute, to_dot, to_json, BackendError, Query, QueryResult};
+use gcn_backend::{BackendError, Query, QueryResult, execute, to_dot, to_json};
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, NaturalLanguage, NodeAttributes, NodeId,
     NodeOrigin, NodeType, RelationType, Scope, SourceLanguage, SourceSpan, TemporalRef,
@@ -42,7 +42,9 @@ fn edge(src: u32, dst: u32, rel: RelationType) -> (NodeId, NodeId, CausalEdge) {
 
 fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> CausalIR {
     let ir = CausalIR {
-        source_lang: SourceLanguage::Natural { lang: NaturalLanguage::French },
+        source_lang: SourceLanguage::Natural {
+            lang: NaturalLanguage::French,
+        },
         source_text: String::new(),
         nodes,
         edges,
@@ -62,7 +64,10 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
 
 #[test]
 fn parse_why() {
-    assert_eq!(Query::parse("WHY ventes?").unwrap(), Query::Why("ventes".into()));
+    assert_eq!(
+        Query::parse("WHY ventes?").unwrap(),
+        Query::Why("ventes".into())
+    );
 }
 
 // T-4 : WHY sans label après l'espace (ex: "WHY ") — doit retourner une erreur de parsing.
@@ -82,7 +87,10 @@ fn parse_why_trailing_space_only_returns_error() {
 
 #[test]
 fn parse_what() {
-    assert_eq!(Query::parse("WHAT coûts?").unwrap(), Query::What("coûts".into()));
+    assert_eq!(
+        Query::parse("WHAT coûts?").unwrap(),
+        Query::What("coûts".into())
+    );
 }
 
 #[test]
@@ -134,7 +142,10 @@ fn why_finds_direct_cause() {
 
 #[test]
 fn why_node_not_found_errors() {
-    let ir = make_ir(vec![node(0, "chute(qualité)", NodeType::Transition)], vec![]);
+    let ir = make_ir(
+        vec![node(0, "chute(qualité)", NodeType::Transition)],
+        vec![],
+    );
     let err = execute(&Query::Why("inexistant".into()), &ir);
     assert!(matches!(err, Err(BackendError::NodeNotFound(_))));
 }
@@ -171,7 +182,10 @@ fn chain_finds_path() {
             node(1, "baisse(ventes)", NodeType::Etat),
             node(2, "réduction(coûts)", NodeType::Action),
         ],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 2, RelationType::Cause)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
     );
     let result = execute(&Query::Chain("qualité".into(), "coûts".into()), &ir).unwrap();
     if let QueryResult::Path { found, links, .. } = result {
@@ -205,7 +219,10 @@ fn chain_no_path() {
 fn cycles_detects_feedback_loop() {
     let ir = make_ir(
         vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 0, RelationType::Cause)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 0, RelationType::Cause),
+        ],
     );
     let result = execute(&Query::Cycles, &ir).unwrap();
     if let QueryResult::CycleList { count, .. } = result {
@@ -278,7 +295,10 @@ fn json_export_is_valid() {
 #[test]
 fn dot_export_contains_nodes_and_edges() {
     let ir = make_ir(
-        vec![node(0, "qualité", NodeType::Action), node(1, "ventes", NodeType::Etat)],
+        vec![
+            node(0, "qualité", NodeType::Action),
+            node(1, "ventes", NodeType::Etat),
+        ],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let dot = to_dot(&ir).unwrap();
@@ -305,8 +325,14 @@ fn json_roundtrip() {
 
 #[test]
 fn parse_do() {
-    assert_eq!(Query::parse("DO crise?").unwrap(), Query::Intervene("crise".into()));
-    assert_eq!(Query::parse("DO hausse").unwrap(), Query::Intervene("hausse".into()));
+    assert_eq!(
+        Query::parse("DO crise?").unwrap(),
+        Query::Intervene("crise".into())
+    );
+    assert_eq!(
+        Query::parse("DO hausse").unwrap(),
+        Query::Intervene("hausse".into())
+    );
 }
 
 #[test]
@@ -325,7 +351,13 @@ fn intervene_cuts_incoming_and_propagates_forward() {
         ],
     );
     let result = execute(&Query::Intervene("B".into()), &ir).unwrap();
-    if let QueryResult::Intervention { severed_count, severed, effects, .. } = result {
+    if let QueryResult::Intervention {
+        severed_count,
+        severed,
+        effects,
+        ..
+    } = result
+    {
         assert_eq!(severed_count, 1, "une arête entrante coupée (A→B)");
         assert_eq!(severed.len(), 1);
         assert_eq!(severed[0].from, "A");
@@ -348,7 +380,12 @@ fn intervene_no_incoming_zero_severed() {
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = execute(&Query::Intervene("racine".into()), &ir).unwrap();
-    if let QueryResult::Intervention { severed_count, effects, .. } = result {
+    if let QueryResult::Intervention {
+        severed_count,
+        effects,
+        ..
+    } = result
+    {
         assert_eq!(severed_count, 0);
         assert_eq!(effects.len(), 1);
     } else {
@@ -358,10 +395,7 @@ fn intervene_no_incoming_zero_severed() {
 
 #[test]
 fn intervene_node_not_found() {
-    let ir = make_ir(
-        vec![node(0, "A", NodeType::Action)],
-        vec![],
-    );
+    let ir = make_ir(vec![node(0, "A", NodeType::Action)], vec![]);
     assert!(matches!(
         execute(&Query::Intervene("INEXISTANT".into()), &ir),
         Err(BackendError::NodeNotFound(_))
@@ -394,9 +428,17 @@ fn counterfactual_unique_effect_detected() {
         ],
     );
     let result = execute(&Query::Counterfactual("B".into()), &ir).unwrap();
-    if let QueryResult::CounterfactualDiff { actual_effects, unique_effects, .. } = result {
+    if let QueryResult::CounterfactualDiff {
+        actual_effects,
+        unique_effects,
+        ..
+    } = result
+    {
         assert!(!actual_effects.is_empty());
-        assert!(unique_effects.contains(&"C".to_string()), "C est uniquement causé par B");
+        assert!(
+            unique_effects.contains(&"C".to_string()),
+            "C est uniquement causé par B"
+        );
     } else {
         panic!("résultat inattendu");
     }
@@ -419,7 +461,10 @@ fn counterfactual_shared_effect_not_unique() {
     );
     let result = execute(&Query::Counterfactual("B".into()), &ir).unwrap();
     if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
-        assert!(!unique_effects.contains(&"C".to_string()), "C a un chemin alternatif via A");
+        assert!(
+            !unique_effects.contains(&"C".to_string()),
+            "C a un chemin alternatif via A"
+        );
     } else {
         panic!("résultat inattendu");
     }
@@ -427,16 +472,12 @@ fn counterfactual_shared_effect_not_unique() {
 
 #[test]
 fn counterfactual_node_not_found() {
-    let ir = make_ir(
-        vec![node(0, "A", NodeType::Action)],
-        vec![],
-    );
+    let ir = make_ir(vec![node(0, "A", NodeType::Action)], vec![]);
     assert!(matches!(
         execute(&Query::Counterfactual("INEXISTANT".into()), &ir),
         Err(BackendError::NodeNotFound(_))
     ));
 }
-
 
 // fix C-4: unique_effects préserve la cardinalité quand deux nœuds distincts partagent le même label
 #[test]
@@ -456,10 +497,19 @@ fn fix_c4_unique_effects_two_same_label_nodes_both_unique() {
     );
     let result = execute(&Query::Counterfactual("trigger".into()), &ir).unwrap();
     if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
-        assert_eq!(unique_effects.len(), 2,
+        assert_eq!(
+            unique_effects.len(),
+            2,
             "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {:?}",
-            unique_effects);
-        assert_eq!(unique_effects.iter().filter(|s| s.as_str() == "doublon").count(), 2);
+            unique_effects
+        );
+        assert_eq!(
+            unique_effects
+                .iter()
+                .filter(|s| s.as_str() == "doublon")
+                .count(),
+            2
+        );
     } else {
         panic!("résultat inattendu");
     }
@@ -482,7 +532,8 @@ fn fix_bug2_counterfactual_duplicate_labels() {
     if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
         assert!(
             unique_effects.contains(&"doublon".to_string()),
-            "doublon(id=2) est unique à trigger : {:?}", unique_effects
+            "doublon(id=2) est unique à trigger : {:?}",
+            unique_effects
         );
     } else {
         panic!("résultat inattendu");

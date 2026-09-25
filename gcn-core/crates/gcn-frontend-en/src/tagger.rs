@@ -37,7 +37,11 @@ pub fn tag(tokens: &[Token], res: &LexicalResources) -> Vec<TaggedToken> {
 fn classify_token(t: &Token, res: &LexicalResources) -> TaggedToken {
     let lower = t.lower.as_str();
     let (pos, lemma) = classify(lower, res);
-    let scope_hint = if pos == Pos::Det { res.det_scope.get(lower).copied() } else { None };
+    let scope_hint = if pos == Pos::Det {
+        res.det_scope.get(lower).copied()
+    } else {
+        None
+    };
     let is_past = pos == Pos::Verb && is_past_tense(&t.form);
     let is_neg_p = res.negation_particles.contains(lower);
     let is_neg_c = res.negation_completers.contains(lower);

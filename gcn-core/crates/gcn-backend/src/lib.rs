@@ -10,4 +10,4 @@ pub mod query;
 
 pub use error::BackendError;
 pub use export::{to_dot, to_json};
-pub use query::{execute, Query, QueryResult};
+pub use query::{Query, QueryResult, execute};

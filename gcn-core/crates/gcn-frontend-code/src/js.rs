@@ -3,8 +3,10 @@
 
 use std::path::Path;
 
-use gcn_ir::{CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, NodeType,
-    ProgrammingLanguage, RelationType, SourceLanguage};
+use gcn_ir::{
+    CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, NodeType, ProgrammingLanguage,
+    RelationType, SourceLanguage,
+};
 use tree_sitter::Parser;
 
 use crate::common::{control_edge, emit_node};
@@ -19,8 +21,13 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
         .set_language(&tree_sitter_javascript::LANGUAGE.into())
         .map_err(|e| CodeParserError::Language(e.to_string()))?;
 
-    let tree = parser.parse(source, None).ok_or(CodeParserError::ParseFailed)?;
+    let tree = parser
+        .parse(source, None)
+        .ok_or(CodeParserError::ParseFailed)?;
     let root = tree.root_node();
+    if root.has_error() {
+        return Err(CodeParserError::ParseFailed);
+    }
     let src_bytes = source.as_bytes();
 
     let mut nodes: Vec<CausalNode> = Vec::new();
@@ -30,7 +37,9 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
     walk_block(root, src_bytes, &res, &mut nodes, &mut edges, &mut next_id);
 
     Ok(CausalIR {
-        source_lang: SourceLanguage::Programming { lang: ProgrammingLanguage::JavaScript },
+        source_lang: SourceLanguage::Programming {
+            lang: ProgrammingLanguage::JavaScript,
+        },
         source_text: source.to_string(),
         nodes,
         edges,
@@ -66,19 +75,25 @@ fn walk_block(
             raw_child
         };
         let kind = child.kind();
-        let Some(&node_type) = res.kind_to_node_type.get(kind) else { continue };
+        let Some(&node_type) = res.kind_to_node_type.get(kind) else {
+            continue;
+        };
 
         let id = emit_node(child, src, node_type, nodes, next_id, res);
-        let edge_rel = res.kind_to_edge_type.get(kind).copied()
+        let edge_rel = res
+            .kind_to_edge_type
+            .get(kind)
+            .copied()
             .unwrap_or(RelationType::ControlDependency);
 
         let body_ids = match kind {
             "if_statement" => walk_if(child, src, res, nodes, edges, next_id),
             "try_statement" => walk_try(child, src, res, nodes, edges, next_id),
-            "while_statement" | "for_statement" | "for_in_statement"
-            | "function_declaration" | "function" => {
-                walk_body_of(child, src, res, nodes, edges, next_id)
-            }
+            "while_statement"
+            | "for_statement"
+            | "for_in_statement"
+            | "function_declaration"
+            | "function" => walk_body_of(child, src, res, nodes, edges, next_id),
             _ => vec![],
         };
         for body_id in body_ids {
@@ -134,10 +149,16 @@ fn walk_try(
                 body_ids.extend(walk_block(child, src, res, nodes, edges, next_id))
             }
             "catch_clause" => {
-                let node_type = res.kind_to_node_type.get("catch_clause").copied()
+                let node_type = res
+                    .kind_to_node_type
+                    .get("catch_clause")
+                    .copied()
                     .unwrap_or(NodeType::Etat);
                 let catch_id = emit_node(child, src, node_type, nodes, next_id, res);
-                let edge_rel = res.kind_to_edge_type.get("catch_clause").copied()
+                let edge_rel = res
+                    .kind_to_edge_type
+                    .get("catch_clause")
+                    .copied()
                     .unwrap_or(RelationType::Concession);
                 for hid in walk_body_of(child, src, res, nodes, edges, next_id) {
                     edges.push((catch_id, hid, control_edge(edge_rel)));

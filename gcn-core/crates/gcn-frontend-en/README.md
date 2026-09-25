@@ -1,9 +1,9 @@
 # gcn-frontend-en — English Causal Parser
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-frontend-en)](https://crates.io/crates/gcn-frontend-en)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 English symbolic frontend for the **GCN-Core** engine. Parses natural language English text and produces a `CausalIR`: tokenization, POS tagging, causal marker detection, clause annotation, graph emission.
 
@@ -32,7 +32,7 @@ The English and French frontends are **isomorphic** — the same causal sentence
 
 ```toml
 [dependencies]
-gcn-frontend-en = "2.0"
+gcn-frontend-en = "2.5.0"
 ```
 
 ---
@@ -207,4 +207,4 @@ impl LexicalResources {
 
 ## License
 
-MIT — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)
+Apache-2.0 — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)

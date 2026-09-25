@@ -12,9 +12,9 @@ pub mod tokenizer;
 pub use error::EnParseError;
 pub use resources::LexicalResources;
 
-use std::path::Path;
 use gcn_ir::CausalIR;
 use gcn_knowledge::KnowledgeError;
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum ParserInitError {

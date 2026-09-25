@@ -16,11 +16,14 @@ pub use code::{CodeAttributes, CodeCausalType, ControlFlow, DataFlow};
 pub use edge::{CausalEdge, CycleId, RelationType};
 pub use error::{GcnError, GcnResult};
 pub use ir::{
-    Ambiguity, AmbiguousField, AmbiguityCandidate, CausalCycle, CausalIR, CycleType, IrMetadata,
+    Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, IrMetadata,
     NaturalLanguage, ProgrammingLanguage, SourceLanguage,
 };
 pub use modifier::{FrequencyKind, LocationScope, Maturity, Modifier};
-pub use node::{AgentType, CausalDirection, CausalNode, NodeAttributes, NodeId, NodeOrigin, NodeType, SourceSpan};
+pub use node::{
+    AgentType, CausalDirection, CausalNode, NodeAttributes, NodeId, NodeOrigin, NodeType,
+    SourceSpan,
+};
 pub use scope::Scope;
 pub use temporal::{GapNature, TemporalAnchor, TemporalGap, TemporalRef};
 
@@ -74,7 +77,9 @@ mod tests {
     #[test]
     fn causal_ir_empty_counts() {
         let ir = CausalIR {
-            source_lang: SourceLanguage::Natural { lang: NaturalLanguage::French },
+            source_lang: SourceLanguage::Natural {
+                lang: NaturalLanguage::French,
+            },
             source_text: String::new(),
             nodes: vec![],
             edges: vec![],

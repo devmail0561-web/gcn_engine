@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::resources::{CausalMarkerEntry, LexicalResources};
-use crate::rules::{MarkerDir, nominalize_with_table, is_infinitive, is_imparfait};
-use crate::tagger::{TaggedToken, Pos};
+use crate::rules::{MarkerDir, is_imparfait, is_infinitive, nominalize_with_table};
+use crate::tagger::{Pos, TaggedToken};
 use gcn_ir::{AgentType, NodeOrigin, NodeType, RelationType, Scope};
 
 const FR_UNIVERSAL_SUBJECT_LEMMAS: &[&str] = &["on"];
@@ -80,7 +80,8 @@ pub fn annotate(tagged: &[TaggedToken], res: &LexicalResources) -> SentenceAnnot
             offset += sentence_clause_counts[i];
             if sentence_clause_counts[i] > 0 && sentence_clause_counts[i + 1] > 0 {
                 let start = offset - sentence_clause_counts[i];
-                let src_clause = (start..offset).rev()
+                let src_clause = (start..offset)
+                    .rev()
                     .find(|&idx| all_clauses[idx].origin != NodeOrigin::Hypothetical)
                     .unwrap_or(offset - 1);
                 all_edges.push(EdgeAnnotation {
@@ -95,7 +96,10 @@ pub fn annotate(tagged: &[TaggedToken], res: &LexicalResources) -> SentenceAnnot
             }
         }
 
-        SentenceAnnotation { clauses: all_clauses, edges: all_edges }
+        SentenceAnnotation {
+            clauses: all_clauses,
+            edges: all_edges,
+        }
     }
 }
 
@@ -121,9 +125,20 @@ fn split_sentences(tokens: &[TaggedToken]) -> Vec<&[TaggedToken]> {
 
 /// Strip leading/trailing commas and punctuation from a token slice.
 fn strip_punct_ends(tokens: &[TaggedToken]) -> &[TaggedToken] {
-    let start = tokens.iter().position(|t| t.token.lower != "," && t.token.lower != ".").unwrap_or(0);
-    let end = tokens.iter().rposition(|t| t.token.lower != "," && t.token.lower != ".").map(|i| i + 1).unwrap_or(tokens.len());
-    if start < end { &tokens[start..end] } else { tokens }
+    let start = tokens
+        .iter()
+        .position(|t| t.token.lower != "," && t.token.lower != ".")
+        .unwrap_or(0);
+    let end = tokens
+        .iter()
+        .rposition(|t| t.token.lower != "," && t.token.lower != ".")
+        .map(|i| i + 1)
+        .unwrap_or(tokens.len());
+    if start < end {
+        &tokens[start..end]
+    } else {
+        tokens
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +147,10 @@ fn strip_punct_ends(tokens: &[TaggedToken]) -> &[TaggedToken] {
 
 fn annotate_sentence(tokens: &[TaggedToken], res: &LexicalResources) -> SentenceAnnotation {
     if tokens.is_empty() {
-        return SentenceAnnotation { clauses: vec![], edges: vec![] };
+        return SentenceAnnotation {
+            clauses: vec![],
+            edges: vec![],
+        };
     }
 
     let lower_seq: Vec<&str> = tokens.iter().map(|t| t.token.lower.as_str()).collect();
@@ -150,7 +168,10 @@ fn annotate_sentence(tokens: &[TaggedToken], res: &LexicalResources) -> Sentence
 
     // Single clause
     let clause = build_clause(tokens, res);
-    SentenceAnnotation { clauses: vec![clause], edges: vec![] }
+    SentenceAnnotation {
+        clauses: vec![clause],
+        edges: vec![],
+    }
 }
 
 /// Normalize apostrophe clitics for marker matching:
@@ -160,15 +181,15 @@ fn normalize_clitic(s: &str) -> String {
         let base = s.trim_end_matches(['\'', '\u{2019}']);
         match base.to_lowercase().as_str() {
             "qu" => "que".to_string(),
-            "n"  => "ne".to_string(),
-            "l"  => "le".to_string(),
-            "j"  => "je".to_string(),
-            "m"  => "me".to_string(),
-            "t"  => "te".to_string(),
-            "s"  => "se".to_string(),
-            "c"  => "ce".to_string(),
-            "d"  => "de".to_string(),
-            _    => s.to_lowercase(),
+            "n" => "ne".to_string(),
+            "l" => "le".to_string(),
+            "j" => "je".to_string(),
+            "m" => "me".to_string(),
+            "t" => "te".to_string(),
+            "s" => "se".to_string(),
+            "c" => "ce".to_string(),
+            "d" => "de".to_string(),
+            _ => s.to_lowercase(),
         }
     } else {
         s.to_lowercase()
@@ -260,7 +281,13 @@ fn try_causal_marker(
                 continue;
             }
 
-            return Some(build_marker_annotation(left_tokens, right_tokens, marker, marker_tok_idx, res));
+            return Some(build_marker_annotation(
+                left_tokens,
+                right_tokens,
+                marker,
+                marker_tok_idx,
+                res,
+            ));
         }
     }
     None
@@ -358,7 +385,7 @@ fn build_marker_annotation(
     }
 
     let (src_idx, dst_idx) = match marker.direction {
-        MarkerDir::Forward  => (0, 1),
+        MarkerDir::Forward => (0, 1),
         MarkerDir::Backward => (1, 0),
         MarkerDir::GoalToAction => (1, 0),
     };
@@ -418,12 +445,17 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
         return ClauseAnnotation {
             span: (0, 0),
             node_type: NodeType::Action,
-            label: String::new(),
+            label: "[clause vide]".to_string(),
             scope: Scope::Specific,
             origin: NodeOrigin::Explicit,
-            agent: None, patient: None, agent_type: None,
-            entity: None, quality: None,
-            has_depuis: false, is_imparfait: false, neg_on_node: false,
+            agent: None,
+            patient: None,
+            agent_type: None,
+            entity: None,
+            quality: None,
+            has_depuis: false,
+            is_imparfait: false,
+            neg_on_node: false,
         };
     }
 
@@ -444,7 +476,10 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     let subject = extract_subject(tokens, main_verb_idx);
 
     // "on" as subject → universal scope
-    if subject.as_deref().is_some_and(|s| FR_UNIVERSAL_SUBJECT_LEMMAS.contains(&s)) {
+    if subject
+        .as_deref()
+        .is_some_and(|s| FR_UNIVERSAL_SUBJECT_LEMMAS.contains(&s))
+    {
         scope = Scope::Universal;
     }
 
@@ -452,7 +487,9 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     let neg_on_node = has_negation_in_clause(tokens);
 
     // --- depuis flag ---
-    let has_depuis = tokens.iter().any(|t| FR_DURATIVE_MARKERS.contains(&t.token.lower.as_str()));
+    let has_depuis = tokens
+        .iter()
+        .any(|t| FR_DURATIVE_MARKERS.contains(&t.token.lower.as_str()));
 
     // --- Main verb analysis ---
     let (node_type, verb_lemma, quality) = if let Some(vi) = main_verb_idx {
@@ -460,7 +497,9 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
         let lemma = tokens[vi].lemma.clone();
 
         // Use taxonomy lookup first, then fallback
-        let mut nt = res.verb_classes.get(&lemma)
+        let mut nt = res
+            .verb_classes
+            .get(&lemma)
             .or_else(|| res.verb_classes.get(&form_lower))
             .copied()
             .unwrap_or(NodeType::Action);
@@ -505,14 +544,24 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
 
     // --- Agent type ---
     let agent_type = subject.as_ref().map(|s| {
-        res.pron_agent_types.get(s.as_str()).copied()
+        res.pron_agent_types
+            .get(s.as_str())
+            .copied()
             .unwrap_or(gcn_ir::AgentType::Human)
     });
 
     // --- Build label ---
-    let is_imp = main_verb_idx.map(|i| tokens[i].is_imparfait || is_imparfait(&tokens[i].token.form)).unwrap_or(false);
+    let is_imp = main_verb_idx
+        .map(|i| tokens[i].is_imparfait || is_imparfait(&tokens[i].token.form))
+        .unwrap_or(false);
     let entity = entity_opt.clone().or_else(|| patient.clone());
-    let label = build_label(&resolved_type, &verb_lemma, &entity, &subject, &res.nominalizations);
+    let label = build_label(
+        &resolved_type,
+        &verb_lemma,
+        &entity,
+        &subject,
+        &res.nominalizations,
+    );
 
     ClauseAnnotation {
         span: (first_idx, last_idx),
@@ -606,17 +655,28 @@ fn build_label(
     nominalizations: &std::collections::HashMap<String, String>,
 ) -> String {
     match node_type {
-        NodeType::EtatSystemique | NodeType::Entite => {
-            entity.clone().unwrap_or_else(|| verb_lemma.to_string())
-        }
+        NodeType::EtatSystemique | NodeType::Entite => entity
+            .as_deref()
+            .filter(|e| !e.is_empty())
+            .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
+            .unwrap_or("entité")
+            .to_string(),
         NodeType::Condition => "cause_cachée(?)".to_string(),
         NodeType::Action => match agent {
-            Some(a) => format!("{}({})", if verb_lemma.is_empty() { "?" } else { verb_lemma }, a),
-            None => verb_lemma.to_string(),
+            Some(a) => format!(
+                "{}({})",
+                if verb_lemma.is_empty() { "?" } else { verb_lemma },
+                a
+            ),
+            None => if verb_lemma.is_empty() { "action".to_string() } else { verb_lemma.to_string() },
         },
         NodeType::Etat | NodeType::Transition | NodeType::Processus => {
             let nom = nominalize_with_table(
-                if verb_lemma.is_empty() { "?" } else { verb_lemma },
+                if verb_lemma.is_empty() {
+                    "?"
+                } else {
+                    verb_lemma
+                },
                 nominalizations,
             );
             match entity {
@@ -624,7 +684,7 @@ fn build_label(
                 None => match agent {
                     Some(a) => format!("{}({})", verb_lemma, a),
                     None => nom.to_string(),
-                }
+                },
             }
         }
     }

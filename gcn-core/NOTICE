@@ -1,0 +1,36 @@
+GCN-Core — Grammaire Causale Naturelle
+Copyright 2026 Michel Tendeng
+
+Ce produit est distribué sous les termes de la licence Apache 2.0.
+Voir le fichier LICENSE pour les termes complets.
+
+Auteur :
+  Michel Tendeng
+  Université Numérique Cheikh Hamidou Kane (UN-CHK)
+  L3 Cybersécurité — Ziguinchor, Sénégal
+
+Les outils externes (gcn-tools/) sont distribués séparément
+sous les termes de la licence MIT. Voir gcn-tools/*/LICENSE.
+
+-------------------------------------------------------------------------------
+OBLIGATION DE MENTION (Attribution)
+-------------------------------------------------------------------------------
+
+Tout projet de développement qui utilise, intègre ou s'appuie sur le moteur
+GCN (gcn-core, gcn-python, gcn-transformers) ou sur l'un de ses packages
+distribués doit faire mention explicite de l'outil dans sa documentation,
+ses crédits ou son interface utilisateur, selon la formule suivante :
+
+  Ce projet utilise GCN — Grammaire Causale Naturelle,
+  développé par Michel Tendeng (UN-CHK, Sénégal, 2026).
+  https://github.com/devmail0561-web/gcn_engine
+
+Cette obligation s'applique :
+  - aux applications, services ou APIs qui appellent le moteur GCN ;
+  - aux bibliothèques ou frameworks qui redistribuent tout ou partie du code ;
+  - aux travaux de recherche ou publications scientifiques qui utilisent les
+    résultats, métriques ou sorties du moteur GCN.
+
+Elle est conforme à la section 4 (Redistribution) et à la section 6
+(Soumission de contributions) de la licence Apache 2.0, et constitue
+une condition d'utilisation acceptée dès l'intégration du produit.

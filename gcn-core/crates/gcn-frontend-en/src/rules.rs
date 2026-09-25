@@ -9,39 +9,38 @@ use gcn_ir::{AgentType, NodeType, RelationType, Scope};
 
 pub fn causal_direction_to_node_type(dir: &str) -> Option<NodeType> {
     match dir {
-        "maintien"    => Some(NodeType::Etat),
-        "production"  => Some(NodeType::Action),
-        "rupture"     => Some(NodeType::Transition),
+        "maintien" => Some(NodeType::Etat),
+        "production" => Some(NodeType::Action),
+        "rupture" => Some(NodeType::Transition),
         "propagation" => Some(NodeType::Processus),
-        _             => None,
+        _ => None,
     }
 }
 
 pub fn relation_type_str_to_enum(rt: &str) -> Option<RelationType> {
     match rt {
-        "cause_directe" | "cause"              => Some(RelationType::Cause),
-        "effet_direct"                          => Some(RelationType::Cause),
-        "cause_conditionnelle" | "condition"   => Some(RelationType::Condition),
-        "cause_attendue_non_réalisée" |
-        "concession"                            => Some(RelationType::Concession),
-        "séquence_temporelle" | "sequence"      => Some(RelationType::Sequence),
-        "contraste_causal" | "opposition"       => Some(RelationType::Opposition),
-        "enable"                                => Some(RelationType::Enable),
-        "prevent"                               => Some(RelationType::Prevent),
-        "motivation"                            => Some(RelationType::Motivation),
-        _                                       => None,
+        "cause_directe" | "cause" => Some(RelationType::Cause),
+        "effet_direct" => Some(RelationType::Cause),
+        "cause_conditionnelle" | "condition" => Some(RelationType::Condition),
+        "cause_attendue_non_réalisée" | "concession" => Some(RelationType::Concession),
+        "séquence_temporelle" | "sequence" => Some(RelationType::Sequence),
+        "contraste_causal" | "opposition" => Some(RelationType::Opposition),
+        "enable" => Some(RelationType::Enable),
+        "prevent" => Some(RelationType::Prevent),
+        "motivation" => Some(RelationType::Motivation),
+        _ => None,
     }
 }
 
 pub fn scope_str_to_enum(s: &str) -> Option<Scope> {
     match s {
-        "specific"    => Some(Scope::Specific),
+        "specific" => Some(Scope::Specific),
         "existential" => Some(Scope::Existential),
-        "partial"     => Some(Scope::Partial),
-        "null"        => Some(Scope::Null),
-        "universal"   => Some(Scope::Universal),
-        "unknown"     => Some(Scope::Unknown),
-        _             => None,
+        "partial" => Some(Scope::Partial),
+        "null" => Some(Scope::Null),
+        "universal" => Some(Scope::Universal),
+        "unknown" => Some(Scope::Unknown),
+        _ => None,
     }
 }
 
@@ -54,16 +53,17 @@ pub enum MarkerDir {
 
 pub fn direction_str_to_enum(s: &str) -> MarkerDir {
     match s {
-        "backward"       => MarkerDir::Backward,
+        "backward" => MarkerDir::Backward,
         "goal_to_action" => MarkerDir::GoalToAction,
-        _                => MarkerDir::Forward,
+        _ => MarkerDir::Forward,
     }
 }
 
 pub fn conjunction_class_to_direction(class_name: &str) -> MarkerDir {
     match class_name {
         "cause" => MarkerDir::Backward,
-        _       => MarkerDir::Forward,
+        "concession" => MarkerDir::Backward,
+        _ => MarkerDir::Forward,
     }
 }
 
@@ -77,10 +77,10 @@ pub fn pron_class_to_agent_type(class_name: &str, lemma: &str) -> AgentType {
 pub fn noun_class_to_node_type(class_name: &str) -> Option<NodeType> {
     match class_name {
         "etat_systemique" => Some(NodeType::EtatSystemique),
-        "processus"       => Some(NodeType::Processus),
-        "agent"           => Some(NodeType::Entite),
-        "patient"         => Some(NodeType::Entite),
-        _                 => None,
+        "processus" => Some(NodeType::Processus),
+        "agent" => Some(NodeType::Entite),
+        "patient" => Some(NodeType::Entite),
+        _ => None,
     }
 }
 
@@ -115,22 +115,24 @@ pub fn lemmatize_verb(form: &str) -> String {
 
     // Past: -ed (double consonant: "stopped" → "stop")
     if let Some(stripped) = f.strip_suffix("ed")
-        && stripped.len() > 2 {
+        && stripped.len() > 2
+    {
         let chars: Vec<char> = stripped.chars().collect();
         let n = chars.len();
-        if n >= 2 && chars[n-1] == chars[n-2] {
-            return chars[..n-1].iter().collect();
+        if n >= 2 && chars[n - 1] == chars[n - 2] {
+            return chars[..n - 1].iter().collect();
         }
         return stripped.to_string();
     }
 
     // Progressive: -ing (double consonant: "running" → "run")
     if let Some(stripped) = f.strip_suffix("ing")
-        && stripped.len() > 2 {
+        && stripped.len() > 2
+    {
         let chars: Vec<char> = stripped.chars().collect();
         let n = chars.len();
-        if n >= 2 && chars[n-1] == chars[n-2] {
-            return chars[..n-1].iter().collect();
+        if n >= 2 && chars[n - 1] == chars[n - 2] {
+            return chars[..n - 1].iter().collect();
         }
         return stripped.to_string();
     }
@@ -144,7 +146,8 @@ pub fn lemmatize_verb(form: &str) -> String {
     // "causes" → "cause", "enables" → "enable", "prevents" → "prevent"
     // This is correct for verbs whose base form ends with a vowel (caus→e, enabl→e).
     if let Some(stripped) = f.strip_suffix('s')
-        && stripped.len() > 2 {
+        && stripped.len() > 2
+    {
         return stripped.to_string();
     }
 
@@ -156,7 +159,10 @@ pub fn nominalize_with_table<'a>(
     verb_lemma: &'a str,
     table: &'a std::collections::HashMap<String, String>,
 ) -> &'a str {
-    table.get(verb_lemma).map(|s| s.as_str()).unwrap_or(verb_lemma)
+    table
+        .get(verb_lemma)
+        .map(|s| s.as_str())
+        .unwrap_or(verb_lemma)
 }
 
 /// Heuristic: does this token look like an English verb?

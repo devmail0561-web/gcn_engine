@@ -48,7 +48,9 @@ pub fn decode(ir: &CausalIR) -> Result<String, VerbalizerError> {
     // mutuellement → deadlock systématique.
     drop(stdin);
 
-    let output = child.wait_with_output().map_err(VerbalizerError::ProcessSpawn)?;
+    let output = child
+        .wait_with_output()
+        .map_err(VerbalizerError::ProcessSpawn)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -80,7 +82,9 @@ mod tests {
     fn decode_returns_process_spawn_when_binary_absent() {
         use gcn_ir::{CausalIR, IrMetadata, NaturalLanguage, SourceLanguage};
         let ir = CausalIR {
-            source_lang: SourceLanguage::Natural { lang: NaturalLanguage::Und },
+            source_lang: SourceLanguage::Natural {
+                lang: NaturalLanguage::Und,
+            },
             source_text: String::new(),
             nodes: vec![],
             edges: vec![],
@@ -92,9 +96,6 @@ mod tests {
         // SAFETY : test mono-thread, aucun autre thread ne lit PATH simultanément.
         unsafe { std::env::set_var("PATH", "") };
         let result = decode(&ir);
-        assert!(matches!(
-            result,
-            Err(VerbalizerError::ProcessSpawn(_))
-        ));
+        assert!(matches!(result, Err(VerbalizerError::ProcessSpawn(_))));
     }
 }

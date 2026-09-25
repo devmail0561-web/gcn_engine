@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use gcn_backend::{execute, to_dot, to_json, Query};
+use gcn_backend::{Query, execute, to_dot, to_json};
 use gcn_frontend_fr::FrenchParser;
 use gcn_ir::CausalIR;
 use gcn_middleend::process as middleend_process;
@@ -13,7 +13,7 @@ use gcn_middleend::process as middleend_process;
 #[derive(Parser)]
 #[command(
     name = "gcn",
-    version = "0.1.0",
+    version,
     about = "Grammaire Causale Naturelle — Causal reasoning engine",
     long_about = "GCN-Core CLI\n\
                   \nBootstrap annotation (symbolic, builds gcn-datasets/):\n\
@@ -86,7 +86,12 @@ fn main() {
 
 fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
     match cmd {
-        Commands::Analyze { text, data_dir, format, diagnostics } => {
+        Commands::Analyze {
+            text,
+            data_dir,
+            format,
+            diagnostics,
+        } => {
             let parser = FrenchParser::new(&data_dir)?;
             let ir = parser.parse(&text)?;
             let result = middleend_process(ir)?;
@@ -105,17 +110,27 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Query { query, ir } => {
-            let ir = load_ir(&ir)?;
+            let raw = load_ir(&ir)?;
+            // Validate + recompute cycles — même chemin qu'analyze, évite IDs dupliqués
+            // silencieux et ir.cycles périmés (audit adversarial P0).
+            let processed = middleend_process(raw)?;
+            for d in &processed.diagnostics {
+                eprintln!("[{:?}] {:?}", d.severity, d.kind);
+            }
             let q = Query::parse(&query)?;
-            let result = execute(&q, &ir)?;
+            let result = execute(&q, &processed.ir)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
         Commands::Export { ir, format } => {
-            let ir = load_ir(&ir)?;
+            let raw = load_ir(&ir)?;
+            let processed = middleend_process(raw)?;
+            for d in &processed.diagnostics {
+                eprintln!("[{:?}] {:?}", d.severity, d.kind);
+            }
             let output = match format {
-                ExportFormat::Json => to_json(&ir)?,
-                ExportFormat::Dot => to_dot(&ir)?,
+                ExportFormat::Json => to_json(&processed.ir)?,
+                ExportFormat::Dot => to_dot(&processed.ir)?,
             };
             println!("{output}");
         }

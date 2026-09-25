@@ -6,13 +6,13 @@ use std::path::Path;
 
 const FR_INFINITIVE_MARKERS: &[&str] = &["pour"];
 
-use gcn_knowledge::{Lexicon, KnowledgeError};
-use gcn_ir::{NodeType, RelationType, Scope, AgentType};
+use gcn_ir::{AgentType, NodeType, RelationType, Scope};
+use gcn_knowledge::{KnowledgeError, Lexicon};
 
 use crate::rules::{
-    MarkerDir, causal_direction_to_node_type, relation_type_str_to_enum,
-    scope_str_to_enum, conjunction_class_to_direction, direction_str_to_enum,
-    pron_class_to_agent_type, noun_class_to_node_type,
+    MarkerDir, causal_direction_to_node_type, conjunction_class_to_direction,
+    direction_str_to_enum, noun_class_to_node_type, pron_class_to_agent_type,
+    relation_type_str_to_enum, scope_str_to_enum,
 };
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,9 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
 
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
-                    let words: Vec<String> = entry.lemma.split_whitespace()
+                    let words: Vec<String> = entry
+                        .lemma
+                        .split_whitespace()
                         .map(|w| w.to_lowercase())
                         .collect();
                     markers.push(CausalMarkerEntry {
@@ -172,7 +174,9 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
 
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
-                    let words: Vec<String> = entry.lemma.split_whitespace()
+                    let words: Vec<String> = entry
+                        .lemma
+                        .split_whitespace()
                         .map(|w| w.to_lowercase())
                         .collect();
                     // "pour" requires infinitive
@@ -191,7 +195,12 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
     }
 
     // Sort: longest (most words) first for greedy matching
-    markers.sort_by(|a, b| b.words.len().cmp(&a.words.len()).then(a.lemma.cmp(&b.lemma)));
+    markers.sort_by(|a, b| {
+        b.words
+            .len()
+            .cmp(&a.words.len())
+            .then(a.lemma.cmp(&b.lemma))
+    });
     markers
 }
 
@@ -244,7 +253,9 @@ fn build_det_scope(lexicon: &Lexicon) -> HashMap<String, Scope> {
             let class_scope = class.scope.as_deref().and_then(scope_str_to_enum);
             if let Some(examples) = &class.examples_fr {
                 for entry in examples {
-                    let scope = entry.scope.as_deref()
+                    let scope = entry
+                        .scope
+                        .as_deref()
                         .and_then(scope_str_to_enum)
                         .or(class_scope);
                     if let Some(s) = scope {
@@ -267,7 +278,9 @@ fn build_det_sets(lexicon: &Lexicon) -> (HashSet<String>, HashMap<String, Scope>
                 for entry in examples {
                     let lower = entry.lemma.to_lowercase();
                     set.insert(lower.clone());
-                    let scope = entry.scope.as_deref()
+                    let scope = entry
+                        .scope
+                        .as_deref()
                         .and_then(scope_str_to_enum)
                         .or(class_scope);
                     if let Some(s) = scope {

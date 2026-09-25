@@ -6,13 +6,13 @@ use std::path::Path;
 
 const EN_INFINITIVE_MARKERS: &[&str] = &["to", "in order to", "so as to"];
 
-use gcn_knowledge::{KnowledgeError, Lexicon};
 use gcn_ir::{AgentType, NodeType, RelationType, Scope};
+use gcn_knowledge::{KnowledgeError, Lexicon};
 
 use crate::rules::{
-    causal_direction_to_node_type, conjunction_class_to_direction, direction_str_to_enum,
-    noun_class_to_node_type, pron_class_to_agent_type, relation_type_str_to_enum,
-    scope_str_to_enum, MarkerDir,
+    MarkerDir, causal_direction_to_node_type, conjunction_class_to_direction,
+    direction_str_to_enum, noun_class_to_node_type, pron_class_to_agent_type,
+    relation_type_str_to_enum, scope_str_to_enum,
 };
 
 #[derive(Debug, Clone)]
@@ -104,8 +104,11 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
             let signals_gap = class.signals_gap.unwrap_or(false);
             if let Some(examples) = &class.examples {
                 for entry in examples {
-                    let words = entry.lemma.split_whitespace()
-                        .map(|w| w.to_lowercase()).collect();
+                    let words = entry
+                        .lemma
+                        .split_whitespace()
+                        .map(|w| w.to_lowercase())
+                        .collect();
                     markers.push(CausalMarkerEntry {
                         lemma: entry.lemma.clone(),
                         words,
@@ -132,7 +135,7 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
             let direction = if direction_str.is_empty() {
                 match class_name.as_str() {
                     "motivation" => MarkerDir::GoalToAction,
-                    _            => MarkerDir::Forward,
+                    _ => MarkerDir::Forward,
                 }
             } else {
                 direction_str_to_enum(direction_str)
@@ -140,8 +143,11 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
             let signals_gap = class.signals_gap.unwrap_or(false);
             if let Some(examples) = &class.examples {
                 for entry in examples {
-                    let words = entry.lemma.split_whitespace()
-                        .map(|w| w.to_lowercase()).collect();
+                    let words = entry
+                        .lemma
+                        .split_whitespace()
+                        .map(|w| w.to_lowercase())
+                        .collect();
                     let requires_infinitive = EN_INFINITIVE_MARKERS.contains(&entry.lemma.as_str());
                     markers.push(CausalMarkerEntry {
                         lemma: entry.lemma.clone(),
@@ -156,7 +162,12 @@ fn build_causal_markers(lexicon: &Lexicon) -> Vec<CausalMarkerEntry> {
         }
     }
 
-    markers.sort_by(|a, b| b.words.len().cmp(&a.words.len()).then(a.lemma.cmp(&b.lemma)));
+    markers.sort_by(|a, b| {
+        b.words
+            .len()
+            .cmp(&a.words.len())
+            .then(a.lemma.cmp(&b.lemma))
+    });
     markers
 }
 
@@ -209,7 +220,9 @@ fn build_det_scope(lexicon: &Lexicon) -> HashMap<String, Scope> {
             let class_scope = class.scope.as_deref().and_then(scope_str_to_enum);
             if let Some(examples) = &class.examples {
                 for entry in examples {
-                    let scope = entry.scope.as_deref()
+                    let scope = entry
+                        .scope
+                        .as_deref()
                         .and_then(scope_str_to_enum)
                         .or(class_scope);
                     if let Some(s) = scope {
@@ -232,7 +245,9 @@ fn build_det_sets(lexicon: &Lexicon) -> (HashSet<String>, HashMap<String, Scope>
                 for entry in examples {
                     let lower = entry.lemma.to_lowercase();
                     set.insert(lower.clone());
-                    let scope = entry.scope.as_deref()
+                    let scope = entry
+                        .scope
+                        .as_deref()
                         .and_then(scope_str_to_enum)
                         .or(class_scope);
                     if let Some(s) = scope {

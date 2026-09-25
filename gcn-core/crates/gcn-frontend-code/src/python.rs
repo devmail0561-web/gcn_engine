@@ -3,8 +3,10 @@
 
 use std::path::Path;
 
-use gcn_ir::{CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, NodeType,
-    ProgrammingLanguage, RelationType, SourceLanguage};
+use gcn_ir::{
+    CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, NodeType, ProgrammingLanguage,
+    RelationType, SourceLanguage,
+};
 use tree_sitter::Parser;
 
 use crate::common::{control_edge, emit_node};
@@ -19,8 +21,13 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
         .set_language(&tree_sitter_python::LANGUAGE.into())
         .map_err(|e| CodeParserError::Language(e.to_string()))?;
 
-    let tree = parser.parse(source, None).ok_or(CodeParserError::ParseFailed)?;
+    let tree = parser
+        .parse(source, None)
+        .ok_or(CodeParserError::ParseFailed)?;
     let root = tree.root_node();
+    if root.has_error() {
+        return Err(CodeParserError::ParseFailed);
+    }
     let src_bytes = source.as_bytes();
 
     let mut nodes: Vec<CausalNode> = Vec::new();
@@ -30,7 +37,9 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
     walk_block(root, src_bytes, &res, &mut nodes, &mut edges, &mut next_id);
 
     Ok(CausalIR {
-        source_lang: SourceLanguage::Programming { lang: ProgrammingLanguage::Python },
+        source_lang: SourceLanguage::Programming {
+            lang: ProgrammingLanguage::Python,
+        },
         source_text: source.to_string(),
         nodes,
         edges,
@@ -66,10 +75,15 @@ fn walk_block(
             raw_child
         };
         let kind = child.kind();
-        let Some(&node_type) = res.kind_to_node_type.get(kind) else { continue };
+        let Some(&node_type) = res.kind_to_node_type.get(kind) else {
+            continue;
+        };
 
         let id = emit_node(child, src, node_type, nodes, next_id, res);
-        let edge_rel = res.kind_to_edge_type.get(kind).copied()
+        let edge_rel = res
+            .kind_to_edge_type
+            .get(kind)
+            .copied()
             .unwrap_or(RelationType::ControlDependency);
 
         // Dispatch structurel sur la grammaire tree-sitter Python (pas de données lexicales) :
@@ -149,10 +163,16 @@ fn walk_try(
         match child.kind() {
             "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id)),
             "except_clause" => {
-                let node_type = res.kind_to_node_type.get("except_clause").copied()
+                let node_type = res
+                    .kind_to_node_type
+                    .get("except_clause")
+                    .copied()
                     .unwrap_or(NodeType::Etat);
                 let except_id = emit_node(child, src, node_type, nodes, next_id, res);
-                let edge_rel = res.kind_to_edge_type.get("except_clause").copied()
+                let edge_rel = res
+                    .kind_to_edge_type
+                    .get("except_clause")
+                    .copied()
                     .unwrap_or(RelationType::Concession);
                 for hid in walk_body_of(child, src, res, nodes, edges, next_id) {
                     edges.push((except_id, hid, control_edge(edge_rel)));

@@ -1,9 +1,9 @@
 # gcn-knowledge — Taxonomies, Lexicon et Moteur d'Inférence
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-knowledge)](https://crates.io/crates/gcn-knowledge)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 Crate de connaissance symbolique du moteur **GCN-Core**. Charge les taxonomies YAML, fournit un lexicon pour la classification POS → classe causale, et enrichit les `CausalIR` via un moteur d'inférence structurel.
 
@@ -31,7 +31,7 @@ gcn-references/taxonomies/*.yaml
 
 ```toml
 [dependencies]
-gcn-knowledge = "2.0"
+gcn-knowledge = "2.5.0"
 ```
 
 ---
@@ -186,4 +186,4 @@ pub enum KnowledgeError {
 
 ## Licence
 
-MIT — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)
+Apache-2.0 — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)

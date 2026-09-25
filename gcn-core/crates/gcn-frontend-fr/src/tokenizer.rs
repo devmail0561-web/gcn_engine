@@ -82,7 +82,7 @@ fn split_clitic(s: &str) -> Vec<&str> {
         let clitics = ["n", "l", "s", "j", "m", "t", "c", "d", "qu"];
         if clitics.contains(&lower_prefix.as_str()) {
             let clitic = &s[..pos + apos_len]; // e.g. "n'"
-            let rest = &s[pos + apos_len..];    // e.g. "a"
+            let rest = &s[pos + apos_len..]; // e.g. "a"
             if !rest.is_empty() {
                 return vec![clitic, rest];
             }

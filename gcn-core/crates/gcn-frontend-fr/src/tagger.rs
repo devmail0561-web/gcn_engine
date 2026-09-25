@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::resources::LexicalResources;
-use crate::rules::{is_imparfait, looks_like_verb_morphologically, lemmatize_verb};
+use crate::rules::{is_imparfait, lemmatize_verb, looks_like_verb_morphologically};
 use crate::tokenizer::Token;
 use gcn_ir::Scope;
 
@@ -62,7 +62,11 @@ pub fn tag(tokens: &[Token], res: &LexicalResources) -> Vec<TaggedToken> {
 fn classify_token(t: &Token, res: &LexicalResources) -> TaggedToken {
     let lower = t.lower.as_str();
     let (pos, lemma) = classify(lower, res);
-    let scope_hint = if pos == Pos::Det { res.det_scope.get(lower).copied() } else { None };
+    let scope_hint = if pos == Pos::Det {
+        res.det_scope.get(lower).copied()
+    } else {
+        None
+    };
     let is_imp = pos == Pos::Verb && is_imparfait(&t.form);
     let is_neg_p = res.negation_particles.contains(lower);
     let is_neg_c = res.negation_completers.contains(lower);
@@ -79,8 +83,8 @@ fn classify_token(t: &Token, res: &LexicalResources) -> TaggedToken {
 
 fn classify(lower: &str, res: &LexicalResources) -> (Pos, String) {
     // Punctuation
-    if lower == "." || lower == "," || lower == ";" || lower == ":"
-        || lower == "!" || lower == "?" {
+    if lower == "." || lower == "," || lower == ";" || lower == ":" || lower == "!" || lower == "?"
+    {
         return (Pos::Punct, lower.to_string());
     }
 

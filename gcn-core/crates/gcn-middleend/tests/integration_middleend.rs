@@ -5,7 +5,7 @@ use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, CycleType, IrMetadata, NaturalLanguage, NodeAttributes,
     NodeId, NodeOrigin, NodeType, RelationType, Scope, SourceLanguage, SourceSpan, TemporalRef,
 };
-use gcn_middleend::{process, DiagnosticKind, DiagnosticSeverity};
+use gcn_middleend::{DiagnosticKind, DiagnosticSeverity, process};
 use smallvec::SmallVec;
 
 fn node(id: u32, node_type: NodeType) -> CausalNode {
@@ -53,7 +53,9 @@ fn edge_low_conf(src: u32, dst: u32) -> (NodeId, NodeId, CausalEdge) {
 
 fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> CausalIR {
     CausalIR {
-        source_lang: SourceLanguage::Natural { lang: NaturalLanguage::French },
+        source_lang: SourceLanguage::Natural {
+            lang: NaturalLanguage::French,
+        },
         source_text: String::new(),
         nodes,
         edges,
@@ -73,8 +75,15 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
 fn no_cycle_chain() {
     // A → B → C : no cycle
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat), node(2, NodeType::Processus)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 2, RelationType::Cause)],
+        vec![
+            node(0, NodeType::Action),
+            node(1, NodeType::Etat),
+            node(2, NodeType::Processus),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
     );
     let result = process(ir).unwrap();
     assert!(result.ir.cycles.is_empty());
@@ -86,7 +95,10 @@ fn positive_feedback_loop() {
     // A → B → A : FeedbackPositive
     let ir = make_ir(
         vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 0, RelationType::Cause)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 0, RelationType::Cause),
+        ],
     );
     let result = process(ir).unwrap();
     assert_eq!(result.ir.cycles.len(), 1);
@@ -99,7 +111,10 @@ fn negative_feedback_loop() {
     // A -Cause→ B -Prevent→ A : FeedbackNegative
     let ir = make_ir(
         vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 0, RelationType::Prevent)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 0, RelationType::Prevent),
+        ],
     );
     let result = process(ir).unwrap();
     assert_eq!(result.ir.cycles.len(), 1);
@@ -111,7 +126,10 @@ fn negated_edge_in_loop_is_negative_feedback() {
     // A -Cause→ B -negated Cause→ A : FeedbackNegative
     let ir = make_ir(
         vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge_neg(1, 0, RelationType::Cause)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge_neg(1, 0, RelationType::Cause),
+        ],
     );
     let result = process(ir).unwrap();
     assert_eq!(result.ir.cycles[0].cycle_type, CycleType::FeedbackNegative);
@@ -121,7 +139,10 @@ fn negated_edge_in_loop_is_negative_feedback() {
 fn concession_loop_is_oscillation() {
     let ir = make_ir(
         vec![node(0, NodeType::Etat), node(1, NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 0, RelationType::Concession)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 0, RelationType::Concession),
+        ],
     );
     let result = process(ir).unwrap();
     assert_eq!(result.ir.cycles[0].cycle_type, CycleType::Oscillation);
@@ -131,7 +152,10 @@ fn concession_loop_is_oscillation() {
 fn cycle_path_contains_both_nodes() {
     let ir = make_ir(
         vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
-        vec![edge(0, 1, RelationType::Cause), edge(1, 0, RelationType::Cause)],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 0, RelationType::Cause),
+        ],
     );
     let result = process(ir).unwrap();
     let path = &result.ir.cycles[0].path;
@@ -190,10 +214,12 @@ fn sequence_correct_order_no_warning() {
 
     let ir = make_ir(vec![n0, n1], vec![edge(0, 1, RelationType::Sequence)]);
     let result = process(ir).unwrap();
-    assert!(!result
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.kind, DiagnosticKind::TemporalOrderViolation { .. })));
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.kind, DiagnosticKind::TemporalOrderViolation { .. }))
+    );
 }
 
 // ─── validation ─────────────────────────────────────────────────────────────
@@ -218,7 +244,11 @@ fn self_loop_is_error() {
 fn orphaned_node_warns() {
     // 3 nodes, only 0→1 connected, node 2 is orphaned
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat), node(2, NodeType::Entite)],
+        vec![
+            node(0, NodeType::Action),
+            node(1, NodeType::Etat),
+            node(2, NodeType::Entite),
+        ],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = process(ir).unwrap();
@@ -237,10 +267,12 @@ fn orphaned_node_warns() {
 fn single_node_no_orphan_warning() {
     let ir = make_ir(vec![node(0, NodeType::Action)], vec![]);
     let result = process(ir).unwrap();
-    assert!(!result
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.kind, DiagnosticKind::OrphanedNode { .. })));
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.kind, DiagnosticKind::OrphanedNode { .. }))
+    );
 }
 
 #[test]
@@ -284,10 +316,12 @@ fn condition_with_outgoing_no_warning() {
         vec![edge(0, 1, RelationType::Condition)],
     );
     let result = process(ir).unwrap();
-    assert!(!result
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.kind, DiagnosticKind::DanglingCondition { .. })));
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.kind, DiagnosticKind::DanglingCondition { .. }))
+    );
 }
 
 // ─── pipeline metadata ───────────────────────────────────────────────────────

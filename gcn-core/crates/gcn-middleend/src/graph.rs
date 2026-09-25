@@ -28,8 +28,6 @@ pub fn build(ir: &CausalIR) -> CausalGraph {
     for (i, (src, dst, _edge)) in ir.edges.iter().enumerate() {
         if let (Some(&si), Some(&di)) = (node_indices.get(src), node_indices.get(dst)) {
             g.add_edge(si, di, i);
-        } else {
-            eprintln!("gcn-middleend: arête #{i} dangling ({src:?} → {dst:?}) ignorée");
         }
     }
 

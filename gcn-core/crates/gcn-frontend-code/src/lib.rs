@@ -11,8 +11,8 @@ mod rust;
 
 pub use error::CodeParserError;
 
-use std::path::Path;
 use gcn_ir::CausalIR;
+use std::path::Path;
 
 /// Bootstrap annotation tool: auto-annotates Python source → CausalIR.
 /// `taxonomies_root` points to `gcn-references/taxonomies/`.
@@ -35,7 +35,8 @@ mod tests {
     #[test]
     fn python_parser_produces_expected_ast_nodes() {
         let mut p = tree_sitter::Parser::new();
-        p.set_language(&tree_sitter_python::LANGUAGE.into()).unwrap();
+        p.set_language(&tree_sitter_python::LANGUAGE.into())
+            .unwrap();
 
         let tree = p.parse("if x < y:\n    reduce(z)", None).unwrap();
         let root = tree.root_node();
@@ -44,7 +45,10 @@ mod tests {
         let if_node = (0..root.child_count())
             .filter_map(|i| root.child(i))
             .find(|n| n.kind() == "if_statement");
-        assert!(if_node.is_some(), "if_statement attendu comme enfant du module");
+        assert!(
+            if_node.is_some(),
+            "if_statement attendu comme enfant du module"
+        );
 
         let tree2 = p.parse("x = compute()", None).unwrap();
         let root2 = tree2.root_node();
@@ -52,6 +56,9 @@ mod tests {
         let assign = (0..root2.child_count())
             .filter_map(|i| root2.child(i))
             .find(|n| n.kind() == "expression_statement" || n.kind() == "assignment");
-        assert!(assign.is_some(), "expression/affectation attendue pour x = compute()");
+        assert!(
+            assign.is_some(),
+            "expression/affectation attendue pour x = compute()"
+        );
     }
 }

@@ -1,11 +1,11 @@
 # gcn-cli — Interface en Ligne de Commande GCN-Core
 
-Version: 2.0.0
+Version: 2.5.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-cli)](https://crates.io/crates/gcn-cli)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-Binaire `gcn` — point d'entrée CLI du moteur **GCN-Core**. Expose toutes les capacités du moteur : analyse causale, requêtes GCN-QL, export de graphe, et pipeline ML Python.
+Binaire `gcn` — point d'entrée CLI du moteur **GCN-Core**. Expose les capacités du moteur : analyse causale, requêtes GCN-QL, export de graphe.
 
 ---
 
@@ -112,31 +112,28 @@ dot -Tpng graph.dot -o graph.png
 
 ---
 
-### `gcn forward` — Pipeline ML Python
+### `gcn forward` — commande retirée
 
-Exécute le pipeline de couches ML Python (`gcn-forward`) sur un texte, avec enrichissement Rust optionnel.
+**`gcn forward` n'existe plus.** Le binaire `gcn-forward` a été supprimé de `gcn-python` (redondant avec `gcn-discuss` et l'API Python). Toute tentative retourne une erreur explicite :
 
-```bash
-# Inférence ML (poids aléatoires si pas de checkpoint)
-gcn forward "La pluie cause des inondations." \
-  --lang fr
-
-# Avec checkpoint entraîné
-GCN_PYTHON_BIN=path/to/gcn-forward \
-gcn forward "Heavy rain causes flooding." \
-  --lang en \
-  --taxonomy-dir gcn-references/taxonomies/ \
-  --enrich
+```text
+gcn forward a été retiré : le binaire `gcn-forward` n'existe plus.
+Utilisez l'API Python (GCNEngine.from_pretrained(..., trusted=True)) ou `gcn-discuss`
+pour l'inférence ML.
 ```
 
-| Option | Type | Défaut | Description |
-|---|---|---|---|
-| `<text>` | positional | requis | Texte à traiter |
-| `--lang <LANG>` | `String` | `fr` | Code langue passé au binaire Python |
-| `--taxonomy-dir <PATH>` | `PathBuf` (env: `GCN_TAXONOMY_DIR`) | — | Transmis à `gcn-forward` si présent |
-| `--enrich` | flag | off | Exécute le middle-end Rust sur l'IR retourné |
+Équivalents réels :
 
-**Variable d'environnement :** `GCN_PYTHON_BIN` surcharge le chemin du binaire `gcn-forward` (défaut : lookup dans `$PATH`).
+```python
+from gcn_python import GCNEngine
+
+engine = GCNEngine.from_pretrained("model.npz", trusted=True)
+cir = engine.analyze("La pluie cause des inondations.")
+```
+
+```bash
+gcn-discuss --checkpoint model.npz
+```
 
 ---
 
@@ -154,8 +151,8 @@ gcn query "COUNTERFACTUAL ventes?" --ir graph.json
 # 3. Exporter pour visualisation
 gcn export --ir graph.json --format dot | dot -Tpng -o graph.png
 
-# 4. Lancer le pipeline ML
-gcn forward "Si les ventes baissent, on réduit les coûts." --enrich
+# 4. Inférence ML : voir la section « gcn forward — commande retirée »
+#    (aucune sous-commande gcn pour le pipeline ML)
 ```
 
 ---
@@ -165,10 +162,9 @@ gcn forward "Si les ventes baissent, on réduit les coûts." --enrich
 | Variable | Description |
 |---|---|
 | `GCN_TAXONOMY_DIR` | Chemin par défaut vers `gcn-references/taxonomies/` |
-| `GCN_PYTHON_BIN` | Chemin vers le binaire `gcn-forward` Python |
 
 ---
 
 ## Licence
 
-MIT — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)
+Apache-2.0 — [github.com/devmail0561-web/gcn_engine](https://github.com/devmail0561-web/gcn_engine)

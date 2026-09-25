@@ -9,14 +9,14 @@ const DELTA_CAUSAL: f32 = 0.10;
 const DELTA_ADVERSATIVE: f32 = -0.10;
 
 use gcn_ir::{
+    edge::RelationType,
     ir::CausalIR,
     node::{NodeId, NodeOrigin, NodeType},
-    edge::RelationType,
     scope::Scope,
 };
 
-use crate::lexicon::Lexicon;
 use crate::KnowledgeError;
+use crate::lexicon::Lexicon;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -187,13 +187,13 @@ impl InferenceEngine {
 
 fn class_name_to_node_type(class_name: &str) -> Option<NodeType> {
     match class_name {
-        "etat"       => Some(NodeType::Etat),
-        "action"     => Some(NodeType::Action),
+        "etat" => Some(NodeType::Etat),
+        "action" => Some(NodeType::Action),
         "transition" => Some(NodeType::Transition),
-        "processus"  => Some(NodeType::Processus),
+        "processus" => Some(NodeType::Processus),
         "agent" | "patient" | "abstrait" | "relation" => Some(NodeType::Entite),
         "etat_systemique" => Some(NodeType::EtatSystemique),
-        _ => None,  // "auxiliaire" et autres POS non causaux
+        _ => None, // "auxiliaire" et autres POS non causaux
     }
 }
 
@@ -201,8 +201,8 @@ fn class_name_to_scope(class_name: &str, pos: &str) -> Option<Scope> {
     match pos {
         "DET" => match class_name {
             "defini" | "demonstratif" | "possessif" => Some(Scope::Specific),
-            "indefini"   => Some(Scope::Existential),
-            "partitif"   => Some(Scope::Partial),
+            "indefini" => Some(Scope::Existential),
+            "partitif" => Some(Scope::Partial),
             "quantitatif" => Some(Scope::Universal),
             _ => Some(Scope::Unknown),
         },
@@ -217,12 +217,12 @@ fn class_name_to_scope(class_name: &str, pos: &str) -> Option<Scope> {
 
 fn parse_scope(s: &str) -> Option<Scope> {
     match s {
-        "universal"   => Some(Scope::Universal),
+        "universal" => Some(Scope::Universal),
         "existential" => Some(Scope::Existential),
-        "partial"     => Some(Scope::Partial),
-        "null"        => Some(Scope::Null),
-        "specific"    => Some(Scope::Specific),
-        "unknown"     => Some(Scope::Unknown),
+        "partial" => Some(Scope::Partial),
+        "null" => Some(Scope::Null),
+        "specific" => Some(Scope::Specific),
+        "unknown" => Some(Scope::Unknown),
         _ => None,
     }
 }
@@ -247,8 +247,12 @@ mod tests {
     fn make_entry(lemma: &str) -> LexicalEntry {
         LexicalEntry {
             lemma: lemma.to_string(),
-            note: None, value: None, kind: None,
-            anchor: None, scope: None, total: None,
+            note: None,
+            value: None,
+            kind: None,
+            anchor: None,
+            scope: None,
+            total: None,
         }
     }
 
@@ -256,17 +260,29 @@ mod tests {
         LexicalEntry {
             lemma: lemma.to_string(),
             scope: Some(scope.to_string()),
-            note: None, value: None, kind: None,
-            anchor: None, total: None,
+            note: None,
+            value: None,
+            kind: None,
+            anchor: None,
+            total: None,
         }
     }
 
     fn make_class(examples: Vec<LexicalEntry>) -> TaxonomyClass {
         TaxonomyClass {
-            description: None, role: None, causal_direction: None,
-            causal_effect: None, dimension: None, relation_type: None,
-            signals_gap: None, scope: None, formal: None, position: None,
-            examples_fr: Some(examples), examples: None, subtypes: None,
+            description: None,
+            role: None,
+            causal_direction: None,
+            causal_effect: None,
+            dimension: None,
+            relation_type: None,
+            signals_gap: None,
+            scope: None,
+            formal: None,
+            position: None,
+            examples_fr: Some(examples),
+            examples: None,
+            subtypes: None,
         }
     }
 
@@ -275,7 +291,10 @@ mod tests {
             taxonomy: name.to_string(),
             version: "test".to_string(),
             description: "test".to_string(),
-            classes: classes.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+            classes: classes
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
             compositional_rules: None,
         }
     }
@@ -283,39 +302,66 @@ mod tests {
     fn test_engine() -> InferenceEngine {
         let mut taxonomies: HashMap<String, Taxonomy> = HashMap::new();
 
-        taxonomies.insert("verbes".to_string(), make_taxonomy("verbes", vec![
-            ("etat",       make_class(vec![make_entry("être")])),
-            ("action",     make_class(vec![make_entry("faire")])),
-            ("transition", make_class(vec![make_entry("chuter")])),
-            ("processus",  make_class(vec![make_entry("baisser")])),
-            ("auxiliaire", make_class(vec![make_entry("avoir")])),
-        ]));
+        taxonomies.insert(
+            "verbes".to_string(),
+            make_taxonomy(
+                "verbes",
+                vec![
+                    ("etat", make_class(vec![make_entry("être")])),
+                    ("action", make_class(vec![make_entry("faire")])),
+                    ("transition", make_class(vec![make_entry("chuter")])),
+                    ("processus", make_class(vec![make_entry("baisser")])),
+                    ("auxiliaire", make_class(vec![make_entry("avoir")])),
+                ],
+            ),
+        );
 
-        taxonomies.insert("noms".to_string(), make_taxonomy("noms", vec![
-            ("agent",           make_class(vec![make_entry("agent")])),
-            ("patient",         make_class(vec![make_entry("marché")])),
-            ("processus",       make_class(vec![make_entry("croissance")])),
-            ("etat_systemique", make_class(vec![make_entry("crise")])),
-            ("abstrait",        make_class(vec![make_entry("idée")])),
-            ("relation",        make_class(vec![make_entry("lien")])),
-        ]));
+        taxonomies.insert(
+            "noms".to_string(),
+            make_taxonomy(
+                "noms",
+                vec![
+                    ("agent", make_class(vec![make_entry("agent")])),
+                    ("patient", make_class(vec![make_entry("marché")])),
+                    ("processus", make_class(vec![make_entry("croissance")])),
+                    ("etat_systemique", make_class(vec![make_entry("crise")])),
+                    ("abstrait", make_class(vec![make_entry("idée")])),
+                    ("relation", make_class(vec![make_entry("lien")])),
+                ],
+            ),
+        );
 
-        taxonomies.insert("determinants".to_string(), make_taxonomy("determinants", vec![
-            ("defini",     make_class(vec![make_entry("le")])),
-            ("indefini",   make_class(vec![make_entry("un")])),
-            ("partitif",   make_class(vec![make_entry("du")])),
-            ("quantitatif", make_class(vec![
-                make_entry_with_scope("tous",  "universal"),
-                make_entry_with_scope("aucun", "null"),
-            ])),
-        ]));
+        taxonomies.insert(
+            "determinants".to_string(),
+            make_taxonomy(
+                "determinants",
+                vec![
+                    ("defini", make_class(vec![make_entry("le")])),
+                    ("indefini", make_class(vec![make_entry("un")])),
+                    ("partitif", make_class(vec![make_entry("du")])),
+                    (
+                        "quantitatif",
+                        make_class(vec![
+                            make_entry_with_scope("tous", "universal"),
+                            make_entry_with_scope("aucun", "null"),
+                        ]),
+                    ),
+                ],
+            ),
+        );
 
-        taxonomies.insert("pronoms".to_string(), make_taxonomy("pronoms", vec![
-            ("personnel",    make_class(vec![make_entry("il")])),
-            ("demonstratif", make_class(vec![make_entry("cela")])),
-            ("relatif",      make_class(vec![make_entry("qui")])),
-            ("indefini",     make_class(vec![make_entry("on")])),
-        ]));
+        taxonomies.insert(
+            "pronoms".to_string(),
+            make_taxonomy(
+                "pronoms",
+                vec![
+                    ("personnel", make_class(vec![make_entry("il")])),
+                    ("demonstratif", make_class(vec![make_entry("cela")])),
+                    ("relatif", make_class(vec![make_entry("qui")])),
+                    ("indefini", make_class(vec![make_entry("on")])),
+                ],
+            ),
+        );
 
         let lex = Lexicon::from_taxonomies_for_test(taxonomies);
         InferenceEngine::new(lex)
@@ -336,35 +382,44 @@ mod tests {
         }
     }
 
-    fn test_node_with_entity(id: u32, nt: NodeType, origin: NodeOrigin, entity: &str) -> CausalNode {
+    fn test_node_with_entity(
+        id: u32,
+        nt: NodeType,
+        origin: NodeOrigin,
+        entity: &str,
+    ) -> CausalNode {
         let mut n = test_node(id, nt, origin);
         n.attributes.entity = Some(entity.to_string());
         n
     }
 
     fn test_edge(
-        src: u32, dst: u32,
+        src: u32,
+        dst: u32,
         rel: RelationType,
         explicit: bool,
         confidence: f32,
     ) -> (NodeId, NodeId, CausalEdge) {
-        (NodeId(src), NodeId(dst), CausalEdge {
-            relation: rel,
-            confidence,
-            temporal_gap: None,
-            explicit,
-            negated: false,
-            marker_token: None,
-            in_cycle: None,
-        })
+        (
+            NodeId(src),
+            NodeId(dst),
+            CausalEdge {
+                relation: rel,
+                confidence,
+                temporal_gap: None,
+                explicit,
+                negated: false,
+                marker_token: None,
+                in_cycle: None,
+            },
+        )
     }
 
-    fn make_ir(
-        nodes: Vec<CausalNode>,
-        edges: Vec<(NodeId, NodeId, CausalEdge)>,
-    ) -> CausalIR {
+    fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> CausalIR {
         CausalIR {
-            source_lang: SourceLanguage::Natural { lang: NaturalLanguage::French },
+            source_lang: SourceLanguage::Natural {
+                lang: NaturalLanguage::French,
+            },
             source_text: String::new(),
             nodes,
             edges,
@@ -378,22 +433,34 @@ mod tests {
 
     #[test]
     fn infer_verb_processus() {
-        assert_eq!(test_engine().infer_node_type("baisser", "VERB"), Some(NodeType::Processus));
+        assert_eq!(
+            test_engine().infer_node_type("baisser", "VERB"),
+            Some(NodeType::Processus)
+        );
     }
 
     #[test]
     fn infer_verb_action() {
-        assert_eq!(test_engine().infer_node_type("faire", "VERB"), Some(NodeType::Action));
+        assert_eq!(
+            test_engine().infer_node_type("faire", "VERB"),
+            Some(NodeType::Action)
+        );
     }
 
     #[test]
     fn infer_verb_etat() {
-        assert_eq!(test_engine().infer_node_type("être", "VERB"), Some(NodeType::Etat));
+        assert_eq!(
+            test_engine().infer_node_type("être", "VERB"),
+            Some(NodeType::Etat)
+        );
     }
 
     #[test]
     fn infer_verb_transition() {
-        assert_eq!(test_engine().infer_node_type("chuter", "VERB"), Some(NodeType::Transition));
+        assert_eq!(
+            test_engine().infer_node_type("chuter", "VERB"),
+            Some(NodeType::Transition)
+        );
     }
 
     #[test]
@@ -404,17 +471,26 @@ mod tests {
 
     #[test]
     fn infer_noun_processus() {
-        assert_eq!(test_engine().infer_node_type("croissance", "NOUN"), Some(NodeType::Processus));
+        assert_eq!(
+            test_engine().infer_node_type("croissance", "NOUN"),
+            Some(NodeType::Processus)
+        );
     }
 
     #[test]
     fn infer_noun_agent_is_entite() {
-        assert_eq!(test_engine().infer_node_type("agent", "NOUN"), Some(NodeType::Entite));
+        assert_eq!(
+            test_engine().infer_node_type("agent", "NOUN"),
+            Some(NodeType::Entite)
+        );
     }
 
     #[test]
     fn infer_noun_etat_systemique() {
-        assert_eq!(test_engine().infer_node_type("crise", "NOUN"), Some(NodeType::EtatSystemique));
+        assert_eq!(
+            test_engine().infer_node_type("crise", "NOUN"),
+            Some(NodeType::EtatSystemique)
+        );
     }
 
     #[test]
@@ -426,18 +502,27 @@ mod tests {
 
     #[test]
     fn infer_scope_det_defini() {
-        assert_eq!(test_engine().infer_scope("le", "DET"), Some(Scope::Specific));
+        assert_eq!(
+            test_engine().infer_scope("le", "DET"),
+            Some(Scope::Specific)
+        );
     }
 
     #[test]
     fn infer_scope_det_indefini() {
-        assert_eq!(test_engine().infer_scope("un", "DET"), Some(Scope::Existential));
+        assert_eq!(
+            test_engine().infer_scope("un", "DET"),
+            Some(Scope::Existential)
+        );
     }
 
     #[test]
     fn infer_scope_det_quantitatif_universal() {
         // entry.scope == "universal" prend la priorité sur le fallback de classe
-        assert_eq!(test_engine().infer_scope("tous", "DET"), Some(Scope::Universal));
+        assert_eq!(
+            test_engine().infer_scope("tous", "DET"),
+            Some(Scope::Universal)
+        );
     }
 
     #[test]
@@ -447,12 +532,18 @@ mod tests {
 
     #[test]
     fn infer_scope_pron_personnel() {
-        assert_eq!(test_engine().infer_scope("il", "PRON"), Some(Scope::Specific));
+        assert_eq!(
+            test_engine().infer_scope("il", "PRON"),
+            Some(Scope::Specific)
+        );
     }
 
     #[test]
     fn infer_scope_pron_indefini() {
-        assert_eq!(test_engine().infer_scope("on", "PRON"), Some(Scope::Unknown));
+        assert_eq!(
+            test_engine().infer_scope("on", "PRON"),
+            Some(Scope::Unknown)
+        );
     }
 
     // ── score_confidence ─────────────────────────────────────────────────────
@@ -461,7 +552,12 @@ mod tests {
     fn score_explicit_action_etat_cause_clamps_to_1() {
         // base 1.0 + bonus 0.15 = 1.15 → clamp → 1.0
         assert_eq!(
-            test_engine().score_confidence(NodeType::Action, NodeType::Etat, RelationType::Cause, true),
+            test_engine().score_confidence(
+                NodeType::Action,
+                NodeType::Etat,
+                RelationType::Cause,
+                true
+            ),
             1.0,
         );
     }
@@ -470,7 +566,10 @@ mod tests {
     fn score_implicit_action_etat_cause() {
         // base 0.5 + bonus 0.15 = 0.65
         let s = test_engine().score_confidence(
-            NodeType::Action, NodeType::Etat, RelationType::Cause, false,
+            NodeType::Action,
+            NodeType::Etat,
+            RelationType::Cause,
+            false,
         );
         assert!((s - 0.65).abs() < 1e-6);
     }
@@ -479,7 +578,10 @@ mod tests {
     fn score_implicit_concession_reduces_confidence() {
         // base 0.5 − 0.10 = 0.40
         let s = test_engine().score_confidence(
-            NodeType::Etat, NodeType::Action, RelationType::Concession, false,
+            NodeType::Etat,
+            NodeType::Action,
+            RelationType::Concession,
+            false,
         );
         assert!((s - 0.40).abs() < 1e-6);
     }
@@ -487,7 +589,10 @@ mod tests {
     #[test]
     fn score_never_below_min() {
         let s = test_engine().score_confidence(
-            NodeType::Entite, NodeType::Entite, RelationType::Opposition, false,
+            NodeType::Entite,
+            NodeType::Entite,
+            RelationType::Opposition,
+            false,
         );
         assert!(s >= 0.1);
     }
@@ -499,12 +604,17 @@ mod tests {
         let e = test_engine();
         let n1 = test_node(1, NodeType::Processus, NodeOrigin::Explicit);
         let n2 = test_node(2, NodeType::Etat, NodeOrigin::Explicit);
-        let mut ir = make_ir(vec![n1, n2], vec![
-            test_edge(1, 2, RelationType::Concession, true, 1.0),
-        ]);
+        let mut ir = make_ir(
+            vec![n1, n2],
+            vec![test_edge(1, 2, RelationType::Concession, true, 1.0)],
+        );
         let notes = e.enrich(&mut ir);
-        assert!(notes.iter().any(|n| matches!(n,
-            InferenceNote::CausalGapSignaled { relation: RelationType::Concession, .. }
+        assert!(notes.iter().any(|n| matches!(
+            n,
+            InferenceNote::CausalGapSignaled {
+                relation: RelationType::Concession,
+                ..
+            }
         )));
     }
 
@@ -514,12 +624,18 @@ mod tests {
         // Nœud Inferred de type Etat (incorrect), entity "croissance" → Processus
         let n1 = test_node_with_entity(1, NodeType::Etat, NodeOrigin::Inferred, "croissance");
         let n2 = test_node(2, NodeType::Action, NodeOrigin::Explicit);
-        let mut ir = make_ir(vec![n1, n2], vec![
-            test_edge(1, 2, RelationType::Cause, true, 1.0),
-        ]);
+        let mut ir = make_ir(
+            vec![n1, n2],
+            vec![test_edge(1, 2, RelationType::Cause, true, 1.0)],
+        );
         let notes = e.enrich(&mut ir);
-        assert!(notes.iter().any(|n| matches!(n,
-            InferenceNote::NodeTypeResolved { from: NodeType::Etat, to: NodeType::Processus, .. }
+        assert!(notes.iter().any(|n| matches!(
+            n,
+            InferenceNote::NodeTypeResolved {
+                from: NodeType::Etat,
+                to: NodeType::Processus,
+                ..
+            }
         )));
         assert_eq!(ir.nodes[0].node_type, NodeType::Processus);
     }
@@ -530,11 +646,16 @@ mod tests {
         let n1 = test_node(1, NodeType::Action, NodeOrigin::Explicit);
         let n2 = test_node(2, NodeType::Etat, NodeOrigin::Explicit);
         // arête implicite Action→Etat Cause, confiance initiale 0.5 → score 0.65
-        let mut ir = make_ir(vec![n1, n2], vec![
-            test_edge(1, 2, RelationType::Cause, false, 0.5),
-        ]);
+        let mut ir = make_ir(
+            vec![n1, n2],
+            vec![test_edge(1, 2, RelationType::Cause, false, 0.5)],
+        );
         let notes = e.enrich(&mut ir);
-        assert!(notes.iter().any(|n| matches!(n, InferenceNote::ConfidenceAdjusted { .. })));
+        assert!(
+            notes
+                .iter()
+                .any(|n| matches!(n, InferenceNote::ConfidenceAdjusted { .. }))
+        );
         let (_, _, ref updated) = ir.edges[0];
         assert!((updated.confidence - 0.65).abs() < 1e-6);
     }
@@ -546,6 +667,10 @@ mod tests {
         let n1 = test_node_with_entity(1, NodeType::Etat, NodeOrigin::Explicit, "croissance");
         let mut ir = make_ir(vec![n1], vec![]);
         let notes = e.enrich(&mut ir);
-        assert!(!notes.iter().any(|n| matches!(n, InferenceNote::NodeTypeResolved { .. })));
+        assert!(
+            !notes
+                .iter()
+                .any(|n| matches!(n, InferenceNote::NodeTypeResolved { .. }))
+        );
     }
 }

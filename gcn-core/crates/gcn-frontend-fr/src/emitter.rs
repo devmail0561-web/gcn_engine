@@ -3,8 +3,8 @@
 
 use crate::annotator::{ClauseAnnotation, SentenceAnnotation};
 use gcn_ir::{
-    CausalEdge, CausalIR, CausalNode, IrMetadata, Modifier, NodeAttributes, NodeId,
-    NodeOrigin, SourceLanguage, NaturalLanguage, SourceSpan, TemporalAnchor, TemporalRef,
+    CausalEdge, CausalIR, CausalNode, IrMetadata, Modifier, NaturalLanguage, NodeAttributes,
+    NodeId, NodeOrigin, SourceLanguage, SourceSpan, TemporalAnchor, TemporalRef,
 };
 use smallvec::SmallVec;
 
@@ -38,7 +38,10 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
         }
     }
 
-    let nodes: Vec<CausalNode> = ann.clauses.iter().enumerate()
+    let nodes: Vec<CausalNode> = ann
+        .clauses
+        .iter()
+        .enumerate()
         .map(|(i, clause)| build_node(NodeId(i as u32), clause, temporal_indices[i]))
         .collect();
 
@@ -63,7 +66,9 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
     }
 
     CausalIR {
-        source_lang: SourceLanguage::Natural { lang: NaturalLanguage::French },
+        source_lang: SourceLanguage::Natural {
+            lang: NaturalLanguage::French,
+        },
         source_text,
         nodes,
         edges,
@@ -103,7 +108,10 @@ fn build_node(id: NodeId, clause: &ClauseAnnotation, temporal_index: Option<i32>
     let source_span = if clause.origin == NodeOrigin::Hypothetical || clause.span == (0, 0) {
         SourceSpan::Synthetic
     } else {
-        SourceSpan::TokenSpan { start: clause.span.0, end: clause.span.1 }
+        SourceSpan::TokenSpan {
+            start: clause.span.0,
+            end: clause.span.1,
+        }
     };
 
     CausalNode {

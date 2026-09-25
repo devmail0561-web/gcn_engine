@@ -4,17 +4,17 @@
 //! GCN Knowledge: support aux outils de bootstrap d'annotation (gcn-frontend-fr, gcn-frontend-code).
 //! Charge les taxonomies de gcn-references/ pour les annotateurs — pas utilisé par le pipeline ML d'inférence.
 
-pub mod taxonomy;
-pub mod loader;
-pub mod lexicon;
 pub mod inference;
+pub mod lexicon;
+pub mod loader;
+pub mod taxonomy;
 
 use std::path::PathBuf;
 
-pub use taxonomy::{Taxonomy, TaxonomyClass, LexicalEntry, SubType, CompositionalRule};
-pub use lexicon::Lexicon;
 pub use inference::{InferenceEngine, InferenceNote};
-pub use loader::{load_taxonomy, load_all_taxonomies};
+pub use lexicon::Lexicon;
+pub use loader::{load_all_taxonomies, load_taxonomy};
+pub use taxonomy::{CompositionalRule, LexicalEntry, SubType, Taxonomy, TaxonomyClass};
 
 #[derive(Debug, thiserror::Error)]
 pub enum KnowledgeError {

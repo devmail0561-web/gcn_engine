@@ -15,6 +15,7 @@ pub fn run(ir: &CausalIR, _g: &CausalGraph, diagnostics: &mut Vec<Diagnostic>) {
     check_orphaned_nodes(ir, diagnostics);
     check_low_confidence(ir, diagnostics);
     check_dangling_conditions(ir, diagnostics);
+    check_empty_labels(ir, diagnostics);
 }
 
 fn check_dangling_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
@@ -25,7 +26,11 @@ fn check_dangling_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
             diagnostics.push(Diagnostic {
                 node_id: None,
                 severity: DiagnosticSeverity::Error,
-                kind: DiagnosticKind::DanglingEdge { src: *src, dst: *dst, index: idx },
+                kind: DiagnosticKind::DanglingEdge {
+                    src: *src,
+                    dst: *dst,
+                    index: idx,
+                },
             });
         }
     }
@@ -47,11 +52,7 @@ fn check_orphaned_nodes(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
     if ir.nodes.len() <= 1 {
         return;
     }
-    let connected: HashSet<u32> = ir
-        .edges
-        .iter()
-        .flat_map(|(s, d, _)| [s.0, d.0])
-        .collect();
+    let connected: HashSet<u32> = ir.edges.iter().flat_map(|(s, d, _)| [s.0, d.0]).collect();
     for node in &ir.nodes {
         if !connected.contains(&node.id.0) {
             diagnostics.push(Diagnostic {
@@ -90,6 +91,18 @@ fn check_dangling_conditions(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
                     kind: DiagnosticKind::DanglingCondition { node: node.id },
                 });
             }
+        }
+    }
+}
+
+fn check_empty_labels(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
+    for node in &ir.nodes {
+        if node.label.trim().is_empty() {
+            diagnostics.push(Diagnostic {
+                node_id: Some(node.id),
+                severity: DiagnosticSeverity::Warning,
+                kind: DiagnosticKind::EmptyLabel { node: node.id },
+            });
         }
     }
 }

@@ -24,10 +24,30 @@ pub enum DiagnosticSeverity {
 
 #[derive(Debug, Clone)]
 pub enum DiagnosticKind {
-    SelfLoop { node: NodeId },
-    OrphanedNode { node: NodeId },
-    LowConfidenceEdge { src: NodeId, dst: NodeId, confidence: f32 },
-    DanglingCondition { node: NodeId },
-    DanglingEdge { src: NodeId, dst: NodeId, index: usize },
-    TemporalOrderViolation { src: NodeId, dst: NodeId },
+    SelfLoop {
+        node: NodeId,
+    },
+    OrphanedNode {
+        node: NodeId,
+    },
+    LowConfidenceEdge {
+        src: NodeId,
+        dst: NodeId,
+        confidence: f32,
+    },
+    DanglingCondition {
+        node: NodeId,
+    },
+    DanglingEdge {
+        src: NodeId,
+        dst: NodeId,
+        index: usize,
+    },
+    TemporalOrderViolation {
+        src: NodeId,
+        dst: NodeId,
+    },
+    EmptyLabel {
+        node: NodeId,
+    },
 }

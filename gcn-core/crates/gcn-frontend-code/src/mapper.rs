@@ -22,21 +22,21 @@ pub enum LabelStrategy {
 
 pub fn label_strategy_str_to_enum(s: &str) -> Option<LabelStrategy> {
     match s {
-        "full_text"       => Some(LabelStrategy::FullText),
+        "full_text" => Some(LabelStrategy::FullText),
         "condition_field" => Some(LabelStrategy::ConditionField),
-        "name_field"      => Some(LabelStrategy::NameField),
+        "name_field" => Some(LabelStrategy::NameField),
         _ => None,
     }
 }
 
 pub fn node_type_str_to_enum(s: &str) -> Option<NodeType> {
     match s {
-        "etat"            => Some(NodeType::Etat),
-        "action"          => Some(NodeType::Action),
-        "transition"      => Some(NodeType::Transition),
-        "processus"       => Some(NodeType::Processus),
-        "condition"       => Some(NodeType::Condition),
-        "entite"          => Some(NodeType::Entite),
+        "etat" => Some(NodeType::Etat),
+        "action" => Some(NodeType::Action),
+        "transition" => Some(NodeType::Transition),
+        "processus" => Some(NodeType::Processus),
+        "condition" => Some(NodeType::Condition),
+        "entite" => Some(NodeType::Entite),
         "etat_systemique" => Some(NodeType::EtatSystemique),
         _ => None,
     }
@@ -44,16 +44,16 @@ pub fn node_type_str_to_enum(s: &str) -> Option<NodeType> {
 
 pub fn relation_type_str_to_enum(s: &str) -> Option<RelationType> {
     match s {
-        "cause"              => Some(RelationType::Cause),
-        "enable"             => Some(RelationType::Enable),
-        "prevent"            => Some(RelationType::Prevent),
-        "condition"          => Some(RelationType::Condition),
-        "concession"         => Some(RelationType::Concession),
-        "sequence"           => Some(RelationType::Sequence),
-        "motivation"         => Some(RelationType::Motivation),
-        "filter"             => Some(RelationType::Filter),
-        "opposition"         => Some(RelationType::Opposition),
-        "data_dependency"    => Some(RelationType::DataDependency),
+        "cause" => Some(RelationType::Cause),
+        "enable" => Some(RelationType::Enable),
+        "prevent" => Some(RelationType::Prevent),
+        "condition" => Some(RelationType::Condition),
+        "concession" => Some(RelationType::Concession),
+        "sequence" => Some(RelationType::Sequence),
+        "motivation" => Some(RelationType::Motivation),
+        "filter" => Some(RelationType::Filter),
+        "opposition" => Some(RelationType::Opposition),
+        "data_dependency" => Some(RelationType::DataDependency),
         "control_dependency" => Some(RelationType::ControlDependency),
         _ => None,
     }
