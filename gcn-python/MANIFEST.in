@@ -1,0 +1,20 @@
+# MANIFEST.in — Contrôle fichiers inclus dans package PyPI
+
+# Inclure README et licence
+include README.md
+include LICENSE
+
+# Exclure tests, benchmarks, outils dev
+prune tests
+exclude *.npz
+exclude *.csv
+exclude bench_*.json
+exclude model_*.npz
+
+# Exclure fichiers de config développement
+exclude .pytest_cache
+exclude .ruff_cache
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude .DS_Store

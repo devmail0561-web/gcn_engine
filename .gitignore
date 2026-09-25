@@ -27,6 +27,12 @@ gcn-python/models/
 /TODO.md
 /audit_chaine_labelisation_poids.txt
 /notes_augmentation_constantes.txt
+/*.txt
+/*.csv
+/*.json
+/*.npz
+/DATA/
+/Integration-post-pub.txt
 
 # Documents internes de développement
 docs/
@@ -41,3 +47,12 @@ gcn-datasets/raw/
 gcn-datasets/real/
 gcn-datasets/splits/
 gcn-datasets/corpus/
+
+# Outils gcn-tools — datasets et scripts externes au moteur
+gcn-tools/gcn-dataset/
+gcn-tools/gcn-datasets/
+gcn-tools/gcn-scraper/corpus/
+gcn-tools/gcn-scraper/*.csv
+
+# Références et taxonomies — documentation externe
+gcn-references/
