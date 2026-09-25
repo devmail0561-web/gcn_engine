@@ -1,10 +1,10 @@
 # gcn-python — GCN Causal Engine
 
 [![PyPI version](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
 [![Python](https://img.shields.io/pypi/pyversions/gcn-python)](https://pypi.org/project/gcn-python/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-409-passing)](tests/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Tests](https://img.shields.io/badge/tests-412-passing)](tests/)
 
 ---
 
@@ -151,7 +151,7 @@ Voir `gcn-train --help` pour toutes les options (label smoothing, dropout R-GCN,
 from gcn_python import GCNEngine
 
 # Chargement automatique — l'architecture est encodée dans le .npz
-engine = GCNEngine.from_pretrained("model.npz")
+engine = GCNEngine.from_pretrained("model.npz", trusted=True)
 
 # Ou charger manuellement dans un pipeline existant
 from gcn_python.training.checkpoint import load_checkpoint
@@ -173,7 +173,7 @@ Le checkpoint `.npz` contient :
 ```python
 from gcn_python import GCNEngine
 
-engine = GCNEngine.from_pretrained("model.npz", gcn_bin="gcn")
+engine = GCNEngine.from_pretrained("model.npz", trusted=True, gcn_bin="gcn")
 # gcn_bin="gcn" : chemin vers le binaire gcn-cli Rust (doit être dans le PATH)
 # Sans gcn_bin : passe en mode heuristique GCNBridgeParser (~80-85% qualité)
 
@@ -192,7 +192,7 @@ from gcn_python.verbalizer.instructions import CausalGraph
 from gcn_python.verbalizer.query_report import QueryVerbalizer
 
 # Charger le moteur
-engine = GCNEngine.from_pretrained("model.npz")
+engine = GCNEngine.from_pretrained("model.npz", trusted=True)
 
 # Analyser un corpus
 cirs  = engine.analyze_batch(open("corpus.txt").readlines())
