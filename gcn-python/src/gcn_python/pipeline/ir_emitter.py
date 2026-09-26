@@ -30,6 +30,7 @@ def emit(
     node_attributes: list[dict] | None = None,
     node_inferred: list[bool] | None = None,
     temporal_refs: list[str] | None = None,  # S-1 : temporal_ref par nœud
+    doc_ref: str | None = None,
 ) -> dict:
     """
     Produit un dict CausalIR conforme au schéma serde Rust de gcn-ir.
@@ -78,6 +79,13 @@ def emit(
             "attributes": attrs,
         })
 
+    import datetime as _dt
+    _now_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        from .. import __version__ as _gcn_version
+    except Exception:
+        _gcn_version = "unknown"
+
     import math
     edges = []
     for src, dst, relation, confidence, negated, marker_token in edge_triples:
@@ -99,6 +107,14 @@ def emit(
             "negated": negated,
             "marker_token": marker_token,
             "in_cycle": None,
+            "provenance": {
+                "ref": doc_ref,
+                "span": ({"token_span": {"start": marker_token, "end": marker_token}}
+                         if marker_token is not None else "synthetic"),
+                "extraction_method": "ml_python",
+                "model_version": _gcn_version,
+                "extracted_at": _now_iso,
+            },
         }])
 
     # S-7 : détection de cycles par DFS sur le graphe d'arêtes (orienté)
@@ -133,13 +149,15 @@ def emit(
     unique_cycles = list({frozenset(c) for c in cycle_node_sets})
     cycles_output = [sorted(c) for c in unique_cycles]
 
-    # Marquer in_cycle sur les arêtes
-    in_cycle_nodes: set[int] = set()
-    for c in unique_cycles:
-        in_cycle_nodes.update(c)
+    node_to_cycle: dict[int, int] = {}
+    for cycle_id, c in enumerate(unique_cycles):
+        for nid in c:
+            node_to_cycle[nid] = cycle_id
     for edge in edges:
         src_e, dst_e = edge[0], edge[1]
-        edge[2]["in_cycle"] = (src_e in in_cycle_nodes and dst_e in in_cycle_nodes)
+        src_cid = node_to_cycle.get(src_e)
+        dst_cid = node_to_cycle.get(dst_e)
+        edge[2]["in_cycle"] = src_cid if (src_cid is not None and src_cid == dst_cid) else None
 
     import datetime
     return {

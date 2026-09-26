@@ -230,6 +230,8 @@ def run_eval(
             if valid_mask.any():
                 valid_idxs = np.where(valid_mask)[0]
                 gold_edge = gold_edge_full[valid_idxs]
+                # NB: argmax sur tous les logits — ne filtre pas par edge_threshold.
+                # Mesure la qualité intrinsèque du classifieur, pas le comportement prod.
                 edge_pred_idxs = np.argmax(edge_logits[valid_idxs], axis=1)
                 all_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
                 all_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)

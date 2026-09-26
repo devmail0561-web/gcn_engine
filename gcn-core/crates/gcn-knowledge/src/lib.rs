@@ -12,7 +12,7 @@ pub mod taxonomy;
 use std::path::PathBuf;
 
 pub use inference::{InferenceEngine, InferenceNote};
-pub use lexicon::Lexicon;
+pub use lexicon::{AliasTable, Lexicon};
 pub use loader::{load_all_taxonomies, load_taxonomy};
 pub use taxonomy::{CompositionalRule, LexicalEntry, SubType, Taxonomy, TaxonomyClass};
 

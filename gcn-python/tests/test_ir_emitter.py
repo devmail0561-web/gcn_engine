@@ -155,20 +155,20 @@ def test_s7_cycles_detected():
 
 
 def test_s7_in_cycle_marked_on_edges():
-    """S-7 : edges participant au cycle ont in_cycle=True."""
+    """S-7 : edges participant au cycle ont in_cycle=<cycle_id> (int, not None)."""
     result = emit("test", ["action", "action"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None),
                    (1, 0, "enable", 1.0, False, None)])
-    assert all(e[2]["in_cycle"] is True for e in result["edges"])
+    assert all(isinstance(e[2]["in_cycle"], int) for e in result["edges"])
 
 
-def test_s7_no_cycle_in_cycle_false():
-    """S-7 : sans cycle, in_cycle=False sur toutes les arêtes."""
+def test_s7_no_cycle_in_cycle_none():
+    """S-7 : sans cycle, in_cycle=None sur toutes les arêtes."""
     result = emit("test", ["action", "action"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None)])
-    assert all(e[2]["in_cycle"] is False for e in result["edges"])
+    assert all(e[2]["in_cycle"] is None for e in result["edges"])
 
 
 # ── L-5 scope heuristique ───────────────────────────────────────────────────

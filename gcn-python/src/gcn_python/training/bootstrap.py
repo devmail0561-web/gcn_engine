@@ -69,6 +69,11 @@ def bootstrap_cmd(
     Appelle `gcn analyze` (texte via stdin) pour chaque ligne, convertit le CausalIR JSON
     produit au format gcn-nl (document.sentences), et écrit les fichiers dans out-dir.
     """
+    if taxonomy_dir is None:
+        raise click.ClickException(
+            "--taxonomy-dir requis (ou env GCN_TAXONOMY_DIR). "
+            "gcn analyze exige --data-dir pour charger les taxonomies."
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     texts = [line.strip() for line in input_file.read_text("utf-8").splitlines() if line.strip()]
 
@@ -189,7 +194,7 @@ def _normalize_edge(e) -> dict | None:
     else:
         return None
     relation = edge_obj.get("relation_type", edge_obj.get("relation", RELATION_TYPES[0]))
-    return {
+    result = {
         "source": source,
         "target": target,
         "relation": relation,
@@ -197,6 +202,10 @@ def _normalize_edge(e) -> dict | None:
         "explicit": bool(edge_obj.get("explicit", True)),
         "negated": bool(edge_obj["negated"]) if "negated" in edge_obj else None,
     }
+    for key in ("provenance", "temporal_gap", "in_cycle", "derivation", "modifiers", "marker_token"):
+        if key in edge_obj:
+            result[key] = edge_obj[key]
+    return result
 
 
 def _canonical_node_id(raw, pos: int) -> str:
@@ -226,8 +235,9 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
     edges = cir.get("edges", [])
 
     # Assigner token_span=(i+1, i+1) cohérent avec les tokens synthétiques (id=i+1)
-    doc_nodes = [
-        {
+    doc_nodes = []
+    for i, n in enumerate(nodes):
+        nd = {
             "id": _canonical_node_id(n.get("id"), i),
             "type": n.get("node_type", NODE_TYPES[1]),
             "label": n.get("label", ""),
@@ -236,8 +246,10 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
             "temporal_index": n.get("temporal_index", 0),
             "origin": n.get("origin", NODE_ORIGIN_VALUES[0]),
         }
-        for i, n in enumerate(nodes)
-    ]
+        for key in ("parent", "temporal_ref", "attributes"):
+            if key in n:
+                nd[key] = n[key]
+        doc_nodes.append(nd)
 
     doc_edges = [d for e in edges if (d := _normalize_edge(e)) is not None]
 

@@ -50,4 +50,9 @@ pub enum DiagnosticKind {
     EmptyLabel {
         node: NodeId,
     },
+    MissingProvenance {
+        index: usize,
+        src: NodeId,
+        dst: NodeId,
+    },
 }

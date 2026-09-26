@@ -104,4 +104,8 @@ pub struct CausalNode {
     pub temporal_index: Option<i32>,
     pub origin: NodeOrigin,
     pub attributes: NodeAttributes,
+    /// Nœud parent dans la hiérarchie multi-échelle (CIR v2).
+    /// None = nœud de premier niveau. Optionnel en lecture pour compat CIR v1.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub parent: Option<NodeId>,
 }

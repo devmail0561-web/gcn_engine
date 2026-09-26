@@ -242,7 +242,7 @@ class GCNEngine:
         pipeline.drop_edge = _drop_edge
         pipeline.use_compgcn = _use_compgcn
         pipeline.d_rel_emb = _d_rel_emb
-        pipeline.two_pass_val = bool(arch.get("two_pass_val", False))
+        pipeline.two_pass_val = bool(arch.get("two_pass_val", True))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : gcn-cli si disponible, sinon bridge heuristique

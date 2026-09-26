@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use gcn_ir::{
-    CausalEdge, CausalNode, NodeId, NodeOrigin, NodeType, RelationType, Scope, SourceSpan,
-    TemporalRef,
+    CausalEdge, CausalNode, NodeId, NodeOrigin, NodeType, Provenance, RelationType, Scope,
+    SourceSpan, TemporalRef,
 };
 use smallvec::SmallVec;
 
@@ -38,6 +38,7 @@ pub fn emit_node(
         temporal_index: Some(*next_id as i32 - 1),
         origin: NodeOrigin::Explicit,
         attributes: Default::default(),
+        parent: None,
     });
     id
 }
@@ -73,6 +74,10 @@ pub fn full_text_label(node: tree_sitter::Node<'_>, src: &[u8]) -> String {
 }
 
 pub fn control_edge(relation: RelationType) -> CausalEdge {
+    control_edge_with_ref(relation, None, SourceSpan::Synthetic)
+}
+
+pub fn control_edge_with_ref(relation: RelationType, doc_ref: Option<String>, span: SourceSpan) -> CausalEdge {
     CausalEdge {
         relation,
         confidence: 1.0,
@@ -81,5 +86,7 @@ pub fn control_edge(relation: RelationType) -> CausalEdge {
         negated: false,
         marker_token: None,
         in_cycle: None,
+        provenance: Some(Provenance::with_ref(doc_ref, span)),
+        derivation: None,
     }
 }

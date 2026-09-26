@@ -379,6 +379,7 @@ mod tests {
             temporal_index: None,
             origin,
             attributes: NodeAttributes::default(),
+            parent: None,
         }
     }
 
@@ -411,6 +412,8 @@ mod tests {
                 negated: false,
                 marker_token: None,
                 in_cycle: None,
+                provenance: None,
+                derivation: None,
             },
         )
     }

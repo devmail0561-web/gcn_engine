@@ -5,9 +5,67 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-## [Unreleased] — Correctifs audit v2.5.0 (2026-09-25)
+## [Unreleased]
 
-### BREAKING — Supervision des arêtes asymétriques inversée
+### CIR v2 — Provenance et normalisation (Pearl P1)
+
+- **`gcn-ir/edge.rs`** : `Provenance` (5 champs : `ref`, `span`, `extraction_method`,
+  `model_version`, `extracted_at`), `Derivation` (arêtes source), `ExtractionMethod`
+  (4 variantes). Backward compat : `#[serde(skip_serializing_if, default)]`.
+- **`gcn-ir/normalize.rs`** (nouveau) : `normalize_label()` — pré-sub ligatures (œ→oe, æ→ae),
+  fold accents FR/ES, lowercase, strip ponctuation. 4 unit tests.
+- **`gcn-ir/node.rs`** : `parent: Option<NodeId>` pour hiérarchie multi-échelle.
+- **`gcn-knowledge/lexicon.rs`** : `AliasTable` (variante normalisée → label canonique).
+- **`gcn-middleend/validate.rs`** : diagnostic `MissingProvenance` (Warning) si arête sans provenance.
+- **Frontends FR/EN/code + knowledge** : tous les constructeurs émettent désormais
+  `provenance: Some(…)` + `derivation: None` + `parent: None`.
+- **`gcn-python/pipeline/ir_emitter.py`** : chaque arête Python inclut `provenance`
+  (`extraction_method: ml_python`, `model_version`, `extracted_at`).
+
+### Raisonnement temporel et abductif (Pearl P2)
+
+- **`gcn-backend/pearl.rs`** : `TemporalLink`, `TemporalChainResult`, `chain_temporal()` —
+  chaîne causale avec gaps temporels cumulés.
+- **`gcn-backend/pearl.rs`** : `AbductionHypothesis`, `abduct()` — BFS inverse,
+  score = min_conf_path / (1 + depth).
+- **`gcn-backend/query.rs`** : queries `ChainT`, `Before`, `Delay`, `Explain` +
+  résultats `TemporalPath`, `TemporalOrder`, `TemporalDelay`, `Abduction`.
+
+### Méta-graphe, normatif, adversariel, multi-échelle, analogie (Pearl P3)
+
+- **`gcn-backend/query.rs`** : queries `Density`, `Coverage`, `Reliability` (méta-graphe),
+  `NormDiff` (normatif), `Centrality`/`Spof` (adversariel),
+  `ZoomIn`/`ZoomOut`/`Aggregate` (multi-échelle), `Analogy`.
+- **`gcn-backend/pearl.rs`** : `spof_all()` — single `build()` partagé pour toutes les itérations
+  SPOF (supprime N+1 rebuilds). `reachable_pairs_with_graph()` factorisé.
+- **`gcn-backend/analogy.rs`** (nouveau) : `EdgeSignature`, `find_analogies()` — O(E) via
+  `DegreeMaps` pré-calculés, poids 0.40 relation + 0.30 type + 0.20 confiance + 0.10 degré.
+- **`gcn-backend/query.rs`** : `split_pair()` unifié pour parsing `->` / `,` des requêtes
+  bi-arguments (CHAIN, CHAIN_T, BEFORE?, DELAY, DIFF, ANALOGY) avec guard arguments vides.
+  SPOF N_max=500 guard contre O(V²·(V+E)) sur grands graphes.
+- **`gcn-python/verbalizer/instructions.py`** : 14 handlers alignés (`_chain_t` → `_aggregate`),
+  `_normalize()` NFD→ASCII avec pré-sub ligatures, `_safe_conf()` NaN/Inf guard clamped [0,1],
+  `_split_two()` pour labels multi-mots (`->` / `,` / espace), `_gap_value()` TemporalGap
+  dict `{min,max,nature}` support, SPOF N_max=500 guard, analogy O(E) via Counter pré-calcul,
+  `_abduct` BFS multi-profondeur (parity avec pearl.rs), `find_path` guard query vide.
+- **`gcn-python/pipeline/ir_emitter.py`** : `in_cycle` émet désormais un `CycleId` (int) ou `None`
+  au lieu de `bool` (alignement avec `CycleId(u32)` Rust).
+- **`gcn-python/training/bootstrap.py`** : `_normalize_edge` préserve champs CIR v2 (provenance,
+  temporal_gap, in_cycle, derivation, modifiers, marker_token). `_cir_to_doc` préserve
+  parent, temporal_ref, attributes sur les nœuds.
+
+### Robustesse et tests (audit post-Pearl+)
+
+- **`gcn-backend/tests/integration_backend.rs`** : 6 tests de parsing GCN-QL (21 types, case-insensitive,
+  arguments vides, séparateur manquant, query inconnue, séparateur virgule).
+- **`gcn-middleend/error.rs`** : `MissingProvenance` inclut `src: NodeId` + `dst: NodeId`
+  pour diagnostic lisible.
+- **`gcn-python/data/graph_vecs.py`** : `_HANDLES_LOCK` (threading.Lock) protège le cache
+  FIFO des handles npz.
+
+### Correctifs audit v2.5.0 (2026-09-25)
+
+#### BREAKING — Supervision des arêtes asymétriques inversée
 
 **`GCNDataLoader._to_sample` : rejet des arêtes `cause/enable/prevent` backward**
 
@@ -23,7 +81,7 @@ pré-existants entraînés sur ces données ne sont plus directement comparables
 **Recommandation :** ré-annoter les arêtes concernées dans la direction `src < tgt`,
 puis ré-entraîner avant toute comparaison de performance.
 
-### Correctifs P0 (bugs métriques / supervision)
+#### Correctifs P0 (bugs métriques / supervision)
 
 - **`eval_runner.py`** : branchement `TransformerMLPEncoder` si `global_attention=True` dans
   `_arch_json` — les modèles Phase-C Transformer étaient évalués avec un MLP aléatoire
@@ -33,7 +91,7 @@ puis ré-entraîner avant toute comparaison de performance.
 - **`gcn-transformers/base.py`** : `UserWarning` si `d_clause=79` (dim base sans embedding) —
   anticipe un crash shape mismatch `proj_ud` lors du chargement du checkpoint.
 
-### Correctifs P1 (cohérence sémantique)
+#### Correctifs P1 (cohérence sémantique)
 
 - **`gcn-frontend-en/rules.rs`** : `conjunction_class_to_direction` : `"concession"` →
   `Backward` ajouté (alignement avec le frontend FR).
@@ -43,17 +101,14 @@ puis ré-entraîner avant toute comparaison de performance.
   `examples` (entrées langage-agnostiques) en plus de `examples_fr` — frontend-EN
   débloqué pour les taxonomies sans tag de langue.
 
-### Hygiène P2
+#### Hygiène P2
 
 - `gcn-core/Cargo.toml` : dépendance `rayon` supprimée (0 usage).
 - `gcn-core/Cargo.toml` : `edition` workspace alignée sur `"2024"` (toutes les crates
   déclaraient déjà `edition = "2024"` individuellement).
 
----
+### Remédiation diagnostic sémantique (2026-09-25)
 
-## [Unreleased] — Remédiation diagnostic sémantique (2026-09-25)
-
-### Changement de comportement (REMEDIATION-DIAGNOSTIC.md)
 - **`gcn-train --embedding-dim` : défaut `0` → `128`.** Les word embeddings lexicaux
   apprenables sont désormais ACTIFS PAR DÉFAUT — l'embedding n'est plus optionnel.
   `--embedding-dim 0` reste accepté (compatibilité anciens checkpoints) mais émet un

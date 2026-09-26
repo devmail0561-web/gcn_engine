@@ -3,6 +3,7 @@
 
 // Phase 4: Pearl reasoning (level 1), GCN-QL query engine, export
 
+pub mod analogy;
 pub mod error;
 pub mod export;
 pub mod pearl;
@@ -10,4 +11,4 @@ pub mod query;
 
 pub use error::BackendError;
 pub use export::{to_dot, to_json};
-pub use query::{Query, QueryResult, execute};
+pub use query::{AbductionHypothesisDto, Query, QueryResult, SpofNodeDto, TemporalLinkDto, execute};

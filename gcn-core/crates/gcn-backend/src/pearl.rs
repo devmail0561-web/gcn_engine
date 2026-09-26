@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use gcn_ir::{CausalIR, NodeId, RelationType};
+use gcn_ir::{CausalIR, NodeId, RelationType, normalize_label};
 use gcn_middleend::graph::{CausalGraph, build};
 use petgraph::Direction;
 use petgraph::graph::NodeIndex;
@@ -12,6 +12,7 @@ use petgraph::graph::NodeIndex;
 pub struct CausalLink {
     pub from_label: String,
     pub to_label: String,
+    pub from_id: NodeId,
     pub to_id: NodeId,
     pub relation: RelationType,
     pub confidence: f32,
@@ -27,6 +28,30 @@ pub struct InterventionResult {
     pub effects: Vec<CausalLink>,
 }
 
+/// Lien causal avec métadonnées temporelles.
+#[derive(Debug, Clone)]
+pub struct TemporalLink {
+    pub from_label: String,
+    pub to_label: String,
+    pub relation: RelationType,
+    pub confidence: f32,
+    pub negated: bool,
+    /// TemporalGap.min sur cette arête (unités domaine).
+    pub gap_min: Option<i32>,
+    /// TemporalGap.max sur cette arête.
+    pub gap_max: Option<i32>,
+    /// dst.temporal_index - src.temporal_index (proxy si pas de TemporalGap).
+    pub index_delta: Option<i32>,
+}
+
+/// Résultat de chain_temporal.
+#[derive(Debug, Clone)]
+pub struct TemporalChainResult {
+    pub links: Option<Vec<TemporalLink>>,
+    /// true si tous les sauts du chemin respectent temporal_index (src ≤ dst).
+    pub temporally_ordered: bool,
+}
+
 /// Pearl niveau 3 — résultat d'une requête contrefactuelle sur un nœud X.
 #[derive(Debug, Clone)]
 pub struct CounterfactualResult {
@@ -38,10 +63,10 @@ pub struct CounterfactualResult {
 }
 
 /// Score de correspondance label ↔ requête : 0 exact, 1 préfixe, 2 contient.
-/// Retourne None si aucune correspondance (insensible à la casse).
+/// Retourne None si aucune correspondance. Applique normalize_label (accents, casse, ponctuation).
 pub fn match_score(label: &str, query: &str) -> Option<u8> {
-    let l = label.to_lowercase();
-    let q = query.trim().to_lowercase();
+    let l = normalize_label(label);
+    let q = normalize_label(query);
     if q.is_empty() {
         return None;
     }
@@ -79,6 +104,10 @@ pub fn find_all_ranked<'a>(ir: &'a CausalIR, query: &str) -> Vec<&'a gcn_ir::Cau
 
 type NodeMap<'a> = HashMap<NodeId, &'a gcn_ir::CausalNode>;
 type EdgeMap<'a> = HashMap<(u32, u32), &'a gcn_ir::CausalEdge>;
+
+pub fn build_maps_pub(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
+    build_maps(ir)
+}
 
 fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
     let nm: NodeMap = ir.nodes.iter().map(|n| (n.id, n)).collect();
@@ -244,11 +273,220 @@ fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<Cau
             .get(&dst)
             .map(|n| n.label.clone())
             .unwrap_or_else(|| format!("node_{}", dst.0)),
+        from_id: src,
         to_id: dst,
         relation: e.relation,
         confidence: e.confidence,
         negated: e.negated,
     })
+}
+
+fn reachable_pairs_with_graph(g: &CausalGraph, nodes: &[gcn_ir::CausalNode], exclude: Option<NodeIndex>) -> usize {
+    let mut count = 0;
+    for src in nodes {
+        if let Some(ex) = exclude {
+            if g.node_indices.get(&src.id) == Some(&ex) { continue; }
+        }
+        let si = match g.node_indices.get(&src.id) { Some(&x) => x, None => continue };
+        let mut visited = HashSet::new();
+        visited.insert(si);
+        if let Some(ex) = exclude { visited.insert(ex); }
+        let mut queue = VecDeque::new();
+        queue.push_back(si);
+        while let Some(ni) = queue.pop_front() {
+            for nb in g.g.neighbors_directed(ni, Direction::Outgoing) {
+                if visited.insert(nb) {
+                    queue.push_back(nb);
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
+}
+
+/// Compte le nombre de paires (s,d) avec s≠d qui ont un chemin orienté dans le graphe.
+pub fn count_reachable_pairs(ir: &CausalIR) -> usize {
+    let g = build(ir);
+    reachable_pairs_with_graph(&g, &ir.nodes, None)
+}
+
+/// Compte les paires atteignables après suppression virtuelle de `excluded`.
+pub fn count_reachable_pairs_without(ir: &CausalIR, excluded: NodeId) -> usize {
+    let g = build(ir);
+    let excluded_idx = match g.node_indices.get(&excluded) {
+        Some(&x) => x,
+        None => return reachable_pairs_with_graph(&g, &ir.nodes, None),
+    };
+    reachable_pairs_with_graph(&g, &ir.nodes, Some(excluded_idx))
+}
+
+/// Calcule SPOF pour tous les nœuds en un seul build du graphe.
+pub fn spof_all(ir: &CausalIR) -> (usize, Vec<(String, usize)>) {
+    let g = build(ir);
+    let total = reachable_pairs_with_graph(&g, &ir.nodes, None);
+    let mut scores: Vec<(String, usize)> = ir.nodes.iter()
+        .map(|n| {
+            let ex = g.node_indices.get(&n.id).copied();
+            let without = match ex {
+                Some(idx) => reachable_pairs_with_graph(&g, &ir.nodes, Some(idx)),
+                None => total,
+            };
+            (n.label.clone(), total.saturating_sub(without))
+        })
+        .collect();
+    scores.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    (total, scores)
+}
+
+/// Hypothèse abductive — cause candidate d'un effet observé.
+#[derive(Debug, Clone)]
+pub struct AbductionHypothesis {
+    pub label: String,
+    pub relation: RelationType,
+    /// Confiance de l'arête directe vers l'effet (ou vers le nœud intermédiaire).
+    pub edge_confidence: f32,
+    /// score = min_confidence_on_path / (1 + depth) — favorise les causes proches et fiables.
+    pub score: f32,
+    pub depth: usize,
+}
+
+/// EXPLAIN(E) — raisonnement abductif : quelles causes expliquent E ?
+///
+/// Algorithme : BFS inverse depuis E (ancêtres). Score de chaque ancêtre :
+///   score = min_confidence_on_path / (1 + depth)
+///
+/// Le score favorise les causes proches (depth faible) et fiables (confiance élevée).
+/// `confirmations` sera intégré quand le SA fournira les compteurs — pour l'instant = 1.
+pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
+    let g = build(ir);
+    let (nm, em) = build_maps(ir);
+    let mut hypotheses: Vec<AbductionHypothesis> = Vec::new();
+
+    let start = match g.node_indices.get(&effect_id) {
+        Some(&si) => si,
+        None => return vec![],
+    };
+
+    // BFS inverse avec tracking de profondeur et confiance min sur le chemin
+    let mut queue: VecDeque<(NodeIndex, usize, f32)> = VecDeque::new();
+    let mut visited: HashSet<NodeIndex> = HashSet::new();
+    queue.push_back((start, 0, 1.0_f32));
+    visited.insert(start);
+
+    while let Some((ni, depth, path_conf)) = queue.pop_front() {
+        if depth == 0 {
+            // Le nœud de départ (effet) n'est pas une hypothèse
+            for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
+                if visited.insert(pred) {
+                    let pred_id = g.g[pred];
+                    let edge_conf = em.get(&(pred_id.0, effect_id.0))
+                        .map(|e| e.confidence)
+                        .unwrap_or(0.5);
+                    let new_path_conf = edge_conf;
+                    queue.push_back((pred, 1, new_path_conf));
+                    let score = new_path_conf / (1.0_f32 + 1.0_f32);
+                    if let Some(node) = nm.get(&pred_id) {
+                        hypotheses.push(AbductionHypothesis {
+                            label: node.label.clone(),
+                            relation: em.get(&(pred_id.0, g.g[ni].0))
+                                .map(|e| e.relation)
+                                .unwrap_or(RelationType::Cause),
+                            edge_confidence: edge_conf,
+                            score,
+                            depth: 1,
+                        });
+                    }
+                }
+            }
+            continue;
+        }
+        // Pour les nœuds plus profonds : propager le BFS mais ne pas ajouter comme
+        // hypothèse additionnelle (on garde seulement les ancêtres directs de E pour
+        // l'instant — extension future : ancêtres indirects avec score actualisé)
+        for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
+            if visited.insert(pred) {
+                let pred_id = g.g[pred];
+                let edge_conf = em.get(&(pred_id.0, g.g[ni].0))
+                    .map(|e| e.confidence)
+                    .unwrap_or(0.5);
+                let new_path_conf = path_conf.min(edge_conf);
+                let new_depth = depth + 1;
+                let score = new_path_conf / (1.0_f32 + new_depth as f32);
+                if let Some(node) = nm.get(&pred_id) {
+                    hypotheses.push(AbductionHypothesis {
+                        label: node.label.clone(),
+                        relation: em.get(&(pred_id.0, g.g[ni].0))
+                            .map(|e| e.relation)
+                            .unwrap_or(RelationType::Cause),
+                        edge_confidence: edge_conf,
+                        score,
+                        depth: new_depth,
+                    });
+                }
+                queue.push_back((pred, new_depth, new_path_conf));
+            }
+        }
+    }
+
+    // Trier par score décroissant, puis label pour déterminisme
+    hypotheses.sort_by(|a, b| {
+        b.score.partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.label.cmp(&b.label))
+    });
+    hypotheses
+}
+
+/// CHAIN_T — chemin causal avec info temporelle sur chaque saut.
+/// Utilise le même BFS que chain() mais enrichit chaque lien avec temporal_gap
+/// et index_delta. Vérifie si le chemin est temporellement ordonné.
+pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResult {
+    let path = chain(ir, from, to);
+    let (nm, em) = build_maps(ir);
+    let idx_map: HashMap<NodeId, Option<i32>> =
+        ir.nodes.iter().map(|n| (n.id, n.temporal_index)).collect();
+
+    match path {
+        None => TemporalChainResult { links: None, temporally_ordered: false },
+        Some(links) => {
+            let mut temporally_ordered = true;
+            let temporal_links: Vec<TemporalLink> = links
+                .iter()
+                .map(|l| {
+                    let (gap_min, gap_max) = em.get(&(l.from_id.0, l.to_id.0))
+                        .and_then(|e| e.temporal_gap.as_ref())
+                        .map(|g| (g.min, g.max))
+                        .unwrap_or((None, None));
+                    let src_ti = idx_map.get(&l.from_id).copied().flatten();
+                    let dst_ti = idx_map.get(&l.to_id).copied().flatten();
+                    let index_delta = match (src_ti, dst_ti) {
+                        (Some(s), Some(d)) => {
+                            if s > d {
+                                temporally_ordered = false;
+                            }
+                            Some(d - s)
+                        }
+                        _ => None,
+                    };
+                    TemporalLink {
+                        from_label: l.from_label.clone(),
+                        to_label: l.to_label.clone(),
+                        relation: l.relation,
+                        confidence: l.confidence,
+                        negated: l.negated,
+                        gap_min,
+                        gap_max,
+                        index_delta,
+                    }
+                })
+                .collect();
+            TemporalChainResult {
+                links: Some(temporal_links),
+                temporally_ordered,
+            }
+        }
+    }
 }
 
 pub fn node_label(ir: &CausalIR, id: NodeId) -> String {

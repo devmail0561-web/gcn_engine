@@ -16,6 +16,7 @@ pub fn run(ir: &CausalIR, _g: &CausalGraph, diagnostics: &mut Vec<Diagnostic>) {
     check_low_confidence(ir, diagnostics);
     check_dangling_conditions(ir, diagnostics);
     check_empty_labels(ir, diagnostics);
+    check_missing_provenance(ir, diagnostics);
 }
 
 fn check_dangling_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
@@ -102,6 +103,18 @@ fn check_empty_labels(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
                 node_id: Some(node.id),
                 severity: DiagnosticSeverity::Warning,
                 kind: DiagnosticKind::EmptyLabel { node: node.id },
+            });
+        }
+    }
+}
+
+fn check_missing_provenance(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
+    for (index, (src, dst, edge)) in ir.edges.iter().enumerate() {
+        if edge.provenance.is_none() {
+            diagnostics.push(Diagnostic {
+                node_id: None,
+                severity: DiagnosticSeverity::Warning,
+                kind: DiagnosticKind::MissingProvenance { index, src: *src, dst: *dst },
             });
         }
     }

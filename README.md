@@ -3,8 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-144%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-531%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-185%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-425%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
@@ -73,7 +73,7 @@ projet_CNM/
 │   │   ├── gcn-frontend-en/    Parser anglais symbolique (bootstrap annotation)
 │   │   ├── gcn-frontend-code/  Parser code AST (Python, Rust, JS via tree-sitter)
 │   │   ├── gcn-middleend/      Construction graphe, cycles, validation
-│   │   ├── gcn-backend/        Raisonnement Pearl 1-2-3 + GCN-QL + export
+│   │   ├── gcn-backend/        Raisonnement Pearl étendu + GCN-QL (21 requêtes) + export
 │   │   ├── gcn-verbalizer/     Décodeur CausalIR → surface (pont Rust)
 │   │   └── gcn-cli/            Interface ligne de commande
 │
@@ -260,19 +260,39 @@ Le data scientist substitue `MLPEncoder` et `RGCNLayer` par ses propres impléme
 
 ## GCN-QL — Langage de requêtes causales
 
-| Syntaxe | Description | Niveau Pearl |
+| Syntaxe | Description | Catégorie |
 |---|---|---|
-| `WHY <label>?` | Ancêtres causaux d'un nœud | 1 — Association |
-| `WHAT <label>?` | Descendants causaux d'un nœud | 1 — Association |
-| `CHAIN <a> -> <b>?` | Chemin causal entre deux nœuds | 1 — Association |
-| `CYCLES?` | Liste les boucles de rétroaction | 1 — Association |
-| `GAPS?` | Liste les lacunes causales non résolues | 1 — Association |
-| `DO <label>?` | Intervention : court-circuite les causes de X, propage ses effets | 2 — Intervention |
-| `COUNTERFACTUAL <label>?` | "Que se serait-il passé si X n'avait pas eu lieu ?" | 3 — Contrefactuel |
+| `WHY <label>?` | Ancêtres causaux d'un nœud | Pearl 1 — Association |
+| `WHAT <label>?` | Descendants causaux d'un nœud | Pearl 1 — Association |
+| `CHAIN <a> -> <b>?` | Chemin causal entre deux nœuds | Pearl 1 — Association |
+| `CYCLES?` | Liste les boucles de rétroaction | Pearl 1 — Association |
+| `GAPS?` | Liste les lacunes causales non résolues | Pearl 1 — Association |
+| `DO <label>?` | Intervention : court-circuite les causes de X, propage ses effets | Pearl 2 — Intervention |
+| `COUNTERFACTUAL <label>?` | "Que se serait-il passé si X n'avait pas eu lieu ?" | Pearl 3 — Contrefactuel |
+| `CHAIN_T <a> -> <b>?` | Chemin causal avec gaps temporels cumulés | Temporel |
+| `BEFORE <a> <b>?` | A précède-t-il B dans la chaîne causale ? | Temporel |
+| `DELAY <a> -> <b>?` | Délai temporel estimé entre A et B | Temporel |
+| `EXPLAIN <label>?` | Abduction : hypothèses causales inversées (BFS inverse) | Abductif |
+| `DENSITY?` | Ratio arêtes/nœuds du graphe | Méta-graphe |
+| `COVERAGE?` | Nœuds connectés vs isolés | Méta-graphe |
+| `RELIABILITY?` | Confiance minimale et moyenne des arêtes | Méta-graphe |
+| `DIFF <ir1> <ir2>?` | Différences structurelles entre deux CausalIR | Normatif |
+| `CENTRALITY?` | Nœuds les plus connectés (hub causal) | Adversariel |
+| `SPOF?` | Single Point of Failure — nœuds dont la suppression coupe le plus de chemins | Adversariel |
+| `ZOOM_IN <label>?` | Enfants hiérarchiques d'un nœud (via `parent`) | Multi-échelle |
+| `ZOOM_OUT <label>?` | Ancêtres hiérarchiques d'un nœud | Multi-échelle |
+| `AGGREGATE?` | Résumé par sous-arbre hiérarchique | Multi-échelle |
+| `ANALOGY <a> -> <b>?` | Arêtes du graphe analogues au patron A→B (signature topologique) | Analogie |
 
 **Pearl niveau 2 — `DO X`** : coupe toutes les arêtes entrantes du nœud X (ses causes naturelles sont court-circuitées), puis propage les effets en avant depuis X. Retourne les arêtes coupées (`severed`) et les effets aval.
 
 **Pearl niveau 3 — `COUNTERFACTUAL X`** : compare le monde actuel (effets réels de X) avec le monde hypothétique sans X. `unique_effects` = nœuds qui ne seraient PAS atteints si X n'avait pas eu lieu (aucun chemin alternatif depuis les racines du graphe).
+
+**Abductif — `EXPLAIN X`** : BFS inverse depuis X. Chaque hypothèse porte un score = confiance minimale sur le chemin × ln(1+profondeur).
+
+**Adversariel — `SPOF?`** : pour chaque nœud, calcule combien de paires de nœuds deviennent inatteignables si on le retire (BFS avec exclusion virtuelle, pas O(N³)).
+
+**Analogie — `ANALOGY A -> B`** : matching O(E) par signature topologique (poids : 0.40 relation + 0.30 type + 0.20 confiance + 0.10 degré).
 
 ---
 
@@ -299,6 +319,21 @@ pub enum NodeType { Etat, Action, Transition, Processus, Condition, Entite, Etat
 pub enum RelationType {
     Cause, Enable, Prevent, Condition, Concession, Sequence,
     Motivation, Filter, Opposition, DataDependency, ControlDependency
+}
+
+// CIR v2 — traçabilité sur chaque arête (champs optionnels, backward compat)
+pub struct CausalEdge {
+    pub relation: RelationType,
+    pub confidence: f32,
+    pub provenance: Option<Provenance>,   // ref, span, extraction_method, model_version, extracted_at
+    pub derivation: Option<Derivation>,   // arêtes source si inférée (A→C déduit de A→B + B→C)
+    // ...
+}
+
+// CIR v2 — hiérarchie multi-échelle sur chaque nœud
+pub struct CausalNode {
+    pub parent: Option<NodeId>,           // lien hiérarchique pour ZOOM_IN/OUT/AGGREGATE
+    // ...
 }
 ```
 
@@ -337,6 +372,22 @@ let query = Query::parse("DO crise")?;
 // GCN-QL niveau 3 (contrefactuel)
 let query = Query::parse("COUNTERFACTUAL hausse")?;
 // -> QueryResult::CounterfactualDiff { actual_effects, unique_effects, .. }
+
+// Temporel — chaîne avec délais cumulés
+let query = Query::parse("CHAIN_T qualité -> ventes?")?;
+// -> QueryResult::TemporalPath { links: [TemporalLinkDto], total_gap }
+
+// Abductif — hypothèses causales inversées
+let query = Query::parse("EXPLAIN ventes?")?;
+// -> QueryResult::Abduction { hypotheses: [AbductionHypothesisDto] }
+
+// Adversariel — points de défaillance unique
+let query = Query::parse("SPOF?")?;
+// -> QueryResult::SpofReport { nodes: [SpofNodeDto { label, paths_cut }] }
+
+// Analogie — patterns causaux similaires
+let query = Query::parse("ANALOGY qualité -> ventes?")?;
+// -> QueryResult::AnalogyReport { matches: [AnalogyMatchDto] }
 
 // Export
 let json = to_json(&ir)?;
@@ -502,17 +553,17 @@ Structure minimale d'un exemple annoté :
 ## Tests
 
 ```bash
-# Suite complète Rust (144 tests)
+# Suite complète Rust (185 tests)
 cd gcn-core && cargo test --workspace
 
 # Par crate
-cargo test -p gcn-ir              #  4 tests
-cargo test -p gcn-knowledge        # 23 tests
-cargo test -p gcn-frontend-fr      # 23 tests
+cargo test -p gcn-ir              # 10 tests (dont normalize_label, provenance serde)
+cargo test -p gcn-knowledge        # 26 tests (dont AliasTable)
+cargo test -p gcn-frontend-fr      # 21 tests
 cargo test -p gcn-frontend-en      # 17 tests (dont isomorphisme fr↔en)
-cargo test -p gcn-frontend-code    # 28 tests (Python, Rust, JS)
-cargo test -p gcn-middleend        # 17 tests
-cargo test -p gcn-backend          # 29 tests (Pearl 1-2-3)
+cargo test -p gcn-frontend-code    # 30 tests (Python, Rust, JS)
+cargo test -p gcn-middleend        # 17 tests (dont MissingProvenance)
+cargo test -p gcn-backend          # 49 tests (Pearl 1-2-3 + temporel, abductif, méta, analogie)
 cargo test -p gcn-verbalizer       #  3 tests
 cargo test -p gcn-cli              #  0 test (binaire seul)
 
@@ -548,6 +599,7 @@ cd ../gcn-tools/gcn-annotate && python -m pytest   # 26 tests, 4 skipped
 | 8 | Mise en production — Makefile, gcn-eval, publication | ✅ Terminé |
 | 9 | Corrections pipeline ML (14 problèmes, 120 tests Python) | ✅ Terminé |
 | 10 | Correctifs structurels moteur (12 défauts, 192 tests Python) | ✅ Terminé |
+| Pearl+ | Extensions Pearl P1–P3 : CIR v2 (provenance, normalisation), temporel, abductif, méta, adversariel, multi-échelle, analogie (185 tests Rust) | ✅ Terminé |
 
 ---
 
@@ -658,6 +710,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 | B–E | Mesure, tuning, oversampling, robustesse, checkpoint v2.4.0 | ✅ Terminé |
 | Audit 1 | 7 correctifs scripts post-restructuration (paths, spans, edges) | ✅ Terminé |
 | v2.4.1 | Mise à niveau infra : edge_norm, graph_vecs, schéma v2.0, checkpoint atomique (256 tests) | ✅ Terminé |
+| Pearl+ | Extensions Pearl P1–P3 : CIR v2 provenance, normalize_label, 14 nouvelles requêtes GCN-QL, analogie O(E) (185 tests Rust, 425 tests Python) | ✅ Terminé |
 
 ---
 

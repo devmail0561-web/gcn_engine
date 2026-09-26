@@ -19,7 +19,9 @@ from pathlib import Path
 
 import numpy as np
 
+import threading as _threading
 _HANDLES: dict[str, object] = {}
+_HANDLES_LOCK = _threading.Lock()
 _MAX_HANDLES = 8
 
 
@@ -68,17 +70,17 @@ def save_graph_vecs(path: Path, vecs: dict[str, np.ndarray],
 
 def _get_handle(path: Path):
     key = str(path)
-    if key in _HANDLES:
-        return _HANDLES[key]
-    handle = np.load(path, allow_pickle=False, mmap_mode="r")
-    if len(_HANDLES) >= _MAX_HANDLES:
-        # FIFO : éjecter le handle inséré le plus tôt (pas LRU)
-        oldest = next(iter(_HANDLES))
-        with contextlib.suppress(Exception):
-            _HANDLES[oldest].close()
-        del _HANDLES[oldest]
-    _HANDLES[key] = handle
-    return handle
+    with _HANDLES_LOCK:
+        if key in _HANDLES:
+            return _HANDLES[key]
+        handle = np.load(path, allow_pickle=False, mmap_mode="r")
+        if len(_HANDLES) >= _MAX_HANDLES:
+            oldest = next(iter(_HANDLES))
+            with contextlib.suppress(Exception):
+                _HANDLES[oldest].close()
+            del _HANDLES[oldest]
+        _HANDLES[key] = handle
+        return handle
 
 
 def load_graph_vec(path: Path, key: str,

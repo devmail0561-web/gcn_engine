@@ -199,7 +199,7 @@ git push origin v2.5.0
 
 - [ ] Commits : 3 commits pré-publication (réel : **5** commits le 2026-09-25 — 6755ccf, 95e7e64, faf488e, 0f9ff39, 4ec3d39 ; le décompte « 3 » n'est pas vérifiable)
 - [x] Tag v2.5.0 créé (preuve : `git tag` local + `refs/tags/v2.5.0` sur origin + release GitHub ; réserve : le tag pointe 6755ccf, avant le bump des dépendances internes faf488e)
-- [x] TODO-v2.5.1.md : correctifs post-publication documentés (preuve : fichier présent à la racine)
+- [x] TODO-v2.5.1.md : correctifs post-publication documentés (archivé dans `ancien/TODO-v2.5.1.md`)
 
 ---
 
@@ -233,7 +233,7 @@ Surveiller pendant 48h :
 
 ### Patch v2.5.1 (si nécessaire)
 
-Voir `TODO-v2.5.1.md` pour correctifs haute priorité :
+Voir `ancien/TODO-v2.5.1.md` pour correctifs haute priorité :
 - H-1 : Exceptions silencieuses → warnings
 - H-2 : Validation shapes gradients
 - H-3 : Tests schema.py + instructions.py

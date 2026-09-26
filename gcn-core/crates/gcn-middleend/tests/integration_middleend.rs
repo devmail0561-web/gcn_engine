@@ -20,6 +20,7 @@ fn node(id: u32, node_type: NodeType) -> CausalNode {
         temporal_index: None,
         origin: NodeOrigin::Explicit,
         attributes: NodeAttributes::default(),
+        parent: None,
     }
 }
 
@@ -35,6 +36,8 @@ fn edge(src: u32, dst: u32, relation: RelationType) -> (NodeId, NodeId, CausalEd
             negated: false,
             marker_token: None,
             in_cycle: None,
+            provenance: None,
+            derivation: None,
         },
     )
 }

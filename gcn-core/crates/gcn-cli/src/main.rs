@@ -93,7 +93,7 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             diagnostics,
         } => {
             let parser = FrenchParser::new(&data_dir)?;
-            let ir = parser.parse(&text)?;
+            let ir = parser.parse_with_ref(&text, Some("cli:inline".to_string()))?;
             let result = middleend_process(ir)?;
 
             if diagnostics && !result.diagnostics.is_empty() {

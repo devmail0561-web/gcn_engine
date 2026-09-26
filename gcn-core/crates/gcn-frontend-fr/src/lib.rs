@@ -51,6 +51,10 @@ impl FrenchParser {
     }
 
     pub fn parse(&self, text: &str) -> Result<CausalIR, FrParseError> {
+        self.parse_with_ref(text, None)
+    }
+
+    pub fn parse_with_ref(&self, text: &str, doc_ref: Option<String>) -> Result<CausalIR, FrParseError> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err(FrParseError::EmptyInput);
@@ -68,6 +72,6 @@ impl FrenchParser {
             return Err(FrParseError::NoParseable(trimmed.to_string()));
         }
 
-        Ok(emitter::emit(annotation, trimmed.to_string()))
+        Ok(emitter::emit(annotation, trimmed.to_string(), doc_ref))
     }
 }

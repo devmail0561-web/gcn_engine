@@ -4,11 +4,11 @@
 use crate::annotator::{ClauseAnnotation, SentenceAnnotation};
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, Modifier, NaturalLanguage, NodeAttributes,
-    NodeId, NodeOrigin, SourceLanguage, SourceSpan, TemporalAnchor, TemporalRef,
+    NodeId, NodeOrigin, Provenance, SourceLanguage, SourceSpan, TemporalAnchor, TemporalRef,
 };
 use smallvec::SmallVec;
 
-pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
+pub fn emit(ann: SentenceAnnotation, source_text: String, doc_ref: Option<String>) -> CausalIR {
     let n = ann.clauses.len();
     let mut temporal_indices: Vec<Option<i32>> = vec![None; n];
 
@@ -49,6 +49,10 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
         if ea.src_clause >= n || ea.dst_clause >= n {
             continue;
         }
+        let edge_span = match ea.marker_token_idx {
+            Some(idx) => SourceSpan::TokenSpan { start: idx, end: idx },
+            None => SourceSpan::Synthetic,
+        };
         edges.push((
             NodeId(ea.src_clause as u32),
             NodeId(ea.dst_clause as u32),
@@ -60,6 +64,8 @@ pub fn emit(ann: SentenceAnnotation, source_text: String) -> CausalIR {
                 negated: ea.negated,
                 marker_token: ea.marker_token_idx,
                 in_cycle: None,
+                provenance: Some(Provenance::with_ref(doc_ref.clone(), edge_span)),
+                derivation: None,
             },
         ));
     }
@@ -126,5 +132,6 @@ fn build_node(id: NodeId, clause: &ClauseAnnotation, temporal_index: Option<i32>
             agent_type: clause.agent_type,
             reversible: None,
         },
+        parent: None,
     }
 }

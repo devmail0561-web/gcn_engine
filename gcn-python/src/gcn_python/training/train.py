@@ -387,14 +387,12 @@ def train_cmd(
                                 seed=_init_seed)
             click.echo(f"RGCNLayerPT : pairnorm={pairnorm} drop_edge={drop_edge} "
                        f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
-            # Bug 4 : RGCNLayerPT sans backward_message_pass — W_r/E_r/W_comp gelés
             if not hasattr(graph, "backward_message_pass"):
-                warnings.warn(
+                raise click.ClickException(
                     "RGCNLayerPT : backward_message_pass absent — matrices W_r/E_r/W_comp "
-                    "gelées à l'initialisation. Seul le MLP (encodeur) est entraîné. "
+                    "seraient gelées à l'initialisation (seul le MLP serait entraîné). "
                     "Pour entraîner le R-GCN, utiliser un optimizer PyTorch externe via "
-                    "graph.torch_parameters().",
-                    UserWarning, stacklevel=2,
+                    "graph.torch_parameters()."
                 )
         else:
             graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,

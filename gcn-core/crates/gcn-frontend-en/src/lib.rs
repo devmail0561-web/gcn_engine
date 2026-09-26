@@ -51,6 +51,10 @@ impl EnglishParser {
     }
 
     pub fn parse(&self, text: &str) -> Result<CausalIR, EnParseError> {
+        self.parse_with_ref(text, None)
+    }
+
+    pub fn parse_with_ref(&self, text: &str, doc_ref: Option<String>) -> Result<CausalIR, EnParseError> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err(EnParseError::EmptyInput);
@@ -68,6 +72,6 @@ impl EnglishParser {
             return Err(EnParseError::NoParseable(trimmed.to_string()));
         }
 
-        Ok(emitter::emit(annotation, trimmed.to_string()))
+        Ok(emitter::emit(annotation, trimmed.to_string(), doc_ref))
     }
 }
