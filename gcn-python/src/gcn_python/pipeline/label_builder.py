@@ -5,14 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..constants import NODE_TYPES
 from ..layer1.representation import UDRepresentation
 
-_NT_CONDITION  = NODE_TYPES[4]   # "condition"
-_NT_ENTITE     = NODE_TYPES[5]   # "entite"
-_NT_ETAT_SYS   = NODE_TYPES[6]   # "etat_systemique"
-_NT_ACTION     = NODE_TYPES[1]   # "action"
-_NT_TRANSITION = NODE_TYPES[2]   # "transition"
+# Accès par nom — robuste au réordre de NODE_TYPES (bug silencieux si indexé par position)
+_NT_CONDITION  = "condition"
+_NT_ENTITE     = "entite"
+_NT_ETAT_SYS   = "etat_systemique"
+_NT_ACTION     = "action"
+_NT_TRANSITION = "transition"
 
 _nom_cache: dict[str, dict[str, str]] = {}   # max ~100 répertoires en pratique
 _NOM_CACHE_MAXSIZE = 128

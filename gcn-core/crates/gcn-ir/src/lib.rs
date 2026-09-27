@@ -117,6 +117,7 @@ mod tests {
                 extracted_at: "2026-09-26T00:00:00Z".to_string(),
             }),
             derivation: None,
+                joint_group_id: None,
         };
         let s2 = serde_json::to_string(&edge2).expect("serialize CausalEdge with provenance");
         let back2: CausalEdge = serde_json::from_str(&s2).expect("deserialize CausalEdge with provenance");

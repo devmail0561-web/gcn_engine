@@ -11,7 +11,7 @@ class UDRepresentation:
     Abstraction UD-agnostique d'une clause construite depuis des tokens YAML annotés.
     Aucune heuristique linguistique — uniquement des features UD universelles.
     """
-    tokens: list[dict]          # [{lemma, pos(UPOS), dep_rel(UD), morph: dict}]
+    tokens: list[dict]          # [{lemma, pos(UPOS), dep_rel(UD), morph: dict, id: int, dep_head: int, form: str}]
     root_lemma: str
     root_pos: str               # UPOS
     root_dep_rel: str           # UD dep_rel
@@ -37,3 +37,8 @@ class UDRepresentation:
     @property
     def is_negative(self) -> bool:
         return self.root_morph.get("Polarity", "") == "Neg"
+
+    @property
+    def sentence_profile(self):
+        from .sentence_type import classify
+        return classify(self.tokens)  # couche 1 seule, sans markers

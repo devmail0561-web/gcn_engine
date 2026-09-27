@@ -190,7 +190,7 @@ def test_d_clause_effective_with_B():
     d_emb = 49
     assert vocab.d_clause_effective(d_emb, False) == vocab.d_clause + d_emb
     assert vocab.d_clause_effective(d_emb, True) == vocab.d_clause + 3 * d_emb
-    assert vocab.d_clause_effective(49, True) == 79 + 147
+    assert vocab.d_clause_effective(49, True) == vocab.d_clause + 3 * 49
 
 
 def test_subject_object_emb_requires_word_embedding():

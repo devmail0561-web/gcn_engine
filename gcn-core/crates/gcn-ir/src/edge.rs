@@ -9,6 +9,7 @@ use crate::temporal::TemporalGap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RelationType {
+    // 11 relations directes (existantes)
     Cause,
     Enable,
     Prevent,
@@ -20,11 +21,24 @@ pub enum RelationType {
     Opposition,
     DataDependency,
     ControlDependency,
+    // 8 nouvelles relations v3.0
+    Analogy,
+    Counterfactual,
+    ConditionalCause,
+    MediatedCause,
+    JointCause,
+    ConditionalPrevent,
+    MediatedPrevent,
+    JointPrevent,
 }
 
 impl RelationType {
     pub fn signals_causal_gap(&self) -> bool {
         matches!(self, RelationType::Concession | RelationType::Opposition)
+    }
+
+    pub fn is_joint(&self) -> bool {
+        matches!(self, RelationType::JointCause | RelationType::JointPrevent)
     }
 }
 
@@ -130,4 +144,7 @@ pub struct CausalEdge {
     pub provenance: Option<Provenance>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub derivation: Option<Derivation>,
+    /// sha256(target|sorted_sources)[:16] — déterministe, identique sur les 2 arêtes JointCause/JointPrevent
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub joint_group_id: Option<String>,
 }

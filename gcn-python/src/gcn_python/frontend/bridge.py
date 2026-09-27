@@ -46,24 +46,34 @@ class GCNBridgeError(RuntimeError):
 # Publics pour tests directs.
 
 NODE_TYPE_TO_POS: dict[str, str] = {
-    NODE_TYPES[1]: "VERB",   # action
-    NODE_TYPES[2]: "VERB",   # transition
-    NODE_TYPES[3]: "NOUN",   # processus
-    NODE_TYPES[0]: "NOUN",   # etat
-    NODE_TYPES[6]: "NOUN",   # etat_systemique
-    NODE_TYPES[5]: "NOUN",   # entite
-    NODE_TYPES[4]: "SCONJ",  # condition
+    "action":         "VERB",
+    "transition":     "VERB",
+    "processus":      "NOUN",
+    "etat":           "NOUN",
+    "etat_local":     "NOUN",   # v3.0
+    "etat_global":    "NOUN",   # v3.0
+    "etat_systemique": "NOUN",
+    "entite":         "NOUN",
+    "condition":      "SCONJ",
+    "concept":        "NOUN",   # v3.0
+    "evenement":      "NOUN",   # v3.0
+    "contrainte":     "NOUN",   # v3.0
 }
 _DEFAULT_POS = "NOUN"
 
 NODE_TYPE_TO_DEP: dict[str, str] = {
-    NODE_TYPES[1]: "root",   # action
-    NODE_TYPES[2]: "root",   # transition
-    NODE_TYPES[3]: "root",   # processus
-    NODE_TYPES[0]: "nsubj",  # etat
-    NODE_TYPES[6]: "nsubj",  # etat_systemique
-    NODE_TYPES[5]: "nsubj",  # entite
-    NODE_TYPES[4]: "advcl",  # condition
+    "action":         "root",
+    "transition":     "root",
+    "processus":      "root",
+    "etat":           "nsubj",
+    "etat_local":     "nsubj",  # v3.0
+    "etat_global":    "nsubj",  # v3.0
+    "etat_systemique": "nsubj",
+    "entite":         "nsubj",
+    "condition":      "advcl",
+    "concept":        "nsubj",  # v3.0
+    "evenement":      "root",   # v3.0
+    "contrainte":     "nsubj",  # v3.0
 }
 _DEFAULT_DEP = "root"
 
@@ -175,16 +185,22 @@ def _rep_from_cir_node(node: dict) -> UDRepresentation:
     has_object = attrs.get("patient") is not None
     temporal_ref = node.get("temporal_ref")
     has_temporal_obl = temporal_ref not in (None, "unresolved")
+    _nid = node.get("id", -1)
+    try:
+        _tok_id = int(_nid)
+    except (TypeError, ValueError):
+        _tok_id = -1
 
     return UDRepresentation(
-        tokens=[{"lemma": root_lemma, "pos": root_pos, "dep_rel": root_dep_rel, "morph": {}}],
+        tokens=[{"lemma": root_lemma, "pos": root_pos, "dep_rel": root_dep_rel, "morph": {},
+                 "id": _tok_id, "dep_head": -1, "form": root_lemma}],
         root_lemma=root_lemma,
         root_pos=root_pos,
         root_dep_rel=root_dep_rel,
         root_morph={},  # → Tense/Aspect/Mood = _absent, is_negative = False
         subject_pos=subject_pos,
         has_object=has_object,
-        has_advcl=False,  # CIR ne porte pas l'info sur les sous-clauses advcl internes
+        has_advcl=(node.get("node_type", "") == "condition"),
         has_temporal_obl=has_temporal_obl,
         token_span=_extract_span(node),
     )
@@ -193,7 +209,8 @@ def _rep_from_cir_node(node: dict) -> UDRepresentation:
 def _build_connector_rep(marker_token_id: int) -> UDRepresentation:
     """UDRepresentation synthétique pour un token connecteur entre deux clauses."""
     return UDRepresentation(
-        tokens=[{"lemma": "_connector", "pos": "SCONJ", "dep_rel": "mark", "morph": {}}],
+        tokens=[{"lemma": "_connector", "pos": "SCONJ", "dep_rel": "mark", "morph": {},
+                 "id": int(marker_token_id), "dep_head": -1, "form": "_connector"}],
         root_lemma="_connector",
         root_pos="SCONJ",
         root_dep_rel="mark",

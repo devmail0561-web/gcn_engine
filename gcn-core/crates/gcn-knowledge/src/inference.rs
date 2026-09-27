@@ -414,6 +414,7 @@ mod tests {
                 in_cycle: None,
                 provenance: None,
                 derivation: None,
+                joint_group_id: None,
             },
         )
     }

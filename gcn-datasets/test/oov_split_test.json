@@ -1,0 +1,5049 @@
+{
+  "schema_version": "1.0",
+  "description": "OOV split automatique — min_oov=1, lexique_train=3577 lemmes",
+  "source": "generated_1000.json",
+  "lexicon_source": "train.json",
+  "sentences": [
+    {
+      "id": "s0001",
+      "text": "Étant donné toute production, tous ventes change.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "Étant",
+          "lemma": "étant",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "donné",
+          "lemma": "donné",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 3,
+          "form": "toute",
+          "lemma": "toute",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "production",
+          "lemma": "production",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 5,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "tous",
+          "lemma": "tous",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "ventes",
+          "lemma": "ventes",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 8,
+          "form": "change",
+          "lemma": "changer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "production",
+            "token_span": [
+              3,
+              4
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "production"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "ventes",
+            "token_span": [
+              6,
+              7
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "ventes"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "renforcer(production)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "production",
+              "patient": "ventes"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 1
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "ventes"
+      ]
+    },
+    {
+      "id": "s0002",
+      "text": "une température croît à cause de chaque projet.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "une",
+          "lemma": "une",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "température",
+          "lemma": "température",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "croît",
+          "lemma": "croître",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 4,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "projet",
+          "lemma": "projet",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "température",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "température"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "projet",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "projet"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "augmenter(température)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "température",
+              "patient": "projet"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "croître"
+      ]
+    },
+    {
+      "id": "s0005",
+      "text": "cette santé modeste accélère cette sécurité.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "santé",
+          "lemma": "santé",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 3,
+          "form": "modeste",
+          "lemma": "modeste",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "accélère",
+          "lemma": "accélérer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 6,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "sécurité",
+          "lemma": "sécurité",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 7,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat",
+            "label": "santé",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "santé"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat",
+            "label": "sécurité",
+            "token_span": [
+              5,
+              6
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "sécurité"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "accélérer(santé)",
+            "token_span": [
+              4,
+              4
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "santé",
+              "patient": "sécurité"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "modeste"
+      ]
+    },
+    {
+      "id": "s0006",
+      "text": "une route faible modifie la biodiversité.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "une",
+          "lemma": "une",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "route",
+          "lemma": "route",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "faible",
+          "lemma": "faible",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "modifie",
+          "lemma": "modifier",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 6,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "biodiversité",
+          "lemma": "biodiversité",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 7,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "route",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "route"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "biodiversité",
+            "token_span": [
+              5,
+              6
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "biodiversité"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "modifier(route)",
+            "token_span": [
+              4,
+              4
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "route",
+              "patient": "biodiversité"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "route",
+        "faible"
+      ]
+    },
+    {
+      "id": "s0007",
+      "text": "cette température, qui optimise, s'améliore la énergie.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "température",
+          "lemma": "température",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "qui",
+          "lemma": "qui",
+          "pos": "PRON",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "optimise",
+          "lemma": "optimiser",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 6,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "s'améliore",
+          "lemma": "s'améliorer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 5,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "transition"
+          }
+        },
+        {
+          "id": 8,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "énergie",
+          "lemma": "énergie",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "température",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "température"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "énergie",
+            "token_span": [
+              8,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "énergie"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "s'améliorer"
+      ]
+    },
+    {
+      "id": "s0008",
+      "text": "la règle modeste limite parce que ce forêt sévère accélère.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "règle",
+          "lemma": "règle",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "modeste",
+          "lemma": "modeste",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "limite",
+          "lemma": "limiter",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "ce",
+          "lemma": "ce",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "forêt",
+          "lemma": "forêt",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": "sévère",
+          "lemma": "sévère",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 10,
+          "form": "accélère",
+          "lemma": "accélérer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 4,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 11,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "règle",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "règle"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "forêt",
+            "token_span": [
+              7,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "forêt"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "modeste",
+        "sévère"
+      ]
+    },
+    {
+      "id": "s0010",
+      "text": "tout revenu considérable limite le transport.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "tout",
+          "lemma": "tout",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "revenu",
+          "lemma": "revenu",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "considérable",
+          "lemma": "considérable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "limite",
+          "lemma": "limiter",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "le",
+          "lemma": "le",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 6,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "transport",
+          "lemma": "transport",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 7,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "revenu",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "revenu"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "transport",
+            "token_span": [
+              5,
+              6
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "transport"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "revenu",
+        "considérable"
+      ]
+    },
+    {
+      "id": "s0012",
+      "text": "chaque bâtiment sévère change à cause de tout projet grave.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "bâtiment",
+          "lemma": "bâtiment",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "sévère",
+          "lemma": "sévère",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "change",
+          "lemma": "changer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 5,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "tout",
+          "lemma": "tout",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "projet",
+          "lemma": "projet",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": "grave",
+          "lemma": "grave",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 11,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "bâtiment",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "bâtiment"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "projet",
+            "token_span": [
+              8,
+              10
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "projet"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "maintenir(bâtiment)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "bâtiment",
+              "patient": "projet"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "sévère"
+      ]
+    },
+    {
+      "id": "s0015",
+      "text": "la biodiversité permanent transforme tout climat.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "biodiversité",
+          "lemma": "biodiversité",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "permanent",
+          "lemma": "permanent",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "transforme",
+          "lemma": "transformer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "tout",
+          "lemma": "tout",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 6,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "climat",
+          "lemma": "climat",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat_systemique"
+          }
+        },
+        {
+          "id": 7,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "biodiversité",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "biodiversité"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat_systemique",
+            "label": "climat",
+            "token_span": [
+              5,
+              6
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "climat"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "transformer(biodiversité)",
+            "token_span": [
+              4,
+              4
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "biodiversité",
+              "patient": "climat"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "permanent"
+      ]
+    },
+    {
+      "id": "s0017",
+      "text": "chaque marché croît à cause de cette programme.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "marché",
+          "lemma": "marché",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 3,
+          "form": "croît",
+          "lemma": "croître",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 4,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "programme",
+          "lemma": "programme",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat",
+            "label": "marché",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "marché"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "programme",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "programme"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "construire(marché)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "marché",
+              "patient": "programme"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "marché",
+        "croître"
+      ]
+    },
+    {
+      "id": "s0018",
+      "text": "cette énergie, qui supprime, fluctue la chômage.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "énergie",
+          "lemma": "énergie",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "qui",
+          "lemma": "qui",
+          "pos": "PRON",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "supprime",
+          "lemma": "supprimer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 6,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "fluctue",
+          "lemma": "fluctuer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 5,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 8,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "chômage",
+          "lemma": "chômage",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "énergie",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "énergie"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat",
+            "label": "chômage",
+            "token_span": [
+              8,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "chômage"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "fluctuer"
+      ]
+    },
+    {
+      "id": "s0019",
+      "text": "tout coût améliore à cause de toutes prix considérable.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "tout",
+          "lemma": "tout",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "coût",
+          "lemma": "coût",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "améliore",
+          "lemma": "améliorer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "toutes",
+          "lemma": "toutes",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "prix",
+          "lemma": "prix",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": "considérable",
+          "lemma": "considérable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "coût",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "coût"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "prix",
+            "token_span": [
+              7,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "prix"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "considérable"
+      ]
+    },
+    {
+      "id": "s0020",
+      "text": "chaque hôpital corrige parce que une connaissance profond construit.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "hôpital",
+          "lemma": "hôpital",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "corrige",
+          "lemma": "corriger",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "une",
+          "lemma": "une",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "connaissance",
+          "lemma": "connaissance",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 8,
+          "form": "profond",
+          "lemma": "profond",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "construit",
+          "lemma": "construire",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 3,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "hôpital",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "hôpital"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "connaissance",
+            "token_span": [
+              6,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "connaissance"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "hôpital",
+        "corriger"
+      ]
+    },
+    {
+      "id": "s0021",
+      "text": "chaque climat stagne à cause de la production léger.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "climat",
+          "lemma": "climat",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat_systemique"
+          }
+        },
+        {
+          "id": 3,
+          "form": "stagne",
+          "lemma": "stagner",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 4,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "production",
+          "lemma": "production",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": "léger",
+          "lemma": "léger",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat_systemique",
+            "label": "climat",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "climat"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "production",
+            "token_span": [
+              7,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "production"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "stagner",
+        "léger"
+      ]
+    },
+    {
+      "id": "s0022",
+      "text": "la qualité augmente une information.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "qualité",
+          "lemma": "qualité",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 3,
+          "form": "augmente",
+          "lemma": "augmenter",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "une",
+          "lemma": "une",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "information",
+          "lemma": "information",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 6,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat",
+            "label": "qualité",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "qualité"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "information",
+            "token_span": [
+              4,
+              5
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "information"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "qualité"
+      ]
+    },
+    {
+      "id": "s0023",
+      "text": "chaque énergie faible évolue à cause de toute biodiversité considérable.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "énergie",
+          "lemma": "énergie",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "faible",
+          "lemma": "faible",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "évolue",
+          "lemma": "évoluer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 5,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "toute",
+          "lemma": "toute",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "biodiversité",
+          "lemma": "biodiversité",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": "considérable",
+          "lemma": "considérable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 11,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "énergie",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "énergie"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "biodiversité",
+            "token_span": [
+              8,
+              10
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "biodiversité"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "faible",
+        "évoluer",
+        "considérable"
+      ]
+    },
+    {
+      "id": "s0024",
+      "text": "la entreprise notable soutient parce que chaque transport stabilise.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "entreprise",
+          "lemma": "entreprise",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "notable",
+          "lemma": "notable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "soutient",
+          "lemma": "soutenir",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "transport",
+          "lemma": "transport",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": "stabilise",
+          "lemma": "stabiliser",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 4,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "entreprise",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "entreprise"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "transport",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "transport"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "notable"
+      ]
+    },
+    {
+      "id": "s0026",
+      "text": "chaque innovation transforme parce que les stress recule.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "innovation",
+          "lemma": "innovation",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "transforme",
+          "lemma": "transformer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "les",
+          "lemma": "les",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "stress",
+          "lemma": "stress",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 8,
+          "form": "recule",
+          "lemma": "reculer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 3,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "innovation",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "innovation"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat",
+            "label": "stress",
+            "token_span": [
+              6,
+              7
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "stress"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "stress",
+        "reculer"
+      ]
+    },
+    {
+      "id": "s0028",
+      "text": "chaque pollution permanent construit parce que chaque bâtiment évolue.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "pollution",
+          "lemma": "pollution",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "permanent",
+          "lemma": "permanent",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "construit",
+          "lemma": "construire",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "bâtiment",
+          "lemma": "bâtiment",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": "évolue",
+          "lemma": "évoluer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 4,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "pollution",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "pollution"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "bâtiment",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "bâtiment"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "permanent",
+        "évoluer"
+      ]
+    },
+    {
+      "id": "s0030",
+      "text": "chaque biodiversité faible supprime parce que des stress crée.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "biodiversité",
+          "lemma": "biodiversité",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "faible",
+          "lemma": "faible",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "supprime",
+          "lemma": "supprimer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "des",
+          "lemma": "des",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "stress",
+          "lemma": "stress",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 9,
+          "form": "crée",
+          "lemma": "créer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 4,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "biodiversité",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "biodiversité"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat",
+            "label": "stress",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "stress"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "faible",
+        "stress"
+      ]
+    },
+    {
+      "id": "s0031",
+      "text": "C'est la ferme qui augmente un hôpital.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "C'est",
+          "lemma": "ce",
+          "pos": "PRON",
+          "dep_rel": "expl",
+          "dep_head": 3,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "la",
+          "lemma": "la",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 3,
+          "morph": {}
+        },
+        {
+          "id": 3,
+          "form": "ferme",
+          "lemma": "ferme",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 4,
+          "form": "qui",
+          "lemma": "qui",
+          "pos": "PRON",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "augmente",
+          "lemma": "augmenter",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 6,
+          "form": "un",
+          "lemma": "un",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "hôpital",
+          "lemma": "hôpital",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 8,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "ferme",
+            "token_span": [
+              2,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "ferme"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "hôpital",
+            "token_span": [
+              6,
+              7
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "hôpital"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "ferme",
+        "hôpital"
+      ]
+    },
+    {
+      "id": "s0032",
+      "text": "Étant donné chaque énergie important, le transport critique chute.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "Étant",
+          "lemma": "étant",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "donné",
+          "lemma": "donné",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 3,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "énergie",
+          "lemma": "énergie",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 5,
+          "form": "important",
+          "lemma": "important",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "le",
+          "lemma": "le",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "transport",
+          "lemma": "transport",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 9,
+          "form": "critique",
+          "lemma": "critique",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 10,
+          "form": "chute",
+          "lemma": "chuter",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "transition"
+          }
+        },
+        {
+          "id": 11,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "énergie",
+            "token_span": [
+              3,
+              5
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "énergie"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "transport",
+            "token_span": [
+              7,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "transport"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "supprimer(énergie)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "énergie",
+              "patient": "transport"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 1
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "chuter"
+      ]
+    },
+    {
+      "id": "s0033",
+      "text": "toute école léger optimise à cause de chaque revenu.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "toute",
+          "lemma": "toute",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "école",
+          "lemma": "école",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "léger",
+          "lemma": "léger",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "optimise",
+          "lemma": "optimiser",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "chaque",
+          "lemma": "chaque",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "revenu",
+          "lemma": "revenu",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "école",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "école"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "revenu",
+            "token_span": [
+              8,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "revenu"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "léger",
+        "revenu"
+      ]
+    },
+    {
+      "id": "s0034",
+      "text": "Étant donné une salaire, toute entreprise grave baisse.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "Étant",
+          "lemma": "étant",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "donné",
+          "lemma": "donné",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 3,
+          "form": "une",
+          "lemma": "une",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "salaire",
+          "lemma": "salaire",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 5,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "toute",
+          "lemma": "toute",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "entreprise",
+          "lemma": "entreprise",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 8,
+          "form": "grave",
+          "lemma": "grave",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "baisse",
+          "lemma": "baisser",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "salaire",
+            "token_span": [
+              3,
+              4
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "salaire"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "entreprise",
+            "token_span": [
+              6,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "entreprise"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 1
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "salaire",
+        "baisser"
+      ]
+    },
+    {
+      "id": "s0035",
+      "text": "cette ferme notable maintient parce que un eau stagne.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "ferme",
+          "lemma": "ferme",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "notable",
+          "lemma": "notable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "maintient",
+          "lemma": "maintenir",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 5,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 5,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "un",
+          "lemma": "un",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "eau",
+          "lemma": "eau",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": "stagne",
+          "lemma": "stagner",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 4,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "ferme",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "ferme"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "eau",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "eau"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "ferme",
+        "notable",
+        "stagner"
+      ]
+    },
+    {
+      "id": "s0036",
+      "text": "cette donnée modeste baisse à cause de cette salaire.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "donnée",
+          "lemma": "donnée",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "modeste",
+          "lemma": "modeste",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "baisse",
+          "lemma": "baisser",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 5,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 9,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "salaire",
+          "lemma": "salaire",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "donnée",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "donnée"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "salaire",
+            "token_span": [
+              8,
+              9
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "salaire"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "détruire(donnée)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "donnée",
+              "patient": "salaire"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 5
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "modeste",
+        "baisser",
+        "salaire"
+      ]
+    },
+    {
+      "id": "s0037",
+      "text": "le eau crée parce que cette production faible varie.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "le",
+          "lemma": "le",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "eau",
+          "lemma": "eau",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 3,
+          "form": "crée",
+          "lemma": "créer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "parce",
+          "lemma": "parce",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "que",
+          "lemma": "que",
+          "pos": "SCONJ",
+          "dep_rel": "fixed",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "cette",
+          "lemma": "cette",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "production",
+          "lemma": "production",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 8,
+          "form": "faible",
+          "lemma": "faible",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 7,
+          "morph": {}
+        },
+        {
+          "id": 9,
+          "form": "varie",
+          "lemma": "varier",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 3,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "entite",
+            "label": "eau",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "eau"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "processus",
+            "label": "production",
+            "token_span": [
+              6,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "production"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "faible"
+      ]
+    },
+    {
+      "id": "s0038",
+      "text": "Étant donné ce plan stable, ce eau s'effondre.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "Étant",
+          "lemma": "étant",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "donné",
+          "lemma": "donné",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 3,
+          "form": "ce",
+          "lemma": "ce",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": "plan",
+          "lemma": "plan",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 5,
+          "form": "stable",
+          "lemma": "stable",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 4,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "ce",
+          "lemma": "ce",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "eau",
+          "lemma": "eau",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": "s'effondre",
+          "lemma": "s'effondrer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "transition"
+          }
+        },
+        {
+          "id": 10,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "plan",
+            "token_span": [
+              3,
+              5
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "plan"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "eau",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "eau"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "construire(plan)",
+            "token_span": [
+              1,
+              1
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "plan",
+              "patient": "eau"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 1
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "s'effondrer"
+      ]
+    },
+    {
+      "id": "s0039",
+      "text": "toute pluie sévère, qui développe, contrôle ce marché.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "toute",
+          "lemma": "toute",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "pluie",
+          "lemma": "pluie",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "processus"
+          }
+        },
+        {
+          "id": 3,
+          "form": "sévère",
+          "lemma": "sévère",
+          "pos": "ADJ",
+          "dep_rel": "amod",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 4,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "qui",
+          "lemma": "qui",
+          "pos": "PRON",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "développe",
+          "lemma": "développer",
+          "pos": "VERB",
+          "dep_rel": "root",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 7,
+          "form": ",",
+          "lemma": ",",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "contrôle",
+          "lemma": "contrôler",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 6,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 9,
+          "form": "ce",
+          "lemma": "ce",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 10,
+          "morph": {}
+        },
+        {
+          "id": 10,
+          "form": "marché",
+          "lemma": "marché",
+          "pos": "NOUN",
+          "dep_rel": "obj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 11,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "processus",
+            "label": "pluie",
+            "token_span": [
+              1,
+              3
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "pluie"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "etat",
+            "label": "marché",
+            "token_span": [
+              9,
+              10
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "marché"
+            }
+          },
+          {
+            "id": "n003",
+            "type": "action",
+            "label": "développer(pluie)",
+            "token_span": [
+              6,
+              6
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "agent": "pluie",
+              "patient": "marché"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n003",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": false,
+              "negated": false,
+              "marker_token": null
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "sévère",
+        "marché"
+      ]
+    },
+    {
+      "id": "s0040",
+      "text": "tout marché développe à cause de un coût.",
+      "causal_pattern": "cause",
+      "tokens": [
+        {
+          "id": 1,
+          "form": "tout",
+          "lemma": "tout",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 2,
+          "morph": {}
+        },
+        {
+          "id": 2,
+          "form": "marché",
+          "lemma": "marché",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "etat"
+          }
+        },
+        {
+          "id": 3,
+          "form": "développe",
+          "lemma": "développer",
+          "pos": "VERB",
+          "dep_rel": "advcl",
+          "dep_head": 0,
+          "morph": {
+            "Tense": "Pres",
+            "Mood": "Ind"
+          },
+          "gcn": {
+            "causal_type": "verbe",
+            "causal_class": "action"
+          }
+        },
+        {
+          "id": 4,
+          "form": "à",
+          "lemma": "à",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 5,
+          "form": "cause",
+          "lemma": "cause",
+          "pos": "SCONJ",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 6,
+          "form": "de",
+          "lemma": "de",
+          "pos": "ADP",
+          "dep_rel": "mark",
+          "dep_head": 0,
+          "morph": {}
+        },
+        {
+          "id": 7,
+          "form": "un",
+          "lemma": "un",
+          "pos": "DET",
+          "dep_rel": "det",
+          "dep_head": 8,
+          "morph": {}
+        },
+        {
+          "id": 8,
+          "form": "coût",
+          "lemma": "coût",
+          "pos": "NOUN",
+          "dep_rel": "nsubj",
+          "dep_head": 0,
+          "morph": {},
+          "gcn": {
+            "causal_type": "nom",
+            "causal_class": "entite"
+          }
+        },
+        {
+          "id": 9,
+          "form": ".",
+          "lemma": ".",
+          "pos": "PUNCT",
+          "dep_rel": "punct",
+          "dep_head": 0,
+          "morph": {}
+        }
+      ],
+      "cir": {
+        "nodes": [
+          {
+            "id": "n001",
+            "type": "etat",
+            "label": "marché",
+            "token_span": [
+              1,
+              2
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 0,
+            "modifiers": [],
+            "attributes": {
+              "entity": "marché"
+            }
+          },
+          {
+            "id": "n002",
+            "type": "entite",
+            "label": "coût",
+            "token_span": [
+              7,
+              8
+            ],
+            "origin": "explicit",
+            "scope": "specific",
+            "temporal_index": 1,
+            "modifiers": [],
+            "attributes": {
+              "entity": "coût"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "n001",
+            "target": "n002",
+            "relation": "cause",
+            "attributes": {
+              "confidence": 1.0,
+              "explicit": true,
+              "negated": false,
+              "marker_token": 4
+            }
+          }
+        ]
+      },
+      "oov_lemmas": [
+        "marché"
+      ]
+    }
+  ]
+}

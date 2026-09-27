@@ -1,0 +1,152 @@
+{
+  "interrogative_lemmas": [
+    "pourquoi",
+    "comment",
+    "quand",
+    "quel",
+    "quelle",
+    "quels",
+    "quelles",
+    "combien",
+    "ou",
+    "lequel",
+    "laquelle",
+    "lesquels",
+    "lesquelles",
+    "qui",
+    "que",
+    "quoi",
+    "est-ce",
+    "why",
+    "how",
+    "when",
+    "what",
+    "which",
+    "where",
+    "who",
+    "whom",
+    "whose"
+  ],
+  "negation_particles": [
+    "ne",
+    "pas",
+    "jamais",
+    "plus",
+    "rien",
+    "aucun",
+    "aucune",
+    "personne",
+    "nul",
+    "ni",
+    "not",
+    "never",
+    "no",
+    "neither",
+    "nor",
+    "nobody",
+    "nothing",
+    "none"
+  ],
+  "restriction_patterns": [
+    [
+      "ne",
+      "que"
+    ],
+    [
+      "not",
+      "only"
+    ],
+    [
+      "only",
+      "if"
+    ]
+  ],
+  "subordination_markers": {
+    "cause": [
+      "parce que",
+      "parce",
+      "car",
+      "puisque",
+      "comme",
+      "vu que",
+      "etant donne",
+      "because",
+      "since",
+      "as"
+    ],
+    "concession": [
+      "bien que",
+      "quoique",
+      "malgre",
+      "meme si",
+      "alors que",
+      "although",
+      "though",
+      "even though",
+      "despite",
+      "in spite of"
+    ],
+    "condition": [
+      "si",
+      "au cas ou",
+      "a condition que",
+      "pourvu que",
+      "if",
+      "whether",
+      "unless",
+      "in case",
+      "provided"
+    ],
+    "enable": [
+      "pour",
+      "afin de",
+      "afin que",
+      "pour que",
+      "to",
+      "in order to",
+      "so that"
+    ],
+    "filter": [
+      "que si",
+      "sauf si",
+      "only if",
+      "except if"
+    ],
+    "motivation": [
+      "pour",
+      "afin de",
+      "for",
+      "to"
+    ],
+    "opposition": [
+      "mais",
+      "cependant",
+      "tandis que",
+      "alors que",
+      "but",
+      "however",
+      "whereas",
+      "while"
+    ],
+    "sequence": [
+      "quand",
+      "lorsque",
+      "apres que",
+      "avant que",
+      "des que",
+      "when",
+      "after",
+      "before",
+      "once"
+    ],
+    "temporal": [
+      "quand",
+      "lorsque",
+      "pendant que",
+      "tandis que",
+      "when",
+      "while",
+      "during"
+    ]
+  }
+}

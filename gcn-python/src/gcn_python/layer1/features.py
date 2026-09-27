@@ -12,7 +12,9 @@ from ..constants import (
     UD_ASPECT_VALUES,
     UD_DEP_RELS,
     UD_MOOD_VALUES,
+    UD_PRONTYPE_VALUES,
     UD_TENSE_VALUES,
+    UD_VOICE_VALUES,
     UPOS_TAGS,
 )
 from .representation import UDRepresentation
@@ -47,6 +49,8 @@ class FeatureVocabulary:
     aspect_values: list[str] = field(default_factory=lambda: list(UD_ASPECT_VALUES))
     mood_values: list[str] = field(default_factory=lambda: list(UD_MOOD_VALUES))
     subject_pos_cats: list[str] = field(default_factory=lambda: list(SUBJECT_POS_CATS))
+    voice_values: list[str] = field(default_factory=lambda: list(UD_VOICE_VALUES))
+    prontype_values: list[str] = field(default_factory=lambda: list(UD_PRONTYPE_VALUES))
     # Lexique de connecteurs — vide par défaut (language-agnostic)
     connector_lemmas: list[str] = field(default_factory=list)
     connector_dep_rels: list[str] = field(default_factory=lambda: list(CONNECTOR_DEP_RELS))
@@ -59,21 +63,31 @@ class FeatureVocabulary:
         self._idx_aspect = _make_index(self.aspect_values)
         self._idx_mood = _make_index(self.mood_values)
         self._idx_subj = _make_index(self.subject_pos_cats)
+        self._idx_voice = _make_index(self.voice_values)
+        self._idx_prontype = _make_index(self.prontype_values)
         self._idx_conn_lemma = _make_index(self.connector_lemmas)
         self._idx_conn_dep = _make_index(self.connector_dep_rels)
+
+    N_POSITIONAL_FEATURES = 12  # Éq.9 — voir _compute_positional_features
+    N_TERNARY_FEATURES    = 5   # voir _compute_ternary_features
 
     @property
     def d_clause(self) -> int:
         return (
-            len(self.upos_tags)          # UPOS universel
-            + len(self.dep_rels)         # dep_rel universel
-            + len(self.subject_pos_cats) # POS du sujet
-            + len(self.tense_values)     # morphologie
-            + len(self.aspect_values)
-            + len(self.mood_values)
-            + 1   # Polarity
-            + 3   # flags structurels : has_object, has_advcl, has_temporal_obl
+            len(self.upos_tags)          # UPOS universel         18
+            + len(self.dep_rels)         # dep_rel universel      38
+            + len(self.subject_pos_cats) # POS du sujet            5
+            + len(self.tense_values)     # morphologie             5
+            + len(self.aspect_values)    #                         4
+            + len(self.mood_values)      #                         5
+            + len(self.voice_values)     # Voice UD v3.0           3
+            + len(self.prontype_values)  # PronType UD v3.0        7
+            + 1                          # Polarity
+            + 3                          # flags : has_object, has_advcl, has_temporal_obl
+            + self.N_POSITIONAL_FEATURES # Éq.9                   12
+            + self.N_TERNARY_FEATURES    # ternaires               5
         )
+        # total = 18+38+5+5+4+5+3+7+1+3+12+5 = 106
 
     @property
     def d_conn(self) -> int:
@@ -119,13 +133,19 @@ class FeatureVocabulary:
             "aspect_values": self.aspect_values,
             "mood_values": self.mood_values,
             "subject_pos_cats": self.subject_pos_cats,
+            "voice_values": self.voice_values,
+            "prontype_values": self.prontype_values,
             "connector_lemmas": self.connector_lemmas,
             "connector_dep_rels": self.connector_dep_rels,
         }, ensure_ascii=False)
 
     @classmethod
     def from_json(cls, s: str) -> FeatureVocabulary:
-        return cls(**json.loads(s))
+        data = json.loads(s)
+        # Rétrocompatibilité v2 (voice_values/prontype_values absents)
+        data.setdefault("voice_values", list(UD_VOICE_VALUES))
+        data.setdefault("prontype_values", list(UD_PRONTYPE_VALUES))
+        return cls(**data)
 
 
 def _make_index(vocab: list[str]) -> dict[str, int]:
@@ -154,6 +174,104 @@ SUBJ_DEP_RELS = frozenset({'nsubj', 'nsubj:pass'})
 OBJ_DEP_RELS = frozenset({'obj', 'iobj'})
 
 CLAUSE_POOLING_MODES = ("root", "mean", "max")
+
+_COND_SCONJ = frozenset({"si", "if", "unless", "falls", "wenn", "sauf", "provided"})
+_SUBJ_RELS  = frozenset({"nsubj", "nsubj:pass"})
+_OBJ_RELS   = frozenset({"obj", "iobj"})
+_NEG_RELS   = frozenset({"advmod", "aux"})
+
+
+def _compute_positional_features(
+    tokens: list[dict],
+    token_span: tuple[int, int],
+    sentence_len: int,
+) -> np.ndarray:
+    """12 features positionnelles Éq.9 — nécessite id dans les tokens (défaut -1 si absent)."""
+    feat = np.zeros(12, dtype=np.float32)
+    root_id = -1
+    subj_id = -1
+    advcl_id = -1
+    obj_id = -1
+    neg_id = -1
+    advcl_head_id = -1
+    connector_id = -1
+    max_depth = 0
+
+    for t in tokens:
+        dep = t.get("dep_rel", "")
+        tid = t.get("id", -1)
+        if dep == "root":
+            root_id = tid
+        elif dep in _SUBJ_RELS and subj_id == -1:
+            subj_id = tid
+        elif dep == "advcl" and advcl_id == -1:
+            advcl_id = tid
+            advcl_head_id = t.get("dep_head", -1)
+        elif dep in _OBJ_RELS and obj_id == -1:
+            obj_id = tid
+        elif dep == "mark" and connector_id == -1:
+            connector_id = tid
+        elif dep in _NEG_RELS and t.get("morph", {}).get("Polarity") == "Neg" and neg_id == -1:
+            neg_id = tid
+        depth = t.get("dep_head", -1)
+        if depth > 0:
+            max_depth = max(max_depth, abs(tid - depth) if tid >= 0 else 0)
+
+    span_start, span_end = token_span
+
+    if root_id >= 0:
+        if subj_id >= 0:
+            feat[0] = float(subj_id < root_id)   # subj_before_root
+            feat[1] = float(subj_id > root_id)   # subj_after_root
+        if advcl_id >= 0:
+            feat[2] = float(advcl_id < root_id)  # advcl_before_root
+            feat[3] = float(advcl_id > root_id)  # advcl_after_root
+        if obj_id >= 0:
+            feat[4] = float(obj_id < root_id)    # obj_before_root
+            feat[5] = float(obj_id > root_id)    # obj_after_root
+        if neg_id >= 0:
+            feat[6] = float(neg_id < root_id)    # neg_before_root
+            feat[7] = float(neg_id > root_id)    # neg_after_root
+        if connector_id >= 0 and advcl_head_id >= 0:
+            feat[8] = float(connector_id < advcl_head_id)  # connector_before_advcl_head
+
+    feat[9]  = float(span_start == 0)                             # sentence_initial
+    feat[10] = float(span_end >= sentence_len - 1)                # sentence_final
+    feat[11] = min(1.0, max_depth / max(sentence_len, 1))         # relative_depth ∈ [0,1]
+    return feat
+
+
+def _compute_ternary_features(tokens: list[dict]) -> np.ndarray:
+    """5 features ternaires — présence de structures ternaires dans la clause."""
+    feat = np.zeros(5, dtype=np.float32)
+    subj_count = 0
+    has_advcl_cond = False
+    has_obl = False
+    has_cc = False
+    mood = ""
+
+    for t in tokens:
+        dep = t.get("dep_rel", "")
+        morph = t.get("morph", {})
+        if dep in _SUBJ_RELS:
+            subj_count += 1
+        if dep == "advcl":
+            lemma = t.get("lemma", "").lower()
+            if lemma in _COND_SCONJ:
+                has_advcl_cond = True
+        if dep == "obl":
+            has_obl = True
+        if dep == "cc":
+            has_cc = True
+        if dep == "root" and not mood:
+            mood = morph.get("Mood", "")
+
+    feat[0] = float(subj_count >= 2)         # has_two_sources
+    feat[1] = float(has_advcl_cond)          # has_third_cond
+    feat[2] = float(has_obl)                 # has_obl_mediator
+    feat[3] = float(has_cc and subj_count >= 2)  # has_joint_marker
+    feat[4] = float(mood in ("Cnd", "Sub"))  # has_modal_condition
+    return feat
 
 
 def _pool_lemmas(rep, mode: str = "root") -> list[str]:
@@ -229,6 +347,8 @@ def vectorize_clause(
     drop_morph: bool = False,
     clause_pooling: str = "root",
     subject_object_emb: bool = False,
+    no_positional: bool = False,
+    no_ternary: bool = False,
 ) -> np.ndarray:
     """UDRepresentation → np.ndarray[d_clause (+ d_emb si word_embedding fourni)]
 
@@ -257,6 +377,32 @@ def vectorize_clause(
         aspect_vec = _one_hot(rep.aspect, vocab.aspect_values, vocab._idx_aspect)
         mood_vec   = _one_hot(rep.mood,   vocab.mood_values,   vocab._idx_mood)
         polarity   = np.array([1.0 if rep.is_negative else 0.0], dtype=np.float32)
+    # Voice one-hot (couche 1 UD)
+    voice_val = rep.root_morph.get("Voice", "_absent")
+    voice_vec = _one_hot(voice_val, vocab.voice_values, vocab._idx_voice)
+
+    # PronType — premier token portant PronType dans morph
+    pron_type_val = "_absent"
+    for _t in rep.tokens:
+        _pt = _t.get("morph", {}).get("PronType", "")
+        if _pt:
+            pron_type_val = _pt
+            break
+    pron_vec = _one_hot(pron_type_val, vocab.prontype_values, vocab._idx_prontype)
+
+    # Positionnels Éq.9 (désactivables via no_positional)
+    sentence_len = max(1, rep.token_span[1] - rep.token_span[0])
+    pos_features = (
+        np.zeros(vocab.N_POSITIONAL_FEATURES, dtype=np.float32) if no_positional
+        else _compute_positional_features(rep.tokens, rep.token_span, sentence_len)
+    )
+
+    # Ternaires (désactivables via no_ternary)
+    ternary_features = (
+        np.zeros(vocab.N_TERNARY_FEATURES, dtype=np.float32) if no_ternary
+        else _compute_ternary_features(rep.tokens)
+    )
+
     parts = [
         _one_hot(rep.root_pos,              vocab.upos_tags,        vocab._idx_upos),
         _one_hot(rep.root_dep_rel,          vocab.dep_rels,         vocab._idx_dep),
@@ -264,9 +410,13 @@ def vectorize_clause(
         tense_vec,
         aspect_vec,
         mood_vec,
+        voice_vec,
+        pron_vec,
         polarity,
         np.array([float(rep.has_object), float(rep.has_advcl), float(rep.has_temporal_obl)],
                  dtype=np.float32),
+        pos_features,
+        ternary_features,
     ]
     if word_embedding is not None:
         if clause_pooling not in CLAUSE_POOLING_MODES:

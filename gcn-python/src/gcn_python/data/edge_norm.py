@@ -96,53 +96,15 @@ def _get_field(attrs: dict, outer: dict, name: str, default: Any = None) -> Any:
     return default
 
 
-def normalize_edge(e: Any) -> dict | None:
-    """Normalise une arête tuple [src,dst,attrs] ou dict -> dict canonique.
-
-    Retourne None si relation absente (warn) ou format invalide.
-    confidence absente -> None + warn. negated absent -> None.
-    """
-    if isinstance(e, (list, tuple)) and len(e) == 3:
-        src_raw, dst_raw, attrs = e
-        outer: dict = {}
-        if not isinstance(attrs, dict):
-            warnings.warn(
-                "edge_norm : attrs non-dict ignoré.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return None
-    elif isinstance(e, dict):
-        attrs = e
-        outer = e
-        # source(s)/target
-        src_raw = e.get("sources", e.get("source", ""))
-        dst_raw = e.get("target", e.get("dst", ""))
-        # si sources est une liste, on normalise en mono-source ici ;
-        # les N-arêtes sont gérées par le loader (hyperedge_map).
-        if isinstance(src_raw, (list, tuple)):
-            if not src_raw:
-                warnings.warn(
-                    "edge_norm : sources vide — arête ignorée.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                return None
-            src_raw = src_raw[0]
-    else:
-        warnings.warn(
-            f"edge_norm : format d'arête invalide {type(e).__name__} — ignorée.",
-            UserWarning,
-            stacklevel=2,
-        )
-        return None
-
-    relation = _get_relation(attrs if isinstance(attrs, dict) else {}, outer if isinstance(outer, dict) else {})
+def _norm_single(src_raw: Any, dst_raw: Any, attrs: dict, outer: dict,
+                 joint_group_id: str | None = None) -> dict | None:
+    """Normalise src/dst/attrs déjà extraits → dict canonique ou None."""
+    relation = _get_relation(attrs, outer)
     if not relation:
         warnings.warn(
             "edge_norm : relation absente — arête ignorée (pas de défaut silencieux).",
             UserWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
         return None
     relation = sanitize_text(str(relation))
@@ -154,32 +116,29 @@ def normalize_edge(e: Any) -> dict | None:
         warnings.warn(
             f"edge_norm : id invalide src={src_raw!r} dst={dst_raw!r} — arête ignorée.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
         return None
 
-    # confidence : absent -> None + warn (jamais 0.0)
-    conf_raw = _get_field(attrs, outer, "confidence", default=None)
-    # distinguer absent (None + warn) de présent
     _sentinel = object()
     conf_check = _get_field(attrs, outer, "confidence", default=_sentinel)
     if conf_check is _sentinel:
         warnings.warn(
             f"edge_norm : confidence absente pour {src}→{dst} — None (pas 0.0).",
             UserWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
         confidence = None
-    elif conf_raw is None:
+    elif conf_check is None:
         confidence = None
     else:
         try:
-            confidence = float(conf_raw)
+            confidence = float(conf_check)
         except (TypeError, ValueError):
             warnings.warn(
-                f"edge_norm : confidence invalide {conf_raw!r} — None.",
+                f"edge_norm : confidence invalide {conf_check!r} — None.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
             confidence = None
 
@@ -191,7 +150,7 @@ def normalize_edge(e: Any) -> dict | None:
 
     marker = _get_field(attrs, outer, "marker_token", default=None)
 
-    return {
+    result: dict = {
         "src": src,
         "dst": dst,
         "source": src,
@@ -203,3 +162,74 @@ def normalize_edge(e: Any) -> dict | None:
         "negated": negated,
         "marker_token": marker,
     }
+    if joint_group_id is not None:
+        result["joint_group_id"] = joint_group_id
+    return result
+
+
+def normalize_edge(e: Any) -> "dict | list[dict] | None":
+    """Normalise une arête tuple [src,dst,attrs] ou dict -> dict canonique.
+
+    Retourne None si relation absente (warn) ou format invalide.
+    Pour JOINT_CAUSE/JointPrevent avec 2 sources : retourne list[dict] (2 arêtes).
+    confidence absente -> None + warn. negated absent -> None.
+    """
+    import hashlib
+
+    if isinstance(e, (list, tuple)) and len(e) == 3:
+        src_raw, dst_raw, attrs = e
+        outer: dict = {}
+        if not isinstance(attrs, dict):
+            warnings.warn(
+                "edge_norm : attrs non-dict ignoré.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return None
+        src_list = [src_raw]
+    elif isinstance(e, dict):
+        attrs = e
+        outer = e
+        src_raw_field = e.get("sources", e.get("source", ""))
+        dst_raw = e.get("target", e.get("dst", ""))
+        if isinstance(src_raw_field, (list, tuple)):
+            if not src_raw_field:
+                warnings.warn(
+                    "edge_norm : sources vide — arête ignorée.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                return None
+            src_list = list(src_raw_field)
+        else:
+            src_list = [src_raw_field]
+    else:
+        warnings.warn(
+            f"edge_norm : format d'arête invalide {type(e).__name__} — ignorée.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
+
+    if len(src_list) == 1:
+        return _norm_single(src_list[0], dst_raw, attrs, outer)
+
+    if len(src_list) == 2:
+        # JOINT_CAUSE/JointPrevent : 2 arêtes avec joint_group_id déterministe
+        key = f"{dst_raw}|{'|'.join(sorted(str(s) for s in src_list))}"
+        jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
+        relation = _get_relation(attrs, outer)
+        if relation and sanitize_text(str(relation)) not in ("joint_cause", "joint_prevent"):
+            relation = "joint_cause"  # forcer le type joint sur 2 sources
+        e1 = dict(attrs); e1["source"] = src_list[0]; e1["relation"] = relation
+        e2 = dict(attrs); e2["source"] = src_list[1]; e2["relation"] = relation
+        r1 = _norm_single(src_list[0], dst_raw, e1, e1, joint_group_id=jgid)
+        r2 = _norm_single(src_list[1], dst_raw, e2, e2, joint_group_id=jgid)
+        return [r for r in (r1, r2) if r is not None] or None
+
+    warnings.warn(
+        f"edge_norm: {len(src_list)} sources, 2 max supportées — seule la première conservée.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return _norm_single(src_list[0], dst_raw, attrs, outer)
