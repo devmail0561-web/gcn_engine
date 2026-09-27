@@ -1,3 +1,4 @@
+from gcn_python.constants import NODE_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour RGCNLayerGAT — skip automatique si PyTorch n'est pas installé."""
@@ -334,7 +335,7 @@ def test_residual_gradient_nonzero_even_if_layer_dead():
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
 
     class _DeadGraph:
         d_in = D
@@ -390,7 +391,7 @@ def test_stacked_gat_without_residual_baseline_equivalent():
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
     g = RGCNLayerGAT(d_in=D, d_out=D, n_relations=11, n_heads=1, device="cpu", seed=0)
     pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab, n_rgcn_layers=2)
 

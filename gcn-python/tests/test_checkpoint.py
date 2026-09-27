@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
+from gcn_python.constants import NODE_TYPES
 import numpy as np
 import pytest
 
@@ -17,7 +18,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
 
@@ -28,7 +29,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     W_0_before = gr.W_0.detach().cpu().numpy().copy()
 
     # Créer nouveau pipeline et charger
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     load_checkpoint(p2, ckpt, trusted=True)
@@ -49,13 +50,13 @@ def test_checkpoint_untrusted_refused(tmp_path: Path):
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipeline, ckpt)
 
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     with pytest.raises(RuntimeError, match="non fiable"):
@@ -74,7 +75,7 @@ def test_checkpoint_allpairs_roundtrip(tmp_path: Path):
     from gcn_python.training.checkpoint import save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                            all_pairs=True, bidirectional=True)
@@ -105,7 +106,7 @@ def test_backward_slice_mismatch_raises():
         )
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
     pipeline.forward([_rep("baisser"), _rep("réduire")], "Les ventes baissent puis on réduit.")
@@ -129,7 +130,7 @@ def test_arch_json_stores_inference_hyperparams(tmp_path: Path):
     from gcn_python.training.checkpoint import save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        edge_threshold=0.35, drop_morph=True, temperature=2.0)
@@ -157,7 +158,7 @@ def test_from_pretrained_restores_inference_hyperparams(tmp_path: Path):
     from gcn_python.training.checkpoint import save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        edge_threshold=0.42, drop_morph=True, temperature=1.5)
@@ -240,7 +241,7 @@ def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                            edge_threshold=0.42, drop_morph=True, temperature=1.7)
@@ -248,7 +249,7 @@ def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
     save_checkpoint(pipe_src, ckpt)
 
     enc2 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                            edge_threshold=0.0, drop_morph=False, temperature=1.0)
@@ -282,7 +283,7 @@ def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_p
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
     ckpt = tmp_path / "old_ckpt.npz"
@@ -299,7 +300,7 @@ def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_p
 
     # Pipeline avec valeurs non-défaut — doivent être conservées
     enc2 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                            edge_threshold=0.9, drop_morph=True, temperature=2.5)
@@ -324,7 +325,7 @@ def _make_bfs_pipeline(vocab, **kwargs):
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, **kwargs)
 
@@ -390,14 +391,14 @@ def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe1 = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=1)
     ckpt = tmp_path / "model_1layer.npz"
     save_checkpoint(pipe1, ckpt)
 
     enc2 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                         n_rgcn_layers=2)
@@ -420,14 +421,14 @@ def test_load_checkpoint_validates_n_rgcn_layers_reverse(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe2 = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=2)
     ckpt = tmp_path / "model_2layers.npz"
     save_checkpoint(pipe2, ckpt)
 
     enc1 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr1 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe1 = CGNPipeline(encoder=enc1, graph=gr1, vocabulary=FeatureVocabulary(),
                         n_rgcn_layers=1)
@@ -449,7 +450,7 @@ def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_src = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=2)
     ckpt = tmp_path / "model_2to2.npz"
@@ -457,7 +458,7 @@ def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
     W_extra_before = pipe_src._graph_layers[1].W_0.copy()
 
     enc2 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_dst = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                            n_rgcn_layers=2)
@@ -491,7 +492,7 @@ def test_load_checkpoint_n_rgcn_layers_absent_warns_for_multilayer(tmp_path: Pat
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe_old = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, n_rgcn_layers=1)
     ckpt = tmp_path / "old_checkpoint.npz"
@@ -506,7 +507,7 @@ def test_load_checkpoint_n_rgcn_layers_absent_warns_for_multilayer(tmp_path: Pat
     np.savez_compressed(ckpt, **arrays)
 
     enc2 = MLPEncoder(d_clause=vocab.d_clause,
-                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(),
                         n_rgcn_layers=2)
@@ -536,7 +537,7 @@ def test_load_checkpoint_warns_when_arch_json_absent(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
 
@@ -583,7 +584,7 @@ def test_e2e_train_save_reload_inference(tmp_path: Path):
         )
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        all_pairs=True, bidirectional=True)

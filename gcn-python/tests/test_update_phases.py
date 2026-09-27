@@ -5,6 +5,7 @@ C (MHA globale), D (CompGCN)."""
 import numpy as np
 import pytest
 
+from gcn_python.constants import NODE_TYPES
 from gcn_python.layer1.embedding import WordEmbedding
 
 # ─── Phase A ───────────────────────────────────────────────────────────────
@@ -187,11 +188,12 @@ def test_engine_reconstructs_transformer_encoder(tmp_path):
 
     vocab = FeatureVocabulary()
     # Interaction A+C : D_effective = d_clause_vocab + d_emb (jamais d_clause brut).
-    we = WordEmbedding(d_emb=1)
-    d_eff = vocab.d_clause_effective(1, False)  # 79 + 1 = 80, divisible par 4
+    # 106 % 4 = 2 → d_emb=2 pour que d_eff=108 soit divisible par 4 (requis par MHA)
+    we = WordEmbedding(d_emb=2)
+    d_eff = vocab.d_clause_effective(2, False)  # 106 + 2 = 108, divisible par 4
     assert d_eff % 4 == 0
     from gcn_python.constants import NODE_TYPES
-    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 1, False)
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 2, False)
     enc = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge, n_heads=4)
     assert enc.d_clause == d_eff  # D_effective, pas vocabulary.d_clause brut
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=3)
@@ -387,7 +389,7 @@ def test_rgcn_layers_zero_skips_message_pass():
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
     d = vocab.d_clause
-    d_edge = vocab.d_edge_closed_loop(d, 7)
+    d_edge = vocab.d_edge_closed_loop(d, len(NODE_TYPES))
     enc = MLPEncoder(d_clause=d, d_edge=d_edge, seed=0)
     graph = RGCNLayer(d_in=d, d_out=d, n_relations=3, seed=0)
     pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab, n_rgcn_layers=0)

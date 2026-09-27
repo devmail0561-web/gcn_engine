@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+from gcn_python.constants import NODE_TYPES
 
 import json
 from pathlib import Path
@@ -33,7 +34,7 @@ def test_samples_are_verbalize_sample(examples_dir: Path):
         assert isinstance(s, VerbalizeSample)
         assert isinstance(s.ir_json, str)
         assert s.node_type_embeddings.ndim == 2
-        assert s.node_type_embeddings.shape[1] == 7  # len(NODE_TYPES)
+        assert s.node_type_embeddings.shape[1] == len(NODE_TYPES)  # len(NODE_TYPES)
         assert s.gold_tokens.ndim == 1
         assert len(s.gold_tokens) > 0
 
@@ -73,7 +74,7 @@ def test_node_type_embeddings_onehot(examples_dir: Path):
     loader = VerbalizerDataLoader(examples_dir)
     for s in loader:
         embs = s.node_type_embeddings
-        assert embs.shape[1] == 7
+        assert embs.shape[1] == len(NODE_TYPES)
         # Each row is a valid one-hot (sum = 1)
         row_sums = embs.sum(axis=1)
         assert np.allclose(row_sums, 1.0)

@@ -1,3 +1,5 @@
+from gcn_python.constants import NODE_TYPES
+from gcn_python.constants import RELATION_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests mise-à-niveau v5 (10 familles -> cas essentiels non-régressifs)."""
@@ -113,7 +115,7 @@ def test_checkpoint_atomic_and_arch(tmp_path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
     ckpt = tmp_path / "m.npz"
@@ -122,7 +124,7 @@ def test_checkpoint_atomic_and_arch(tmp_path):
     import json
     arch = json.loads(str(__import__("numpy").load(ckpt, allow_pickle=True)["_arch_json"][0]))
     assert {"d_eff", "d_hidden", "vocab_size", "n_relations", "bidi_flag"} <= set(arch)
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     with warnings.catch_warnings(record=True) as _w:
@@ -155,7 +157,7 @@ def _make_pipeline(d=16):
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab), vocab
 
@@ -235,7 +237,7 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=22)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        all_pairs=True, bidirectional=True)
@@ -283,8 +285,8 @@ def test_backward_edge_mismatch_raises():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         pipe.forward([_rep("baisser"), _rep("reduire")], "A puis B.")
-        d_node = np.zeros((2, 7), dtype=np.float32)
-        d_edge_bad = np.zeros((5, 11), dtype=np.float32)
+        d_node = np.zeros((2, len(NODE_TYPES)), dtype=np.float32)
+        d_edge_bad = np.zeros((5, len(RELATION_TYPES)), dtype=np.float32)
         try:
             pipe.backward(d_node, d_edge_bad, lr=0.01)
         except ValueError as e:

@@ -250,7 +250,8 @@ def _connector_between(
     if tok is None:
         return None
     return UDRepresentation(
-        tokens=[{"lemma": tok.lemma, "pos": tok.pos, "dep_rel": tok.dep_rel, "morph": tok.morph}],
+        tokens=[{"lemma": tok.lemma, "pos": tok.pos, "dep_rel": tok.dep_rel, "morph": tok.morph,
+                 "id": tok.id, "dep_head": tok.dep_head, "form": tok.form}],
         root_lemma=tok.lemma,
         root_pos=tok.pos,
         root_dep_rel=tok.dep_rel,
@@ -289,7 +290,8 @@ def _rep_from_clause(
 
     return UDRepresentation(
         tokens=[
-            {"lemma": t.lemma, "pos": t.pos, "dep_rel": t.dep_rel, "morph": t.morph}
+            {"lemma": t.lemma, "pos": t.pos, "dep_rel": t.dep_rel, "morph": t.morph,
+             "id": t.id, "dep_head": t.dep_head, "form": t.form}
             for t in span_toks
         ],
         root_lemma=root_tok.lemma,

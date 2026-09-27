@@ -21,7 +21,7 @@ from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
 @pytest.fixture
 def pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0)
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
     return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
@@ -199,7 +199,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
 
     # Nouveau pipeline avec seed différent (poids différents)
     vocab = FeatureVocabulary()
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=99)
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=99)
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
     p2 = CGNPipeline(enc2, gr2, vocab)
 
@@ -566,7 +566,7 @@ def test_backward_weight_decay_changes_rgcn(pipeline: CGNPipeline):
     vocab = pipeline.vocabulary
     pipeline2 = CGNPipeline(
         encoder=MLPEncoder(d_clause=vocab.d_clause,
-                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0),
+                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0),
         graph=RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0),
         vocabulary=vocab,
     )
@@ -590,7 +590,7 @@ def test_backward_bidirectional_no_crash():
     """backward() avec bidirectional=True ne doit pas crasher."""
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
     graph = RGCNLayer(d_in=D, d_out=D, seed=0)
     p = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, bidirectional=True)
 
@@ -663,7 +663,7 @@ def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
     # loss : même phrase, poids 0.7 < poids 1.0 sur la partie arêtes
     vocab = FeatureVocabulary()
     encoder = MLPEncoder(d_clause=vocab.d_clause,
-                         d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7), seed=0)
+                         d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
     pipe = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     rng = np.random.default_rng(1)

@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+from gcn_python.constants import NODE_TYPES
 
 import json
 from pathlib import Path
@@ -261,7 +262,7 @@ def test_pipeline_with_decoder_forward(tmp_path):
     from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16)
@@ -287,7 +288,7 @@ def test_pipeline_decoder_none_unchanged():
     from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     assert pipeline.decoder is None
@@ -302,7 +303,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16)
@@ -317,7 +318,7 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     save_checkpoint(pipeline, ckpt)
 
     # Reload into fresh pipeline without decoder
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
     load_checkpoint(p2, ckpt, trusted=True)

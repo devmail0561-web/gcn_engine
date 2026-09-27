@@ -1,3 +1,4 @@
+from gcn_python.constants import NODE_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les 5 findings du red-team 12ᵉ audit (F1–F5)."""
@@ -17,7 +18,7 @@ def _make_minimal_checkpoint(tmp_path: Path) -> Path:
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause,
-                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7))
+                     d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
     ckpt = tmp_path / "model.npz"

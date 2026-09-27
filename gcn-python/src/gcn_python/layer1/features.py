@@ -142,9 +142,11 @@ class FeatureVocabulary:
     @classmethod
     def from_json(cls, s: str) -> FeatureVocabulary:
         data = json.loads(s)
-        # Rétrocompatibilité v2 (voice_values/prontype_values absents)
-        data.setdefault("voice_values", list(UD_VOICE_VALUES))
-        data.setdefault("prontype_values", list(UD_PRONTYPE_VALUES))
+        # Rétrocompatibilité v2 : si voice_values/prontype_values absents du JSON,
+        # défaut à [] (préserve d_clause=79 du checkpoint d'origine).
+        # Les nouvelles vocab v3 incluent ces clés dans to_json() — setdefault ne s'applique pas.
+        data.setdefault("voice_values", [])
+        data.setdefault("prontype_values", [])
         return cls(**data)
 
 

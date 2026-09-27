@@ -167,7 +167,7 @@ def _rep_from_cir_node(node: dict) -> UDRepresentation:
     root_pos et root_dep_rel sont dérivés de node_type via les mappings
     NODE_TYPE_TO_POS / NODE_TYPE_TO_DEP. root_morph est toujours {}.
     """
-    node_type = (node.get("node_type") or NODE_TYPES[1]).lower()
+    node_type = (node.get("node_type") or "action").lower()  # défaut par nom, pas par index
     label = node.get("label") or ""
     root_lemma = _extract_lemma(label)
     root_pos = NODE_TYPE_TO_POS.get(node_type, _DEFAULT_POS)

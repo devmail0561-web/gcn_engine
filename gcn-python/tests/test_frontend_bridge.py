@@ -1,6 +1,7 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour frontend/bridge.py — implémentation P1 (pont texte brut → UDRepresentation)."""
+from gcn_python.constants import NODE_TYPES
 import json
 import shutil
 import warnings
@@ -161,7 +162,7 @@ def test_rep_from_cir_node_condition():
     rep = _rep_from_cir_node(node)
     assert rep.root_pos == "SCONJ"
     assert rep.root_dep_rel == "advcl"
-    assert rep.has_advcl is False  # conservative : CIR ne porte pas cette info
+    assert rep.has_advcl is True  # B0.1 : node_type=condition → has_advcl=True
 
 
 def test_rep_from_cir_node_patient_has_object():
@@ -417,7 +418,7 @@ def _make_pipeline():
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
     return CGNPipeline(
-        encoder=MLPEncoder(vocab.d_clause, vocab.d_edge_closed_loop(vocab.d_clause, 7)),
+        encoder=MLPEncoder(vocab.d_clause, vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))),
         graph=RGCNLayer(vocab.d_clause, vocab.d_clause),
         vocabulary=vocab,
     )

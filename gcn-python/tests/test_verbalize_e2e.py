@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests e2e verbalizer — enriched_vecs, engine.verbalize(), gradient cohérence, B3."""
 from __future__ import annotations
+from gcn_python.constants import NODE_TYPES
 
 import numpy as np
 import pytest
@@ -16,7 +17,7 @@ from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
 def _make_pipeline_with_decoder():
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
     graph = RGCNLayer(d_in=D, d_out=D, seed=0)
     sv = SurfaceVocabulary()
     sv.build(["parce que les prix baissent", "donc l effet augmente"])
@@ -159,7 +160,7 @@ def test_engine_verbalize_fallback():
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, 7), seed=0)
+    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
     graph = RGCNLayer(d_in=D, d_out=D, seed=0)
     pipeline_no_dec = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     engine = GCNEngine(pipeline_no_dec, text_parser=_MockBridgeParser())

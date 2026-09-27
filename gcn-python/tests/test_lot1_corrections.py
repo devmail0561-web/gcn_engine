@@ -1,3 +1,4 @@
+from gcn_python.constants import NODE_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les correctifs du Lot 1 (audit 2026-09-21).
@@ -42,7 +43,7 @@ def _make_rep(lemma: str = "baisser") -> UDRepresentation:
 def _make_pipeline(vocab=None, **kwargs) -> CGNPipeline:
     if vocab is None:
         vocab = FeatureVocabulary()
-    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
+    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, **kwargs)
@@ -132,7 +133,7 @@ def test_run_eval_vocab_restored_from_checkpoint(tmp_path: Path):
     # Modèle entraîné avec connector_lemmas : d_edge ≠ vocab vide
     vocab_with_lemmas = FeatureVocabulary(connector_lemmas=["parce", "car", "because"])
     d_eff = vocab_with_lemmas.d_clause
-    d_edge = vocab_with_lemmas.d_edge_closed_loop(d_eff, 7)
+    d_edge = vocab_with_lemmas.d_edge_closed_loop(d_eff, len(NODE_TYPES))
     encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab_with_lemmas)
@@ -167,7 +168,7 @@ def test_word_embedding_gradient_received_after_backward():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("baisser")
     we.add_lemma("hausser")
@@ -211,7 +212,7 @@ def test_word_embedding_gradient_1clause_no_unboundlocalerror():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
@@ -248,7 +249,7 @@ def test_word_embedding_gradient_accumulate_1clause_no_unboundlocalerror():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
@@ -286,7 +287,7 @@ def test_word_embedding_gradient_uses_dcurr_not_denriched():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, 7, d_emb)
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=7)
     we.add_lemma("alpha")
     we.add_lemma("beta")
@@ -687,7 +688,7 @@ def test_edge_threshold_filters_edges_in_forward(tmp_path: Path):
     pas seulement la propagation d'attribut.
     """
     vocab = FeatureVocabulary()
-    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, 7)
+    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
     enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl, seed=42)
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=11, seed=42)
 

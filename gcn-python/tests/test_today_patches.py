@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests des patches figés today.txt — silences Cat.2 puis anti-crash Cat.1."""
 from __future__ import annotations
+from gcn_python.constants import NODE_TYPES
 
 import csv
 import inspect
@@ -62,7 +63,7 @@ def _make_pipeline(mlp_hidden: int = 128):
     vocab = FeatureVocabulary()
     enc = MLPEncoder(
         d_clause=vocab.d_clause,
-        d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7),
+        d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)),
         mlp_hidden=mlp_hidden,
     )
     gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
