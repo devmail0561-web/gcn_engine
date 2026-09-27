@@ -347,14 +347,18 @@ class CausalGraph:
             attrs = self._edge_between(path[i], path[i + 1]) or {}
             g = attrs.get("temporal_gap")
             if g is not None:
-                try:
-                    gap_total = (gap_total or 0) + self._gap_value(g)
-                except (TypeError, ValueError):
-                    gap_total = None
+                if gap_total is None:
+                    pass
+                else:
+                    try:
+                        gap_total = gap_total + self._gap_value(g)
+                    except (TypeError, ValueError):
+                        gap_total = None
             ti_s = self.nodes.get(path[i], {}).get("temporal_index")
             ti_d = self.nodes.get(path[i + 1], {}).get("temporal_index")
             if ti_s is not None and ti_d is not None:
-                idx_delta = (idx_delta or 0) + (ti_d - ti_s)
+                if idx_delta is not None:
+                    idx_delta = idx_delta + (ti_d - ti_s)
             else:
                 idx_delta = None
         return {"found": True, "gap_sum": gap_total, "index_delta": idx_delta}

@@ -87,8 +87,8 @@ fn similarity(pattern: &EdgeSignature, candidate: &EdgeSignature) -> f32 {
     let type_sim = (src_sim + dst_sim) / 2.0;
     let conf_prox = 1.0 - (pattern.confidence - candidate.confidence).abs().min(1.0);
     let degree_prox = {
-        let d_out = (pattern.src_out_degree as i32 - candidate.src_out_degree as i32).unsigned_abs() as f32;
-        let d_in  = (pattern.dst_in_degree  as i32 - candidate.dst_in_degree  as i32).unsigned_abs() as f32;
+        let d_out = pattern.src_out_degree.abs_diff(candidate.src_out_degree) as f32;
+        let d_in  = pattern.dst_in_degree.abs_diff(candidate.dst_in_degree) as f32;
         1.0 / (1.0 + d_out + d_in)
     };
     // Poids : relation > type > confiance > degré

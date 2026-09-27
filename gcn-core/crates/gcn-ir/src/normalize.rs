@@ -31,13 +31,20 @@ pub fn normalize_label(s: &str) -> String {
 
 fn fold_accent(c: char) -> char {
     match c {
-        'À' | 'Â' | 'Ä' | 'à' | 'â' | 'ä' => 'a',
-        'É' | 'È' | 'Ê' | 'Ë' | 'é' | 'è' | 'ê' | 'ë' => 'e',
-        'Î' | 'Ï' | 'î' | 'ï' => 'i',
-        'Ô' | 'Ö' | 'ô' | 'ö' => 'o',
-        'Ù' | 'Û' | 'Ü' | 'ù' | 'û' | 'ü' => 'u',
-        'Ç' | 'ç' => 'c',
-        'Ñ' | 'ñ' => 'n',
+        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'à' | 'á' | 'â' | 'ã' | 'ä' | 'Ą' | 'ą' => 'a',
+        'É' | 'È' | 'Ê' | 'Ë' | 'é' | 'è' | 'ê' | 'ë' | 'Ě' | 'ě' | 'Ę' | 'ę' => 'e',
+        'Î' | 'Ï' | 'Í' | 'î' | 'ï' | 'í' => 'i',
+        'Ô' | 'Ö' | 'Ó' | 'ô' | 'ö' | 'ó' => 'o',
+        'Ù' | 'Û' | 'Ü' | 'Ú' | 'ù' | 'û' | 'ü' | 'ú' | 'Ů' | 'ů' => 'u',
+        'Ç' | 'ç' | 'Č' | 'č' => 'c',
+        'Ñ' | 'ñ' | 'Ń' | 'ń' | 'Ň' | 'ň' => 'n',
+        'Š' | 'š' | 'Ś' | 'ś' | 'Ş' | 'ş' => 's',
+        'Ž' | 'ž' | 'Ź' | 'ź' | 'Ż' | 'ż' => 'z',
+        'Ř' | 'ř' => 'r',
+        'Ď' | 'ď' => 'd',
+        'Ť' | 'ť' => 't',
+        'Ý' | 'ý' => 'y',
+        'Ğ' | 'ğ' => 'g',
         _ => c,
     }
 }
@@ -64,6 +71,15 @@ mod tests {
     fn normalize_strips_punct() {
         assert_eq!(normalize_label("auth/login"), "authlogin");
         assert_eq!(normalize_label("cause (principale)"), "cause principale");
+    }
+
+    #[test]
+    fn normalize_extended_accents() {
+        assert_eq!(normalize_label("přístup"), "pristup");
+        assert_eq!(normalize_label("żądanie"), "zadanie");
+        assert_eq!(normalize_label("güvenlik"), "guvenlik");
+        assert_eq!(normalize_label("señal"), "senal");
+        assert_eq!(normalize_label("último"), "ultimo");
     }
 
     #[test]

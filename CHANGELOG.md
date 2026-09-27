@@ -48,11 +48,41 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
   `_split_two()` pour labels multi-mots (`->` / `,` / espace), `_gap_value()` TemporalGap
   dict `{min,max,nature}` support, SPOF N_max=500 guard, analogy O(E) via Counter pré-calcul,
   `_abduct` BFS multi-profondeur (parity avec pearl.rs), `find_path` guard query vide.
-- **`gcn-python/pipeline/ir_emitter.py`** : `in_cycle` émet désormais un `CycleId` (int) ou `None`
-  au lieu de `bool` (alignement avec `CycleId(u32)` Rust).
+- **`gcn-python/pipeline/ir_emitter.py`** : `in_cycle` émet `True`/`False` (bool) —
+  sémantique claire, compatible avec les comparaisons `== True` downstream.
 - **`gcn-python/training/bootstrap.py`** : `_normalize_edge` préserve champs CIR v2 (provenance,
   temporal_gap, in_cycle, derivation, modifiers, marker_token). `_cir_to_doc` préserve
   parent, temporal_ref, attributes sur les nœuds.
+
+### Audit max codebase (2026-09-27) — 8 correctifs
+
+#### Parité Rust/Python
+
+- **`gcn-ir/normalize.rs`** : `fold_accent` étendu (ES/PT/CZ/PL/TR/nordique) — aligne
+  le folding Rust avec la décomposition NFD Python pour `á`, `ě`, `ą`, `ś`, `ž`, etc.
+- **`gcn-python/verbalizer/instructions.py`** : `estimate_delay` propage `None` au lieu
+  de reset silencieux à 0 (`gap_total or 0` → `if gap_total is not None`). Idem `idx_delta`.
+
+#### Régressions silencieuses
+
+- **`gcn-python/engine.py`** : défaut `two_pass_val` remis à `False` — les checkpoints
+  existants entraînés sans two-pass ne changent plus de comportement au chargement.
+- **`gcn-python/pipeline/ir_emitter.py`** : `in_cycle` retourne `True`/`False` (bool)
+  au lieu de `cycle_id (int) | None` — supprime le faux-négatif `== True` sur cycle_id=0.
+
+#### Logique Rust
+
+- **`gcn-backend/pearl.rs`** : `chain_temporal` → `temporally_ordered = false` quand aucun
+  nœud du chemin ne possède de `temporal_index` (supprime le vacuously-true trompeur).
+- **`gcn-backend/query.rs`** : message d'erreur corrigé `SPOF?` → `SPOF` (le parser
+  n'accepte pas le `?`).
+
+#### Performance et soundness
+
+- **`gcn-python/data/graph_vecs.py`** : `np.load` sorti du `_HANDLES_LOCK` — double-checked
+  locking pour ne plus bloquer tous les threads pendant l'I/O disque.
+- **`gcn-backend/analogy.rs`** : `usize::abs_diff` remplace le cast `as i32` — supprime
+  l'overflow silencieux sur degré > 2³¹.
 
 ### Robustesse et tests (audit post-Pearl+)
 

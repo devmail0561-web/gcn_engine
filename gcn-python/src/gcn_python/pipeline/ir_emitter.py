@@ -157,7 +157,7 @@ def emit(
         src_e, dst_e = edge[0], edge[1]
         src_cid = node_to_cycle.get(src_e)
         dst_cid = node_to_cycle.get(dst_e)
-        edge[2]["in_cycle"] = src_cid if (src_cid is not None and src_cid == dst_cid) else None
+        edge[2]["in_cycle"] = (src_cid is not None and src_cid == dst_cid)
 
     import datetime
     return {

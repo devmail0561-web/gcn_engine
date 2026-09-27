@@ -73,7 +73,12 @@ def _get_handle(path: Path):
     with _HANDLES_LOCK:
         if key in _HANDLES:
             return _HANDLES[key]
-        handle = np.load(path, allow_pickle=False, mmap_mode="r")
+    handle = np.load(path, allow_pickle=False, mmap_mode="r")
+    with _HANDLES_LOCK:
+        if key in _HANDLES:
+            with contextlib.suppress(Exception):
+                handle.close()
+            return _HANDLES[key]
         if len(_HANDLES) >= _MAX_HANDLES:
             oldest = next(iter(_HANDLES))
             with contextlib.suppress(Exception):

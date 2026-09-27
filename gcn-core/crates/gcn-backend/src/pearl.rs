@@ -451,6 +451,7 @@ pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResul
         None => TemporalChainResult { links: None, temporally_ordered: false },
         Some(links) => {
             let mut temporally_ordered = true;
+            let mut has_temporal_data = false;
             let temporal_links: Vec<TemporalLink> = links
                 .iter()
                 .map(|l| {
@@ -462,6 +463,7 @@ pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResul
                     let dst_ti = idx_map.get(&l.to_id).copied().flatten();
                     let index_delta = match (src_ti, dst_ti) {
                         (Some(s), Some(d)) => {
+                            has_temporal_data = true;
                             if s > d {
                                 temporally_ordered = false;
                             }
@@ -483,7 +485,7 @@ pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResul
                 .collect();
             TemporalChainResult {
                 links: Some(temporal_links),
-                temporally_ordered,
+                temporally_ordered: has_temporal_data && temporally_ordered,
             }
         }
     }

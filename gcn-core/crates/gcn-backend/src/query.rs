@@ -148,7 +148,7 @@ impl Query {
         }
 
         Err(BackendError::QueryParseError(format!(
-            "unknown query '{}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, CENTRALITY, SPOF?, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE",
+            "unknown query '{}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, CENTRALITY, SPOF, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE",
             if input.len() > 200 { &input[..200] } else { input }
         )))
     }
