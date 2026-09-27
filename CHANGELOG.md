@@ -7,6 +7,74 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Plan-moins v3.0 — implémentation (2026-09-27, commit d9ad8ca)
+
+Première implémentation du [plan de migration D1-D10](docs/PLAN_MIGRATION_MOTEUR_PHASES_ABCD.md).
+Trajectoire plan-moins : phases A, B.1-B.3, C-min, D.0-min.
+**BREAKING** : d_clause 79 → 106, NODE_TYPES 7 → 8, RELATION_TYPES 11 → 19.
+Tous les checkpoints v2 sont incompatibles avec ce build (réentraînement requis).
+
+#### Phase A — NLU / Layer1 (D1)
+
+- **`layer1/sentence_type.py`** (nouveau, 309 lignes) : `classify(tokens, markers=None)` — logique UD structurelle pure, zéro lemme dur. `LangMarkers` (frozen dataclass, `from_json`/`load`). `SentenceProfile` 7 champs : `sentence_type`, `polarity`, `voice`, `modality`, `complexity` (SIMPLE/COMPLEX), `subordination` (10 valeurs), `has_restriction`. `Complexity`, `SubordinationType` enums. Couche 1 : PronType=Int, Mood=Imp, Voice=Pass, dep_rel advcl/ccomp/xcomp/acl. Couche 2 (markers optionnels) : fallback lemme interrogatif/négatif, SCONJ subordonnant, pattern restriction.
+- **`layer1/__init__.py`** : exports complets — `SentenceProfile`, `SentenceType`, `Complexity`, `SubordinationType`, `LangMarkers`, `Voice`, `Polarity`, `Modality`, `classify`, `classify_sentence`.
+- **`layer1/representation.py`** : property `sentence_profile` (appelle `classify(self.tokens)`) ; commentaire `tokens` mis à jour (`id`, `dep_head`, `form` déjà peuplés par loader/bridge).
+- **`gcn-datasets/configs/lang_markers.json`** (nouveau) : lexiques FR + EN — `interrogative_lemmas`, `negation_particles`, `restriction_patterns`, `subordination_markers` (9 catégories : condition, cause, concession, temporal, motivation, filter, sequence, opposition, enable).
+
+#### Phase B.1 — `constants.py` (BREAKING)
+
+- `NODE_TYPES` : 7 → **8** — ajout `"contrainte"` (D5).
+- `RELATION_TYPES` : 11 → **19** — ajout `analogy`, `counterfactual`, `conditional_cause`, `mediated_cause`, `joint_cause`, `conditional_prevent`, `mediated_prevent`, `joint_prevent` (D2). `DataDependency`/`ControlDependency` existants conservés.
+- `RELATION_TYPES_INV` / `ALL_RELATION_TYPES` : 22 → **38** types (bidirectionnel).
+- `UD_VOICE_VALUES` = `["Act", "Pass", "_absent"]` (3 valeurs).
+- `UD_PRONTYPE_VALUES` = `["Int", "Rel", "Prs", "Dem", "Ind", "Art", "_absent"]` (7 valeurs, ETUDE §7.2).
+- Commentaire `UPOS_TAGS` corrigé : `_unk` inclus dans les 18 (pas double-compté).
+- Commentaire `d_clause` corrigé : `18+38+5+5+4+5+3+7+1+3+12+5 = 106` (était 80 erroné).
+
+#### Phase B.2/B.3 — `features.py` — d_clause 79 → 106 (BREAKING)
+
+- `FeatureVocabulary` : champs `voice_values` (3) et `prontype_values` (7) + indices O(1) `_idx_voice`, `_idx_prontype`.
+- `d_clause` property : +Voice(3) +PronType(7) +positionnels(12) +ternaires(5) = **106**.
+- Constantes `N_POSITIONAL_FEATURES = 12` et `N_TERNARY_FEATURES = 5` sur le dataclass.
+- `vectorize_clause` : nouveaux blocs `voice_vec`, `pron_vec`, `_compute_positional_features`, `_compute_ternary_features` ; flags `no_positional` et `no_ternary` pour ablation par config (gate C.7 sans re-déploiement).
+- `_compute_positional_features(tokens, span, sentence_len)` → `float[12]` : subj\_before/after\_root, advcl\_before/after\_root, obj\_before/after\_root, neg\_before/after\_root, connector\_before\_advcl\_head, sentence\_initial/final, relative\_depth.
+- `_compute_ternary_features(tokens)` → `float[5]` : has\_two\_sources, has\_third\_cond, has\_obl\_mediator, has\_joint\_marker, has\_modal\_condition.
+- `to_json`/`from_json` : rétrocompatibilité v2 (`voice_values`/`prontype_values` absents → défauts injectés).
+- `tests/test_layer1.py` : assert `d_clause_effective` désormais dynamique (remplace `79 + 147` hardcodé).
+
+#### Correctif bug silencieux — `label_builder.py` + `bridge.py`
+
+- **`pipeline/label_builder.py`** : constantes `_NT_*` remplacées par strings directes (`"action"`, `"entite"`…) — l'ancien accès par index `NODE_TYPES[1]` produisait une sémantique fausse silencieusement après réordre de `NODE_TYPES` v3.0.
+- **`frontend/bridge.py`** : `NODE_TYPE_TO_POS` et `NODE_TYPE_TO_DEP` remplacés par dicts à clés string — couvre les 8 types v3.0 (`etat_local`, `etat_global`, `concept`, `evenement`, `contrainte`).
+
+#### Phase C-min — `edge.rs` + `edge_norm.py`
+
+- **`gcn-ir/edge.rs`** : `RelationType` 11 → **19** variants (8 nouveaux : `Analogy`, `Counterfactual`, `ConditionalCause`, `MediatedCause`, `JointCause`, `ConditionalPrevent`, `MediatedPrevent`, `JointPrevent`). Méthode `is_joint()`.
+- **`gcn-ir/edge.rs`** : `CausalEdge` + champ `joint_group_id: Option<String>` (`#[serde(default)]`, rétrocompat vieux CIR).
+- **7 sites Rust** (`frontend-fr`, `frontend-en`, `frontend-code`, `knowledge/inference`, `gcn-ir/lib`, `middleend/tests`, `backend/tests`) : `joint_group_id: None` ajouté. Build propre.
+- **`data/edge_norm.py`** : refactoring — `_norm_single(src_raw, dst_raw, attrs, outer, joint_group_id)` extrait du corps monolithique. `normalize_edge` retourne `list[dict]` sur 2 sources (JOINT\_CAUSE) avec `joint_group_id` déterministe `sha256(target|sorted_sources)[:16]`.
+
+#### D.0-min — extraction OOV automatique
+
+- **`scripts/d0_min_oov_split.py`** (nouveau) : split OOV lexique sans annotation manuelle — construit le lexique train (3 577 lemmes), extrait les phrases de `generated_1000.json` avec ≥ N lemmes hors lexique. Options `--min-oov`, `--max-sentences`.
+- **`gcn-datasets/test/oov_split_test.json`** (nouveau) : 30 phrases OOV extraites automatiquement.
+
+#### Tests
+
+- 78 tests Python : 0 régression.
+- 185 tests Rust : 0 régression.
+
+#### À faire avant merge en production (voir §STATUS du plan)
+
+- `bootstrap._normalize_edge` (chemin bootstrap.py) : non patché pour joint_group_id.
+- `scripts/init_v3_stub.py` : migration checkpoints v2 → stub v3 (He-init).
+- Protocole entraînement v3.0 : masquer/geler les 8 logits vides dans `train.py` (P2 plan).
+- `gcn-transformers/base.py:66` : garde `if d_clause == 79` à mettre à jour pour 106.
+- Tests gates : `test_sentence_type.py` (~60 tests), B.5 (d_clause_equals_106, voice, prontype), C.4 (+6 ir_emitter), D.1-D.5.
+- T5-min, D6-shadow, `REGLE_EQUILIBRE_DATASET.md`.
+
+---
+
 ### CIR v2 — Provenance et normalisation (Pearl P1)
 
 - **`gcn-ir/edge.rs`** : `Provenance` (5 champs : `ref`, `span`, `extraction_method`,
