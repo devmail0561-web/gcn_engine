@@ -63,4 +63,8 @@ fn escape_dot(s: &str) -> String {
         .replace('"', "\\\"")
         .replace('\n', "\\n")
         .replace('\r', "\\r")
+        .replace('{', "\\{")
+        .replace('}', "\\}")
+        .replace('<', "\\<")
+        .replace('>', "\\>")
 }

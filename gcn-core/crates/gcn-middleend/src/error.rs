@@ -55,4 +55,8 @@ pub enum DiagnosticKind {
         src: NodeId,
         dst: NodeId,
     },
+    DuplicateEdge {
+        src: NodeId,
+        dst: NodeId,
+    },
 }

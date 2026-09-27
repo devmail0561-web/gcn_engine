@@ -59,10 +59,9 @@ fn split_trailing_punct(s: &str) -> (&str, Option<&str>) {
     if s.is_empty() {
         return (s, None);
     }
-    let last = s.chars().last().unwrap();
-    if ".,;:!?»\"'".contains(last) {
-        let end = s.len() - last.len_utf8();
-        (&s[..end], Some(&s[end..]))
+    let end = s.trim_end_matches(|c: char| ".,;:!?»\"'".contains(c));
+    if end.len() < s.len() {
+        (end, Some(&s[end.len()..]))
     } else {
         (s, None)
     }

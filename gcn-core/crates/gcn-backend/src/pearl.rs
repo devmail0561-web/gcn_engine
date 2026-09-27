@@ -305,14 +305,22 @@ fn reachable_pairs_with_graph(g: &CausalGraph, nodes: &[gcn_ir::CausalNode], exc
     count
 }
 
+const SPOF_MAX_NODES: usize = 500;
+
 /// Compte le nombre de paires (s,d) avec s≠d qui ont un chemin orienté dans le graphe.
 pub fn count_reachable_pairs(ir: &CausalIR) -> usize {
+    if ir.nodes.len() > SPOF_MAX_NODES {
+        return 0;
+    }
     let g = build(ir);
     reachable_pairs_with_graph(&g, &ir.nodes, None)
 }
 
 /// Compte les paires atteignables après suppression virtuelle de `excluded`.
 pub fn count_reachable_pairs_without(ir: &CausalIR, excluded: NodeId) -> usize {
+    if ir.nodes.len() > SPOF_MAX_NODES {
+        return 0;
+    }
     let g = build(ir);
     let excluded_idx = match g.node_indices.get(&excluded) {
         Some(&x) => x,

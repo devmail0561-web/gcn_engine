@@ -26,6 +26,8 @@ from ..security import guarded_np_load
 from ..training.checkpoint import load_checkpoint
 
 
+_FORBIDDEN_EVAL_DIRS = {"final", "c1_merged", "c1_oversampled"}
+
 def run_eval(
     data_dir: Path,
     model_path: Path,
@@ -39,6 +41,13 @@ def run_eval(
 
     edge_threshold_override : surcharge le seuil stocké dans _arch_json.
     """
+    dir_name = Path(data_dir).resolve().name
+    if dir_name in _FORBIDDEN_EVAL_DIRS:
+        raise ValueError(
+            f"run_eval : répertoire '{dir_name}' interdit pour l'évaluation "
+            f"(contient train+val fusionnés → mémorisation). "
+            f"Utilisez un split val/test séparé (ex: combined_v2/val_v2)."
+        )
     # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
     # all_pairs / multi-couches crashe au load (shapes) ou est évalué dans le

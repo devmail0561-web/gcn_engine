@@ -54,7 +54,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
   temporal_gap, in_cycle, derivation, modifiers, marker_token). `_cir_to_doc` préserve
   parent, temporal_ref, attributes sur les nœuds.
 
-### Audit max codebase (2026-09-27) — 8 correctifs
+### Audit complet codebase (2026-09-27) — 20+ correctifs
 
 #### Parité Rust/Python
 
@@ -83,6 +83,51 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
   locking pour ne plus bloquer tous les threads pendant l'I/O disque.
 - **`gcn-backend/analogy.rs`** : `usize::abs_diff` remplace le cast `as i32` — supprime
   l'overflow silencieux sur degré > 2³¹.
+
+#### Tokenizers et frontends
+
+- **`gcn-frontend-en/tokenizer.rs`** : index de token 0-based → 1-based (alignement convention UD
+  avec le frontend FR).
+- **`gcn-frontend-en/tokenizer.rs`** + **`gcn-frontend-fr/tokenizer.rs`** : `split_trailing_punct`
+  gère maintenant les suites de ponctuation (`...`, `!!!`, `?!`) au lieu d'un seul caractère.
+
+#### Middleend — diagnostics
+
+- **`gcn-middleend/validate.rs`** : `check_low_confidence` détecte NaN (en plus de < 0.3).
+- **`gcn-middleend/validate.rs`** : `check_duplicate_edges` — diagnostic Warning sur arêtes (src,dst) dupliquées.
+- **`gcn-middleend/error.rs`** : variante `DuplicateEdge` ajoutée à `DiagnosticKind`.
+
+#### Backend — guards et export
+
+- **`gcn-backend/export.rs`** : `escape_dot` échappe `{}` et `<>` (parse Graphviz).
+- **`gcn-backend/pearl.rs`** : `count_reachable_pairs` / `count_reachable_pairs_without` — guard
+  `SPOF_MAX_NODES = 500` (DoS via appels publics directs).
+
+#### CLI et sécurité
+
+- **`gcn-cli/main.rs`** : `load_ir` refuse les fichiers > 50 MB (anti-OOM sur JSON attaquant).
+- **`gcn-verbalizer/lib.rs`** : test `decode_returns_process_spawn_when_binary_absent` restaure
+  `PATH` après mutation (supprime flaky en multi-thread).
+- **`gcn-python/checkpoint.py`** : `load_checkpoint(trusted=True)` émet un `logging.info` traçable.
+
+#### Évaluation et données
+
+- **`gcn-python/eval_runner.py`** : `run_eval` refuse les répertoires `final/`, `c1_merged/`,
+  `c1_oversampled/` (train+val fusionnés → mémorisation).
+- **README.md** : bandeau `val_edge_macro_f1` corrigé 0.468 → 0.1867 (harnais v2.5.0, combined_v2).
+  Badges : 186 Rust, 467 Python.
+
+#### Tests et couverture
+
+- **`tests/test_instructions.py`** (nouveau, 42 tests) : parse_command, _normalize, _safe_conf,
+  _match_level, CausalGraph (add_cir, find_path, estimate_delay, save/load roundtrip).
+
+#### CI et hygiène
+
+- **`.github/workflows/ci.yml`** : `actions/checkout` pinné SHA, `ruff check`, `cargo audit`,
+  `--locked` sur cargo test.
+- **`Makefile`** : cibles `lint`, `fmt`, `audit` ajoutées, `release` dépend de `lint`.
+- **`.gitignore`** : `.pytest_cache/`, `.ruff_cache/`, `__pycache__/` ajoutés à la racine.
 
 ### Robustesse et tests (audit post-Pearl+)
 

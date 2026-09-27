@@ -16,6 +16,7 @@ pub fn run(ir: &CausalIR, _g: &CausalGraph, diagnostics: &mut Vec<Diagnostic>) {
     check_low_confidence(ir, diagnostics);
     check_dangling_conditions(ir, diagnostics);
     check_empty_labels(ir, diagnostics);
+    check_duplicate_edges(ir, diagnostics);
     check_missing_provenance(ir, diagnostics);
 }
 
@@ -67,7 +68,7 @@ fn check_orphaned_nodes(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
 
 fn check_low_confidence(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
     for (src, dst, edge) in &ir.edges {
-        if edge.confidence < MIN_CONFIDENCE {
+        if edge.confidence.is_nan() || edge.confidence < MIN_CONFIDENCE {
             diagnostics.push(Diagnostic {
                 node_id: Some(*src),
                 severity: DiagnosticSeverity::Warning,
@@ -103,6 +104,19 @@ fn check_empty_labels(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
                 node_id: Some(node.id),
                 severity: DiagnosticSeverity::Warning,
                 kind: DiagnosticKind::EmptyLabel { node: node.id },
+            });
+        }
+    }
+}
+
+fn check_duplicate_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
+    let mut seen = HashSet::new();
+    for (src, dst, _) in &ir.edges {
+        if !seen.insert((src.0, dst.0)) {
+            diagnostics.push(Diagnostic {
+                node_id: Some(*src),
+                severity: DiagnosticSeverity::Warning,
+                kind: DiagnosticKind::DuplicateEdge { src: *src, dst: *dst },
             });
         }
     }

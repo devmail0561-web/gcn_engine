@@ -92,10 +92,11 @@ mod tests {
             unresolved: vec![],
             metadata: IrMetadata::default(),
         };
-        // gcn-verbalize n'est pas dans le PATH en environnement de test
+        let original_path = std::env::var("PATH").unwrap_or_default();
         // SAFETY : test mono-thread, aucun autre thread ne lit PATH simultanément.
         unsafe { std::env::set_var("PATH", "") };
         let result = decode(&ir);
+        unsafe { std::env::set_var("PATH", &original_path) };
         assert!(matches!(result, Err(VerbalizerError::ProcessSpawn(_))));
     }
 }

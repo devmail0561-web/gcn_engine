@@ -228,6 +228,11 @@ def load_checkpoint(
             "(allow_pickle requis → exécution de pickle). Relancez avec trusted=True "
             "pour un fichier local de confiance."
         )
+    import logging as _logging
+    _logging.getLogger("gcn_python.checkpoint").info(
+        "load_checkpoint trusted=True pour %s (pickle autorisé après audit guarded_np_load)",
+        Path(path).name,
+    )
     if not _skip_path_check:
         _check_path_safe(Path(path), allow_symlink=allow_symlink)
         if allow_symlink and Path(path).is_symlink():

@@ -3,8 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-185%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-425%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-186%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-467%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
@@ -612,20 +612,19 @@ cd ../gcn-tools/gcn-annotate && python -m pytest   # 26 tests, 4 skipped
 | Métriques | `gcn-datasets/checkpoints/model_v2.4.0_metrics.json` |
 | Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz", trusted=True)` |
 
-### Résultats sur le val set (114 phrases françaises)
+### Résultats sur le val set (combined_v2, 350 phrases)
 
 | Métrique | Valeur | Cible prod | Statut |
 |---------|--------|-----------|--------|
-| `val_edge_macro_f1` | **0.468** | > 0.40 | ✅ |
+| `val_edge_macro_f1` | **0.1867** | > 0.40 | ✗ (non convergé) |
 | `val_node_macro_f1` | 0.274 | > 0.60 | ✗ (données insuffisantes) |
 | `val_graph_exact_match` | 0.123 | > 0.20 | ✗ (bloqué par node) |
-| gap train−val (arêtes) | 0.069 | < 0.15 | ✅ |
 
-> **Caveat (audit v2.5.0) — chiffre non comparable.** Le `0.468` a été mesuré
-> avec le harnais d'évaluation de l'époque ; **reprise sous le harnais actuel,
-> le même checkpoint donne 0.1867**. `BENCHMARK.md` §9b marque explicitement
-> cette calibration croisée « NON COMPARABLE ». Ne pas citer le 0.468 comme
-> performance courante sans rappeler cette réserve.
+> **Note de calibration (audit v2.5.0).** L'ancien chiffre `0.468` avait été
+> mesuré sur le harnais d'époque avec un état de données non reproductible
+> (`real/` git-ignoré, `train.json` modifié post-run). Sous le harnais actuel
+> avec le même `val.json`, ce checkpoint donne `0.1867`. L'ancien chiffre est
+> **archivé et ne doit plus être cité comme performance courante**.
 
 ### Meilleure configuration d'entraînement
 
@@ -678,7 +677,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 
 ## Nouveautés v2.4.0
 
-- **Checkpoint de production** `model_v2.4.0.npz` — val_edge_f1=0.468 sur 849 phrases
+- **Checkpoint de production** `model_v2.4.0.npz` — val_edge_f1=0.1867 (harnais v2.5.0, combined_v2 350 val)
 - **Dataset C1** : 171 exemples annotés pour 6 types de relations rares (filter, data_dependency,
   control_dependency, motivation, sequence, opposition) — `gcn-datasets/real/augmented/c1_annotations/`
 - **Oversampling** : script `gcn-datasets/oversample_rare.py` — classes rares portées à 30 ex.

@@ -21,6 +21,9 @@ gcn-python/models/
 *.pyo
 *.so
 *.DS_Store
+.pytest_cache/
+.ruff_cache/
+__pycache__/
 
 # Fichiers de travail internes — racine
 /PROGRESS.md
