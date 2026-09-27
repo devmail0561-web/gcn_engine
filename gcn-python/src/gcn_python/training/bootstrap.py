@@ -165,7 +165,7 @@ def _extract_token_span(node: dict) -> list[int]:
     return result[:2]
 
 
-def _normalize_edge(e) -> dict | None:
+def _normalize_edge(e) -> "dict | list[dict] | None":
     """
     Normalise une arête CIR vers le format doc gcn-nl.
 
@@ -173,39 +173,68 @@ def _normalize_edge(e) -> dict | None:
       - format tuple/list : [src_id, dst_id, edge_obj]  ← sortie gcn analyze (Rust)
       - format dict       : {"source": ..., "target": ..., "relation": ...}
     Retourne None si le format est invalide ou incomplet.
+    Pour JOINT_CAUSE/JointPrevent avec sources=[A, B] : retourne list[dict] (2 arêtes).
     """
+    import hashlib
+    from ..data.edge_norm import normalize_node_id
+
     if isinstance(e, (list, tuple)) and len(e) == 3:
         src_id, dst_id, edge_obj = e
         if not isinstance(edge_obj, dict):
             return None
         try:
-            from ..data.edge_norm import normalize_node_id
             source, target = normalize_node_id(src_id), normalize_node_id(dst_id)
         except ValueError:
             return None
+        sources_list = [source]
     elif isinstance(e, dict):
         edge_obj = e
         try:
-            from ..data.edge_norm import normalize_node_id
-            source = normalize_node_id(e.get("source", ""))
-            target = normalize_node_id(e.get("target", ""))
+            src_raw = e.get("sources", e.get("source", ""))
+            target = normalize_node_id(e.get("target", e.get("dst", "")))
+            if isinstance(src_raw, (list, tuple)):
+                sources_list = []
+                for s in src_raw:
+                    try:
+                        sources_list.append(normalize_node_id(s))
+                    except ValueError:
+                        pass
+                if not sources_list:
+                    return None
+            else:
+                sources_list = [normalize_node_id(src_raw)]
         except ValueError:
             return None
     else:
         return None
+
     relation = edge_obj.get("relation_type", edge_obj.get("relation", RELATION_TYPES[0]))
-    result = {
-        "source": source,
-        "target": target,
-        "relation": relation,
-        "confidence": float(edge_obj["confidence"]) if "confidence" in edge_obj else None,
-        "explicit": bool(edge_obj.get("explicit", True)),
-        "negated": bool(edge_obj["negated"]) if "negated" in edge_obj else None,
-    }
-    for key in ("provenance", "temporal_gap", "in_cycle", "derivation", "modifiers", "marker_token"):
-        if key in edge_obj:
-            result[key] = edge_obj[key]
-    return result
+    extra = {k: edge_obj[k] for k in
+             ("provenance", "temporal_gap", "in_cycle", "derivation", "modifiers", "marker_token")
+             if k in edge_obj}
+
+    def _build(src: str, jgid: str | None = None) -> dict:
+        r = {
+            "source": src, "target": target,
+            "relation": relation,
+            "confidence": float(edge_obj["confidence"]) if "confidence" in edge_obj else None,
+            "explicit": bool(edge_obj.get("explicit", True)),
+            "negated": bool(edge_obj["negated"]) if "negated" in edge_obj else None,
+            **extra,
+        }
+        if jgid is not None:
+            r["joint_group_id"] = jgid
+        return r
+
+    if len(sources_list) == 1:
+        return _build(sources_list[0])
+
+    if len(sources_list) == 2:
+        key = f"{target}|{'|'.join(sorted(sources_list))}"
+        jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return [_build(sources_list[0], jgid), _build(sources_list[1], jgid)]
+
+    return _build(sources_list[0])
 
 
 def _canonical_node_id(raw, pos: int) -> str:
@@ -251,7 +280,15 @@ def _cir_to_doc(text: str, cir: dict) -> dict:
                 nd[key] = n[key]
         doc_nodes.append(nd)
 
-    doc_edges = [d for e in edges if (d := _normalize_edge(e)) is not None]
+    _raw_edges = [_normalize_edge(e) for e in edges]
+    doc_edges = []
+    for r in _raw_edges:
+        if r is None:
+            continue
+        if isinstance(r, list):
+            doc_edges.extend(r)  # JOINT_CAUSE → 2 arêtes
+        else:
+            doc_edges.append(r)
 
     return {
         "document": {

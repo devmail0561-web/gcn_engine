@@ -706,8 +706,9 @@ class CGNPipeline:
         gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
         edge_loss_weight: float = 1.0,  # pondération relative edge_loss / node_loss
         gold_surface: np.ndarray | None = None,  # (T,) int — tokens gold pour le décodeur
-        node_class_weights: np.ndarray | None = None,  # (7,) float — poids par classe nœud
-        edge_class_weights: np.ndarray | None = None,  # (11,) float — poids par classe arête
+        node_class_weights: np.ndarray | None = None,  # (N_NODES,) float — poids par classe nœud
+        edge_class_weights: np.ndarray | None = None,  # (N_REL,) float — poids par classe arête
+        edge_logit_mask: np.ndarray | None = None,    # (N_REL,) bool — v3.0 : masque classes vides
         label_smoothing: float = 0.0,  # lissage des labels [0, 1]
         sample_weight: float = 1.0,  # F : poids gold/silver de la phrase
         edge_sample_weights: np.ndarray | None = None,  # S-5 : (E,) poids par arête (confidence)
@@ -748,7 +749,8 @@ class CGNPipeline:
                 )
             edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights,
                                                 label_smoothing=label_smoothing,
-                                                sample_weights=edge_sample_weights)
+                                                sample_weights=edge_sample_weights,
+                                                logit_mask=edge_logit_mask)
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
@@ -1269,6 +1271,7 @@ def _cross_entropy(
     class_weights: np.ndarray | None = None,  # (C,) float — poids par classe
     label_smoothing: float = 0.0,
     sample_weights: np.ndarray | None = None,  # (N,) float — poids par exemple (S-5)
+    logit_mask: np.ndarray | None = None,      # (C,) bool — True = classe active
 ) -> tuple[float, np.ndarray]:
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
 
@@ -1277,6 +1280,10 @@ def _cross_entropy(
 
     Si label_smoothing > 0, utilise une distribution lissée :
     masse (1 - eps) sur la vraie classe, eps/(C-1) sur les autres.
+
+    logit_mask (C,) bool : si fourni, les logits des classes False sont mis à -inf
+    avant le softmax — les classes non supervisées ne volent pas de masse de probabilité.
+    Protocole v3.0 : passer mask=(edge_counts[c]>0) pour les 8 nouvelles classes vides.
 
     Lève ValueError si labels contient des valeurs négatives (sentinelle -1 non filtrée)
     ou hors-bornes (>= n_classes).
@@ -1294,6 +1301,9 @@ def _cross_entropy(
             f"max={labels.max()} >= n_classes={logits.shape[1]}"
         )
     N, C = logits.shape
+    if logit_mask is not None:
+        logits = logits.copy()
+        logits[:, ~logit_mask] = -1e9  # -inf pratique : masque les classes inactives
     probs = _softmax(logits)
 
     if label_smoothing > 0.0:

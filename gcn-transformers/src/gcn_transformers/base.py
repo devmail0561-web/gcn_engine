@@ -63,11 +63,11 @@ class TransformerEncoderBase:
         """
         self.d_clause = d_clause
         self.d_edge = d_edge
-        if d_clause == 79:
+        if d_clause in (79, 106):  # 79 = v2 sans emb, 106 = v3.0 sans emb
             warnings.warn(
-                f"d_clause=79 est la valeur de base sans embedding. "
+                f"d_clause={d_clause} est la valeur de base sans embedding. "
                 "Avec --embedding-dim > 0, passez vocab.d_clause_effective(d_emb, False) "
-                "(ex. d_clause=207 pour d_emb=128). Le modèle entraîné avec un autre d_clause "
+                f"(ex. d_clause={d_clause + 128} pour d_emb=128). Le modèle entraîné avec un autre d_clause "
                 "crashera au chargement (shape mismatch proj_ud).",
                 UserWarning, stacklevel=3,
             )

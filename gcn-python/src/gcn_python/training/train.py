@@ -522,6 +522,7 @@ def train_cmd(
     # Passe unique : class weights + vocab embeddings (évite deux itérations sur le dataset)
     node_class_weights = None
     edge_class_weights = None
+    _edge_logit_mask: "np.ndarray | None" = None
     if weighted_loss or word_embedding is not None:
         from collections import Counter
         node_counts: Counter = Counter()
@@ -563,12 +564,23 @@ def train_cmd(
                 total_edges = sum(edge_counts.values())
                 n_edge_classes = encoder.n_relation_types
                 edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
+                _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
                 for c in range(n_edge_classes):
-                    count = edge_counts.get(c, 1)
-                    edge_class_weights[c] = total_edges / (n_edge_classes * count)
+                    count = edge_counts.get(c, 0)
+                    if count > 0:
+                        edge_class_weights[c] = total_edges / (n_edge_classes * count)
+                        _edge_logit_mask[c] = True
+                    # sinon : weight=0 et masque=False → classe inactive (protocole v3.0)
+                n_active = int(_edge_logit_mask.sum())
+                n_inactive = n_edge_classes - n_active
+                if n_inactive > 0:
+                    click.echo(
+                        f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
+                        f"(N=0 dans le dataset) — activer à N_min."
+                    )
                 if max_class_weight > 0:
                     edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES, edge_class_weights.round(3), strict=False))}")
+                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES[:n_active], edge_class_weights[:n_active].round(3), strict=False))}")
         if word_embedding is not None and all_lemmas:
             word_embedding.build_vocab(all_lemmas)
             click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
@@ -726,6 +738,7 @@ def train_cmd(
                 edge_loss_weight=edge_loss_weight,
                 node_class_weights=node_class_weights,
                 edge_class_weights=edge_class_weights,
+                edge_logit_mask=_edge_logit_mask if edge_counts else None,
                 sample_weight=sample.sentence.weight,
                 edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
             )
@@ -894,6 +907,7 @@ def train_cmd(
                     gold_surface=_gold_surface,
                     node_class_weights=node_class_weights,
                     edge_class_weights=edge_class_weights,
+                    edge_logit_mask=_edge_logit_mask if edge_counts else None,
                     label_smoothing=label_smoothing,
                     sample_weight=sample.sentence.weight,
                     edge_sample_weights=_edge_sw,  # S-5 : confidence par arête
