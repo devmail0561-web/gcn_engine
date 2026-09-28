@@ -574,22 +574,40 @@ fn build_label(
         NodeType::EtatGlobal | NodeType::Entite => entity
             .as_deref()
             .filter(|e| !e.is_empty())
-            .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
+            .or(if !verb_lemma.is_empty() {
+                Some(verb_lemma)
+            } else {
+                None
+            })
             .unwrap_or("entity")
             .to_string(),
         NodeType::Condition => "hidden_cause(?)".to_string(),
         NodeType::Processus => match agent {
             Some(a) => format!(
                 "{}({})",
-                if verb_lemma.is_empty() { "?" } else { verb_lemma },
+                if verb_lemma.is_empty() {
+                    "?"
+                } else {
+                    verb_lemma
+                },
                 a
             ),
-            None => if verb_lemma.is_empty() { "action".to_string() } else { verb_lemma.to_string() },
+            None => {
+                if verb_lemma.is_empty() {
+                    "action".to_string()
+                } else {
+                    verb_lemma.to_string()
+                }
+            }
         },
         NodeType::Contrainte => entity
             .as_deref()
             .filter(|e| !e.is_empty())
-            .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
+            .or(if !verb_lemma.is_empty() {
+                Some(verb_lemma)
+            } else {
+                None
+            })
             .unwrap_or("constraint")
             .to_string(),
         NodeType::EtatLocal | NodeType::Processus | NodeType::Concept | NodeType::Evenement => {

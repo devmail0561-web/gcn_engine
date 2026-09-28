@@ -54,7 +54,11 @@ impl EnglishParser {
         self.parse_with_ref(text, None)
     }
 
-    pub fn parse_with_ref(&self, text: &str, doc_ref: Option<String>) -> Result<CausalIR, EnParseError> {
+    pub fn parse_with_ref(
+        &self,
+        text: &str,
+        doc_ref: Option<String>,
+    ) -> Result<CausalIR, EnParseError> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err(EnParseError::EmptyInput);

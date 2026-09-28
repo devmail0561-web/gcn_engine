@@ -299,7 +299,9 @@ fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<Cau
 fn group_by_joint_id(em: &EdgeMap) -> HashMap<String, Vec<(NodeId, NodeId)>> {
     em.iter()
         .filter_map(|((s, d), e)| {
-            e.joint_group_id.as_ref().map(|g| (g.clone(), (NodeId(*s), NodeId(*d))))
+            e.joint_group_id
+                .as_ref()
+                .map(|g| (g.clone(), (NodeId(*s), NodeId(*d))))
         })
         .fold(HashMap::new(), |mut m, (g, p)| {
             m.entry(g).or_default().push(p);
@@ -307,16 +309,27 @@ fn group_by_joint_id(em: &EdgeMap) -> HashMap<String, Vec<(NodeId, NodeId)>> {
         })
 }
 
-fn reachable_pairs_with_graph(g: &CausalGraph, nodes: &[gcn_ir::CausalNode], exclude: Option<NodeIndex>) -> usize {
+fn reachable_pairs_with_graph(
+    g: &CausalGraph,
+    nodes: &[gcn_ir::CausalNode],
+    exclude: Option<NodeIndex>,
+) -> usize {
     let mut count = 0;
     for src in nodes {
         if let Some(ex) = exclude {
-            if g.node_indices.get(&src.id) == Some(&ex) { continue; }
+            if g.node_indices.get(&src.id) == Some(&ex) {
+                continue;
+            }
         }
-        let si = match g.node_indices.get(&src.id) { Some(&x) => x, None => continue };
+        let si = match g.node_indices.get(&src.id) {
+            Some(&x) => x,
+            None => continue,
+        };
         let mut visited = HashSet::new();
         visited.insert(si);
-        if let Some(ex) = exclude { visited.insert(ex); }
+        if let Some(ex) = exclude {
+            visited.insert(ex);
+        }
         let mut queue = VecDeque::new();
         queue.push_back(si);
         while let Some(ni) = queue.pop_front() {
@@ -373,12 +386,15 @@ pub fn spof_all(ir: &CausalIR) -> (usize, Vec<SpofScore>) {
     let total = reachable_pairs_with_graph(&g, &ir.nodes, None);
 
     // Éq.12 — nœuds impliqués dans un joint_group
-    let joint_sources: HashSet<NodeId> = em.iter()
+    let joint_sources: HashSet<NodeId> = em
+        .iter()
         .filter(|(_, e)| e.joint_group_id.is_some())
         .map(|((s, _), _)| NodeId(*s))
         .collect();
 
-    let mut scores: Vec<SpofScore> = ir.nodes.iter()
+    let mut scores: Vec<SpofScore> = ir
+        .nodes
+        .iter()
         .map(|n| {
             let ex = g.node_indices.get(&n.id).copied();
             let without = match ex {
@@ -437,7 +453,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
             for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
                 if visited.insert(pred) {
                     let pred_id = g.g[pred];
-                    let edge_conf = em.get(&(pred_id.0, effect_id.0))
+                    let edge_conf = em
+                        .get(&(pred_id.0, effect_id.0))
                         .map(|e| e.confidence)
                         .unwrap_or(0.5);
                     let new_path_conf = edge_conf;
@@ -446,7 +463,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
                     if let Some(node) = nm.get(&pred_id) {
                         hypotheses.push(AbductionHypothesis {
                             label: node.label.clone(),
-                            relation: em.get(&(pred_id.0, g.g[ni].0))
+                            relation: em
+                                .get(&(pred_id.0, g.g[ni].0))
                                 .map(|e| e.relation)
                                 .unwrap_or(RelationType::Cause),
                             edge_confidence: edge_conf,
@@ -464,7 +482,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
         for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
             if visited.insert(pred) {
                 let pred_id = g.g[pred];
-                let edge_conf = em.get(&(pred_id.0, g.g[ni].0))
+                let edge_conf = em
+                    .get(&(pred_id.0, g.g[ni].0))
                     .map(|e| e.confidence)
                     .unwrap_or(0.5);
                 let new_path_conf = path_conf.min(edge_conf);
@@ -473,7 +492,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
                 if let Some(node) = nm.get(&pred_id) {
                     hypotheses.push(AbductionHypothesis {
                         label: node.label.clone(),
-                        relation: em.get(&(pred_id.0, g.g[ni].0))
+                        relation: em
+                            .get(&(pred_id.0, g.g[ni].0))
                             .map(|e| e.relation)
                             .unwrap_or(RelationType::Cause),
                         edge_confidence: edge_conf,
@@ -488,7 +508,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
 
     // Trier par score décroissant, puis label pour déterminisme
     hypotheses.sort_by(|a, b| {
-        b.score.partial_cmp(&a.score)
+        b.score
+            .partial_cmp(&a.score)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(a.label.cmp(&b.label))
     });
@@ -505,14 +526,18 @@ pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResul
         ir.nodes.iter().map(|n| (n.id, n.temporal_index)).collect();
 
     match path {
-        None => TemporalChainResult { links: None, temporally_ordered: false },
+        None => TemporalChainResult {
+            links: None,
+            temporally_ordered: false,
+        },
         Some(links) => {
             let mut temporally_ordered = true;
             let mut has_temporal_data = false;
             let temporal_links: Vec<TemporalLink> = links
                 .iter()
                 .map(|l| {
-                    let (gap_min, gap_max) = em.get(&(l.from_id.0, l.to_id.0))
+                    let (gap_min, gap_max) = em
+                        .get(&(l.from_id.0, l.to_id.0))
                         .and_then(|e| e.temporal_gap.as_ref())
                         .map(|g| (g.min, g.max))
                         .unwrap_or((None, None));
@@ -626,11 +651,16 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
         if edge.relation == RelationType::MediatedCause {
             if let Some(third) = &edge.third {
                 let mediator_id = NodeId(third.node as u32);
-                let other_sources = ir.edges.iter().filter(|(s, _d, e)| {
-                    *s != target.id && *s == mediator_id
-                        || (*s != target.id && e.relation != RelationType::MediatedCause
-                            && _dst == &mediator_id)
-                }).count();
+                let other_sources = ir
+                    .edges
+                    .iter()
+                    .filter(|(s, _d, e)| {
+                        *s != target.id && *s == mediator_id
+                            || (*s != target.id
+                                && e.relation != RelationType::MediatedCause
+                                && _dst == &mediator_id)
+                    })
+                    .count();
                 if other_sources == 0 {
                     extra_excluded.insert(mediator_id);
                 }

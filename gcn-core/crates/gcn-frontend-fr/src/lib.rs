@@ -54,7 +54,11 @@ impl FrenchParser {
         self.parse_with_ref(text, None)
     }
 
-    pub fn parse_with_ref(&self, text: &str, doc_ref: Option<String>) -> Result<CausalIR, FrParseError> {
+    pub fn parse_with_ref(
+        &self,
+        text: &str,
+        doc_ref: Option<String>,
+    ) -> Result<CausalIR, FrParseError> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err(FrParseError::EmptyInput);

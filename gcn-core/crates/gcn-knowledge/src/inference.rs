@@ -103,7 +103,9 @@ impl InferenceEngine {
         let base: f32 = if explicit { 1.0 } else { 0.5 };
         let delta: f32 = match (from, to, rel) {
             (NodeType::Processus, NodeType::EtatLocal, RelationType::Cause)
-            | (NodeType::Processus, NodeType::Processus, RelationType::Cause) => DELTA_STRONG_CAUSAL,
+            | (NodeType::Processus, NodeType::Processus, RelationType::Cause) => {
+                DELTA_STRONG_CAUSAL
+            }
             (NodeType::Processus, NodeType::EtatLocal, RelationType::Cause) => DELTA_CAUSAL,
             (NodeType::Processus, _, RelationType::Cause) => DELTA_CAUSAL,
             (NodeType::EtatGlobal, _, RelationType::Filter) => DELTA_STRONG_CAUSAL,

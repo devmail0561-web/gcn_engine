@@ -153,13 +153,16 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
 const MAX_IR_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
 
 fn load_ir(path: &Path) -> Result<CausalIR, Box<dyn std::error::Error>> {
-    let meta = std::fs::metadata(path)
-        .map_err(|e| format!("cannot stat {}: {e}", path.display()))?;
+    let meta =
+        std::fs::metadata(path).map_err(|e| format!("cannot stat {}: {e}", path.display()))?;
     if meta.len() > MAX_IR_FILE_SIZE {
         return Err(format!(
             "{}: file too large ({} bytes, max {})",
-            path.display(), meta.len(), MAX_IR_FILE_SIZE
-        ).into());
+            path.display(),
+            meta.len(),
+            MAX_IR_FILE_SIZE
+        )
+        .into());
     }
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;

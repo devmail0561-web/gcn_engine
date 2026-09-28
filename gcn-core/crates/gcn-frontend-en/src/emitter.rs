@@ -50,7 +50,10 @@ pub fn emit(ann: SentenceAnnotation, source_text: String, doc_ref: Option<String
             continue;
         }
         let edge_span = match ea.marker_token_idx {
-            Some(idx) => SourceSpan::TokenSpan { start: idx, end: idx },
+            Some(idx) => SourceSpan::TokenSpan {
+                start: idx,
+                end: idx,
+            },
             None => SourceSpan::Synthetic,
         };
         edges.push((

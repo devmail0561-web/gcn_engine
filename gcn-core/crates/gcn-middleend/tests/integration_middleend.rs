@@ -38,8 +38,8 @@ fn edge(src: u32, dst: u32, relation: RelationType) -> (NodeId, NodeId, CausalEd
             in_cycle: None,
             provenance: None,
             derivation: None,
-                joint_group_id: None,
-                third: None,
+            joint_group_id: None,
+            third: None,
         },
     )
 }

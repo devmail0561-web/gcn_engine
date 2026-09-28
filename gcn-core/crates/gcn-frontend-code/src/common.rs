@@ -77,7 +77,11 @@ pub fn control_edge(relation: RelationType) -> CausalEdge {
     control_edge_with_ref(relation, None, SourceSpan::Synthetic)
 }
 
-pub fn control_edge_with_ref(relation: RelationType, doc_ref: Option<String>, span: SourceSpan) -> CausalEdge {
+pub fn control_edge_with_ref(
+    relation: RelationType,
+    doc_ref: Option<String>,
+    span: SourceSpan,
+) -> CausalEdge {
     CausalEdge {
         relation,
         confidence: 1.0,

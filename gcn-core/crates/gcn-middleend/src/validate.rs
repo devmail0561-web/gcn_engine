@@ -116,7 +116,10 @@ fn check_duplicate_edges(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
             diagnostics.push(Diagnostic {
                 node_id: Some(*src),
                 severity: DiagnosticSeverity::Warning,
-                kind: DiagnosticKind::DuplicateEdge { src: *src, dst: *dst },
+                kind: DiagnosticKind::DuplicateEdge {
+                    src: *src,
+                    dst: *dst,
+                },
             });
         }
     }
@@ -128,7 +131,11 @@ fn check_missing_provenance(ir: &CausalIR, diagnostics: &mut Vec<Diagnostic>) {
             diagnostics.push(Diagnostic {
                 node_id: None,
                 severity: DiagnosticSeverity::Warning,
-                kind: DiagnosticKind::MissingProvenance { index, src: *src, dst: *dst },
+                kind: DiagnosticKind::MissingProvenance {
+                    index,
+                    src: *src,
+                    dst: *dst,
+                },
             });
         }
     }
