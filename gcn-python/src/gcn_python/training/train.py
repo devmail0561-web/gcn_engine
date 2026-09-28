@@ -62,7 +62,7 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Entraîne uniquement le décodeur (l'encodeur et le R-GCN sont gelés)")
 @click.option("--encoder-checkpoint", default=None, type=click.Path(path_type=Path),
               help="Checkpoint à charger pour initialiser l'encodeur (utilisé avec --decoder-only)")
-@click.option("--all-pairs/--no-all-pairs", default=False, show_default=True,
+@click.option("--all-pairs/--no-all-pairs", default=True, show_default=True,
               help="Superviser toutes les paires (i,j) avec i<j, pas seulement consécutives. "
                    "Requiert dataset re-annoté avec des arêtes gap>1.")
 @click.option("--embedding-dim", default=128, show_default=True, type=int,

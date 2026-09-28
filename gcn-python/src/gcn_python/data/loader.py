@@ -45,17 +45,15 @@ class GCNDataLoader:
     """Itère sur les sentences JSON d'un répertoire et produit des TrainingSample."""
 
     def __init__(self, data_dir: Path, repeat: bool = False,
-                  all_pairs: bool = False, shuffle: bool = False, seed: int = 42,
+                  all_pairs: bool = True, shuffle: bool = False, seed: int = 42,
                   silver_weight: float = 1.0):
         self.data_dir = data_dir
         self.repeat = repeat
-        self.all_pairs = all_pairs
+        self.all_pairs = all_pairs  # True par défaut — toutes les paires supervisées
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
         self.silver_weight = silver_weight  # Amélioration F (1.0 = aucun effet)
         self._records = load_all_sentences(data_dir, silver_weight)
-        # Compteur agrégé pour arêtes longue distance (uniquement quand all_pairs=False)
-        self._total_long_distance = 0
         self._warned_total = False
         # Compteur agrégé pour arêtes asymétriques en direction inverse
         self._total_backward_asymmetric = 0
@@ -75,19 +73,6 @@ class GCNDataLoader:
                     yield self._to_sample(rec)
                 except ValueError as exc:
                     warnings.warn(f"[{rec.id}] sample ignoré : {exc}", UserWarning, stacklevel=2)
-            # M1 : Warning agrégé en fin de premier passage (avec garde pour tests)
-            if (not self.repeat
-                    and hasattr(self, '_total_long_distance')
-                    and self._total_long_distance > 0
-                    and hasattr(self, '_warned_total')
-                    and not self._warned_total):
-                warnings.warn(
-                    f"Total : {self._total_long_distance} arête(s) longue distance ignorées "
-                    f"sur l'ensemble du dataset (gap > 1 — supervision uniquement sur paires consécutives).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                self._warned_total = True
             if (not self.repeat
                     and hasattr(self, '_total_backward_asymmetric')
                     and self._total_backward_asymmetric > 0
@@ -118,7 +103,6 @@ class GCNDataLoader:
         edge_conf_map: dict[tuple[int, int], float] = {}
         hyperedge_map: dict[tuple[frozenset, int], int] = {}
         n_backward = 0
-        n_long_distance = 0
         for e in rec.edges:
             src_list = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
             tgt = getattr(e, "target", "")
@@ -147,12 +131,6 @@ class GCNDataLoader:
                     f"[{rec.id}] arête {src_id}→{tgt} : node_id inconnu — arête ignorée.",
                     UserWarning, stacklevel=2,
                 )
-                continue
-            gap = abs(tgt_idx - src_idx)
-            if gap > 1 and not getattr(self, 'all_pairs', False):
-                n_long_distance += 1
-                if hasattr(self, '_total_long_distance'):
-                    self._total_long_distance += 1
                 continue
             rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
@@ -183,12 +161,6 @@ class GCNDataLoader:
                 edge_map[key] = rel_idx
                 if e.confidence is not None:
                     edge_conf_map[key] = float(e.confidence)
-        if n_long_distance and not getattr(self, 'all_pairs', False):
-            warnings.warn(
-                f"[{rec.id}] {n_long_distance} arête(s) longue distance ignorées (gap > 1) "
-                f"— utilisez all_pairs=True pour les superviser.",
-                UserWarning, stacklevel=2,
-            )
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse (src > tgt). "

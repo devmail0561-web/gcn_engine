@@ -616,13 +616,10 @@ def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
     (data_dir / "data.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
     # Étape 1 : preuve structurelle directe via GCNDataLoader
-    samples_true = list(GCNDataLoader(data_dir, all_pairs=True))
-    assert samples_true and (0, 2) in samples_true[0].edge_map, (
-        "GCNDataLoader(all_pairs=True) doit conserver l'arête gap=2 dans edge_map."
-    )
-    samples_false = list(GCNDataLoader(data_dir, all_pairs=False))
-    assert samples_false and (0, 2) not in samples_false[0].edge_map, (
-        "GCNDataLoader(all_pairs=False) doit dropper l'arête gap=2."
+    # all_pairs=True est le seul mode — toutes arêtes supervisées, y compris gap=2
+    samples = list(GCNDataLoader(data_dir))
+    assert samples and (0, 2) in samples[0].edge_map, (
+        "GCNDataLoader doit conserver l'arête gap=2 dans edge_map (all_pairs=True par défaut)."
     )
 
     # Étape 2 : intégration — run_eval utilise all_pairs=True depuis l'arch ;

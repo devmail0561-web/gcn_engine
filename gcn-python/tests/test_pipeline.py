@@ -216,12 +216,17 @@ def test_custom_encoder_emits_warning_no_rgcn_update():
 
 
 def test_backward_full_gradient():
-    """C2 : d_enriched est alloué à la taille N dès le départ (pas de troncature)."""
+    """C2 : d_enriched est alloué à la taille N dès le départ (pas de troncature).
+
+    all_pairs=True (défaut) : 3 reps → 3 paires (0,1),(0,2),(1,2) → 3 gradients arêtes.
+    """
     pipeline = make_pipeline()
     reps = [make_rep() for _ in range(3)]
     pipeline.forward(reps, "test")
     d_node = np.ones((3, len(NODE_TYPES)), dtype=np.float32) * 0.1
-    d_edge = np.zeros((2, len(RELATION_TYPES)), dtype=np.float32)
+    # 3 paires avec all_pairs=True : (0,1), (0,2), (1,2)
+    n_pairs = len(pipeline._cached_edge_logits) if pipeline._cached_edge_logits is not None else 3
+    d_edge = np.zeros((n_pairs, len(RELATION_TYPES)), dtype=np.float32)
     pipeline.backward(d_node, d_edge, lr=0.01)  # ne doit pas crasher
 
 

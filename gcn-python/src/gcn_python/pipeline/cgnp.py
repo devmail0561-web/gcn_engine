@@ -53,7 +53,7 @@ class CGNPipeline:
         node_types: list[str] | None = None,
         relation_types: list[str] | None = None,
         n_rgcn_layers: int = 1,
-        all_pairs: bool = False,
+        all_pairs: bool = True,
         word_embedding=None,
         bidirectional: bool = False,
         link_predictor=None,

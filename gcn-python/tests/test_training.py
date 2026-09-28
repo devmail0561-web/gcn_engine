@@ -227,8 +227,8 @@ def test_dataloader_yields_batches(paper_examples_json: Path):  # L5 : renommé
 def test_edge_map_alignment():
     """edge_map mappe les node_ids → indices de clauses, pas l'ordre d'insertion.
 
-    S4 : avec all_pairs=False (défaut), les arêtes gap>1 sont filtrées.
-    Avec all_pairs=True, elles sont insérées dans edge_map.
+    all_pairs=True est le seul mode — toutes les arêtes sont supervisées,
+    y compris les arêtes longue distance (gap>1).
     """
     import warnings
 
@@ -244,7 +244,7 @@ def test_edge_map_alignment():
         ClauseRecord(node_id="n003", node_type="processus", label="C",
                      token_span=(3, 3), scope="specific", temporal_index=2, origin="explicit"),
     ]
-    # Arête non-consécutive : n001 → n003 (gap=2)
+    # Arête non-consécutive : n001 → n003 (gap=2) — doit toujours être supervisée
     edges = [
         EdgeRecord(source="n001", target="n003", relation="cause",
                    confidence=1.0, explicit=True, negated=False, marker_token=None),
@@ -252,26 +252,15 @@ def test_edge_map_alignment():
     rec = SentenceRecord(id="s1", text="test", lang="fr",
                          tokens=[], clauses=clauses, edges=edges)
 
-    # Mode défaut (all_pairs=False) : arête longue distance filtrée + warning
-    loader_default = GCNDataLoader.__new__(GCNDataLoader)
+    loader = GCNDataLoader.__new__(GCNDataLoader)
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        sample_default = loader_default._to_sample(rec)
-    assert any(issubclass(x.category, UserWarning) and "longue distance" in str(x.message) for x in w)
-    assert (0, 2) not in sample_default.edge_map
-    assert (2, 0) not in sample_default.edge_map
-
-    # Mode all_pairs=True (S4) : arête longue distance présente dans edge_map
-    loader_all = GCNDataLoader.__new__(GCNDataLoader)
-    loader_all.all_pairs = True
-    with warnings.catch_warnings(record=True) as w2:
-        warnings.simplefilter("always")
-        sample_all = loader_all._to_sample(rec)
-    assert not any("longue distance" in str(x.message) for x in w2), \
-        "Pas de warning long-distance en mode all_pairs=True"
+        sample = loader._to_sample(rec)
+    assert not any("longue distance" in str(x.message) for x in w), \
+        "Pas de warning longue distance — toutes les arêtes sont supervisées"
     cause_idx = RELATION_TYPES.index("cause")
-    assert sample_all.edge_map.get((0, 2)) == cause_idx, \
-        "L'arête gap=2 doit être dans edge_map quand all_pairs=True"
+    assert sample.edge_map.get((0, 2)) == cause_idx, \
+        "L'arête gap=2 doit être dans edge_map (all_pairs=True par défaut)"
 
 
 def test_reps_from_sentence_alignment():
