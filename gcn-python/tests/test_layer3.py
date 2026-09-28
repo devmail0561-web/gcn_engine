@@ -1,7 +1,9 @@
+from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 
+from gcn_python.constants import NODE_TYPES
 from gcn_python.layer3.reference import RGCNLayer
 
 
@@ -284,20 +286,20 @@ def test_rgcn_layernorm_checkpoint_roundtrip(tmp_path):
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
-    d_edge = vocab.d_edge_closed_loop(vocab.d_clause, 7)
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=3,
+    d_eff = vocab.d_clause_effective(4)
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4)
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
                       output_activation="relu", use_layernorm=True)
-    graph.norm.gamma[:] = np.array([0.5] * vocab.d_clause, dtype=np.float32)
-    graph.norm.beta[:] = np.array([0.1] * vocab.d_clause, dtype=np.float32)
-    pipe = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    graph.norm.gamma[:] = np.array([0.5] * d_eff, dtype=np.float32)
+    graph.norm.beta[:] = np.array([0.1] * d_eff, dtype=np.float32)
+    pipe = make_test_pipeline(encoder=encoder, graph=graph, vocabulary=vocab)
     ckpt = tmp_path / "ln.npz"
     save_checkpoint(pipe, ckpt)
 
-    graph2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=3,
+    graph2 = RGCNLayer(d_in=d_eff, d_out=d_eff,
                        output_activation="relu", use_layernorm=True)
-    pipe2 = CGNPipeline(encoder=MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge),
-                        graph=graph2, vocabulary=vocab)
+    pipe2 = make_test_pipeline(graph=graph2, vocabulary=vocab)
     load_checkpoint(pipe2, ckpt, trusted=True)
     np.testing.assert_allclose(pipe2._graph_layers[0].norm.gamma, 0.5, atol=1e-6)
     np.testing.assert_allclose(pipe2._graph_layers[0].norm.beta, 0.1, atol=1e-6)
@@ -310,12 +312,12 @@ def test_rgcn_layernorm_extra_layers_inherit():
     from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
-    d_edge = vocab.d_edge_closed_loop(vocab.d_clause, 7)
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=3,
-                      use_layernorm=True)
-    pipe = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                       n_rgcn_layers=2)
+    d_eff = vocab.d_clause_effective(4)
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4)
+    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, use_layernorm=True)
+    pipe = make_test_pipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                              n_rgcn_layers=2)
     assert len(pipe._graph_layers) == 2
     for i, layer in enumerate(pipe._graph_layers):
         assert layer.norm is not None, f"Layer {i} manque LayerNorm"

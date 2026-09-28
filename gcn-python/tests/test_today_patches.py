@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests des patches figés today.txt — silences Cat.2 puis anti-crash Cat.1."""
 from __future__ import annotations
+from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES
 
 import csv
@@ -61,13 +62,15 @@ def _make_pipeline(mlp_hidden: int = 128):
     from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause_effective(4)
     enc = MLPEncoder(
-        d_clause=vocab.d_clause,
-        d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)),
+        d_clause=d_eff,
+        d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4),
         mlp_hidden=mlp_hidden,
     )
-    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
+    gr = RGCNLayer(d_in=d_eff, d_out=d_eff)
+    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
+                       word_embedding=make_word_embedding())
 
 
 # ── C2.2 : val_loader reçoit silver_weight ───────────────────────────────────
@@ -220,9 +223,15 @@ def test_load_state_w0_wrong_shape_raises():
         layer.load_state([W_r, W_0_bad])
 
 
-# ── C1.1 : from_pretrained sans _arch_json → UserWarning, pas ValueError ─────
+# ── C1.1 + D10 : from_pretrained sans _arch_json → UserWarning PUIS ValueError ──
 
-def test_from_pretrained_without_arch_json_warns_not_raises(tmp_path: Path):
+def test_from_pretrained_without_arch_json_warns_then_raises(tmp_path: Path):
+    """Sans _arch_json, from_pretrained avertit (C1.1) puis lève (D10).
+
+    D10 ETUDE : l'embedding est obligatoire et d_emb est inconnu sans arch —
+    aucun repli silencieux possible (d_eff indéterminable). Le warn
+    _arch_json est émis avant la levée fail-closed.
+    """
     from gcn_python.engine import GCNEngine
 
     vocab_pipe = _make_pipeline()
@@ -237,9 +246,9 @@ def test_from_pretrained_without_arch_json_warns_not_raises(tmp_path: Path):
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        engine = GCNEngine.from_pretrained(ckpt, trusted=True)
+        with pytest.raises(ValueError, match="sans word_embedding"):
+            GCNEngine.from_pretrained(ckpt, trusted=True)
 
-    assert engine is not None, "from_pretrained a renvoyé None"
     messages = [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
     assert any("_arch_json" in m for m in messages), (
         f"Aucun UserWarning '_arch_json' — silencieux. Warnings : {messages}"

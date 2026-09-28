@@ -46,13 +46,13 @@ mod tests {
     #[test]
     fn node_type_serde_roundtrip() {
         for nt in [
-            NodeType::Etat,
-            NodeType::Action,
-            NodeType::Transition,
             NodeType::Processus,
-            NodeType::Condition,
+            NodeType::EtatLocal,
+            NodeType::EtatGlobal,
             NodeType::Entite,
-            NodeType::EtatSystemique,
+            NodeType::Condition,
+            NodeType::Concept,
+            NodeType::Evenement,
             NodeType::Contrainte,
         ] {
             let s = serde_json::to_string(&nt).expect("serialize NodeType");

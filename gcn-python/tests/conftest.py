@@ -15,11 +15,15 @@ def make_word_embedding(d_emb: int = 4, seed: int = 42):
     return WordEmbedding(d_emb=d_emb, seed=seed)
 
 
-def make_test_pipeline(d_emb: int = 4, **kwargs):
+def make_test_pipeline(d_emb: int = 4, encoder=None, graph=None,
+                       vocabulary=None, word_embedding=None, **kwargs):
     """Crée un CGNPipeline minimal valide pour les tests.
 
     Calcule d_clause_effective(d_emb) et passe word_embedding obligatoire.
     Remplace tous les patterns encoder+graph+CGNPipeline dans les tests.
+    `encoder`, `graph`, `vocabulary`, `word_embedding` peuvent être
+    fournis pour surcharger les objets construits par défaut (ils doivent
+    alors être cohérents en dims avec d_emb).
     """
     from gcn_python.constants import NODE_TYPES
     from gcn_python.layer1.features import FeatureVocabulary
@@ -27,13 +31,13 @@ def make_test_pipeline(d_emb: int = 4, **kwargs):
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
 
-    vocab = FeatureVocabulary()
-    we = make_word_embedding(d_emb=d_emb)
+    vocab = vocabulary if vocabulary is not None else FeatureVocabulary()
+    we = word_embedding if word_embedding is not None else make_word_embedding(d_emb=d_emb)
     d_eff = vocab.d_clause_effective(we.d_emb)
     d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), we.d_emb)
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+    enc = encoder if encoder is not None else MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+    gr = graph if graph is not None else RGCNLayer(d_in=d_eff, d_out=d_eff)
+    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        word_embedding=we, **kwargs)
 
 

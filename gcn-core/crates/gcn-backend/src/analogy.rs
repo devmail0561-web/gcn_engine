@@ -71,11 +71,8 @@ fn relation_similarity(a: RelationType, b: RelationType) -> f32 {
 
 fn type_similarity(a: NodeType, b: NodeType) -> f32 {
     if a == b { return 1.0; }
-    // Action et Transition sont proches
-    let dynamic = [NodeType::Action, NodeType::Transition];
-    // Etat et EtatSystemique sont proches
-    let state = [NodeType::Etat, NodeType::EtatSystemique];
-    if dynamic.contains(&a) && dynamic.contains(&b) { return 0.5; }
+    // EtatLocal et EtatGlobal sont des états proches (D5)
+    let state = [NodeType::EtatLocal, NodeType::EtatGlobal];
     if state.contains(&a) && state.contains(&b) { return 0.5; }
     0.0
 }

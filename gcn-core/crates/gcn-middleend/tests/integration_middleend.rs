@@ -81,8 +81,8 @@ fn no_cycle_chain() {
     // A → B → C : no cycle
     let ir = make_ir(
         vec![
-            node(0, NodeType::Action),
-            node(1, NodeType::Etat),
+            node(0, NodeType::Processus),
+            node(1, NodeType::EtatLocal),
             node(2, NodeType::Processus),
         ],
         vec![
@@ -99,7 +99,7 @@ fn no_cycle_chain() {
 fn positive_feedback_loop() {
     // A → B → A : FeedbackPositive
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge(1, 0, RelationType::Cause),
@@ -115,7 +115,7 @@ fn positive_feedback_loop() {
 fn negative_feedback_loop() {
     // A -Cause→ B -Prevent→ A : FeedbackNegative
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge(1, 0, RelationType::Prevent),
@@ -130,7 +130,7 @@ fn negative_feedback_loop() {
 fn negated_edge_in_loop_is_negative_feedback() {
     // A -Cause→ B -negated Cause→ A : FeedbackNegative
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge_neg(1, 0, RelationType::Cause),
@@ -143,7 +143,7 @@ fn negated_edge_in_loop_is_negative_feedback() {
 #[test]
 fn concession_loop_is_oscillation() {
     let ir = make_ir(
-        vec![node(0, NodeType::Etat), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::EtatLocal), node(1, NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge(1, 0, RelationType::Concession),
@@ -156,7 +156,7 @@ fn concession_loop_is_oscillation() {
 #[test]
 fn cycle_path_contains_both_nodes() {
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge(1, 0, RelationType::Cause),
@@ -174,7 +174,7 @@ fn cycle_path_contains_both_nodes() {
 #[test]
 fn concession_edge_gets_temporal_gap() {
     let ir = make_ir(
-        vec![node(0, NodeType::Etat), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::EtatLocal), node(1, NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Concession)],
     );
     let result = process(ir).unwrap();
@@ -184,7 +184,7 @@ fn concession_edge_gets_temporal_gap() {
 #[test]
 fn cause_edge_no_temporal_gap() {
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = process(ir).unwrap();
@@ -194,9 +194,9 @@ fn cause_edge_no_temporal_gap() {
 #[test]
 fn sequence_temporal_violation_warns() {
     // Node 0 has temporal_index=1, Node 1 has temporal_index=0 — but Sequence says 0→1
-    let mut n0 = node(0, NodeType::Action);
+    let mut n0 = node(0, NodeType::Processus);
     n0.temporal_index = Some(1);
-    let mut n1 = node(1, NodeType::Etat);
+    let mut n1 = node(1, NodeType::EtatLocal);
     n1.temporal_index = Some(0);
 
     let ir = make_ir(vec![n0, n1], vec![edge(0, 1, RelationType::Sequence)]);
@@ -212,9 +212,9 @@ fn sequence_temporal_violation_warns() {
 
 #[test]
 fn sequence_correct_order_no_warning() {
-    let mut n0 = node(0, NodeType::Action);
+    let mut n0 = node(0, NodeType::Processus);
     n0.temporal_index = Some(0);
-    let mut n1 = node(1, NodeType::Etat);
+    let mut n1 = node(1, NodeType::EtatLocal);
     n1.temporal_index = Some(1);
 
     let ir = make_ir(vec![n0, n1], vec![edge(0, 1, RelationType::Sequence)]);
@@ -232,7 +232,7 @@ fn sequence_correct_order_no_warning() {
 #[test]
 fn self_loop_is_error() {
     let ir = make_ir(
-        vec![node(0, NodeType::Action)],
+        vec![node(0, NodeType::Processus)],
         vec![edge(0, 0, RelationType::Cause)],
     );
     let result = process(ir).unwrap();
@@ -250,8 +250,8 @@ fn orphaned_node_warns() {
     // 3 nodes, only 0→1 connected, node 2 is orphaned
     let ir = make_ir(
         vec![
-            node(0, NodeType::Action),
-            node(1, NodeType::Etat),
+            node(0, NodeType::Processus),
+            node(1, NodeType::EtatLocal),
             node(2, NodeType::Entite),
         ],
         vec![edge(0, 1, RelationType::Cause)],
@@ -270,7 +270,7 @@ fn orphaned_node_warns() {
 
 #[test]
 fn single_node_no_orphan_warning() {
-    let ir = make_ir(vec![node(0, NodeType::Action)], vec![]);
+    let ir = make_ir(vec![node(0, NodeType::Processus)], vec![]);
     let result = process(ir).unwrap();
     assert!(
         !result
@@ -283,7 +283,7 @@ fn single_node_no_orphan_warning() {
 #[test]
 fn low_confidence_edge_warns() {
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![edge_low_conf(0, 1)],
     );
     let result = process(ir).unwrap();
@@ -299,7 +299,7 @@ fn low_confidence_edge_warns() {
 fn dangling_condition_warns() {
     // Condition node with no outgoing edge
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Condition)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::Condition)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = process(ir).unwrap();
@@ -317,7 +317,7 @@ fn dangling_condition_warns() {
 #[test]
 fn condition_with_outgoing_no_warning() {
     let ir = make_ir(
-        vec![node(0, NodeType::Condition), node(1, NodeType::Action)],
+        vec![node(0, NodeType::Condition), node(1, NodeType::Processus)],
         vec![edge(0, 1, RelationType::Condition)],
     );
     let result = process(ir).unwrap();
@@ -334,7 +334,7 @@ fn condition_with_outgoing_no_warning() {
 #[test]
 fn pipeline_appended() {
     let ir = make_ir(
-        vec![node(0, NodeType::Action), node(1, NodeType::Etat)],
+        vec![node(0, NodeType::Processus), node(1, NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = process(ir).unwrap();

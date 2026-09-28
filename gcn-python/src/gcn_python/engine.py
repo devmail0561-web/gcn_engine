@@ -208,7 +208,7 @@ class GCNEngine:
 
         if d_emb <= 0:
             raise ValueError(
-                f"Checkpoint {path} sans word_embedding (d_emb={d_emb}). "
+                f"Checkpoint {checkpoint} sans word_embedding (d_emb={d_emb}). "
                 "Réentraîner avec --embedding-dim 128 (D10 ETUDE — obligatoire)."
             )
         from .layer1.embedding import WordEmbedding

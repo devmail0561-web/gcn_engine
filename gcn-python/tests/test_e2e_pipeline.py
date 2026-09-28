@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -76,12 +77,10 @@ _CIR_NO_CAUSAL = {
 def pipeline():
     from gcn_python.constants import NODE_TYPES
     vocab = FeatureVocabulary()
-    d_cl = vocab.d_clause
+    d_cl = vocab.d_clause_effective(4)
     n_node_types = len(NODE_TYPES)  # 7
     d_edge = vocab.d_edge_closed_loop(d_cl, n_node_types)
-    enc = MLPEncoder(d_clause=d_cl, d_edge=d_edge, seed=0, n_node_types=n_node_types)
-    graph = RGCNLayer(d_in=d_cl, d_out=d_cl, seed=0)
-    return CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab)
+    return make_test_pipeline()
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

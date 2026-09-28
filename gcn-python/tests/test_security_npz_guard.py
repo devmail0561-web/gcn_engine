@@ -9,6 +9,7 @@ son pickle ait jamais été exécuté. Le marqueur ci-dessous est posé par le
 from __future__ import annotations
 
 import json
+from conftest import make_test_pipeline, make_word_embedding
 from pathlib import Path
 
 import numpy as np
@@ -83,13 +84,7 @@ def test_load_checkpoint_guard_applies_even_when_trusted(tmp_path: Path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint
 
-    vocab = FeatureVocabulary()
-    pipe = CGNPipeline(
-        encoder=MLPEncoder(d_clause=vocab.d_clause,
-                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7)),
-        graph=RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause),
-        vocabulary=vocab,
-    )
+    pipe = make_test_pipeline()
     ckpt = _write_malicious_npz(tmp_path / "evil.npz")
     with pytest.raises(UnsafeCheckpointError):
         load_checkpoint(pipe, ckpt, trusted=True)
@@ -137,13 +132,7 @@ def test_guard_accepts_checkpoint_produced_by_save_checkpoint(tmp_path: Path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
-    vocab = FeatureVocabulary()
-    pipe = CGNPipeline(
-        encoder=MLPEncoder(d_clause=vocab.d_clause,
-                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, 7)),
-        graph=RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause),
-        vocabulary=vocab,
-    )
+    pipe = make_test_pipeline()
     ckpt = tmp_path / "real.npz"
     save_checkpoint(pipe, ckpt)
     assert_npz_pickle_safe(ckpt)

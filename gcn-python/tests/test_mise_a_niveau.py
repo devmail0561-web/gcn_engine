@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES
 from gcn_python.constants import RELATION_TYPES
 # Copyright 2026 Michel Tendeng
@@ -115,18 +116,18 @@ def test_checkpoint_atomic_and_arch(tmp_path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab)
+    enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, word_embedding=make_word_embedding())
     ckpt = tmp_path / "m.npz"
     save_checkpoint(pipe, ckpt)
     assert not (tmp_path / "m.tmp.npz").exists()
     import json
     arch = json.loads(str(__import__("numpy").load(ckpt, allow_pickle=True)["_arch_json"][0]))
     assert {"d_eff", "d_hidden", "vocab_size", "n_relations", "bidi_flag"} <= set(arch)
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary())
+    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    p2 = CGNPipeline(encoder=enc2, graph=gr2, vocabulary=FeatureVocabulary(), word_embedding=make_word_embedding())
     with warnings.catch_warnings(record=True) as _w:
         warnings.simplefilter("always")
         load_checkpoint(p2, ckpt, trusted=True)
@@ -157,9 +158,9 @@ def _make_pipeline(d=16):
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab), vocab
+    enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab, word_embedding=make_word_embedding()), vocab
 
 
 def test_session_save_load_roundtrip(tmp_path):
@@ -237,10 +238,10 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
     from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=22)
+    enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), n_relations=22)
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
-                       all_pairs=True, bidirectional=True)
+                       all_pairs=True, bidirectional=True, word_embedding=make_word_embedding())
     ckpt = tmp_path / "arch.npz"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

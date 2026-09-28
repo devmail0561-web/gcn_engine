@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from gcn_python.constants import NODE_TYPES
@@ -30,9 +31,7 @@ def make_rep() -> UDRepresentation:
 def make_pipeline(**kwargs) -> CGNPipeline:
     vocab = FeatureVocabulary()
     d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, **kwargs)
+    return make_test_pipeline()
 
 
 def test_forward_returns_cir():
@@ -90,8 +89,9 @@ def test_forward_connector_slot_nonzero():
         token_span=(3, 3),
     )
 
-    vec_with = vectorize_edge(rep1, rep2, connector, 0, 1, 2, vocab)
-    vec_without = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab)
+    we = make_word_embedding()
+    vec_with = vectorize_edge(rep1, rep2, connector, 0, 1, 2, vocab, word_embedding=we)
+    vec_without = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab, word_embedding=we)
 
     n_upos = len(vocab.upos_tags)
     d_conn = vocab.d_conn
@@ -105,10 +105,10 @@ def test_forward_connector_slot_nonzero():
 def test_forward_rgcn_dout_mismatch_raises():
     """Un RGCNLayer avec d_out ≠ d_clause doit lever ValueError dès la construction."""
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause + 1)
+    encoder = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    graph = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4) + 1)
     with pytest.raises(ValueError, match="≠ d_effective="):
-        CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+        CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
 
 
 def test_forward_position_features_noncontiguous():
@@ -117,8 +117,9 @@ def test_forward_position_features_noncontiguous():
     rep1 = make_rep()
     rep2 = make_rep()
 
-    vec_filtered = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab)
-    vec_original = vectorize_edge(rep1, rep2, None, 0, 2, 3, vocab)
+    we = make_word_embedding()
+    vec_filtered = vectorize_edge(rep1, rep2, None, 0, 1, 2, vocab, word_embedding=we)
+    vec_original = vectorize_edge(rep1, rep2, None, 0, 2, 3, vocab, word_embedding=we)
 
     assert not np.allclose(vec_filtered[-2:], vec_original[-2:]), \
         "Les features de position doivent différer selon les positions originales"
@@ -161,15 +162,15 @@ def test_backward_with_pt_graph_does_not_crash():
     vocab = FeatureVocabulary()
 
     if torch_available:
-        graph = RGCNLayerPT(d_in=vocab.d_clause, d_out=vocab.d_clause,
-                            n_relations=11, device="cpu")
+        graph = RGCNLayerPT(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4),
+                            device="cpu")
         assert not hasattr(graph, 'backward_message_pass'), \
             "RGCNLayerPT ne doit plus avoir backward_message_pass"
     else:
         # Stub minimal sans backward_message_pass
         class _StubGraph:
-            d_in = vocab.d_clause
-            d_out = vocab.d_clause
+            d_in = vocab.d_clause_effective(4)
+            d_out = vocab.d_clause_effective(4)
 
             def message_pass(self, node_features, edge_index, edge_types):
                 return node_features
@@ -182,8 +183,8 @@ def test_backward_with_pt_graph_does_not_crash():
 
         graph = _StubGraph()
 
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    encoder = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4), seed=0)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
 
     rep1, rep2 = make_rep(), make_rep()
     pipeline.forward([rep1, rep2], "test")
@@ -203,8 +204,8 @@ def test_custom_encoder_emits_warning_no_rgcn_update():
         def forward_edge(self, v): return np.zeros(len(RELATION_TYPES))
 
     vocab = FeatureVocabulary()
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=_CustomEncoder(), graph=graph, vocabulary=vocab)
+    graph = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    pipeline = CGNPipeline(encoder=_CustomEncoder(), graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
     rep1, rep2 = make_rep(), make_rep()
     pipeline.forward([rep1, rep2], "test")
     d_node = np.zeros((2, len(NODE_TYPES)), dtype=np.float32)
@@ -236,9 +237,7 @@ def test_negated_edge_detected():
     vocab = FeatureVocabulary()
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    pipeline = make_test_pipeline()
     rep1 = make_rep()
     rep2 = make_rep()
     neg_rep = UDRepresentation(
@@ -309,9 +308,7 @@ def test_label_nominalized():
     vocab = FeatureVocabulary()
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)))
-    g = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    p = CGNPipeline(enc, g, vocab, taxonomies_dir=None)
+    p = make_test_pipeline(taxonomies_dir=None)
     assert p.taxonomies_dir is None
 
 
@@ -394,7 +391,7 @@ def test_gat_residual_changes_enriched_vs_no_residual():
     """E3 : avec résidu, enriched = h + prev ≠ h seul (pipeline NumPy)."""
     from gcn_python.layer1.representation import UDRepresentation
     vocab = FeatureVocabulary()
-    D = vocab.d_clause
+    D = vocab.d_clause_effective(4)
 
     def _rep(lemma):
         return UDRepresentation(
@@ -404,12 +401,12 @@ def test_gat_residual_changes_enriched_vs_no_residual():
             has_advcl=False, has_temporal_obl=False, token_span=(1, 1))
 
     reps = [_rep("alpha"), _rep("beta")]
-    enc1 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    enc2 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    g1 = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
-    g2 = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
-    p_plain = CGNPipeline(encoder=enc1, graph=g1, vocabulary=vocab)
-    p_res = CGNPipeline(encoder=enc2, graph=g2, vocabulary=vocab, gat_residual=True)
+    enc1 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), 4), seed=0)
+    enc2 = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), 4), seed=0)
+    g1 = RGCNLayer(d_in=D, d_out=D, seed=0)
+    g2 = RGCNLayer(d_in=D, d_out=D, seed=0)
+    p_plain = CGNPipeline(encoder=enc1, graph=g1, vocabulary=vocab, word_embedding=make_word_embedding())
+    p_res = CGNPipeline(encoder=enc2, graph=g2, vocabulary=vocab, gat_residual=True, word_embedding=make_word_embedding())
     p_plain.forward(reps, "test")
     p_res.forward(reps, "test")
     assert p_plain._cached_enriched_vecs.shape == (2, D)
@@ -478,9 +475,7 @@ def test_sample_weight_scales_node_and_edge_loss():
     from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    g = RGCNLayer(d_in=D, d_out=D, n_relations=11, seed=0)
-    pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab)
+    pipe = make_test_pipeline()
     rng = np.random.default_rng(0)
     node_logits = rng.normal(0, 1, (2, 7)).astype(np.float32)
     edge_logits = rng.normal(0, 1, (1, 11)).astype(np.float32)

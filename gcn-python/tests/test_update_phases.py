@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests des phases update.txt : A (fastText), B (PairNorm+DropEdge),
@@ -288,11 +289,11 @@ def test_pipeline_routes_transformer_through_forward_batch():
         )
 
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause
-    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 0, False)
-    enc = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge, n_heads=1)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=3)
-    pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab)
+    d_eff = vocab.d_clause_effective(4)
+    d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4, False)
+    from gcn_python.layer2.reference import TransformerMLPEncoder
+    enc = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge, seed=123, n_heads=5)
+    pipe = make_test_pipeline(encoder=enc)
 
     calls = []
     _orig = enc.forward_batch
@@ -390,9 +391,7 @@ def test_rgcn_layers_zero_skips_message_pass():
     vocab = FeatureVocabulary()
     d = vocab.d_clause
     d_edge = vocab.d_edge_closed_loop(d, len(NODE_TYPES))
-    enc = MLPEncoder(d_clause=d, d_edge=d_edge, seed=0)
-    graph = RGCNLayer(d_in=d, d_out=d, n_relations=3, seed=0)
-    pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab, n_rgcn_layers=0)
+    pipe = make_test_pipeline(n_rgcn_layers=0)
     assert pipe._graph_layers == [], "_graph_layers doit être vide avec n_rgcn_layers=0"
     # Forward ne crashe pas
     from gcn_python.layer1.representation import UDRepresentation

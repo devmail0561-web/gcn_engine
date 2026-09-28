@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests de la boucle d'entraînement Phase 2b."""
 from __future__ import annotations
+from conftest import make_test_pipeline, make_word_embedding
 
 from pathlib import Path
 
@@ -21,9 +22,7 @@ from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
 @pytest.fixture
 def pipeline() -> CGNPipeline:
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    return make_test_pipeline()
 
 
 # ---------------------------------------------------------------------------
@@ -199,9 +198,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
 
     # Nouveau pipeline avec seed différent (poids différents)
     vocab = FeatureVocabulary()
-    enc2 = MLPEncoder(d_clause=vocab.d_clause, d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=99)
-    gr2 = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=99)
-    p2 = CGNPipeline(enc2, gr2, vocab)
+    p2 = make_test_pipeline()
 
     load_checkpoint(p2, ckpt, trusted=True)
     params_loaded = p2.encoder.parameters()
@@ -456,9 +453,7 @@ def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipel
 
     # Pipeline avec des dimensions différentes (liste UPOS raccourcie pour forcer mismatch)
     vocab2 = FeatureVocabulary(upos_tags=["NOUN", "VERB", "ADJ"])
-    enc2 = MLPEncoder(d_clause=vocab2.d_clause, d_edge=vocab2.d_edge, seed=1)
-    gr2 = RGCNLayer(d_in=vocab2.d_clause, d_out=vocab2.d_clause, seed=1)
-    p2 = CGNPipeline(enc2, gr2, vocab2)
+    p2 = make_test_pipeline(vocabulary=vocab2)
 
     with pytest.raises(ValueError, match="Incompatibilité"):
         load_checkpoint(p2, ckpt, trusted=True)
@@ -554,10 +549,11 @@ def test_backward_weight_decay_changes_rgcn(pipeline: CGNPipeline):
 
     vocab = pipeline.vocabulary
     pipeline2 = CGNPipeline(
-        encoder=MLPEncoder(d_clause=vocab.d_clause,
-                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0),
-        graph=RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0),
+        encoder=MLPEncoder(d_clause=vocab.d_clause_effective(4),
+                           d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4), seed=0),
+        graph=RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), seed=0),
         vocabulary=vocab,
+        word_embedding=make_word_embedding(),
     )
     pipeline2.forward(reps, "p q")
     nl2 = pipeline2._cached_node_logits
@@ -579,9 +575,7 @@ def test_backward_bidirectional_no_crash():
     """backward() avec bidirectional=True ne doit pas crasher."""
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    graph = RGCNLayer(d_in=D, d_out=D, seed=0)
-    p = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, bidirectional=True)
+    p = make_test_pipeline(bidirectional=True)
 
     reps = _make_reps_2()
     p.forward(reps, "r s")
@@ -651,10 +645,10 @@ def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
 
     # loss : même phrase, poids 0.7 < poids 1.0 sur la partie arêtes
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause,
-                         d_edge=vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES)), seed=0)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, seed=0)
-    pipe = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    encoder = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+                         d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4), seed=0)
+    graph = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), seed=0)
+    pipe = make_test_pipeline()
     rng = np.random.default_rng(1)
     nl = rng.normal(0, 1, (2, 7)).astype(np.float32)
     el = rng.normal(0, 1, (1, 11)).astype(np.float32)

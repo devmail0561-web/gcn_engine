@@ -27,18 +27,25 @@ def make_rep() -> UDRepresentation:
 
 
 def test_feature_dimensions():
+    from conftest import make_test_pipeline, make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = make_rep()
-    vec = vectorize_clause(rep, vocab)
-    assert vec.shape == (vocab.d_clause,), f"Expected ({vocab.d_clause},), got {vec.shape}"
+    vec = vectorize_clause(rep, vocab, we)
+    assert vec.shape == (vocab.d_clause_effective(we.d_emb),), f"Expected ({vocab.d_clause_effective(we.d_emb)},), got {vec.shape}"
     assert vec.dtype == np.float32
 
 
 def test_edge_dimensions():
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     r1, r2 = make_rep(), make_rep()
-    vec = vectorize_edge(r1, r2, None, 0, 1, 2, vocab)
-    assert vec.shape == (vocab.d_edge,)
+    vec = vectorize_edge(r1, r2, None, 0, 1, 2, vocab, word_embedding=we)
+    # 2 × d_clause_effective + d_conn_effective + N_INTERACTION_FEATURES
+    d_eff = vocab.d_clause_effective(we.d_emb)
+    expected = 2 * d_eff + vocab.d_conn_effective(we.d_emb) + vocab.N_INTERACTION_FEATURES
+    assert vec.shape == (expected,), f"got {vec.shape}, expected ({expected},)"
 
 
 def test_vocabulary_serialization():
@@ -52,9 +59,10 @@ def test_vocabulary_serialization():
 def test_causal_pattern_absent_de_vectorize_clause():
     """
     Phase 5.4 : causal_pattern ne doit pas être vectorisé.
-    d_clause reste 80 (constante calculée dynamiquement).
     Deux UDRepresentation identiques produisent le même vecteur clause.
     """
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     base = {"tokens": [], "root_lemma": "baisser", "root_pos": "VERB",
             "root_dep_rel": "root", "root_morph": {}, "subject_pos": None,
@@ -62,11 +70,10 @@ def test_causal_pattern_absent_de_vectorize_clause():
             "token_span": (1, 2)}
     rep1 = UDRepresentation(**base)
     rep2 = UDRepresentation(**base)
-    vec1 = vectorize_clause(rep1, vocab)
-    vec2 = vectorize_clause(rep2, vocab)
+    vec1 = vectorize_clause(rep1, vocab, we)
+    vec2 = vectorize_clause(rep2, vocab, we)
     np.testing.assert_array_equal(vec1, vec2)
-    # d_clause ne change pas
-    assert vocab.d_clause == vec1.shape[0]
+    assert vocab.d_clause_effective(we.d_emb) == vec1.shape[0]
 
 
 # ── Amélioration A — Pooling des tokens de contenu ────────────────────────────

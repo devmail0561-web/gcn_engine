@@ -44,7 +44,7 @@ pub fn tag(tokens: &[Token], res: &LexicalResources) -> Vec<TaggedToken> {
             let preceded_by_pron = preceding.iter().any(|t| t.pos == Pos::Pron);
             let no_verb_between = !preceding.iter().any(|t| t.pos == Pos::Verb);
             if preceded_by_pron && no_verb_between {
-                // Don't promote known nouns (EtatSystemique etc.)
+                // Don't promote known nouns (EtatGlobal etc.)
                 let lower = tagged[i].token.lower.as_str();
                 if !res.noun_node_types.contains_key(lower) {
                     let lemma = lemmatize_verb(lower);

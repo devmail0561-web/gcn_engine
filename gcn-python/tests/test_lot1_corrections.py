@@ -1,4 +1,5 @@
-from gcn_python.constants import NODE_TYPES
+from conftest import make_test_pipeline, make_word_embedding
+from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les correctifs du Lot 1 (audit 2026-09-21).
@@ -44,9 +45,7 @@ def _make_pipeline(vocab=None, **kwargs) -> CGNPipeline:
     if vocab is None:
         vocab = FeatureVocabulary()
     d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
-    encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl)
-    graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, **kwargs)
+    return make_test_pipeline(**kwargs)
 
 
 def _minimal_dataset_json(text: str = "test phrase.") -> dict:
@@ -132,11 +131,9 @@ def test_run_eval_vocab_restored_from_checkpoint(tmp_path: Path):
 
     # Modèle entraîné avec connector_lemmas : d_edge ≠ vocab vide
     vocab_with_lemmas = FeatureVocabulary(connector_lemmas=["parce", "car", "because"])
-    d_eff = vocab_with_lemmas.d_clause
+    d_eff = vocab_with_lemmas.d_clause_effective(4)
     d_edge = vocab_with_lemmas.d_edge_closed_loop(d_eff, len(NODE_TYPES))
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab_with_lemmas)
+    pipeline = make_test_pipeline()
 
     ckpt = tmp_path / "model_with_lemmas.npz"
     save_checkpoint(pipeline, ckpt)
@@ -167,16 +164,13 @@ def test_word_embedding_gradient_received_after_backward():
 
     d_emb = 4
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause + d_emb
+    d_eff = vocab.d_clause_effective(4) + d_emb
     d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("baisser")
     we.add_lemma("hausser")
 
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                           word_embedding=we)
+    pipeline = make_test_pipeline(word_embedding=we)
 
     reps = [_make_rep("baisser"), _make_rep("hausser")]
     pipeline.forward(reps, "test")
@@ -211,15 +205,12 @@ def test_word_embedding_gradient_1clause_no_unboundlocalerror():
 
     d_emb = 4
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause + d_emb
+    d_eff = vocab.d_clause_effective(4) + d_emb
     d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                           word_embedding=we)
+    pipeline = make_test_pipeline(word_embedding=we)
 
     # 1 seul rep → pas d'arête → _cached_edge_index reste None
     pipeline.forward([_make_rep("solo")], "test")
@@ -248,15 +239,12 @@ def test_word_embedding_gradient_accumulate_1clause_no_unboundlocalerror():
 
     d_emb = 4
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause + d_emb
+    d_eff = vocab.d_clause_effective(4) + d_emb
     d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=0)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=0)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                           word_embedding=we)
+    pipeline = make_test_pipeline(word_embedding=we)
 
     pipeline.forward([_make_rep("solo")], "test")
     node_logits = pipeline._cached_node_logits
@@ -286,26 +274,24 @@ def test_word_embedding_gradient_uses_dcurr_not_denriched():
 
     d_emb = 4
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause + d_emb
+    d_eff = vocab.d_clause_effective(d_emb)
     d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=7)
     we.add_lemma("alpha")
     we.add_lemma("beta")
 
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=7)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=7)
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                           word_embedding=we)
+    pipeline = make_test_pipeline(word_embedding=we)
 
     reps = [_make_rep("alpha"), _make_rep("beta")]
     pipeline.forward(reps, "test")
 
     node_logits = pipeline._cached_node_logits
     d_node = np.ones_like(node_logits) / node_logits.size
-    d_edge = np.zeros((0, 11), dtype=np.float32)
+    d_edge = np.zeros((0, len(RELATION_TYPES)), dtype=np.float32)
 
     # Capturer d_enriched (pré-RGCN) et d_curr (post-RGCN) pendant backward
     captured: dict = {}
+    graph = pipeline.graph
     orig_bmp = graph.backward_message_pass
     def patched_bmp(d_out):
         captured["d_enriched_before"] = d_out.copy()
@@ -685,16 +671,17 @@ def test_edge_threshold_filters_edges_in_forward(tmp_path: Path):
     pas seulement la propagation d'attribut.
     """
     vocab = FeatureVocabulary()
-    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
-    enc = MLPEncoder(d_clause=vocab.d_clause, d_edge=d_edge_cl, seed=42)
-    gr = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause, n_relations=11, seed=42)
+    d_eff = vocab.d_clause_effective(4)
+    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4)
+    enc = MLPEncoder(d_clause=d_eff, d_edge=d_edge_cl, seed=42)
+    gr = RGCNLayer(d_in=d_eff, d_out=d_eff, seed=42)
 
     # Pipeline seuil 0 : émet toutes les arêtes (argmax conf ≥ 0)
     pipe_low = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
-                           edge_threshold=0.0)
+                           edge_threshold=0.0, word_embedding=make_word_embedding())
     # Pipeline seuil haut : émet seulement les arêtes très confiantes
     pipe_high = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
-                            edge_threshold=0.99)
+                            edge_threshold=0.99, word_embedding=make_word_embedding())
 
     reps = [_make_rep("alpha"), _make_rep("beta")]
     cir_low  = pipe_low.forward(reps, "alpha cause beta")
@@ -706,7 +693,7 @@ def test_edge_threshold_filters_edges_in_forward(tmp_path: Path):
     assert edges_low >= edges_high, (
         f"seuil=0.0 ({edges_low} arêtes) devrait émettre ≥ seuil=0.99 ({edges_high} arêtes)"
     )
-    # Avec un seuil 0.99 et des logits aléatoires, softmax max ≈ 0.27 (11 classes) → 0 arêtes
+    # Avec un seuil 0.99 et des logits aléatoires, softmax max ≈ 0.2 (19 classes) → 0 arêtes
     assert edges_high == 0, (
         f"Seuil=0.99 : attendu 0 arêtes (conf softmax max ≈ 1/11), obtenu {edges_high}"
     )

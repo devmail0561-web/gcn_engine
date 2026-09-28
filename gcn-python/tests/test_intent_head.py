@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests Éq.6 — tête d'intention MLP apprise."""
@@ -105,13 +106,13 @@ def test_checkpoint_roundtrip_intent_weights():
     from gcn_python.layer1.features import FeatureVocabulary
 
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause
+    d_eff = vocab.d_clause_effective(4)
     encoder = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=N_INTENT, seed=42)
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1)
     pipeline = CGNPipeline(
         encoder=encoder, graph=graph, vocabulary=vocab,
         n_intent_types=N_INTENT,
-    )
+        word_embedding=make_word_embedding())
 
     W_before = encoder._intent_layers[0].W.copy()
 
@@ -141,12 +142,12 @@ def test_checkpoint_without_intent_loads_cleanly():
     from gcn_python.layer1.features import FeatureVocabulary
 
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause
+    d_eff = vocab.d_clause_effective(4)
 
     # Sauvegarder SANS tête intent
     enc_no_intent = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=0, seed=1)
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1)
-    pipeline_no = CGNPipeline(encoder=enc_no_intent, graph=graph, vocabulary=vocab)
+    pipeline_no = CGNPipeline(encoder=enc_no_intent, graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
 
     with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
         path = Path(f.name)
@@ -159,7 +160,7 @@ def test_checkpoint_without_intent_loads_cleanly():
         pipeline_with = CGNPipeline(
             encoder=enc_with, graph=RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1),
             vocabulary=vocab, n_intent_types=N_INTENT,
-        )
+        word_embedding=make_word_embedding())
         W_init = enc_with._intent_layers[0].W.copy()
 
         load_checkpoint(pipeline_with, path, trusted=True)

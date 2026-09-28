@@ -9,9 +9,9 @@ use gcn_ir::{AgentType, NodeType, RelationType, Scope};
 
 pub fn causal_direction_to_node_type(dir: &str) -> Option<NodeType> {
     match dir {
-        "maintien" => Some(NodeType::Etat),
-        "production" => Some(NodeType::Action),
-        "rupture" => Some(NodeType::Transition),
+        "maintien" => Some(NodeType::EtatLocal),
+        "production" => Some(NodeType::Processus),
+        "rupture" => Some(NodeType::Processus),
         "propagation" => Some(NodeType::Processus),
         _ => None,
     }
@@ -76,7 +76,7 @@ pub fn pron_class_to_agent_type(class_name: &str, lemma: &str) -> AgentType {
 
 pub fn noun_class_to_node_type(class_name: &str) -> Option<NodeType> {
     match class_name {
-        "etat_systemique" => Some(NodeType::EtatSystemique),
+        "etat_systemique" => Some(NodeType::EtatGlobal),
         "processus" => Some(NodeType::Processus),
         "agent" => Some(NodeType::Entite),
         "patient" => Some(NodeType::Entite),

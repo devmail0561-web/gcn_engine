@@ -18,7 +18,7 @@ pub fn to_dot(ir: &CausalIR) -> Result<String, BackendError> {
         let label = escape_dot(&node.label);
         let shape = match node.node_type {
             gcn_ir::NodeType::Condition => "diamond",
-            gcn_ir::NodeType::EtatSystemique => "ellipse",
+            gcn_ir::NodeType::EtatGlobal => "ellipse",
             _ => "box",
         };
         out.push_str(&format!(

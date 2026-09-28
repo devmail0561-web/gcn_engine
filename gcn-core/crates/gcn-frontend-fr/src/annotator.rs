@@ -526,7 +526,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     // --- Object / entity ---
     let (patient, entity_opt) = extract_object(tokens, main_verb_idx);
 
-    // --- Resolve EtatSystemique from noun entity ---
+    // --- Resolve EtatGlobal from noun entity ---
     let mut resolved_type = node_type;
     if let Some(ent) = &entity_opt
         && let Some(&nt) = res.noun_node_types.get(ent.as_str())

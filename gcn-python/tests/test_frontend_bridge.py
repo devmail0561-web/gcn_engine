@@ -413,16 +413,8 @@ def test_reps_from_text_integration():
 
 def _make_pipeline():
     """Helper : pipeline ML minimal pour tests."""
-    from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
-    vocab = FeatureVocabulary()
-    return CGNPipeline(
-        encoder=MLPEncoder(vocab.d_clause, vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))),
-        graph=RGCNLayer(vocab.d_clause, vocab.d_clause),
-        vocabulary=vocab,
-    )
+    from conftest import make_test_pipeline
+    return make_test_pipeline()
 
 
 @patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")

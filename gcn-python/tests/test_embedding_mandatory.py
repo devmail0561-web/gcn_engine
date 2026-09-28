@@ -21,6 +21,7 @@ from gcn_python.pipeline.cgnp import CGNPipeline
 def test_cgn_pipeline_requires_word_embedding():
     """ValueError si word_embedding=None (D10 ETUDE)."""
     vocab = FeatureVocabulary()
+    # Sans embedding, d_eff = d_clause = 106 → dimensions cohérentes
     encoder = MLPEncoder(d_clause=vocab.d_clause, d_edge=50)
     graph = RGCNLayer(d_in=vocab.d_clause, d_out=vocab.d_clause)
     with pytest.raises(ValueError, match="word_embedding"):

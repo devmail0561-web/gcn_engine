@@ -70,7 +70,7 @@ fn paper_003a_simple_action() {
     let ir = parser().parse("Il court.").unwrap();
     assert_eq!(ir.nodes.len(), 1);
     assert_eq!(ir.edges.len(), 0);
-    assert_eq!(ir.nodes[0].node_type, NodeType::Action);
+    assert_eq!(ir.nodes[0].node_type, NodeType::Processus);
 }
 
 // paper-003b: "Il court depuis une heure."
@@ -273,7 +273,7 @@ fn single_verb_produces_one_node() {
     let ir = parser().parse("Il travaille.").unwrap();
     assert_eq!(ir.nodes.len(), 1);
     assert_eq!(ir.edges.len(), 0);
-    assert_eq!(ir.nodes[0].node_type, NodeType::Action);
+    assert_eq!(ir.nodes[0].node_type, NodeType::Processus);
 }
 
 // T-3 : chaîne A→B→C — temporal_index strictement croissant

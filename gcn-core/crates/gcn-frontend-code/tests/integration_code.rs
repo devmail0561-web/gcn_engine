@@ -68,8 +68,8 @@ fn test_python_assignment_produces_transition() {
     let has_trans = ir
         .nodes
         .iter()
-        .any(|n| n.node_type == gcn_ir::NodeType::Transition);
-    assert!(has_trans, "assignment should produce a Transition node");
+        .any(|n| n.node_type == gcn_ir::NodeType::Processus);
+    assert!(has_trans, "assignment should produce a Processus node");
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_sequential_statements_use_sequence_edge() {
     let transition_ids: Vec<_> = ir
         .nodes
         .iter()
-        .filter(|n| n.node_type == NodeType::Transition)
+        .filter(|n| n.node_type == NodeType::Processus)
         .map(|n| n.id)
         .collect();
     let condition_ids: Vec<_> = ir
@@ -194,7 +194,7 @@ fn test_sequential_statements_use_sequence_edge() {
 
     assert!(
         !transition_ids.is_empty(),
-        "should have Transition node (x = compute())"
+        "should have Processus node (x = compute())"
     );
     assert!(
         !condition_ids.is_empty(),
@@ -225,7 +225,7 @@ fn test_try_except_body_in_ir() {
     )
     .expect("parse failed");
 
-    // handle_error() should appear as an Action node in the IR
+    // handle_error() should appear as a Processus node in the IR
     let has_handle = ir.nodes.iter().any(|n| n.label.contains("handle_error"));
     assert!(
         has_handle,
@@ -245,10 +245,10 @@ fn test_function_label_uses_name_not_colon_truncation() {
     )
     .expect("parse failed");
 
-    let fn_node = ir.nodes.iter().find(|n| n.node_type == NodeType::Action);
+    let fn_node = ir.nodes.iter().find(|n| n.node_type == NodeType::Processus);
     assert!(
         fn_node.is_some(),
-        "function_definition should produce an Action node"
+        "function_definition should produce a Processus node"
     );
 
     let label = &fn_node.unwrap().label;
@@ -306,14 +306,14 @@ fn test_rust_if_produces_condition_edge() {
 fn test_rust_fn_item_produces_action_node() {
     let ir = parse_rust("fn compute(x: i32) -> i32 { x * 2 }", &taxonomies_root())
         .expect("parse failed");
-    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Action));
+    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_rust_let_produces_transition_node() {
     let ir =
         parse_rust("fn main() { let x = compute(); }", &taxonomies_root()).expect("parse failed");
-    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Transition));
+    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
@@ -366,13 +366,13 @@ fn test_js_if_produces_condition_edge() {
 fn test_js_function_produces_action_node() {
     let ir = parse_js("function compute(x) { return x * 2; }", &taxonomies_root())
         .expect("parse failed");
-    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Action));
+    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_js_variable_declaration_produces_transition() {
     let ir = parse_js("const x = compute();", &taxonomies_root()).expect("parse failed");
-    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Transition));
+    assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
@@ -408,11 +408,11 @@ fn test_rust_impl_methods_in_ir() {
     let action_count = ir
         .nodes
         .iter()
-        .filter(|n| n.node_type == NodeType::Action)
+        .filter(|n| n.node_type == NodeType::Processus)
         .count();
     assert!(
         action_count >= 2,
-        "impl_item should expose its function_item children as Action nodes, got {action_count}"
+        "impl_item should expose its function_item children as Processus nodes, got {action_count}"
     );
 }
 

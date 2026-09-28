@@ -35,24 +35,25 @@ def test_d_clause_equals_106():
 
 
 def test_voice_encoded_passive():
+    from conftest import make_test_pipeline, make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = make_rep(root_morph={"Voice": "Pass"})
-    vec = vectorize_clause(rep, vocab)
-    assert vec.shape == (vocab.d_clause,)
-    # Trouver l'offset Voice dans le vecteur
-    # Ordre : upos(18) + dep(38) + subj_pos(5) + tense(5) + aspect(4) + mood(5) + voice(3) + ...
+    vec = vectorize_clause(rep, vocab, we)
+    assert vec.shape == (vocab.d_clause_effective(we.d_emb),)
     voice_offset = 18 + 38 + 5 + 5 + 4 + 5
     pass_idx = vocab.voice_values.index("Pass")
     assert vec[voice_offset + pass_idx] == 1.0
 
 
 def test_prontype_int_encoded():
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     tokens = [{"lemma": "qui", "pos": "PRON", "dep_rel": "advmod",
                "morph": {"PronType": "Int"}}]
     rep = make_rep(tokens=tokens)
-    vec = vectorize_clause(rep, vocab)
-    # Offset PronType : après voice(3)
+    vec = vectorize_clause(rep, vocab, we)
     prontype_offset = 18 + 38 + 5 + 5 + 4 + 5 + 3
     int_idx = vocab.prontype_values.index("Int")
     assert vec[prontype_offset + int_idx] == 1.0

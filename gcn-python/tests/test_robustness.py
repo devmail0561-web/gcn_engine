@@ -8,6 +8,7 @@ Sautés si le checkpoint n'existe pas.
 from pathlib import Path
 
 import numpy as np
+from conftest import make_test_pipeline, make_word_embedding
 import pytest
 
 from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
@@ -156,8 +157,9 @@ def test_inversion_src_dst_change_vecteur():
     rep_b = _make_rep("réduire")
     conn  = _make_connector("parce")
 
-    vec_ab = vectorize_edge(rep_a, rep_b, conn, 1, 2, 3, vocab)
-    vec_ba = vectorize_edge(rep_b, rep_a, conn, 2, 1, 3, vocab)
+    we = make_word_embedding()
+    vec_ab = vectorize_edge(rep_a, rep_b, conn, 1, 2, 3, vocab, word_embedding=we)
+    vec_ba = vectorize_edge(rep_b, rep_a, conn, 2, 1, 3, vocab, word_embedding=we)
 
     assert not np.array_equal(vec_ab, vec_ba), (
         "Vecteurs A→B et B→A identiques — direction de l'arête non encodée."

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests e2e verbalizer — enriched_vecs, engine.verbalize(), gradient cohérence, B3."""
 from __future__ import annotations
+from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES
 
 import numpy as np
@@ -16,13 +17,13 @@ from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
 
 def _make_pipeline_with_decoder():
     vocab = FeatureVocabulary()
-    D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
+    D = vocab.d_clause_effective(4)
+    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), 4), seed=0)
     graph = RGCNLayer(d_in=D, d_out=D, seed=0)
     sv = SurfaceVocabulary()
     sv.build(["parce que les prix baissent", "donc l effet augmente"])
     decoder = TrainableDecoder(sv, d_hidden=16, d_in=D, seed=0)
-    return CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab, decoder=decoder)
+    return make_test_pipeline(decoder=decoder)
 
 
 def _make_rep(lemma="baisser"):
@@ -67,7 +68,7 @@ def test_path_b_uses_enriched_vecs():
     pipeline.forward(reps, "test")
     enriched = pipeline.get_enriched_vectors()
     assert enriched is not None
-    assert enriched.shape == (2, pipeline.vocabulary.d_clause)
+    assert enriched.shape == (2, pipeline.vocabulary.d_clause_effective(4))
     logits = pipeline.decoder.forward_decode(enriched)
     assert logits.ndim >= 1
 
@@ -160,9 +161,7 @@ def test_engine_verbalize_fallback():
 
     vocab = FeatureVocabulary()
     D = vocab.d_clause
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    graph = RGCNLayer(d_in=D, d_out=D, seed=0)
-    pipeline_no_dec = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    pipeline_no_dec = make_test_pipeline()
     engine = GCNEngine(pipeline_no_dec, text_parser=_MockBridgeParser())
 
     result = engine.verbalize("test", use_neural=True)

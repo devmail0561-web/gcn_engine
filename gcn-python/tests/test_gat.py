@@ -1,3 +1,4 @@
+from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
@@ -333,9 +334,10 @@ def test_residual_gradient_nonzero_even_if_layer_dead():
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.pipeline.cgnp import CGNPipeline
 
+    we = make_word_embedding(d_emb=4)
     vocab = FeatureVocabulary()
-    D = vocab.d_clause
-    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
+    D = vocab.d_clause_effective(we.d_emb)
+    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), we.d_emb), seed=0)
 
     class _DeadGraph:
         d_in = D
@@ -355,7 +357,7 @@ def test_residual_gradient_nonzero_even_if_layer_dead():
             pass
 
     pipe = CGNPipeline(encoder=enc, graph=_DeadGraph(), vocabulary=vocab,
-                       gat_residual=True)
+                       word_embedding=we, gat_residual=True)
 
     def _rep(lemma):
         return UDRepresentation(
@@ -389,11 +391,8 @@ def test_stacked_gat_without_residual_baseline_equivalent():
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.pipeline.cgnp import CGNPipeline
 
-    vocab = FeatureVocabulary()
-    D = vocab.d_clause
-    enc = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES)), seed=0)
-    g = RGCNLayerGAT(d_in=D, d_out=D, n_relations=11, n_heads=1, device="cpu", seed=0)
-    pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab, n_rgcn_layers=2)
+    pipe = make_test_pipeline(n_rgcn_layers=2)
+    D = pipe.vocabulary.d_clause_effective(pipe.word_embedding.d_emb)
 
     def _rep(lemma):
         return UDRepresentation(
