@@ -102,11 +102,11 @@ impl InferenceEngine {
     ) -> f32 {
         let base: f32 = if explicit { 1.0 } else { 0.5 };
         let delta: f32 = match (from, to, rel) {
-            (NodeType::Action, NodeType::Etat, RelationType::Cause)
-            | (NodeType::Action, NodeType::Transition, RelationType::Cause) => DELTA_STRONG_CAUSAL,
-            (NodeType::Processus, NodeType::Etat, RelationType::Cause) => DELTA_CAUSAL,
-            (NodeType::Transition, _, RelationType::Cause) => DELTA_CAUSAL,
-            (NodeType::EtatSystemique, _, RelationType::Filter) => DELTA_STRONG_CAUSAL,
+            (NodeType::Processus, NodeType::EtatLocal, RelationType::Cause)
+            | (NodeType::Processus, NodeType::Processus, RelationType::Cause) => DELTA_STRONG_CAUSAL,
+            (NodeType::Processus, NodeType::EtatLocal, RelationType::Cause) => DELTA_CAUSAL,
+            (NodeType::Processus, _, RelationType::Cause) => DELTA_CAUSAL,
+            (NodeType::EtatGlobal, _, RelationType::Filter) => DELTA_STRONG_CAUSAL,
             (_, _, RelationType::Concession | RelationType::Opposition) => DELTA_ADVERSATIVE,
             _ => 0.0,
         };
@@ -187,12 +187,12 @@ impl InferenceEngine {
 
 fn class_name_to_node_type(class_name: &str) -> Option<NodeType> {
     match class_name {
-        "etat" => Some(NodeType::Etat),
-        "action" => Some(NodeType::Action),
-        "transition" => Some(NodeType::Transition),
+        "etat" => Some(NodeType::EtatLocal),
+        "action" => Some(NodeType::Processus),
+        "transition" => Some(NodeType::Processus),
         "processus" => Some(NodeType::Processus),
         "agent" | "patient" | "abstrait" | "relation" => Some(NodeType::Entite),
-        "etat_systemique" => Some(NodeType::EtatSystemique),
+        "etat_systemique" => Some(NodeType::EtatGlobal),
         "contrainte" => Some(NodeType::Contrainte),
         _ => None, // "auxiliaire" et autres POS non causaux
     }
@@ -449,7 +449,7 @@ mod tests {
     fn infer_verb_action() {
         assert_eq!(
             test_engine().infer_node_type("faire", "VERB"),
-            Some(NodeType::Action)
+            Some(NodeType::Processus)
         );
     }
 
@@ -457,7 +457,7 @@ mod tests {
     fn infer_verb_etat() {
         assert_eq!(
             test_engine().infer_node_type("être", "VERB"),
-            Some(NodeType::Etat)
+            Some(NodeType::EtatLocal)
         );
     }
 
@@ -465,7 +465,7 @@ mod tests {
     fn infer_verb_transition() {
         assert_eq!(
             test_engine().infer_node_type("chuter", "VERB"),
-            Some(NodeType::Transition)
+            Some(NodeType::Processus)
         );
     }
 
@@ -495,7 +495,7 @@ mod tests {
     fn infer_noun_etat_systemique() {
         assert_eq!(
             test_engine().infer_node_type("crise", "NOUN"),
-            Some(NodeType::EtatSystemique)
+            Some(NodeType::EtatGlobal)
         );
     }
 
@@ -559,8 +559,8 @@ mod tests {
         // base 1.0 + bonus 0.15 = 1.15 → clamp → 1.0
         assert_eq!(
             test_engine().score_confidence(
-                NodeType::Action,
-                NodeType::Etat,
+                NodeType::Processus,
+                NodeType::EtatLocal,
                 RelationType::Cause,
                 true
             ),
@@ -572,8 +572,8 @@ mod tests {
     fn score_implicit_action_etat_cause() {
         // base 0.5 + bonus 0.15 = 0.65
         let s = test_engine().score_confidence(
-            NodeType::Action,
-            NodeType::Etat,
+            NodeType::Processus,
+            NodeType::EtatLocal,
             RelationType::Cause,
             false,
         );
@@ -584,8 +584,8 @@ mod tests {
     fn score_implicit_concession_reduces_confidence() {
         // base 0.5 − 0.10 = 0.40
         let s = test_engine().score_confidence(
-            NodeType::Etat,
-            NodeType::Action,
+            NodeType::EtatLocal,
+            NodeType::Processus,
             RelationType::Concession,
             false,
         );
@@ -609,7 +609,7 @@ mod tests {
     fn enrich_signals_causal_gap_on_concession() {
         let e = test_engine();
         let n1 = test_node(1, NodeType::Processus, NodeOrigin::Explicit);
-        let n2 = test_node(2, NodeType::Etat, NodeOrigin::Explicit);
+        let n2 = test_node(2, NodeType::EtatLocal, NodeOrigin::Explicit);
         let mut ir = make_ir(
             vec![n1, n2],
             vec![test_edge(1, 2, RelationType::Concession, true, 1.0)],
@@ -628,8 +628,8 @@ mod tests {
     fn enrich_resolves_inferred_node_type() {
         let e = test_engine();
         // Nœud Inferred de type Etat (incorrect), entity "croissance" → Processus
-        let n1 = test_node_with_entity(1, NodeType::Etat, NodeOrigin::Inferred, "croissance");
-        let n2 = test_node(2, NodeType::Action, NodeOrigin::Explicit);
+        let n1 = test_node_with_entity(1, NodeType::EtatLocal, NodeOrigin::Inferred, "croissance");
+        let n2 = test_node(2, NodeType::Processus, NodeOrigin::Explicit);
         let mut ir = make_ir(
             vec![n1, n2],
             vec![test_edge(1, 2, RelationType::Cause, true, 1.0)],
@@ -638,7 +638,7 @@ mod tests {
         assert!(notes.iter().any(|n| matches!(
             n,
             InferenceNote::NodeTypeResolved {
-                from: NodeType::Etat,
+                from: NodeType::EtatLocal,
                 to: NodeType::Processus,
                 ..
             }
@@ -649,8 +649,8 @@ mod tests {
     #[test]
     fn enrich_adjusts_confidence_for_implicit_edge() {
         let e = test_engine();
-        let n1 = test_node(1, NodeType::Action, NodeOrigin::Explicit);
-        let n2 = test_node(2, NodeType::Etat, NodeOrigin::Explicit);
+        let n1 = test_node(1, NodeType::Processus, NodeOrigin::Explicit);
+        let n2 = test_node(2, NodeType::EtatLocal, NodeOrigin::Explicit);
         // arête implicite Action→Etat Cause, confiance initiale 0.5 → score 0.65
         let mut ir = make_ir(
             vec![n1, n2],
@@ -670,7 +670,7 @@ mod tests {
     fn enrich_does_not_modify_explicit_nodes() {
         let e = test_engine();
         // Explicit même si entity connue → pas de modification
-        let n1 = test_node_with_entity(1, NodeType::Etat, NodeOrigin::Explicit, "croissance");
+        let n1 = test_node_with_entity(1, NodeType::EtatLocal, NodeOrigin::Explicit, "croissance");
         let mut ir = make_ir(vec![n1], vec![]);
         let notes = e.enrich(&mut ir);
         assert!(

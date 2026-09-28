@@ -237,9 +237,9 @@ def test_edge_map_alignment():
     from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
 
     clauses = [
-        ClauseRecord(node_id="n001", node_type="etat", label="A",
+        ClauseRecord(node_id="n001", node_type="etat_local", label="A",
                      token_span=(1, 1), scope="specific", temporal_index=0, origin="explicit"),
-        ClauseRecord(node_id="n002", node_type="action", label="B",
+        ClauseRecord(node_id="n002", node_type="processus", label="B",
                      token_span=(2, 2), scope="specific", temporal_index=1, origin="explicit"),
         ClauseRecord(node_id="n003", node_type="processus", label="C",
                      token_span=(3, 3), scope="specific", temporal_index=2, origin="explicit"),
@@ -279,10 +279,10 @@ def test_reps_from_sentence_alignment():
         TokenRecord(id=5, form="augmentent", lemma="augmenter", pos="VERB", dep_rel="advcl", dep_head=3),
     ]
     clauses = [
-        ClauseRecord(node_id="n001", node_type="action", label="baisser(vente)",
+        ClauseRecord(node_id="n001", node_type="processus", label="baisser(vente)",
                      token_span=(99, 100),  # span vide — aucun token id 99/100
                      scope="specific", temporal_index=0, origin="explicit"),
-        ClauseRecord(node_id="n002", node_type="etat", label="baisser(vente)",
+        ClauseRecord(node_id="n002", node_type="etat_local", label="baisser(vente)",
                      token_span=(1, 3),
                      scope="specific", temporal_index=1, origin="explicit"),
         ClauseRecord(node_id="n003", node_type="processus", label="augmenter(?)",
@@ -307,8 +307,8 @@ def test_reps_from_sentence_alignment():
     )
     gold_aligned = gold_all[np.array(valid_indices, dtype=np.int64)]
 
-    # gold_aligned[0] doit correspondre au node_type de n002 ("etat"), pas n001 ("action")
-    assert gold_aligned[0] == NODE_TYPES.index("etat")
+    # gold_aligned[0] doit correspondre au node_type de n002 ("etat_local"), pas n001 ("processus")
+    assert gold_aligned[0] == NODE_TYPES.index("etat_local")
     assert gold_aligned[1] == NODE_TYPES.index("processus")
     assert len(gold_aligned) == len(reps)
 
@@ -325,7 +325,7 @@ def test_invalid_node_type_warns_not_crashes():
     from gcn_python.data.schema import ClauseRecord, SentenceRecord
 
     clauses = [
-        ClauseRecord(node_id="n001", node_type="evenement", label="A",
+        ClauseRecord(node_id="n001", node_type="type_inexistant_xyz", label="A",
                      token_span=(1, 1), scope="specific", temporal_index=0, origin="explicit"),
     ]
     rec = SentenceRecord(id="s_bad", text="test", lang="fr", tokens=[], clauses=clauses, edges=[])
@@ -354,9 +354,9 @@ def test_backward_edge_not_supervised():
     from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
 
     clauses = [
-        ClauseRecord(node_id="n001", node_type="etat", label="A",
+        ClauseRecord(node_id="n001", node_type="etat_local", label="A",
                      token_span=(1, 2), scope="specific", temporal_index=0, origin="explicit"),
-        ClauseRecord(node_id="n002", node_type="action", label="B",
+        ClauseRecord(node_id="n002", node_type="processus", label="B",
                      token_span=(4, 5), scope="specific", temporal_index=1, origin="explicit"),
     ]
     # Gold : n002 → n001 (direction inverse, src_idx=1 > tgt_idx=0)
@@ -412,7 +412,7 @@ def test_train_cmd_cli(tmp_path: Path):
                         "nodes": [
                             {"id": "n1", "type": "processus", "label": "baisse ventes",
                              "token_span": [1, 3]},
-                            {"id": "n2", "type": "etat", "label": "hausse prix",
+                            {"id": "n2", "type": "etat_local", "label": "hausse prix",
                              "token_span": [4, 4]},
                         ],
                         "edges": [

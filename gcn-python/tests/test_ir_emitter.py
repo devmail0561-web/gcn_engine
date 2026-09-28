@@ -9,7 +9,7 @@ from gcn_python.pipeline.ir_emitter import emit
 def test_emit_structure():
     result = emit(
         text="Si les ventes baissent, on réduit les coûts.",
-        node_types=["processus", "action"],
+        node_types=["processus", "processus"],
         node_labels=["décroissance(ventes)", "réduire(coûts)"],
         token_spans=[(3, 4), (6, 9)],
         scopes=["universal", "universal"],
@@ -25,7 +25,7 @@ def test_emit_structure():
 
 
 def test_node_fields_complete():
-    result = emit("test", ["action"], ["courir(il)"], [(1, 2)], ["specific"], [])
+    result = emit("test", ["processus"], ["courir(il)"], [(1, 2)], ["specific"], [])
     node = result["nodes"][0]
     required = {"id", "node_type", "label", "source_span", "scope", "modifiers",
                 "temporal_ref", "temporal_index", "origin", "attributes"}
@@ -68,7 +68,7 @@ def test_s1_temporal_ref_from_tense():
 
 def test_s1_temporal_ref_propagated_to_emit():
     """S-1 : temporal_refs passé à emit() remplace 'unresolved'."""
-    result = emit("test", ["action"], ["a"], [(0, 1)], ["specific"], [],
+    result = emit("test", ["processus"], ["a"], [(0, 1)], ["specific"], [],
                   temporal_refs=["past"])
     assert result["nodes"][0]["temporal_ref"] == "past"
 
@@ -79,7 +79,7 @@ def test_s2_temporal_index_text_order():
     """S-2 : temporal_index reflète l'ordre du texte, pas l'ordre de création."""
     # Nœud 0 = span (10,15) ; nœud 1 = span (0,5)
     # Dans le texte : nœud 1 apparaît en premier → temporal_index=0
-    result = emit("test", ["action", "action"], ["effet", "cause"],
+    result = emit("test", ["processus", "processus"], ["effet", "cause"],
                   [(10, 15), (0, 5)], ["specific", "specific"], [])
     indices = {n["label"]: n["temporal_index"] for n in result["nodes"]}
     assert indices["cause"] == 0, f"cause doit être 0 (est {indices['cause']})"
@@ -88,7 +88,7 @@ def test_s2_temporal_index_text_order():
 
 def test_s2_temporal_index_sequential_when_ordered():
     """S-2 : si spans déjà ordonnés, temporal_index = 0, 1, 2..."""
-    result = emit("test", ["action", "action", "action"], ["a", "b", "c"],
+    result = emit("test", ["processus", "processus", "processus"], ["a", "b", "c"],
                   [(0, 2), (3, 5), (6, 8)], ["specific"] * 3, [])
     for i, node in enumerate(result["nodes"]):
         assert node["temporal_index"] == i
@@ -103,7 +103,7 @@ def test_s3_infer_origin_hypothetical_cnd():
     class MockRep:
         mood = "Cnd"
 
-    assert _infer_origin("action", connector_rep=None, rep=MockRep()) == "hypothetical"
+    assert _infer_origin("processus", connector_rep=None, rep=MockRep()) == "hypothetical"
 
 
 def test_s3_infer_origin_hypothetical_sub():
@@ -123,14 +123,14 @@ def test_s3_infer_origin_explicit_default():
     class MockRep:
         mood = "Ind"
 
-    assert _infer_origin("action", connector_rep=None, rep=MockRep()) == "explicit"
+    assert _infer_origin("processus", connector_rep=None, rep=MockRep()) == "explicit"
 
 
 # ── S-7 cycles + temporal_gap + created_at ──────────────────────────────────
 
 def test_s7_created_at_filled():
     """S-7 : created_at non None dans les metadata."""
-    result = emit("test", ["action"], ["a"], [(0, 1)], ["specific"], [])
+    result = emit("test", ["processus"], ["a"], [(0, 1)], ["specific"], [])
     assert result["metadata"]["created_at"] is not None
     assert result["metadata"]["created_at"].endswith("Z")
 
@@ -138,7 +138,7 @@ def test_s7_created_at_filled():
 def test_s7_temporal_gap_computed():
     """S-7 : temporal_gap = différence d'indices temporels entre les clauses."""
     # cause span (0,5), effet span (10,15) → temporal_gap = 1
-    result = emit("cause effet", ["action", "action"], ["cause", "effet"],
+    result = emit("cause effet", ["processus", "processus"], ["cause", "effet"],
                   [(0, 5), (10, 15)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None)])
     gap = result["edges"][0][2]["temporal_gap"]
@@ -147,7 +147,7 @@ def test_s7_temporal_gap_computed():
 
 def test_s7_cycles_detected():
     """S-7 : cycle A→B→A détecté dans cycles[]."""
-    result = emit("test", ["action", "action"], ["a", "b"],
+    result = emit("test", ["processus", "processus"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None),
                    (1, 0, "enable", 1.0, False, None)])
@@ -156,7 +156,7 @@ def test_s7_cycles_detected():
 
 def test_s7_in_cycle_marked_on_edges():
     """S-7 : edges participant au cycle ont in_cycle=True."""
-    result = emit("test", ["action", "action"], ["a", "b"],
+    result = emit("test", ["processus", "processus"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None),
                    (1, 0, "enable", 1.0, False, None)])
@@ -165,7 +165,7 @@ def test_s7_in_cycle_marked_on_edges():
 
 def test_s7_no_cycle_in_cycle_false():
     """S-7 : sans cycle, in_cycle=False sur toutes les arêtes."""
-    result = emit("test", ["action", "action"], ["a", "b"],
+    result = emit("test", ["processus", "processus"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None)])
     assert all(e[2]["in_cycle"] is False for e in result["edges"])

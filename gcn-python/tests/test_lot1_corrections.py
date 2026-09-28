@@ -66,7 +66,7 @@ def _minimal_dataset_json(text: str = "test phrase.") -> dict:
                     "cir": {
                         "nodes": [
                             {
-                                "id": "n001", "type": "action", "label": "test",
+                                "id": "n001", "type": "processus", "label": "test",
                                 "token_span": [1, 1], "scope": "specific",
                                 "temporal_index": 0, "origin": "explicit",
                             }
@@ -593,13 +593,13 @@ def test_run_eval_all_pairs_gap2_edge_in_metrics(tmp_path: Path):
                 ],
                 "cir": {
                     "nodes": [
-                        {"id": "n001", "type": "action", "label": "A",
+                        {"id": "n001", "type": "processus", "label": "A",
                          "token_span": [1, 1], "scope": "specific",
                          "temporal_index": 0, "origin": "explicit"},
-                        {"id": "n002", "type": "action", "label": "B",
+                        {"id": "n002", "type": "processus", "label": "B",
                          "token_span": [2, 2], "scope": "specific",
                          "temporal_index": 1, "origin": "explicit"},
-                        {"id": "n003", "type": "action", "label": "C",
+                        {"id": "n003", "type": "processus", "label": "C",
                          "token_span": [3, 3], "scope": "specific",
                          "temporal_index": 2, "origin": "explicit"},
                     ],
@@ -658,10 +658,10 @@ def _make_dataset_with_edge(tmp_path: Path, name: str) -> Path:
                     ],
                     "cir": {
                         "nodes": [
-                            {"id": "n001", "type": "action", "label": "A",
+                            {"id": "n001", "type": "processus", "label": "A",
                              "token_span": [1, 1], "scope": "specific",
                              "temporal_index": 0, "origin": "explicit"},
-                            {"id": "n002", "type": "action", "label": "B",
+                            {"id": "n002", "type": "processus", "label": "B",
                              "token_span": [3, 3], "scope": "specific",
                              "temporal_index": 1, "origin": "explicit"},
                         ],

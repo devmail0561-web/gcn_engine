@@ -380,7 +380,7 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     if tokens.is_empty() {
         return ClauseAnnotation {
             span: (0, 0),
-            node_type: NodeType::Action,
+            node_type: NodeType::Processus,
             label: "[empty clause]".to_string(),
             scope: Scope::Specific,
             origin: NodeOrigin::Explicit,
@@ -427,12 +427,12 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
             .get(&lemma)
             .or_else(|| res.verb_classes.get(&lower))
             .copied()
-            .unwrap_or(NodeType::Action);
+            .unwrap_or(NodeType::Processus);
 
         let nom = nominalize_with_table(&lemma, &res.nominalizations).to_string();
 
         // Progressive aspect: action/etat → processus
-        if is_progressive && matches!(nt, NodeType::Action | NodeType::Etat) {
+        if is_progressive && matches!(nt, NodeType::Processus | NodeType::EtatLocal) {
             nt = NodeType::Processus;
         }
 
@@ -450,12 +450,12 @@ fn build_clause(tokens: &[TaggedToken], res: &LexicalResources) -> ClauseAnnotat
     {
         resolved_type = nt;
     }
-    if (resolved_type == NodeType::Action || resolved_type == NodeType::Etat)
+    if (resolved_type == NodeType::Processus || resolved_type == NodeType::EtatLocal)
         && let Some(pat) = &patient
         && let Some(&nt) = res.noun_node_types.get(pat.as_str())
-        && nt == NodeType::EtatSystemique
+        && nt == NodeType::EtatGlobal
     {
-        resolved_type = NodeType::EtatSystemique;
+        resolved_type = NodeType::EtatGlobal;
     }
 
     let agent_type = subject.as_ref().map(|s| {
@@ -571,14 +571,14 @@ fn build_label(
     nominalizations: &std::collections::HashMap<String, String>,
 ) -> String {
     match node_type {
-        NodeType::EtatSystemique | NodeType::Entite => entity
+        NodeType::EtatGlobal | NodeType::Entite => entity
             .as_deref()
             .filter(|e| !e.is_empty())
             .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
             .unwrap_or("entity")
             .to_string(),
         NodeType::Condition => "hidden_cause(?)".to_string(),
-        NodeType::Action => match agent {
+        NodeType::Processus => match agent {
             Some(a) => format!(
                 "{}({})",
                 if verb_lemma.is_empty() { "?" } else { verb_lemma },
@@ -592,7 +592,7 @@ fn build_label(
             .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
             .unwrap_or("constraint")
             .to_string(),
-        NodeType::Etat | NodeType::Transition | NodeType::Processus => {
+        NodeType::EtatLocal | NodeType::Processus | NodeType::Concept | NodeType::Evenement => {
             let nom = nominalize_with_table(
                 if verb_lemma.is_empty() {
                     "?"

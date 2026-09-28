@@ -8,13 +8,15 @@ from pathlib import Path
 
 import numpy as np
 
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPE_ALIASES, NODE_TYPES, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
 from .json_reader import load_all_sentences
 from .schema import ClauseRecord, SentenceRecord, TokenRecord
 
 
 def _node_type_idx(node_type: str, sentence_id: str) -> int:
+    # Migration transparente v2→D5
+    node_type = NODE_TYPE_ALIASES.get(node_type, node_type)
     if node_type not in NODE_TYPES:
         raise ValueError(
             f"[sentence {sentence_id}] node_type inconnu : {node_type!r}. "

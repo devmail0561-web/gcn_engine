@@ -130,7 +130,7 @@ def test_cir_to_doc_with_null_token_span():
         "nodes": [
             {
                 "id": "n001",
-                "node_type": "action",
+                "node_type": "processus",
                 "label": "test",
                 "source_span": {"token_span": {"start": None, "end": None}},
             }
@@ -148,7 +148,7 @@ def test_cir_to_doc_with_edges():
     cir = {
         "nodes": [
             {"id": "n001", "node_type": "condition", "label": "A"},
-            {"id": "n002", "node_type": "action", "label": "B"},
+            {"id": "n002", "node_type": "processus", "label": "B"},
         ],
         "edges": [
             {
@@ -210,8 +210,8 @@ def test_cir_to_doc_with_tuple_edges():
     from gcn_python.training.bootstrap import _cir_to_doc
     cir = {
         "nodes": [
-            {"id": 0, "node_type": "action", "label": "A"},
-            {"id": 1, "node_type": "etat", "label": "B"},
+            {"id": 0, "node_type": "processus", "label": "A"},
+            {"id": 1, "node_type": "etat_local", "label": "B"},
         ],
         "edges": [
             [0, 1, {"relation": "cause", "confidence": 1.0, "explicit": True, "negated": False}]
@@ -295,9 +295,9 @@ def test_cir_to_doc_has_tokens():
     from gcn_python.training.bootstrap import _cir_to_doc
     cir = {
         "nodes": [
-            {"id": "n001", "node_type": "action", "label": "baisser", "scope": "specific",
+            {"id": "n001", "node_type": "processus", "label": "baisser", "scope": "specific",
              "temporal_index": 0, "origin": "explicit"},
-            {"id": "n002", "node_type": "etat", "label": "impact", "scope": "specific",
+            {"id": "n002", "node_type": "etat_local", "label": "impact", "scope": "specific",
              "temporal_index": 1, "origin": "explicit"},
         ],
         "edges": []
@@ -309,7 +309,7 @@ def test_cir_to_doc_has_tokens():
     assert tokens[1]["id"] == 2
     assert tokens[0]["lemma"] == "baisser"
     assert tokens[1]["lemma"] == "impact"
-    assert tokens[0]["pos"] == "VERB"
+    assert tokens[0]["pos"] == "NOUN"  # processus (D5) → NOUN
     assert tokens[1]["pos"] == "NOUN"
 
 
@@ -327,7 +327,7 @@ def test_cir_to_doc_bootstrapped_data_trainable():
         "nodes": [
             {"id": "n001", "node_type": "condition", "label": "hausse des coûts",
              "scope": "specific", "temporal_index": 0, "origin": "explicit"},
-            {"id": "n002", "node_type": "action", "label": "réduire budget",
+            {"id": "n002", "node_type": "processus", "label": "réduire budget",
              "scope": "specific", "temporal_index": 1, "origin": "explicit"},
         ],
         "edges": [
@@ -348,4 +348,4 @@ def test_cir_to_doc_bootstrapped_data_trainable():
         "les données bootstrappées sont ignorées à l'entraînement (correctif B1 manquant)."
     )
     assert reps[0].root_pos == "SCONJ"
-    assert reps[1].root_pos == "VERB"
+    assert reps[1].root_pos == "NOUN"  # processus (D5) → NOUN

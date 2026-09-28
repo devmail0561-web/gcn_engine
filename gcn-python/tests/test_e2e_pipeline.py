@@ -37,7 +37,7 @@ _CIR_SIMPLE = {
     "source_lang": {"natural": {"lang": "french"}},
     "source_text": "Les ventes baissent donc les prix augmentent.",
     "nodes": [
-        _node(0, "action", "baisser", 1, 3),
+        _node(0, "processus", "baisser", 1, 3),
         _node(1, "processus", "augmenter", 5, 7),
     ],
     "edges": [[0, 1, {
@@ -51,7 +51,7 @@ _CIR_COMPLEX = {
     "source_text": "Le gel détruit les cultures, ce qui entraîne des pénuries et provoque une hausse des prix.",
     "nodes": [
         _node(0, "processus", "détruire",  1,  5),
-        _node(1, "etat",      "pénurie",   7, 12),
+        _node(1, "etat_local",      "pénurie",   7, 12),
         _node(2, "processus", "augmenter", 13, 18),
     ],
     "edges": [
@@ -64,7 +64,7 @@ _CIR_NO_CAUSAL = {
     "source_lang": {"natural": {"lang": "french"}},
     "source_text": "La météo est agréable aujourd'hui.",
     "nodes": [
-        _node(0, "etat", "agréable", 1, 5),
+        _node(0, "etat_local", "agréable", 1, 5),
     ],
     "edges": [],
 }

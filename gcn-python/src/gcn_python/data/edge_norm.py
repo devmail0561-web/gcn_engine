@@ -216,7 +216,10 @@ def normalize_edge(e: Any) -> "dict | list[dict] | None":
 
     if len(src_list) == 2:
         # JOINT_CAUSE/JointPrevent : 2 arêtes avec joint_group_id déterministe
-        key = f"{dst_raw}|{'|'.join(sorted(str(s) for s in src_list))}"
+        # C1 fix : normaliser AVANT le hash pour cohérence avec bootstrap.py
+        _dst_norm = normalize_node_id(dst_raw)
+        _src_norms = [normalize_node_id(s) for s in src_list]
+        key = f"{_dst_norm}|{'|'.join(sorted(_src_norms))}"
         jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
         relation = _get_relation(attrs, outer)
         if relation and sanitize_text(str(relation)) not in ("joint_cause", "joint_prevent"):

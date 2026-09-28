@@ -299,6 +299,19 @@ def emit(
         if apply_orientation:
             src, dst = orient_edge_d7(src, dst, relation, token_spans)
             src, dst = apply_voice_eq7(src, dst, voice_by_node)
+        # C.6 detect_ternary — câblé ici pour les tuples sans third pré-calculé
+        if third_role is None and joint_group_id is None:
+            src_tokens = None
+            if token_spans and src < len(token_spans):
+                # Les tokens ne sont pas dans emit() — on passe None ici,
+                # detect_ternary opère sur src_tokens si fournis par cgnp
+                pass
+            _t_role, _t_node, _jgid = detect_ternary(relation, src_tokens, joint_group_id)
+            if _t_role:
+                third_role, third_node = _t_role, _t_node
+            if _jgid:
+                joint_group_id = _jgid
+
         # §9.4 algèbre de négation — promotion "condition" si third présent sans site
         third_dict = ({"role": third_role, "node": third_node} if third_role else None)
         if negated and negation_site is None and third_dict is not None:

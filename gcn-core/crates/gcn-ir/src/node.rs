@@ -11,13 +11,21 @@ use crate::temporal::TemporalRef;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeType {
-    Etat,
-    Action,
-    Transition,
+    /// D5 — absorbe action + transition (v2)
+    #[serde(alias = "action", alias = "transition")]
     Processus,
-    Condition,
+    /// D5 — était "etat" (v2)
+    #[serde(rename = "etat_local", alias = "etat")]
+    EtatLocal,
+    /// D5 — était "etat_systemique" (v2)
+    #[serde(rename = "etat_global", alias = "etat_systemique")]
+    EtatGlobal,
     Entite,
-    EtatSystemique,
+    Condition,
+    /// D5 — nouveau
+    Concept,
+    /// D5 — nouveau
+    Evenement,
     Contrainte,
 }
 
@@ -35,13 +43,13 @@ pub enum CausalDirection {
 impl NodeType {
     pub fn causal_direction(&self) -> CausalDirection {
         match self {
-            NodeType::Etat => CausalDirection::Backward,
-            NodeType::Action => CausalDirection::Forward,
-            NodeType::Transition => CausalDirection::Forward,
             NodeType::Processus => CausalDirection::Both,
-            NodeType::Condition => CausalDirection::Suspended,
+            NodeType::EtatLocal => CausalDirection::Backward,
+            NodeType::EtatGlobal => CausalDirection::Accumulative,
             NodeType::Entite => CausalDirection::None,
-            NodeType::EtatSystemique => CausalDirection::Accumulative,
+            NodeType::Condition => CausalDirection::Suspended,
+            NodeType::Concept => CausalDirection::None,
+            NodeType::Evenement => CausalDirection::Forward,
             NodeType::Contrainte => CausalDirection::Suspended,
         }
     }

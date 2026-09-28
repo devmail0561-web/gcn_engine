@@ -167,7 +167,7 @@ fn walk_try(
                     .kind_to_node_type
                     .get("except_clause")
                     .copied()
-                    .unwrap_or(NodeType::Etat);
+                    .unwrap_or(NodeType::EtatLocal);
                 let except_id = emit_node(child, src, node_type, nodes, next_id, res);
                 let edge_rel = res
                     .kind_to_edge_type

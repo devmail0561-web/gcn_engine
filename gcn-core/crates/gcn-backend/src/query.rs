@@ -339,6 +339,12 @@ pub struct LinkDto {
     pub relation: String,
     pub confidence: f32,
     pub negated: bool,
+    /// C4 fix — joint_group_id pour co-nécessité JointCause/JointPrevent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub joint_group_id: Option<String>,
+    /// C4 fix — third_node pour les relations ternaires
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub third_node_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -556,9 +562,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .map(|(s, d, e)| LinkDto {
                     from: nm.get(s).map(|n| n.label.clone()).unwrap_or_default(),
                     to: nm.get(d).map(|n| n.label.clone()).unwrap_or_default(),
-                    relation: format!("{:?}", e.relation),
+                    relation: serde_json::to_value(e.relation).ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                        .unwrap_or_else(|| format!("{:?}", e.relation).to_lowercase()),
                     confidence: e.confidence,
                     negated: e.negated,
+                    joint_group_id: e.joint_group_id.clone(),
+                    third_node_label: None,
                 })
                 .collect();
             let mean_confidence = if outgoing.is_empty() { 0.0 } else {
@@ -849,12 +859,19 @@ fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
 }
 
 fn link_to_dto(l: &CausalLink) -> LinkDto {
+    // C4 fix : sérialiser la relation en snake_case via serde (pas Debug)
+    let relation = serde_json::to_value(l.relation)
+        .ok()
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| format!("{:?}", l.relation).to_lowercase());
     LinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),
-        relation: format!("{:?}", l.relation),
+        relation,
         confidence: l.confidence,
         negated: l.negated,
+        joint_group_id: l.joint_group_id.clone(),
+        third_node_label: None, // résolu par l'appelant si nécessaire
     }
 }
 

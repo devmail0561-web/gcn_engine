@@ -49,7 +49,7 @@ def test_hyperedge_bypass():
     from gcn_python.data.loader import GCNDataLoader
     from gcn_python.data.schema import ClauseRecord, EdgeRecord, SentenceRecord
     def _cl(nid):
-        return ClauseRecord(node_id=nid, node_type="action", label=nid,
+        return ClauseRecord(node_id=nid, node_type="processus", label=nid,
                             token_span=(0, 0), scope="specific",
                             temporal_index=0, origin="explicit")
     rec = SentenceRecord(id="s1", text="t", tokens=[], clauses=[_cl("n001"), _cl("n002"), _cl("n003")],
@@ -253,8 +253,8 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
             {"id": 3, "form": "B", "lemma": "b", "pos": "NOUN", "dep_rel": "obj", "dep_head": 2},
         ],
         "cir": {"nodes": [
-            {"id": "n001", "type": "action", "label": "causer(a)", "token_span": [1, 2]},
-            {"id": "n002", "type": "etat", "label": "b", "token_span": [3, 3]},
+            {"id": "n001", "type": "processus", "label": "causer(a)", "token_span": [1, 2]},
+            {"id": "n002", "type": "etat_local", "label": "b", "token_span": [3, 3]},
         ], "edges": [
             {"sources": ["n001"], "target": "n002", "relation": "cause", "confidence": 0.9},
         ]},
@@ -318,7 +318,7 @@ def test_decoder_source_bias_and_is_inferred():
         pass
     else:
         raise AssertionError("ValueError attendu (biais de mauvaise taille)")
-    cir = emit("t", ["action", "etat"], ["a", "b"], [(1, 1), (2, 2)],
+    cir = emit("t", ["processus", "etat_local"], ["a", "b"], [(1, 1), (2, 2)],
                ["specific", "specific"], [(0, 1, "cause", 0.9, False, None)],
                node_origins=["explicit", "inferred"],
                node_inferred=[False, True])

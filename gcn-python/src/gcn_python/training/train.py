@@ -1250,6 +1250,30 @@ def train_cmd(
     else:
         save_checkpoint(pipeline, output)
 
+    # T5-min : optimiser la température sur le val set si disponible (C5 fix)
+    if val_loader is not None:
+        try:
+            from ..evaluation.calibration import optimize_temperature
+            _val_logits, _val_labels = [], []
+            for _vs in val_loader:
+                try:
+                    pipeline.forward(_vs.sentence.text)
+                    if pipeline._cached_edge_logits is not None and len(_vs.edge_map) > 0:
+                        _val_logits.append(pipeline._cached_edge_logits)
+                        _val_labels.extend(list(_vs.edge_map.values()))
+                except Exception:
+                    pass
+            if _val_logits and len(_val_labels) >= 10:
+                import numpy as _np
+                _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
+                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=_np.int64)
+                best_t = optimize_temperature(_all_logits, _all_labels)
+                pipeline.temperature = best_t
+                click.echo(f"T5-min : température optimisée = {best_t:.3f}")
+                save_checkpoint(pipeline, output)
+        except Exception as _t5_err:
+            click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
+
     click.echo(f"Checkpoint sauvegardé : {output}")
     if val_loader is not None and best_edge_epoch > 0:
         click.echo(

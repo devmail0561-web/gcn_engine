@@ -7,7 +7,7 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from ..constants import RELATION_TYPES
+from ..constants import NODE_TYPE_ALIASES, RELATION_TYPES
 from .schema import ClauseRecord, EdgeRecord, SentenceRecord, TokenRecord
 
 
@@ -147,10 +147,12 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
     node_type = n.get("type") or ""
     if not node_type:
         warnings.warn(
-            f"Nœud {n.get('id', '?')} sans champ 'type' — défaut 'action' appliqué.",
+            f"Nœud {n.get('id', '?')} sans champ 'type' — défaut 'processus' appliqué.",
             UserWarning, stacklevel=3,
         )
-        node_type = "action"
+        node_type = "processus"
+    # Migration transparente v2→D5
+    node_type = NODE_TYPE_ALIASES.get(node_type, node_type)
     morph_raw = n.get("morph") or {}
     return ClauseRecord(
         node_id=n.get("id", ""),

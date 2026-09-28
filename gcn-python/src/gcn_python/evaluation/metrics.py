@@ -76,14 +76,26 @@ def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
 
 
 def edge_f1_per_class(
-    pred: Predictions, gold: GoldLabels
+    pred: Predictions, gold: GoldLabels,
+    class_subset: list[str] | None = None,
 ) -> dict[str, dict[str, float]]:
-    """F1, précision, rappel par RelationType."""
-    return _f1_per_class(pred, gold, RELATION_TYPES)
+    """F1, précision, rappel par RelationType.
+
+    class_subset : restreindre aux types listés (ex: RELATION_TYPES_V2 pour K2 v2↔v3).
+    """
+    classes = class_subset if class_subset is not None else RELATION_TYPES
+    return _f1_per_class(pred, gold, classes)
 
 
-def edge_macro_f1(pred: Predictions, gold: GoldLabels) -> float:
-    per_class = edge_f1_per_class(pred, gold)
+def edge_macro_f1(
+    pred: Predictions, gold: GoldLabels,
+    class_subset: list[str] | None = None,
+) -> float:
+    """Macro-F1 sur les arêtes.
+
+    class_subset : si fourni, macro-F1 restreinte à ces types (K2 : RELATION_TYPES_V2).
+    """
+    per_class = edge_f1_per_class(pred, gold, class_subset=class_subset)
     scores = [v["f1"] for v in per_class.values() if v["support"] > 0]
     return float(np.mean(scores)) if scores else 0.0
 

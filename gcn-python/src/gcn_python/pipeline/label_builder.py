@@ -7,12 +7,19 @@ from pathlib import Path
 
 from ..layer1.representation import UDRepresentation
 
-# Accès par nom — robuste au réordre de NODE_TYPES (bug silencieux si indexé par position)
-_NT_CONDITION  = "condition"
-_NT_ENTITE     = "entite"
-_NT_ETAT_SYS   = "etat_systemique"
-_NT_ACTION     = "action"
-_NT_TRANSITION = "transition"
+# Accès par nom D5 — robuste au réordre de NODE_TYPES
+_NT_CONDITION   = "condition"
+_NT_ENTITE      = "entite"
+_NT_CONCEPT     = "concept"
+_NT_ETAT_LOCAL  = "etat_local"
+_NT_ETAT_GLOBAL = "etat_global"
+_NT_EVENEMENT   = "evenement"
+_NT_PROCESSUS   = "processus"
+_NT_CONTRAINTE  = "contrainte"
+# Aliases v2 pour lecture de CIR legacy
+_NT_ETAT_SYS   = "etat_global"   # était etat_systemique
+_NT_ACTION     = "processus"     # était action (fusionné D5)
+_NT_TRANSITION = "processus"     # était transition (fusionné D5)
 
 _nom_cache: dict[str, dict[str, str]] = {}   # max ~100 répertoires en pratique
 _NOM_CACHE_MAXSIZE = 128
@@ -40,11 +47,11 @@ def build_label(
 
     if node_type == _NT_CONDITION:
         label = "hidden_cause(?)"
-    elif node_type in (_NT_ENTITE, _NT_ETAT_SYS):
+    elif node_type in (_NT_ENTITE, _NT_CONCEPT, _NT_ETAT_GLOBAL, "etat_systemique"):
         label = entity or rep.root_lemma
-    elif node_type == _NT_ACTION:
-        label = f"{rep.root_lemma}({subject})" if subject else rep.root_lemma
-    # etat, transition, processus
+    elif node_type == _NT_EVENEMENT:
+        label = f"{entity or rep.root_lemma}"
+    # processus, etat_local, contrainte (et compat v2 : action, transition, etat)
     elif entity:
         label = f"{nom}({entity})"
     elif subject:

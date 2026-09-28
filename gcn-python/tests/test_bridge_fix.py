@@ -24,7 +24,7 @@ class TestBridgeFix:
 
     def test_action_dep_is_root(self):
         """node_type=action → dep_rel root (inchangé)."""
-        assert NODE_TYPE_TO_DEP.get("action") == "root"
+        assert NODE_TYPE_TO_DEP.get("processus") == "root"
 
     def test_entite_dep_is_nsubj(self):
         """node_type=entite → dep_rel nsubj (inchangé)."""
@@ -59,4 +59,4 @@ class TestBridgeFix:
         assert 'NODE_TYPE_TO_POS: dict[str, str] = {' in bridge_src
         # Les clés sont des strings littérales, pas NODE_TYPES[i]
         assert '"condition"' in bridge_src
-        assert '"action"' in bridge_src
+        assert '"processus"' in bridge_src

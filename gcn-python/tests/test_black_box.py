@@ -36,7 +36,7 @@ def _make_data_dir(tmp_path: Path, name: str = "data") -> Path:
                 "tokens": [{"id": 1, "form": "test", "lemma": "test",
                             "pos": "NOUN", "dep_rel": "root", "dep_head": 0, "morph": {}}],
                 "cir": {
-                    "nodes": [{"id": "n001", "type": "action", "label": "test",
+                    "nodes": [{"id": "n001", "type": "processus", "label": "test",
                                "token_span": [1, 1], "scope": "specific",
                                "temporal_index": 0, "origin": "explicit"}],
                     "edges": [],
@@ -157,8 +157,8 @@ def test_index_node_id_zero_is_prefixed():
     # Simuler la logique de préfixage directement (unité pure, pas de CLI)
     cir = {
         "nodes": [
-            {"id": 0, "type": "action", "label": "A"},
-            {"id": 1, "type": "action", "label": "B"},
+            {"id": 0, "type": "processus", "label": "A"},
+            {"id": 1, "type": "processus", "label": "B"},
         ],
         "edges": [
             [0, 1, {"relation": "cause"}],
@@ -238,8 +238,8 @@ class _FakeDiscourseEngine:
     def analyze(self, text):
         return {
             "source_text": text,
-            "nodes": [{"id": 0, "node_type": "action", "label": "AAA"},
-                      {"id": 1, "node_type": "etat", "label": "BBB"}],
+            "nodes": [{"id": 0, "node_type": "processus", "label": "AAA"},
+                      {"id": 1, "node_type": "etat_local", "label": "BBB"}],
             "edges": [[0, 1, {"relation": "cause", "confidence": 0.9,
                               "explicit": True, "negated": False}]],
         }

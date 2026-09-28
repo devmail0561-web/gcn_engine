@@ -27,7 +27,7 @@ NODES = [
      "source_span": {"kind": "synthetic"}, "scope": "universal",
      "modifiers": [], "temporal_ref": {"kind": "present"},
      "temporal_index": 0, "origin": "explicit", "attributes": {}},
-    {"id": 1, "node_type": "action", "label": "couts",
+    {"id": 1, "node_type": "processus", "label": "couts",
      "source_span": {"kind": "synthetic"}, "scope": "universal",
      "modifiers": [], "temporal_ref": {"kind": "present"},
      "temporal_index": 1, "origin": "explicit", "attributes": {}},

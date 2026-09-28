@@ -144,8 +144,8 @@ fn why_finds_direct_cause() {
     // qualité → ventes
     let ir = make_ir(
         vec![
-            node(0, "chute(qualité)", NodeType::Transition),
-            node(1, "baisse(ventes)", NodeType::Etat),
+            node(0, "chute(qualité)", NodeType::Processus),
+            node(1, "baisse(ventes)", NodeType::EtatLocal),
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
@@ -153,7 +153,7 @@ fn why_finds_direct_cause() {
     if let QueryResult::Causes { links, .. } = result {
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].from, "chute(qualité)");
-        assert_eq!(links[0].relation, "Cause");
+        assert_eq!(links[0].relation, "cause");
     } else {
         panic!("expected Causes result");
     }
@@ -162,7 +162,7 @@ fn why_finds_direct_cause() {
 #[test]
 fn why_node_not_found_errors() {
     let ir = make_ir(
-        vec![node(0, "chute(qualité)", NodeType::Transition)],
+        vec![node(0, "chute(qualité)", NodeType::Processus)],
         vec![],
     );
     let err = execute(&Query::Why("inexistant".into()), &ir);
@@ -174,9 +174,9 @@ fn what_finds_direct_effect() {
     // A → B → C
     let ir = make_ir(
         vec![
-            node(0, "chute(qualité)", NodeType::Transition),
-            node(1, "baisse(ventes)", NodeType::Etat),
-            node(2, "réduction(coûts)", NodeType::Action),
+            node(0, "chute(qualité)", NodeType::Processus),
+            node(1, "baisse(ventes)", NodeType::EtatLocal),
+            node(2, "réduction(coûts)", NodeType::Processus),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -197,9 +197,9 @@ fn what_finds_direct_effect() {
 fn chain_finds_path() {
     let ir = make_ir(
         vec![
-            node(0, "chute(qualité)", NodeType::Transition),
-            node(1, "baisse(ventes)", NodeType::Etat),
-            node(2, "réduction(coûts)", NodeType::Action),
+            node(0, "chute(qualité)", NodeType::Processus),
+            node(1, "baisse(ventes)", NodeType::EtatLocal),
+            node(2, "réduction(coûts)", NodeType::Processus),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -219,8 +219,8 @@ fn chain_finds_path() {
 fn chain_no_path() {
     let ir = make_ir(
         vec![
-            node(0, "chute(qualité)", NodeType::Transition),
-            node(1, "baisse(ventes)", NodeType::Etat),
+            node(0, "chute(qualité)", NodeType::Processus),
+            node(1, "baisse(ventes)", NodeType::EtatLocal),
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
@@ -237,7 +237,7 @@ fn chain_no_path() {
 #[test]
 fn cycles_detects_feedback_loop() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![
             edge(0, 1, RelationType::Cause),
             edge(1, 0, RelationType::Cause),
@@ -254,7 +254,7 @@ fn cycles_detects_feedback_loop() {
 #[test]
 fn cycles_empty_on_acyclic() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = execute(&Query::Cycles, &ir).unwrap();
@@ -270,7 +270,7 @@ fn cycles_empty_on_acyclic() {
 #[test]
 fn gaps_finds_concession_gap() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Etat), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::EtatLocal), node(1, "B", NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Concession)],
     );
     let result = execute(&Query::Gaps, &ir).unwrap();
@@ -285,7 +285,7 @@ fn gaps_finds_concession_gap() {
 #[test]
 fn gaps_empty_on_clean_graph() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let result = execute(&Query::Gaps, &ir).unwrap();
@@ -301,7 +301,7 @@ fn gaps_empty_on_clean_graph() {
 #[test]
 fn json_export_is_valid() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let json = to_json(&ir).unwrap();
@@ -315,8 +315,8 @@ fn json_export_is_valid() {
 fn dot_export_contains_nodes_and_edges() {
     let ir = make_ir(
         vec![
-            node(0, "qualité", NodeType::Action),
-            node(1, "ventes", NodeType::Etat),
+            node(0, "qualité", NodeType::Processus),
+            node(1, "ventes", NodeType::EtatLocal),
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
@@ -331,7 +331,7 @@ fn dot_export_contains_nodes_and_edges() {
 #[test]
 fn json_roundtrip() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![edge(0, 1, RelationType::Cause)],
     );
     let json = to_json(&ir).unwrap();
@@ -360,9 +360,9 @@ fn intervene_cuts_incoming_and_propagates_forward() {
     // Intervention sur B : coupe A→B, propage B→C
     let ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action),
-            node(1, "B", NodeType::Transition),
-            node(2, "C", NodeType::Etat),
+            node(0, "A", NodeType::Processus),
+            node(1, "B", NodeType::Processus),
+            node(2, "C", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -393,8 +393,8 @@ fn intervene_no_incoming_zero_severed() {
     // Nœud racine sans arête entrante : severed_count = 0
     let ir = make_ir(
         vec![
-            node(0, "racine", NodeType::Action),
-            node(1, "effet", NodeType::Etat),
+            node(0, "racine", NodeType::Processus),
+            node(1, "effet", NodeType::EtatLocal),
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
@@ -414,7 +414,7 @@ fn intervene_no_incoming_zero_severed() {
 
 #[test]
 fn intervene_node_not_found() {
-    let ir = make_ir(vec![node(0, "A", NodeType::Action)], vec![]);
+    let ir = make_ir(vec![node(0, "A", NodeType::Processus)], vec![]);
     assert!(matches!(
         execute(&Query::Intervene("INEXISTANT".into()), &ir),
         Err(BackendError::NodeNotFound(_))
@@ -437,9 +437,9 @@ fn counterfactual_unique_effect_detected() {
     // COUNTERFACTUAL B : C est uniquement atteignable via B → unique
     let ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action),
-            node(1, "B", NodeType::Transition),
-            node(2, "C", NodeType::Etat),
+            node(0, "A", NodeType::Processus),
+            node(1, "B", NodeType::Processus),
+            node(2, "C", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -469,9 +469,9 @@ fn counterfactual_shared_effect_not_unique() {
     // COUNTERFACTUAL B : C n'est PAS unique (A→C existe sans B)
     let ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action),
-            node(1, "B", NodeType::Action),
-            node(2, "C", NodeType::Etat),
+            node(0, "A", NodeType::Processus),
+            node(1, "B", NodeType::Processus),
+            node(2, "C", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 2, RelationType::Cause),
@@ -491,7 +491,7 @@ fn counterfactual_shared_effect_not_unique() {
 
 #[test]
 fn counterfactual_node_not_found() {
-    let ir = make_ir(vec![node(0, "A", NodeType::Action)], vec![]);
+    let ir = make_ir(vec![node(0, "A", NodeType::Processus)], vec![]);
     assert!(matches!(
         execute(&Query::Counterfactual("INEXISTANT".into()), &ir),
         Err(BackendError::NodeNotFound(_))
@@ -505,9 +505,9 @@ fn fix_c4_unique_effects_two_same_label_nodes_both_unique() {
     // Les deux doublons n'ont aucune autre source → tous deux uniques à trigger
     let ir = make_ir(
         vec![
-            node(0, "doublon", NodeType::Etat),
-            node(1, "trigger", NodeType::Action),
-            node(2, "doublon", NodeType::Etat),
+            node(0, "doublon", NodeType::EtatLocal),
+            node(1, "trigger", NodeType::Processus),
+            node(2, "doublon", NodeType::EtatLocal),
         ],
         vec![
             edge(1, 0, RelationType::Cause),
@@ -541,9 +541,9 @@ fn fix_bug2_counterfactual_duplicate_labels() {
     // doublon(id=2) est uniquement atteignable via trigger
     let ir = make_ir(
         vec![
-            node(0, "doublon", NodeType::Etat),
-            node(1, "trigger", NodeType::Action),
-            node(2, "doublon", NodeType::Etat),
+            node(0, "doublon", NodeType::EtatLocal),
+            node(1, "trigger", NodeType::Processus),
+            node(2, "doublon", NodeType::EtatLocal),
         ],
         vec![edge(1, 2, RelationType::Cause)],
     );
@@ -566,9 +566,9 @@ fn analogy_same_relation_type_scores_high() {
     // Patron : A→B (Cause). Analogue attendu : C→D (Cause). E→F (Enable) = score moindre.
     let ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat),
-            node(2, "C", NodeType::Action), node(3, "D", NodeType::Etat),
-            node(4, "E", NodeType::Action), node(5, "F", NodeType::Etat),
+            node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal),
+            node(2, "C", NodeType::Processus), node(3, "D", NodeType::EtatLocal),
+            node(4, "E", NodeType::Processus), node(5, "F", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -593,7 +593,7 @@ fn analogy_same_relation_type_scores_high() {
 #[test]
 fn analogy_unknown_pattern_returns_empty() {
     let ir = make_ir(
-        vec![node(0, "X", NodeType::Action), node(1, "Y", NodeType::Etat)],
+        vec![node(0, "X", NodeType::Processus), node(1, "Y", NodeType::EtatLocal)],
         vec![],
     );
     // Patron X→Y n'existe pas dans le graphe (pas d'arête)
@@ -610,9 +610,9 @@ fn make_hierarchy_ir() -> CausalIR {
     // step_a(1) → result(3)
     let mut nodes = vec![
         node(0, "process", NodeType::Processus),
-        node(1, "step_a", NodeType::Action),
-        node(2, "step_b", NodeType::Action),
-        node(3, "result", NodeType::Etat),
+        node(1, "step_a", NodeType::Processus),
+        node(2, "step_b", NodeType::Processus),
+        node(3, "result", NodeType::EtatLocal),
     ];
     nodes[1].parent = Some(NodeId(0));
     nodes[2].parent = Some(NodeId(0));
@@ -673,7 +673,7 @@ fn aggregate_children_edges() {
 fn centrality_hub_node() {
     // hub(0) → B(1) avec conf=0.9, hub(0) → C(2) avec conf=0.7
     let ir = make_ir(
-        vec![node(0,"hub",NodeType::Action), node(1,"B",NodeType::Etat), node(2,"C",NodeType::Etat)],
+        vec![node(0,"hub",NodeType::Processus), node(1,"B",NodeType::EtatLocal), node(2,"C",NodeType::EtatLocal)],
         vec![edge(0,1,RelationType::Cause), edge(0,2,RelationType::Cause)],
     );
     let result = execute(&Query::Centrality("hub".into()), &ir).unwrap();
@@ -690,7 +690,7 @@ fn spof_bridge_node_detected() {
     // Sans B : seuls A→? = rien (B absent) et C→? = rien → total 0
     // B coupe 3 paires → SPOF score maximal
     let ir = make_ir(
-        vec![node(0,"A",NodeType::Action), node(1,"B",NodeType::Transition), node(2,"C",NodeType::Etat)],
+        vec![node(0,"A",NodeType::Processus), node(1,"B",NodeType::Processus), node(2,"C",NodeType::EtatLocal)],
         vec![edge(0,1,RelationType::Cause), edge(1,2,RelationType::Cause)],
     );
     let result = execute(&Query::Spof, &ir).unwrap();
@@ -712,8 +712,8 @@ fn diff_rgpd_gap_27_percent() {
     // Fait observé : conf=0.73 → gap=0.27, gap_rate=27%
     let mut ir = make_ir(
         vec![
-            node(0, "accès", NodeType::Action),
-            node(1, "journalisation", NodeType::Action),
+            node(0, "accès", NodeType::Processus),
+            node(1, "journalisation", NodeType::Processus),
         ],
         vec![edge(0, 1, RelationType::Condition)],
     );
@@ -730,7 +730,7 @@ fn diff_rgpd_gap_27_percent() {
 #[test]
 fn diff_no_path_gap_100_percent() {
     let ir = make_ir(
-        vec![node(0, "A", NodeType::Action), node(1, "B", NodeType::Etat)],
+        vec![node(0, "A", NodeType::Processus), node(1, "B", NodeType::EtatLocal)],
         vec![],
     );
     let result = execute(&Query::NormDiff("A".into(), "B".into()), &ir).unwrap();
@@ -746,7 +746,7 @@ fn diff_no_path_gap_100_percent() {
 fn density_global() {
     // 3 nœuds, 2 arêtes → densité = 2/(3×2) = 0.333
     let ir = make_ir(
-        vec![node(0,"A",NodeType::Action), node(1,"B",NodeType::Etat), node(2,"C",NodeType::Etat)],
+        vec![node(0,"A",NodeType::Processus), node(1,"B",NodeType::EtatLocal), node(2,"C",NodeType::EtatLocal)],
         vec![edge(0,1,RelationType::Cause), edge(1,2,RelationType::Cause)],
     );
     let result = execute(&Query::Density(None), &ir).unwrap();
@@ -761,7 +761,7 @@ fn density_global() {
 #[test]
 fn density_local() {
     let ir = make_ir(
-        vec![node(0,"hub",NodeType::Action), node(1,"B",NodeType::Etat), node(2,"C",NodeType::Etat)],
+        vec![node(0,"hub",NodeType::Processus), node(1,"B",NodeType::EtatLocal), node(2,"C",NodeType::EtatLocal)],
         vec![edge(0,1,RelationType::Cause), edge(0,2,RelationType::Cause)],
     );
     let result = execute(&Query::Density(Some("hub".into())), &ir).unwrap();
@@ -775,7 +775,7 @@ fn density_local() {
 fn coverage_with_provenance() {
     use gcn_ir::{Provenance, ExtractionMethod, SourceSpan};
     let ir = make_ir(
-        vec![node(0,"X",NodeType::Action), node(1,"Y",NodeType::Etat), node(2,"Z",NodeType::Etat)],
+        vec![node(0,"X",NodeType::Processus), node(1,"Y",NodeType::EtatLocal), node(2,"Z",NodeType::EtatLocal)],
         vec![
             {
                 let (s,d,mut e) = edge(0,1,RelationType::Cause);
@@ -798,7 +798,7 @@ fn coverage_with_provenance() {
 #[test]
 fn reliability_score() {
     let ir = make_ir(
-        vec![node(0,"A",NodeType::Action), node(1,"B",NodeType::Etat)],
+        vec![node(0,"A",NodeType::Processus), node(1,"B",NodeType::EtatLocal)],
         vec![edge(0,1,RelationType::Cause)],
     );
     let result = execute(&Query::Reliability("A".into()), &ir).unwrap();
@@ -817,9 +817,9 @@ fn explain_ranks_direct_cause_first() {
     // A→C(conf=0.9), B→C(conf=0.5) : A doit avoir un score > B
     let ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action),
-            node(1, "B", NodeType::Etat),
-            node(2, "C", NodeType::Etat),
+            node(0, "A", NodeType::Processus),
+            node(1, "B", NodeType::EtatLocal),
+            node(2, "C", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 2, RelationType::Cause),
@@ -847,7 +847,7 @@ fn explain_ranks_direct_cause_first() {
 #[test]
 fn explain_no_causes_returns_empty() {
     let ir = make_ir(
-        vec![node(0, "isolé", NodeType::Etat)],
+        vec![node(0, "isolé", NodeType::EtatLocal)],
         vec![],
     );
     let result = execute(&Query::Explain("isolé".into()), &ir).unwrap();
@@ -864,9 +864,9 @@ fn explain_prefers_close_over_distant() {
     // Ancien bug : ln(1+depth) favorisait A (0.8×ln(3)=0.88 > 0.8×ln(2)=0.55)
     let mut ir = make_ir(
         vec![
-            node(0, "A", NodeType::Action),
-            node(1, "B", NodeType::Etat),
-            node(2, "C", NodeType::Etat),
+            node(0, "A", NodeType::Processus),
+            node(1, "B", NodeType::EtatLocal),
+            node(2, "C", NodeType::EtatLocal),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -898,9 +898,9 @@ fn explain_prefers_close_over_distant() {
 fn chain_t_ordered_path() {
     let ir = make_ir(
         vec![
-            node_with_ti(0, "A", NodeType::Action, 0),
-            node_with_ti(1, "B", NodeType::Transition, 1),
-            node_with_ti(2, "C", NodeType::Etat, 2),
+            node_with_ti(0, "A", NodeType::Processus, 0),
+            node_with_ti(1, "B", NodeType::Processus, 1),
+            node_with_ti(2, "C", NodeType::EtatLocal, 2),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -921,8 +921,8 @@ fn chain_t_ordered_path() {
 fn chain_t_unordered_path() {
     let ir = make_ir(
         vec![
-            node_with_ti(0, "A", NodeType::Action, 2),
-            node_with_ti(1, "B", NodeType::Etat, 1),
+            node_with_ti(0, "A", NodeType::Processus, 2),
+            node_with_ti(1, "B", NodeType::EtatLocal, 1),
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
@@ -939,9 +939,9 @@ fn chain_t_unordered_path() {
 fn before_a_precedes_c() {
     let ir = make_ir(
         vec![
-            node_with_ti(0, "A", NodeType::Action, 0),
-            node_with_ti(1, "B", NodeType::Transition, 1),
-            node_with_ti(2, "C", NodeType::Etat, 2),
+            node_with_ti(0, "A", NodeType::Processus, 0),
+            node_with_ti(1, "B", NodeType::Processus, 1),
+            node_with_ti(2, "C", NodeType::EtatLocal, 2),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -963,9 +963,9 @@ fn before_a_precedes_c() {
 fn delay_sums_temporal_gaps() {
     let ir = make_ir(
         vec![
-            node_with_ti(0, "A", NodeType::Action, 0),
-            node_with_ti(1, "B", NodeType::Transition, 1),
-            node_with_ti(2, "C", NodeType::Etat, 2),
+            node_with_ti(0, "A", NodeType::Processus, 0),
+            node_with_ti(1, "B", NodeType::Processus, 1),
+            node_with_ti(2, "C", NodeType::EtatLocal, 2),
         ],
         vec![
             edge_with_gap(0, 1, RelationType::Cause, 3, 5),

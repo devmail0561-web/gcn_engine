@@ -283,7 +283,7 @@ def test_origin_inferred_no_connector():
     from gcn_python.pipeline.cgnp import _infer_origin
     assert _infer_origin("condition", None) == "inferred"
     assert _infer_origin("condition", object()) == "explicit"
-    assert _infer_origin("action", None) == "explicit"
+    assert _infer_origin("processus", None) == "explicit"
 
 
 def test_attributes_entity_not_null():

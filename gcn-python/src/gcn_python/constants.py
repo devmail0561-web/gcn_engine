@@ -1,10 +1,26 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 # Sync avec gcn-core/crates/gcn-ir/src/{ir,node,edge}.rs
+# D5 ETUDE — 8 types canoniques (renommage + fusion + ajout)
 NODE_TYPES = [
-    "etat", "action", "transition", "processus", "condition",
-    "entite", "etat_systemique", "contrainte",               # 8 types — v3.0
+    "processus",   # absorbe action + transition (D5 ETUDE)
+    "etat_local",  # était "etat"
+    "etat_global", # était "etat_systemique"
+    "entite",
+    "condition",
+    "concept",     # nouveau D5
+    "evenement",   # nouveau D5
+    "contrainte",
 ]
+# Aliases lecture pour données v2 (migration transparente)
+NODE_TYPE_ALIASES: dict[str, str] = {
+    "etat":            "etat_local",
+    "etat_local":      "etat_local",
+    "etat_global":     "etat_global",
+    "etat_systemique": "etat_global",
+    "action":          "processus",
+    "transition":      "processus",
+}
 RELATION_TYPES = [
     # 11 relations directes (existantes)
     "cause", "enable", "prevent", "condition", "concession", "sequence",
@@ -14,6 +30,12 @@ RELATION_TYPES = [
     "conditional_cause", "mediated_cause", "joint_cause",
     "conditional_prevent", "mediated_prevent", "joint_prevent",
 ]  # 19 total
+
+# 11 relations partagées v2↔v3 — pour K2 (macro-F1 sur classes comparables)
+RELATION_TYPES_V2: list[str] = [
+    "cause", "enable", "prevent", "condition", "concession", "sequence",
+    "motivation", "filter", "opposition", "data_dependency", "control_dependency",
+]
 
 # Types inverses pour message passing bidirectionnel (v3.0)
 # Indices 0-18 = forward, indices 19-37 = backward (r_inv = r + 19)
@@ -69,9 +91,9 @@ FINE_TO_COARSE_RELATION: dict[str, str] = {
 COARSE_RELATION_TYPES: list[str] = list(COARSE_RELATION_GROUPS)
 
 COARSE_NODE_GROUPS: dict[str, list[str]] = {
-    "action_coarse":    ["processus", "action", "transition", "etat"],
-    "nominal_coarse":   ["entite"],
-    "evenement_coarse": ["etat_systemique"],
+    "action_coarse":    ["processus"],
+    "nominal_coarse":   ["entite", "concept"],
+    "evenement_coarse": ["etat_local", "etat_global", "evenement"],
     "condition_coarse": ["condition", "contrainte"],
 }
 FINE_TO_COARSE_NODE: dict[str, str] = {

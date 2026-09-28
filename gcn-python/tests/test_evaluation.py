@@ -27,28 +27,29 @@ from gcn_python.evaluation.recorder import TrainingRecorder
 # ---------------------------------------------------------------------------
 
 def test_node_accuracy_perfect():
-    pred = ["action", "processus", "etat"]
-    gold = ["action", "processus", "etat"]
+    pred = ["processus", "processus", "etat_local"]
+    gold = ["processus", "processus", "etat_local"]
     assert node_accuracy(pred, gold) == 1.0
 
 
 def test_node_accuracy_partial():
-    pred = ["action", "action", "etat"]
-    gold = ["action", "processus", "etat"]
+    # 2 correctes sur 3 : pred[2] = "etat_local" mais gold[2] = "concept"
+    pred = ["processus", "processus", "etat_local"]
+    gold = ["processus", "processus", "concept"]
     assert node_accuracy(pred, gold) == pytest_approx(2 / 3)
 
 
 def test_node_f1_per_class_keys():
     from gcn_python.constants import NODE_TYPES
-    pred = ["action", "processus"]
-    gold = ["action", "etat"]
+    pred = ["processus", "processus"]
+    gold = ["processus", "etat_local"]
     result = node_f1_per_class(pred, gold)
     assert set(result.keys()) == set(NODE_TYPES)
 
 
 def test_node_macro_f1_perfect():
-    pred = ["action", "processus", "condition"]
-    gold = ["action", "processus", "condition"]
+    pred = ["processus", "processus", "condition"]
+    gold = ["processus", "processus", "condition"]
     assert node_macro_f1(pred, gold) == 1.0
 
 
@@ -86,7 +87,7 @@ def _make_ir(node_types, edge_relations):
 
 
 def test_graph_similarity_identical():
-    ir = _make_ir(["action", "processus"], ["cause"])
+    ir = _make_ir(["processus", "processus"], ["cause"])
     s = causal_graph_similarity(ir, ir)
     assert s["overall"] == 1.0
     assert s["node_type_accuracy"] == 1.0
@@ -94,15 +95,15 @@ def test_graph_similarity_identical():
 
 
 def test_graph_similarity_empty_pred():
-    gold = _make_ir(["action", "etat"], ["cause"])
+    gold = _make_ir(["processus", "etat_local"], ["cause"])
     pred = _make_ir([], [])
     s = causal_graph_similarity(pred, gold)
     assert s["node_count_ratio"] == 0.0
 
 
 def test_graph_similarity_partial():
-    gold = _make_ir(["action", "processus"], ["cause"])
-    pred = _make_ir(["action", "etat"], ["enable"])
+    gold = _make_ir(["processus", "processus"], ["cause"])
+    pred = _make_ir(["processus", "etat_local"], ["enable"])
     s = causal_graph_similarity(pred, gold)
     assert 0.0 <= s["overall"] <= 1.0
 
@@ -175,19 +176,19 @@ def test_recorder_to_json():
 _IR_A = {
     "nodes": [
         {"node_type": "processus", "id": 0, "label": "ventes"},
-        {"node_type": "action",    "id": 1, "label": "coûts"},
+        {"node_type": "processus",    "id": 1, "label": "coûts"},
     ],
     "edges": [[0, 1, {"relation": "condition"}]],
 }
 _IR_B = {  # même structure, légèrement différente (surface différente)
     "nodes": [
         {"node_type": "processus", "id": 0, "label": "sales"},
-        {"node_type": "action",    "id": 1, "label": "costs"},
+        {"node_type": "processus",    "id": 1, "label": "costs"},
     ],
     "edges": [[0, 1, {"relation": "condition"}]],
 }
 _IR_DIFFERENT = {
-    "nodes": [{"node_type": "etat", "id": 0, "label": "x"}],
+    "nodes": [{"node_type": "etat_local", "id": 0, "label": "x"}],
     "edges": [],
 }
 
@@ -264,24 +265,24 @@ def pytest_approx(x, rel=1e-6):
 # ---------------------------------------------------------------------------
 
 def test_graph_exact_match_all_correct():
-    node_pred = [["action", "processus"], ["etat"]]
-    node_gold = [["action", "processus"], ["etat"]]
+    node_pred = [["processus", "processus"], ["etat_local"]]
+    node_gold = [["processus", "processus"], ["etat_local"]]
     edge_pred = [["cause"], []]
     edge_gold = [["cause"], []]
     assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 1.0
 
 
 def test_graph_exact_match_none_correct():
-    node_pred = [["action"], ["action"]]
-    node_gold = [["etat"], ["processus"]]
+    node_pred = [["processus"], ["processus"]]
+    node_gold = [["etat_local"], ["processus"]]
     edge_pred = [["cause"], ["enable"]]
     edge_gold = [["enable"], ["cause"]]
     assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 0.0
 
 
 def test_graph_exact_match_nodes_correct_edges_wrong():
-    node_pred = [["action", "processus"]]
-    node_gold = [["action", "processus"]]
+    node_pred = [["processus", "processus"]]
+    node_gold = [["processus", "processus"]]
     edge_pred = [["cause"]]
     edge_gold = [["enable"]]
     assert graph_exact_match(node_pred, node_gold, edge_pred, edge_gold) == 0.0
@@ -293,7 +294,7 @@ def test_graph_exact_match_empty_list():
 
 def test_graph_exact_match_mismatched_lengths():
     try:
-        graph_exact_match([["action"]], [["action"], ["etat"]], [[]], [[]])
+        graph_exact_match([["processus"]], [["processus"], ["etat_local"]], [[]], [[]])
         pytest.fail("Should have raised ValueError")
     except ValueError:
         pass
@@ -304,9 +305,9 @@ def test_graph_exact_match_mismatched_lengths():
 # ---------------------------------------------------------------------------
 
 def test_confusion_matrix_diagonal():
-    pred = ["action", "processus", "etat"]
-    gold = ["action", "processus", "etat"]
-    classes = ["action", "processus", "etat"]
+    pred = ["processus", "etat_local", "concept"]
+    gold = ["processus", "etat_local", "concept"]
+    classes = ["processus", "etat_local", "concept"]
     cm = confusion_matrix(pred, gold, classes)
     assert cm.shape == (3, 3)
     assert cm[0, 0] == 1
@@ -316,12 +317,13 @@ def test_confusion_matrix_diagonal():
 
 
 def test_confusion_matrix_off_diagonal():
-    pred = ["action", "action"]
-    gold = ["action", "processus"]
-    classes = ["action", "processus"]
+    # processus prédit, etat_local en gold → case [1,0]
+    pred = ["processus", "processus"]
+    gold = ["processus", "etat_local"]
+    classes = ["processus", "etat_local"]
     cm = confusion_matrix(pred, gold, classes)
-    assert cm[0, 0] == 1  # action→action
-    assert cm[1, 0] == 1  # processus→action
+    assert cm[0, 0] == 1  # processus→processus correct
+    assert cm[1, 0] == 1  # etat_local gold, processus prédit → off-diagonal
     assert cm.sum() == 2
 
 
@@ -330,10 +332,10 @@ def test_confusion_matrix_off_diagonal():
 # ---------------------------------------------------------------------------
 
 def test_per_class_report():
-    pred = ["action", "action", "processus"]
-    gold = ["action", "processus", "processus"]
-    classes = ["action", "processus"]
+    pred = ["processus", "processus", "processus"]
+    gold = ["processus", "processus", "processus"]
+    classes = ["processus", "processus"]
     report = per_class_report(pred, gold, classes)
-    assert "action" in report
+    assert "processus" in report
     assert "processus" in report
     assert "prec" in report

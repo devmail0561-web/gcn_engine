@@ -31,13 +31,13 @@ pub fn label_strategy_str_to_enum(s: &str) -> Option<LabelStrategy> {
 
 pub fn node_type_str_to_enum(s: &str) -> Option<NodeType> {
     match s {
-        "etat" => Some(NodeType::Etat),
-        "action" => Some(NodeType::Action),
-        "transition" => Some(NodeType::Transition),
+        "etat" => Some(NodeType::EtatLocal),
+        "action" => Some(NodeType::Processus),
+        "transition" => Some(NodeType::Processus),
         "processus" => Some(NodeType::Processus),
         "condition" => Some(NodeType::Condition),
         "entite" => Some(NodeType::Entite),
-        "etat_systemique" => Some(NodeType::EtatSystemique),
+        "etat_systemique" => Some(NodeType::EtatGlobal),
         "contrainte" => Some(NodeType::Contrainte),
         _ => None,
     }

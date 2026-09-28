@@ -416,8 +416,8 @@ def test_json_reader_rejects_missing_relation(tmp_path):
         "document": {"sentences": [{
             "id": "s1", "text": "A cause B.",
             "clauses": [
-                {"id": "n1", "type": "action", "label": "A", "token_span": [0, 1]},
-                {"id": "n2", "type": "action", "label": "B", "token_span": [1, 2]},
+                {"id": "n1", "type": "processus", "label": "A", "token_span": [0, 1]},
+                {"id": "n2", "type": "processus", "label": "B", "token_span": [1, 2]},
             ],
             "edges": [{"source": "n1", "target": "n2"}]  # relation absente
         }]}

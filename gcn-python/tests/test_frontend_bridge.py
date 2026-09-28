@@ -29,14 +29,14 @@ _CIR_TWO_NODES = {
     "source_text": "Les ventes baissent donc les prix augmentent.",
     "nodes": [
         {
-            "id": 0, "node_type": "action", "label": "baisse(ventes)",
+            "id": 0, "node_type": "processus", "label": "baisse(ventes)",
             "source_span": {"token_span": {"start": 1, "end": 3}},
             "scope": "specific", "temporal_index": 0, "temporal_ref": "unresolved",
             "origin": "explicit",
             "attributes": {"entity": "ventes", "quality": None, "agent": None, "patient": None},
         },
         {
-            "id": 1, "node_type": "etat", "label": "hausse(prix)",
+            "id": 1, "node_type": "etat_local", "label": "hausse(prix)",
             "source_span": {"token_span": {"start": 5, "end": 7}},
             "scope": "specific", "temporal_index": 1, "temporal_ref": "unresolved",
             "origin": "explicit",
@@ -52,23 +52,24 @@ _CIR_TWO_NODES = {
 
 
 def test_node_type_to_pos_all_types():
-    """Les 7 node_types produisent VERB/NOUN/SCONJ selon la logique attendue."""
-    assert NODE_TYPE_TO_POS["action"] == "VERB"
-    assert NODE_TYPE_TO_POS["transition"] == "VERB"
-    assert NODE_TYPE_TO_POS["processus"] == "NOUN"
-    assert NODE_TYPE_TO_POS["etat"] == "NOUN"
-    assert NODE_TYPE_TO_POS["etat_systemique"] == "NOUN"
+    """Les 8 node_types D5 produisent VERB/NOUN/SCONJ selon la logique attendue."""
+    assert NODE_TYPE_TO_POS["processus"] == "NOUN"   # absorbe action+transition
+    assert NODE_TYPE_TO_POS["etat_local"] == "NOUN"
+    assert NODE_TYPE_TO_POS["etat_global"] == "NOUN"
     assert NODE_TYPE_TO_POS["entite"] == "NOUN"
     assert NODE_TYPE_TO_POS["condition"] == "SCONJ"
+    assert NODE_TYPE_TO_POS["concept"] == "NOUN"
+    assert NODE_TYPE_TO_POS["evenement"] == "NOUN"
+    assert NODE_TYPE_TO_POS["contrainte"] == "NOUN"
 
 
 def test_node_type_to_dep_all_types():
     """Les 7 node_types produisent root/nsubj/advcl selon la logique attendue."""
-    assert NODE_TYPE_TO_DEP["action"] == "root"
-    assert NODE_TYPE_TO_DEP["transition"] == "root"
     assert NODE_TYPE_TO_DEP["processus"] == "root"
-    assert NODE_TYPE_TO_DEP["etat"] == "nsubj"
-    assert NODE_TYPE_TO_DEP["etat_systemique"] == "nsubj"
+    assert NODE_TYPE_TO_DEP["processus"] == "root"
+    assert NODE_TYPE_TO_DEP["processus"] == "root"
+    assert NODE_TYPE_TO_DEP["etat_local"] == "nsubj"
+    assert NODE_TYPE_TO_DEP["etat_global"] == "nsubj"
     assert NODE_TYPE_TO_DEP["entite"] == "nsubj"
     assert NODE_TYPE_TO_DEP["condition"] == "advcl"
 
@@ -129,13 +130,13 @@ def test_extract_span_missing():
 
 
 def test_rep_from_cir_node_action():
-    """action → VERB, root, has_advcl=False."""
-    node = {"id": 0, "node_type": "action", "label": "baisse(ventes)",
+    """processus (D5, absorbe action) → NOUN, root, has_advcl=False."""
+    node = {"id": 0, "node_type": "processus", "label": "baisse(ventes)",
             "source_span": {"token_span": {"start": 1, "end": 3}},
             "temporal_ref": "unresolved",
             "attributes": {"entity": "ventes", "agent": None, "patient": None}}
     rep = _rep_from_cir_node(node)
-    assert rep.root_pos == "VERB"
+    assert rep.root_pos == "NOUN"    # processus → NOUN (D5)
     assert rep.root_dep_rel == "root"
     assert rep.has_advcl is False
     assert rep.root_morph == {}
@@ -143,7 +144,7 @@ def test_rep_from_cir_node_action():
 
 def test_rep_from_cir_node_etat():
     """etat → NOUN, nsubj, has_advcl=False."""
-    node = {"id": 1, "node_type": "etat", "label": "hausse(prix)",
+    node = {"id": 1, "node_type": "etat_local", "label": "hausse(prix)",
             "source_span": {"token_span": {"start": 5, "end": 7}},
             "temporal_ref": "unresolved",
             "attributes": {"entity": "prix", "agent": None, "patient": None}}
@@ -167,7 +168,7 @@ def test_rep_from_cir_node_condition():
 
 def test_rep_from_cir_node_patient_has_object():
     """patient non-null → has_object=True."""
-    node = {"id": 0, "node_type": "action", "label": "réduire(coûts)",
+    node = {"id": 0, "node_type": "processus", "label": "réduire(coûts)",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": None, "patient": "coûts"}}
     rep = _rep_from_cir_node(node)
@@ -176,7 +177,7 @@ def test_rep_from_cir_node_patient_has_object():
 
 def test_rep_from_cir_node_agent_subject_pos():
     """agent non-null → subject_pos='NOUN'."""
-    node = {"id": 0, "node_type": "action", "label": "investit",
+    node = {"id": 0, "node_type": "processus", "label": "investit",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": "entreprise", "patient": None}}
     rep = _rep_from_cir_node(node)
@@ -185,7 +186,7 @@ def test_rep_from_cir_node_agent_subject_pos():
 
 def test_rep_from_cir_node_no_agent():
     """agent=null → subject_pos=None."""
-    node = {"id": 0, "node_type": "etat", "label": "hausse",
+    node = {"id": 0, "node_type": "etat_local", "label": "hausse",
             "temporal_ref": "unresolved",
             "attributes": {"entity": None, "agent": None, "patient": None}}
     rep = _rep_from_cir_node(node)
@@ -260,8 +261,8 @@ def test_connector_none_without_marker():
     """Pas de marker_token → None dans la liste des connecteurs."""
     cir = {
         "nodes": [
-            {"id": 0, "node_type": "action", "label": "A", "temporal_ref": "unresolved", "attributes": {}},
-            {"id": 1, "node_type": "etat", "label": "B", "temporal_ref": "unresolved", "attributes": {}},
+            {"id": 0, "node_type": "processus", "label": "A", "temporal_ref": "unresolved", "attributes": {}},
+            {"id": 1, "node_type": "etat_local", "label": "B", "temporal_ref": "unresolved", "attributes": {}},
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": None}]],
     }
@@ -274,8 +275,8 @@ def test_connector_marker_zero_ignored():
     """marker_token=0 → None (valeur fictive, ignorée)."""
     cir = {
         "nodes": [
-            {"id": 0, "node_type": "action", "label": "A", "temporal_ref": "unresolved", "attributes": {}},
-            {"id": 1, "node_type": "etat", "label": "B", "temporal_ref": "unresolved", "attributes": {}},
+            {"id": 0, "node_type": "processus", "label": "A", "temporal_ref": "unresolved", "attributes": {}},
+            {"id": 1, "node_type": "etat_local", "label": "B", "temporal_ref": "unresolved", "attributes": {}},
         ],
         "edges": [[0, 1, {"relation": "cause", "confidence": 1.0, "marker_token": 0}]],
     }
@@ -310,7 +311,7 @@ def test_reps_from_text_mocked_success(mock_run, _resolve):
         warnings.simplefilter("always")
         reps = reps_from_text("Les ventes baissent donc les prix augmentent.")
     assert len(reps) == 2
-    assert reps[0].root_pos == "VERB"   # action → VERB
+    assert reps[0].root_pos == "NOUN"   # processus (D5) → NOUN
     assert reps[1].root_pos == "NOUN"   # etat → NOUN
 
 
