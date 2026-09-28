@@ -106,7 +106,6 @@ impl InferenceEngine {
             | (NodeType::Processus, NodeType::Processus, RelationType::Cause) => {
                 DELTA_STRONG_CAUSAL
             }
-            (NodeType::Processus, NodeType::EtatLocal, RelationType::Cause) => DELTA_CAUSAL,
             (NodeType::Processus, _, RelationType::Cause) => DELTA_CAUSAL,
             (NodeType::EtatGlobal, _, RelationType::Filter) => DELTA_STRONG_CAUSAL,
             (_, _, RelationType::Concession | RelationType::Opposition) => DELTA_ADVERSATIVE,

@@ -694,7 +694,7 @@ fn build_label(
             })
             .unwrap_or("contrainte")
             .to_string(),
-        NodeType::EtatLocal | NodeType::Processus | NodeType::Concept | NodeType::Evenement => {
+        NodeType::EtatLocal | NodeType::Concept | NodeType::Evenement => {
             let nom = nominalize_with_table(
                 if verb_lemma.is_empty() {
                     "?"

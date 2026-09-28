@@ -37,7 +37,7 @@ pub fn tokenize(text: &str) -> Vec<Token> {
 }
 
 fn split_punct(s: &str) -> (&str, Option<&str>) {
-    let end = s.trim_end_matches(|c: char| matches!(c, '.' | ',' | ';' | ':' | '!' | '?'));
+    let end = s.trim_end_matches(['.', ',', ';', ':', '!', '?']);
     if end.len() < s.len() {
         return (end, Some(&s[end.len()..]));
     }

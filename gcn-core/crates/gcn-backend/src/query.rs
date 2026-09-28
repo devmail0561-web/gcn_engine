@@ -5,7 +5,7 @@ use gcn_ir::{CausalCycle, CausalIR};
 use serde::{Deserialize, Serialize};
 
 use crate::error::BackendError;
-use crate::pearl::{self, AbductionHypothesis, CausalLink, SpofScore, TemporalChainResult};
+use crate::pearl::{self, CausalLink, SpofScore};
 
 fn split_pair(rest: &str, cmd: &str) -> Result<(String, String), BackendError> {
     let (a, b) = rest

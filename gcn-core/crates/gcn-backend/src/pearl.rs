@@ -316,10 +316,10 @@ fn reachable_pairs_with_graph(
 ) -> usize {
     let mut count = 0;
     for src in nodes {
-        if let Some(ex) = exclude {
-            if g.node_indices.get(&src.id) == Some(&ex) {
-                continue;
-            }
+        if let Some(ex) = exclude
+            && g.node_indices.get(&src.id) == Some(&ex)
+        {
+            continue;
         }
         let si = match g.node_indices.get(&src.id) {
             Some(&x) => x,
@@ -521,7 +521,7 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
 /// et index_delta. Vérifie si le chemin est temporellement ordonné.
 pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResult {
     let path = chain(ir, from, to);
-    let (nm, em) = build_maps(ir);
+    let (_nm, em) = build_maps(ir);
     let idx_map: HashMap<NodeId, Option<i32>> =
         ir.nodes.iter().map(|n| (n.id, n.temporal_index)).collect();
 
@@ -648,22 +648,22 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
 
     // MediatedCause(X→C via M) : si M n'a pas d'autre source → M disparaît aussi
     for (_, _dst, edge) in &ir.edges {
-        if edge.relation == RelationType::MediatedCause {
-            if let Some(third) = &edge.third {
-                let mediator_id = NodeId(third.node as u32);
-                let other_sources = ir
-                    .edges
-                    .iter()
-                    .filter(|(s, _d, e)| {
-                        *s != target.id && *s == mediator_id
-                            || (*s != target.id
-                                && e.relation != RelationType::MediatedCause
-                                && _dst == &mediator_id)
-                    })
-                    .count();
-                if other_sources == 0 {
-                    extra_excluded.insert(mediator_id);
-                }
+        if edge.relation == RelationType::MediatedCause
+            && let Some(third) = &edge.third
+        {
+            let mediator_id = NodeId(third.node as u32);
+            let other_sources = ir
+                .edges
+                .iter()
+                .filter(|(s, _d, e)| {
+                    *s != target.id && *s == mediator_id
+                        || (*s != target.id
+                            && e.relation != RelationType::MediatedCause
+                            && _dst == &mediator_id)
+                })
+                .count();
+            if other_sources == 0 {
+                extra_excluded.insert(mediator_id);
             }
         }
     }

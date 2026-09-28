@@ -21,10 +21,8 @@ pub fn normalize_label(s: &str) -> String {
     // Substituer les ligatures multi-char avant le traitement char-à-char
     let pre = s
         .trim()
-        .replace('œ', "oe")
-        .replace('Œ', "oe")
-        .replace('æ', "ae")
-        .replace('Æ', "ae");
+        .replace(['œ', 'Œ'], "oe")
+        .replace(['æ', 'Æ'], "ae");
     pre.chars()
         .map(fold_accent)
         .filter(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '_' | '-'))
