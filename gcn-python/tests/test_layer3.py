@@ -1,8 +1,8 @@
-from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 
+from conftest import make_test_pipeline
 from gcn_python.constants import NODE_TYPES
 from gcn_python.layer3.reference import RGCNLayer
 
@@ -282,7 +282,6 @@ def test_rgcn_layernorm_checkpoint_roundtrip(tmp_path):
     """Checkpoint save → load préserve gamma/beta de LayerNorm."""
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
@@ -309,7 +308,6 @@ def test_rgcn_layernorm_extra_layers_inherit():
     """Avec n_rgcn_layers > 1, les extra layers héritent de use_layernorm."""
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4)

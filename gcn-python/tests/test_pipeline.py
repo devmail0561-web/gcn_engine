@@ -1,11 +1,11 @@
-from conftest import make_test_pipeline, make_word_embedding
-# Copyright 2026 Michel Tendeng
-# SPDX-License-Identifier: Apache-2.0
-from gcn_python.constants import NODE_TYPES
-from gcn_python.constants import RELATION_TYPES
 import numpy as np
 import pytest
 
+from conftest import make_test_pipeline, make_word_embedding
+
+# Copyright 2026 Michel Tendeng
+# SPDX-License-Identifier: Apache-2.0
+from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
 from gcn_python.layer1.representation import UDRepresentation
 from gcn_python.layer2.reference import MLPEncoder
@@ -30,7 +30,7 @@ def make_rep() -> UDRepresentation:
 
 def make_pipeline(**kwargs) -> CGNPipeline:
     vocab = FeatureVocabulary()
-    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
+    vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
     return make_test_pipeline()
 
 
@@ -234,9 +234,7 @@ def test_backward_full_gradient():
 def test_negated_edge_detected():
     """C3/C4 : un connecteur avec Polarity=Neg dans root_morph sort negated=True."""
     from gcn_python.layer1.representation import UDRepresentation
-    vocab = FeatureVocabulary()
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
+    FeatureVocabulary()
     pipeline = make_test_pipeline()
     rep1 = make_rep()
     rep2 = make_rep()
@@ -305,9 +303,7 @@ def test_attributes_entity_not_null():
 
 def test_label_nominalized():
     """C8 : CGNPipeline accepte taxonomies_dir comme kwarg."""
-    vocab = FeatureVocabulary()
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
+    FeatureVocabulary()
     p = make_test_pipeline(taxonomies_dir=None)
     assert p.taxonomies_dir is None
 
@@ -472,9 +468,7 @@ def test_subject_object_emb_forward_shape():
 
 def test_sample_weight_scales_node_and_edge_loss():
     """BUG-8 fix : sample_weight multiplie la loss nœuds ET arêtes (cohérence gold/silver)."""
-    from gcn_python.pipeline.cgnp import CGNPipeline
-    vocab = FeatureVocabulary()
-    D = vocab.d_clause
+    FeatureVocabulary()
     pipe = make_test_pipeline()
     rng = np.random.default_rng(0)
     node_logits = rng.normal(0, 1, (2, 7)).astype(np.float32)

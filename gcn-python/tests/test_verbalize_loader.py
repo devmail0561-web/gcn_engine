@@ -1,7 +1,6 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-from gcn_python.constants import NODE_TYPES
 
 import json
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from gcn_python.constants import NODE_TYPES
 from gcn_python.data.verbalize_loader import VerbalizerDataLoader, VerbalizeSample
 from gcn_python.verbalizer.trainable import SurfaceVocabulary
 

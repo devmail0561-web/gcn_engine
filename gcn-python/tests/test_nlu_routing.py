@@ -3,9 +3,9 @@
 """Tests Éq.6 ETUDE — NLU routing langue-agnostique."""
 import numpy as np
 import pytest
-from gcn_python.constants import INTENT_TYPES
-from gcn_python.pipeline.nlu_routing import nlu_route, _build_dsl, _content_words
 
+from gcn_python.constants import INTENT_TYPES
+from gcn_python.pipeline.nlu_routing import _build_dsl, nlu_route
 
 # ---------------------------------------------------------------------------
 # Heuristique surface — priorité 2 (sans pipeline)

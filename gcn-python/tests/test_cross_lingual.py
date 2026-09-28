@@ -6,11 +6,9 @@ Valide que classify() détecte SubordinationType.CONDITION depuis la structure U
 indépendamment de la langue, sans avoir vu le lemme en entraînement.
 Ne prouve pas la robustesse end-to-end sur un vrai corpus DE (T1 DE, futur).
 """
-import pytest
 
 from gcn_python.layer1.sentence_type import (
     LangMarkers,
-    SentenceProfile,
     SubordinationType,
     classify,
 )

@@ -7,10 +7,7 @@ find_path, find_best, estimate_delay, add_cir, SPOF, analogy poids.
 """
 from __future__ import annotations
 
-import pytest
-
 from gcn_python.verbalizer.instructions import CausalGraph, parse_command
-
 
 # ── parse_command ─────────────────────────────────────────────────────────────
 
@@ -22,7 +19,7 @@ class TestParseCommand:
         assert parse_command("EXPLAIN: hausse")[0] == "explain"
 
     def test_effects_without_colon(self):
-        cmd, arg = parse_command("effects hausse des coûts")
+        cmd, _arg = parse_command("effects hausse des coûts")
         assert cmd == "text"
 
     def test_summarize_no_arg(self):

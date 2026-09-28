@@ -1,5 +1,6 @@
 from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES, RELATION_TYPES
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les correctifs du Lot 1 (audit 2026-09-21).
@@ -44,7 +45,7 @@ def _make_rep(lemma: str = "baisser") -> UDRepresentation:
 def _make_pipeline(vocab=None, **kwargs) -> CGNPipeline:
     if vocab is None:
         vocab = FeatureVocabulary()
-    d_edge_cl = vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
+    vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
     return make_test_pipeline(**kwargs)
 
 
@@ -132,7 +133,7 @@ def test_run_eval_vocab_restored_from_checkpoint(tmp_path: Path):
     # Modèle entraîné avec connector_lemmas : d_edge ≠ vocab vide
     vocab_with_lemmas = FeatureVocabulary(connector_lemmas=["parce", "car", "because"])
     d_eff = vocab_with_lemmas.d_clause_effective(4)
-    d_edge = vocab_with_lemmas.d_edge_closed_loop(d_eff, len(NODE_TYPES))
+    vocab_with_lemmas.d_edge_closed_loop(d_eff, len(NODE_TYPES))
     pipeline = make_test_pipeline()
 
     ckpt = tmp_path / "model_with_lemmas.npz"
@@ -165,7 +166,7 @@ def test_word_embedding_gradient_received_after_backward():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4) + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
+    vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("baisser")
     we.add_lemma("hausser")
@@ -206,7 +207,7 @@ def test_word_embedding_gradient_1clause_no_unboundlocalerror():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4) + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
+    vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
@@ -240,7 +241,7 @@ def test_word_embedding_gradient_accumulate_1clause_no_unboundlocalerror():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4) + d_emb
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
+    vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=0)
     we.add_lemma("solo")
 
@@ -275,7 +276,7 @@ def test_word_embedding_gradient_uses_dcurr_not_denriched():
     d_emb = 4
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(d_emb)
-    d_edge_cl = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
+    vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb)
     we = WordEmbedding(d_emb=d_emb, seed=7)
     we.add_lemma("alpha")
     we.add_lemma("beta")
@@ -439,7 +440,10 @@ def test_eval_cmd_test_dir_adds_test_keys(tmp_path: Path):
         "--test-dir", str(test_dir),
     ])
     assert result.exit_code == 0, f"gcn-eval a échoué : {result.output}"
-    report = json.loads(result.output)
+    # stdout seul : result.output mélange stderr sous CliRunner (warnings
+    # UserWarning déjà émis par un test précédent → registre 'once' + mélange).
+    # En prod (vrai CLI), JSON→stdout et warnings→stderr sont séparés.
+    report = json.loads(result.stdout)
     assert "test" in report, "La clé 'test' doit être présente quand --test-dir est passé"
     assert "node_macro_f1" in report["test"], "test.node_macro_f1 manquant"
     assert "edge_macro_f1" in report["test"], "test.edge_macro_f1 manquant"

@@ -1,10 +1,8 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests Éq.10 ETUDE — relations discursives inter-phrasales."""
-import pytest
-from gcn_python.pipeline.discourse import extract_discourse_relation
 from gcn_python.layer1.sentence_type import LangMarkers
-
+from gcn_python.pipeline.discourse import extract_discourse_relation
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -15,7 +13,7 @@ def _cir(node_ids: list[int], span_ends: list[int]) -> dict:
     return {
         "nodes": [
             {"id": nid, "source_span": {"token_span": {"start": 0, "end": end}}}
-            for nid, end in zip(node_ids, span_ends)
+            for nid, end in zip(node_ids, span_ends, strict=False)
         ],
         "edges": [],
     }

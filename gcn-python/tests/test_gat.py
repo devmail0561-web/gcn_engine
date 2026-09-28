@@ -1,5 +1,6 @@
 from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour RGCNLayerGAT — skip automatique si PyTorch n'est pas installé."""
@@ -386,10 +387,7 @@ def test_checkpoint_layernorm_missing_keys_inits_identity():
 
 
 def test_stacked_gat_without_residual_baseline_equivalent():
-    from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.pipeline.cgnp import CGNPipeline
 
     pipe = make_test_pipeline(n_rgcn_layers=2)
     D = pipe.vocabulary.d_clause_effective(pipe.word_embedding.d_emb)

@@ -2,24 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests e2e verbalizer — enriched_vecs, engine.verbalize(), gradient cohérence, B3."""
 from __future__ import annotations
-from conftest import make_test_pipeline, make_word_embedding
-from gcn_python.constants import NODE_TYPES
 
 import numpy as np
 import pytest
 
+from conftest import make_test_pipeline
+from gcn_python.constants import NODE_TYPES
 from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
-from gcn_python.pipeline.cgnp import CGNPipeline
 from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
 
 
 def _make_pipeline_with_decoder():
     vocab = FeatureVocabulary()
     D = vocab.d_clause_effective(4)
-    encoder = MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), 4), seed=0)
-    graph = RGCNLayer(d_in=D, d_out=D, seed=0)
+    MLPEncoder(d_clause=D, d_edge=vocab.d_edge_closed_loop(D, len(NODE_TYPES), 4), seed=0)
+    RGCNLayer(d_in=D, d_out=D, seed=0)
     sv = SurfaceVocabulary()
     sv.build(["parce que les prix baissent", "donc l effet augmente"])
     decoder = TrainableDecoder(sv, d_hidden=16, d_in=D, seed=0)
@@ -159,8 +158,7 @@ def test_engine_verbalize_fallback():
             )
             return [rep], []
 
-    vocab = FeatureVocabulary()
-    D = vocab.d_clause
+    FeatureVocabulary()
     pipeline_no_dec = make_test_pipeline()
     engine = GCNEngine(pipeline_no_dec, text_parser=_MockBridgeParser())
 

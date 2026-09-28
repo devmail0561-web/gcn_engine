@@ -35,7 +35,7 @@ def test_d_clause_equals_106():
 
 
 def test_voice_encoded_passive():
-    from conftest import make_test_pipeline, make_word_embedding
+    from conftest import make_word_embedding
     we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = make_rep(root_morph={"Voice": "Pass"})

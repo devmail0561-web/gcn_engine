@@ -373,7 +373,7 @@ def test_lang_markers_from_json():
     m = LangMarkers.from_json(data)
     assert "pourquoi" in m.interrogative_lemmas
     assert "ne" in m.negation_particles
-    assert (["ne", "que"],) == m.restriction_patterns or ["ne", "que"] in m.restriction_patterns
+    assert m.restriction_patterns == (["ne", "que"],) or ["ne", "que"] in m.restriction_patterns
 
 
 def test_lang_markers_from_json_basic():

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests §9.4 ETUDE — algèbre de négation ternaire."""
 import pytest
-from gcn_python.pipeline.ir_emitter import apply_negation_algebra
-from gcn_python.constants import NEGATION_PREVENT_MAP
 
+from gcn_python.constants import NEGATION_PREVENT_MAP
+from gcn_python.pipeline.ir_emitter import apply_negation_algebra
 
 # ---------------------------------------------------------------------------
 # RÈGLE 1 — Neg(dst) : relation causale → variante prevent
@@ -24,7 +24,7 @@ def test_r1_neg_dst_maps_to_prevent(cause_rel, expected):
 
 
 def test_r1_non_cause_relation_unchanged():
-    rel, third, sp = apply_negation_algebra("enable", "dst", None, True)
+    rel, _third, _sp = apply_negation_algebra("enable", "dst", None, True)
     assert rel == "enable"   # pas dans NEGATION_PREVENT_MAP → inchangé
 
 
@@ -42,7 +42,7 @@ def test_r2_neg_condition_sets_polarity():
 
 
 def test_r2_no_third_no_change():
-    rel, third_out, sp = apply_negation_algebra("conditional_cause", "condition", None, True)
+    rel, third_out, _sp = apply_negation_algebra("conditional_cause", "condition", None, True)
     assert rel == "conditional_cause"
     assert third_out is None
 
@@ -52,13 +52,13 @@ def test_r2_no_third_no_change():
 # ---------------------------------------------------------------------------
 
 def test_r3_cause_becomes_counterfactual():
-    rel, third, sp = apply_negation_algebra("cause", "src", None, True)
+    rel, _third, sp = apply_negation_algebra("cause", "src", None, True)
     assert rel == "counterfactual"
     assert sp is None
 
 
 def test_r3_joint_cause_source_polarity():
-    rel, third, sp = apply_negation_algebra("joint_cause", "src", None, True)
+    rel, _third, sp = apply_negation_algebra("joint_cause", "src", None, True)
     assert rel == "joint_cause"   # relation inchangée
     assert sp == "negative"
 

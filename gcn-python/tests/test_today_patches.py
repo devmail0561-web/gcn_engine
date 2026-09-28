@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests des patches figés today.txt — silences Cat.2 puis anti-crash Cat.1."""
 from __future__ import annotations
-from conftest import make_test_pipeline, make_word_embedding
-from gcn_python.constants import NODE_TYPES
 
 import csv
 import inspect
@@ -14,6 +12,9 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+
+from conftest import make_word_embedding
+from gcn_python.constants import NODE_TYPES
 
 # ── helpers dataset minimal ──────────────────────────────────────────────────
 

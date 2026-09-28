@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests de la boucle d'entraînement Phase 2b."""
 from __future__ import annotations
-from conftest import make_test_pipeline, make_word_embedding
 
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from conftest import make_test_pipeline, make_word_embedding
 from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
@@ -21,7 +21,7 @@ from gcn_python.pipeline.cgnp import CGNPipeline, _cross_entropy
 
 @pytest.fixture
 def pipeline() -> CGNPipeline:
-    vocab = FeatureVocabulary()
+    FeatureVocabulary()
     return make_test_pipeline()
 
 
@@ -187,8 +187,6 @@ def test_loss_decreases_over_epochs(pipeline: CGNPipeline):
 
 def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     params_orig = [p.copy() for p in pipeline.encoder.parameters()]
@@ -197,7 +195,7 @@ def test_checkpoint_roundtrip(tmp_path: Path, pipeline: CGNPipeline):
     save_checkpoint(pipeline, ckpt)
 
     # Nouveau pipeline avec seed différent (poids différents)
-    vocab = FeatureVocabulary()
+    FeatureVocabulary()
     p2 = make_test_pipeline()
 
     load_checkpoint(p2, ckpt, trusted=True)
@@ -444,8 +442,6 @@ def test_checkpoint_dimension_mismatch_raises(tmp_path: Path, pipeline: CGNPipel
     import pytest
 
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     ckpt = tmp_path / "model.npz"
@@ -573,8 +569,7 @@ def test_backward_weight_decay_changes_rgcn(pipeline: CGNPipeline):
 
 def test_backward_bidirectional_no_crash():
     """backward() avec bidirectional=True ne doit pas crasher."""
-    vocab = FeatureVocabulary()
-    D = vocab.d_clause
+    FeatureVocabulary()
     p = make_test_pipeline(bidirectional=True)
 
     reps = _make_reps_2()
@@ -645,9 +640,9 @@ def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
 
     # loss : même phrase, poids 0.7 < poids 1.0 sur la partie arêtes
     vocab = FeatureVocabulary()
-    encoder = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                          d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4), seed=0)
-    graph = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), seed=0)
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), seed=0)
     pipe = make_test_pipeline()
     rng = np.random.default_rng(1)
     nl = rng.normal(0, 1, (2, 7)).astype(np.float32)

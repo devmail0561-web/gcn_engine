@@ -13,7 +13,6 @@ from gcn_python.layer2.reference import MLPEncoder
 from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 
-
 # ---------------------------------------------------------------------------
 # CGNPipeline — word_embedding obligatoire
 # ---------------------------------------------------------------------------
@@ -97,6 +96,7 @@ def test_vectorize_clause_with_embedding_shape():
 def test_checkpoint_saves_word_emb_E(tmp_path):
     """save_checkpoint inclut word_emb_E (D10 — paramètre appris)."""
     import numpy as _np
+
     from gcn_python.training.checkpoint import save_checkpoint
 
     pipeline = make_test_pipeline()
@@ -111,12 +111,10 @@ def test_checkpoint_saves_word_emb_E(tmp_path):
 def test_checkpoint_fails_without_embedding(tmp_path):
     """save_checkpoint lève ValueError si word_embedding absent."""
     from gcn_python.training.checkpoint import save_checkpoint
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
 
     vocab = FeatureVocabulary()
     we = make_word_embedding(d_emb=4)
-    d_eff = vocab.d_clause_effective(we.d_emb)
+    vocab.d_clause_effective(we.d_emb)
     pipeline = make_test_pipeline()
     # Forcer word_embedding à None après construction (contournement pour tester checkpoint)
     pipeline.word_embedding = None
@@ -131,7 +129,9 @@ def test_checkpoint_fails_without_embedding(tmp_path):
 def test_train_requires_embedding_dim(tmp_path):
     """ClickException si --embedding-dim 0 (D10 ETUDE)."""
     import json
+
     from click.testing import CliRunner
+
     from gcn_python.training.train import train_cmd
 
     # Dataset minimal

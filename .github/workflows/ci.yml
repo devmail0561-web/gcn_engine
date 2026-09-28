@@ -18,6 +18,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy -- -D warnings
       - run: cargo test --workspace --locked
+      - run: which cargo-audit || cargo install cargo-audit --locked
       - run: cargo audit
 
   python:

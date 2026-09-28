@@ -27,7 +27,7 @@ def make_rep() -> UDRepresentation:
 
 
 def test_feature_dimensions():
-    from conftest import make_test_pipeline, make_word_embedding
+    from conftest import make_word_embedding
     we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = make_rep()

@@ -1,6 +1,6 @@
-from conftest import make_test_pipeline, make_word_embedding
-from gcn_python.constants import NODE_TYPES
-from gcn_python.constants import RELATION_TYPES
+from conftest import make_word_embedding
+from gcn_python.constants import NODE_TYPES, RELATION_TYPES
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests mise-à-niveau v5 (10 familles -> cas essentiels non-régressifs)."""

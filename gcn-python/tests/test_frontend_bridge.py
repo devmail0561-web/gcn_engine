@@ -1,7 +1,6 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests pour frontend/bridge.py — implémentation P1 (pont texte brut → UDRepresentation)."""
-from gcn_python.constants import NODE_TYPES
 import json
 import shutil
 import warnings

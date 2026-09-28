@@ -1,14 +1,14 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
-from conftest import make_test_pipeline, make_word_embedding
-from gcn_python.constants import NODE_TYPES
 
 import json
 from pathlib import Path
 
 import numpy as np
 
+from conftest import make_test_pipeline, make_word_embedding
+from gcn_python.constants import NODE_TYPES
 from gcn_python.verbalizer.trainable import SurfaceVocabulary, TrainableDecoder
 
 # ── SurfaceVocabulary ─────────────────────────────────────────────────────────
@@ -285,11 +285,8 @@ def test_pipeline_with_decoder_forward(tmp_path):
 def test_pipeline_decoder_none_unchanged():
     """Sans decoder, le pipeline se comporte exactement comme avant."""
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
 
-    vocab = FeatureVocabulary()
+    FeatureVocabulary()
     pipeline = make_test_pipeline()
     assert pipeline.decoder is None
 
@@ -299,12 +296,11 @@ def test_checkpoint_roundtrip_with_decoder(tmp_path: Path):
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     v = make_vocab()
     dec = TrainableDecoder(v, d_hidden=16)
 

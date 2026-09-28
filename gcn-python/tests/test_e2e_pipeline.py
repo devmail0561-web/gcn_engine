@@ -1,4 +1,5 @@
-from conftest import make_test_pipeline, make_word_embedding
+from conftest import make_test_pipeline
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -18,9 +19,6 @@ import pytest
 
 from gcn_python.frontend.bridge import _cir_to_reps_and_connectors
 from gcn_python.layer1.features import FeatureVocabulary
-from gcn_python.layer2.reference import MLPEncoder
-from gcn_python.layer3.reference import RGCNLayer
-from gcn_python.pipeline.cgnp import CGNPipeline
 
 # ─── CIR synthétiques ────────────────────────────────────────────────────────
 
@@ -79,7 +77,7 @@ def pipeline():
     vocab = FeatureVocabulary()
     d_cl = vocab.d_clause_effective(4)
     n_node_types = len(NODE_TYPES)  # 7
-    d_edge = vocab.d_edge_closed_loop(d_cl, n_node_types)
+    vocab.d_edge_closed_loop(d_cl, n_node_types)
     return make_test_pipeline()
 
 

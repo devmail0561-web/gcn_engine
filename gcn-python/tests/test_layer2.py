@@ -1,9 +1,8 @@
-from gcn_python.constants import NODE_TYPES
-from gcn_python.constants import RELATION_TYPES
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 
+from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 

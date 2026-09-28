@@ -9,12 +9,12 @@ son pickle ait jamais été exécuté. Le marqueur ci-dessous est posé par le
 from __future__ import annotations
 
 import json
-from conftest import make_test_pipeline, make_word_embedding
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from conftest import make_test_pipeline
 from gcn_python.security import (
     UnsafeCheckpointError,
     assert_npz_pickle_safe,
@@ -78,10 +78,6 @@ def test_guarded_np_load_refuses_before_opening(tmp_path: Path):
 
 def test_load_checkpoint_guard_applies_even_when_trusted(tmp_path: Path):
     """trusted=True n'est pas un passe-droit : l'audit pickle reste appliqué."""
-    from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint
 
     pipe = make_test_pipeline()
@@ -126,10 +122,6 @@ def test_guard_accepts_legitimate_checkpoint(tmp_path: Path):
 
 def test_guard_accepts_checkpoint_produced_by_save_checkpoint(tmp_path: Path):
     """Round-trip réel : save_checkpoint → guarded_np_load sans erreur."""
-    from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     pipe = make_test_pipeline()

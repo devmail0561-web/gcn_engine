@@ -126,8 +126,8 @@ class CGNPipeline:
         self.no_mood = bool(no_mood)
         self.no_tense = bool(no_tense)
         self.n_intent_types = int(n_intent_types)
-        self._cached_intent_logits: "np.ndarray | None" = None
-        self._cached_d_intent: "np.ndarray | None" = None
+        self._cached_intent_logits: np.ndarray | None = None
+        self._cached_d_intent: np.ndarray | None = None
         if bfs_depth is not None:
             bfs_depth = int(bfs_depth)
             if bfs_depth < 1:

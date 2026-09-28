@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers pour la création de pipelines de test (D10 ETUDE : word_embedding obligatoire)
 # ---------------------------------------------------------------------------

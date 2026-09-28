@@ -1,4 +1,5 @@
-from conftest import make_test_pipeline, make_word_embedding
+from conftest import make_test_pipeline
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests des phases update.txt : A (fastText), B (PairNorm+DropEdge),
@@ -276,8 +277,6 @@ def test_pipeline_routes_transformer_through_forward_batch():
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
     from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
 
     def _rep(lemma):
         return UDRepresentation(
@@ -385,12 +384,9 @@ def test_gat_dropout_uses_local_generator():
 def test_rgcn_layers_zero_skips_message_pass():
     """n_rgcn_layers=0 : pipeline MLP-seul, _graph_layers vide."""
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     vocab = FeatureVocabulary()
     d = vocab.d_clause
-    d_edge = vocab.d_edge_closed_loop(d, len(NODE_TYPES))
+    vocab.d_edge_closed_loop(d, len(NODE_TYPES))
     pipe = make_test_pipeline(n_rgcn_layers=0)
     assert pipe._graph_layers == [], "_graph_layers doit être vide avec n_rgcn_layers=0"
     # Forward ne crashe pas

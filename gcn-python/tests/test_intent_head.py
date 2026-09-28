@@ -1,17 +1,15 @@
-from conftest import make_test_pipeline, make_word_embedding
+from conftest import make_word_embedding
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests Éq.6 — tête d'intention MLP apprise."""
-import io
 import tempfile
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from gcn_python.constants import INTENT_TYPES
 from gcn_python.layer2.reference import MLPEncoder
-
 
 N_INTENT = len(INTENT_TYPES)   # 21
 D_CLAUSE = 106
@@ -100,10 +98,10 @@ def test_update_intent_does_not_touch_node_weights():
 # ---------------------------------------------------------------------------
 
 def test_checkpoint_roundtrip_intent_weights():
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4)
@@ -136,10 +134,10 @@ def test_checkpoint_roundtrip_intent_weights():
 
 def test_checkpoint_without_intent_loads_cleanly():
     """Un checkpoint sans intent_layer_* doit charger sans erreur (rétrocompat)."""
-    from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+    from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
-    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4)

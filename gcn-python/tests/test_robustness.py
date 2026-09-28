@@ -8,9 +8,9 @@ Sautés si le checkpoint n'existe pas.
 from pathlib import Path
 
 import numpy as np
-from conftest import make_test_pipeline, make_word_embedding
 import pytest
 
+from conftest import make_word_embedding
 from gcn_python.layer1.features import FeatureVocabulary, vectorize_edge
 from gcn_python.layer1.representation import UDRepresentation
 
