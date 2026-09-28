@@ -441,22 +441,22 @@ def vectorize_clause(
         pos_features,
         ternary_features,
     ]
-    if word_embedding is not None:
-        if clause_pooling not in CLAUSE_POOLING_MODES:
-            raise ValueError(
-                f"clause_pooling inconnu : {clause_pooling!r} "
-                f"(attendu parmi {CLAUSE_POOLING_MODES})."
-            )
-        parts.append(_pool_tokens(rep, word_embedding, clause_pooling))
-        if subject_object_emb:
-            subj_lemma, obj_lemma = _find_subj_obj_lemmas(rep)
-            parts.append(word_embedding.lookup(subj_lemma))
-            parts.append(word_embedding.lookup(obj_lemma))
-    elif clause_pooling != "root" or subject_object_emb:
+    # D10 ETUDE : word_embedding obligatoire
+    if word_embedding is None:
         raise ValueError(
-            "clause_pooling != 'root' ou subject_object_emb=True requiert "
-            "word_embedding (d_emb > 0)."
+            "vectorize_clause : word_embedding obligatoire (D10 ETUDE). "
+            "Construire CGNPipeline avec un WordEmbedding."
         )
+    if clause_pooling not in CLAUSE_POOLING_MODES:
+        raise ValueError(
+            f"clause_pooling inconnu : {clause_pooling!r} "
+            f"(attendu parmi {CLAUSE_POOLING_MODES})."
+        )
+    parts.append(_pool_tokens(rep, word_embedding, clause_pooling))
+    if subject_object_emb:
+        subj_lemma, obj_lemma = _find_subj_obj_lemmas(rep)
+        parts.append(word_embedding.lookup(subj_lemma))
+        parts.append(word_embedding.lookup(obj_lemma))
     return np.concatenate(parts)
 
 

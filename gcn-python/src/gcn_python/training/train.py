@@ -302,12 +302,9 @@ def train_cmd(
     if mlp_hidden < 1:
         raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
     if not _has_emb:
-        # Désactivation explicite : fortement déconseillé (moteur aveugle au lexique).
-        click.echo(
-            "AVERTISSEMENT : embeddings lexicaux DÉSACTIVÉS (--embedding-dim 0). "
-            "Fortement déconseillé : sans signal lexical, le moteur ne voit que la "
-            "syntaxe (cf REMEDIATION-DIAGNOSTIC.md §1). Préférez le défaut --embedding-dim 128.",
-            err=True,
+        raise click.ClickException(
+            "word_embedding obligatoire (D10 ETUDE). "
+            "Utilisez --embedding-dim 128 (défaut) ou --embedding-file chemin.bin"
         )
 
     # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings activés par défaut

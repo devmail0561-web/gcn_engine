@@ -165,15 +165,18 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             dtype=object,
         )
 
-    # S9 : sauvegarder word_embedding si présent
-    if getattr(pipeline, 'word_embedding', None) is not None:
-        we = pipeline.word_embedding
-        arrays["_word_emb_vocab_json"] = np.array([we.to_json()], dtype=object)
-        arrays["word_emb_E"] = we._E
-        # C : plage pré-entraînée (gel partiel) — None si jamais chargé
-        if we._pretrained_start is not None and we._pretrained_end is not None:
-            arrays["word_emb_pretrained_start"] = np.array([we._pretrained_start])
-            arrays["word_emb_pretrained_end"] = np.array([we._pretrained_end])
+    # D10 ETUDE : word_embedding obligatoire — sauvegarde inconditionnelle
+    we = pipeline.word_embedding
+    if we is None:
+        raise ValueError(
+            "save_checkpoint : word_embedding manquant — le pipeline doit être "
+            "construit avec un WordEmbedding (D10 ETUDE obligatoire)."
+        )
+    arrays["_word_emb_vocab_json"] = np.array([we.to_json()], dtype=object)
+    arrays["word_emb_E"] = we._E
+    if we._pretrained_start is not None and we._pretrained_end is not None:
+        arrays["word_emb_pretrained_start"] = np.array([we._pretrained_start])
+        arrays["word_emb_pretrained_end"] = np.array([we._pretrained_end])
 
     # Phase C : sauvegarder les poids MHA (fixes mais différents selon seed)
     # Nécessaire pour la reproductibilité exacte à la reprise d'un checkpoint.

@@ -72,10 +72,12 @@ def _make_rep(mood: str = "Sub", tense: str = "Pres") -> UDRepresentation:
 
 
 def test_no_mood_zeroes_mood_feature():
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = _make_rep(mood="Sub")
-    v_normal = vectorize_clause(rep, vocab)
-    v_masked = vectorize_clause(rep, vocab, no_mood=True)
+    v_normal = vectorize_clause(rep, vocab, word_embedding=we)
+    v_masked = vectorize_clause(rep, vocab, word_embedding=we, no_mood=True)
     # Les deux vecteurs diffèrent sur les dimensions mood
     mood_start = (len(vocab.upos_tags) + len(vocab.dep_rels)
                   + len(vocab.subject_pos_cats) + len(vocab.tense_values)
@@ -87,10 +89,12 @@ def test_no_mood_zeroes_mood_feature():
 
 
 def test_no_tense_zeroes_tense_feature():
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = _make_rep(tense="Pres")
-    v_normal = vectorize_clause(rep, vocab)
-    v_masked = vectorize_clause(rep, vocab, no_tense=True)
+    v_normal = vectorize_clause(rep, vocab, word_embedding=we)
+    v_masked = vectorize_clause(rep, vocab, word_embedding=we, no_tense=True)
     tense_start = len(vocab.upos_tags) + len(vocab.dep_rels) + len(vocab.subject_pos_cats)
     tense_end = tense_start + len(vocab.tense_values)
     assert not (v_normal[tense_start:tense_end] == v_masked[tense_start:tense_end]).all(), (
@@ -99,10 +103,12 @@ def test_no_tense_zeroes_tense_feature():
 
 
 def test_no_mood_no_tense_same_shape():
+    from conftest import make_word_embedding
+    we = make_word_embedding()
     vocab = FeatureVocabulary()
     rep = _make_rep()
-    v = vectorize_clause(rep, vocab, no_mood=True, no_tense=True)
-    v_ref = vectorize_clause(rep, vocab)
+    v = vectorize_clause(rep, vocab, word_embedding=we, no_mood=True, no_tense=True)
+    v_ref = vectorize_clause(rep, vocab, word_embedding=we)
     assert v.shape == v_ref.shape, "d_clause doit être inchangé avec no_mood/no_tense"
 
 

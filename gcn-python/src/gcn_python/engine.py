@@ -206,12 +206,15 @@ class GCNEngine:
                               output_activation=rgcn_output_activation,
                               use_layernorm=rgcn_layernorm)
 
-        word_embedding = None
-        if d_emb > 0:
-            from .layer1.embedding import WordEmbedding
-            word_embedding = WordEmbedding(d_emb=d_emb)
-            if freeze_embeddings:
-                word_embedding.frozen = True
+        if d_emb <= 0:
+            raise ValueError(
+                f"Checkpoint {path} sans word_embedding (d_emb={d_emb}). "
+                "Réentraîner avec --embedding-dim 128 (D10 ETUDE — obligatoire)."
+            )
+        from .layer1.embedding import WordEmbedding
+        word_embedding = WordEmbedding(d_emb=d_emb)
+        if freeze_embeddings:
+            word_embedding.frozen = True
 
         # Restaurer les hyperparamètres d'inférence depuis l'arch — sans ça,
         # analyze() utilise les défauts (seuil 0.0, morph actif, temp 1.0) même

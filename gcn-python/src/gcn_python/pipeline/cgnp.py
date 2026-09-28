@@ -105,6 +105,11 @@ class CGNPipeline:
         self.node_types = list(node_types) if node_types is not None else list(NODE_TYPES)
         self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
         self.all_pairs = all_pairs
+        if word_embedding is None:
+            raise ValueError(
+                "word_embedding est obligatoire (D10 ETUDE). "
+                "Utilisez WordEmbedding(d_emb=128) ou --embedding-file fasttext.bin."
+            )
         self.word_embedding = word_embedding
         self.bidirectional = bidirectional
         # Tête de prédiction de liens (optionnelle, vérifiée via hasattr côté appelants).
