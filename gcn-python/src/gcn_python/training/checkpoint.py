@@ -158,6 +158,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             arrays[f"intent_layer_{i}_W"] = layer.W
             arrays[f"intent_layer_{i}_b"] = layer.b
         import json as _json_ckpt
+
         from ..constants import INTENT_TYPES as _INTENT_TYPES
         arrays["_intent_meta_json"] = np.array(
             [_json_ckpt.dumps({"n_intent_types": pipeline.encoder.n_intent_types,

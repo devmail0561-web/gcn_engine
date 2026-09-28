@@ -131,7 +131,7 @@ def index_cmd(
                     )
                     if _disc is not None:
                         cir.setdefault("edges", []).append(_disc)
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: S110, BLE001
                     pass
                 _prev_cir = cir
                 if cir.get("edges"):

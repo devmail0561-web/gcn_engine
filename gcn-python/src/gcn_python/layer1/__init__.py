@@ -10,18 +10,20 @@ from .sentence_type import (
     SubordinationType,
     Voice,
     classify,
+)
+from .sentence_type import (
     classify as classify_sentence,
 )
 
 __all__ = [
+    "Complexity",
+    "LangMarkers",
+    "Modality",
+    "Polarity",
     "SentenceProfile",
     "SentenceType",
-    "Polarity",
-    "Voice",
-    "Modality",
-    "Complexity",
     "SubordinationType",
-    "LangMarkers",
+    "Voice",
     "classify",
     "classify_sentence",
 ]

@@ -35,7 +35,7 @@ def test_optimize_temperature_reduces_ece_overconfident():
     logits = np.zeros((N, C))
     logits[np.arange(N), labels] = 5.0  # sur-confiant
     ece_before = ece_score(softmax(logits), labels)
-    best_t, ece_after = optimize_temperature(logits, labels)
+    _best_t, ece_after = optimize_temperature(logits, labels)
     assert ece_after <= ece_before
 
 

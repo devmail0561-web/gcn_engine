@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
 from pathlib import Path
@@ -165,7 +166,7 @@ def _extract_token_span(node: dict) -> list[int]:
     return result[:2]
 
 
-def _normalize_edge(e) -> "dict | list[dict] | None":
+def _normalize_edge(e) -> dict | list[dict] | None:
     """
     Normalise une arête CIR vers le format doc gcn-nl.
 
@@ -176,6 +177,7 @@ def _normalize_edge(e) -> "dict | list[dict] | None":
     Pour JOINT_CAUSE/JointPrevent avec sources=[A, B] : retourne list[dict] (2 arêtes).
     """
     import hashlib
+
     from ..data.edge_norm import normalize_node_id
 
     if isinstance(e, (list, tuple)) and len(e) == 3:
@@ -195,10 +197,8 @@ def _normalize_edge(e) -> "dict | list[dict] | None":
             if isinstance(src_raw, (list, tuple)):
                 sources_list = []
                 for s in src_raw:
-                    try:
+                    with contextlib.suppress(ValueError):
                         sources_list.append(normalize_node_id(s))
-                    except ValueError:
-                        pass
                 if not sources_list:
                     return None
             else:

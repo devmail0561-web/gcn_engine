@@ -8,10 +8,9 @@ Pas de règles ici — uniquement le chargement des données.
 """
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-
-import warnings
 
 import yaml
 
@@ -44,7 +43,7 @@ class TaxonomyIndex:
             for yaml_path in sorted(scan_dir.glob("*.yaml")):
                 try:
                     doc = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-                except Exception as exc:  # noqa: S112, BLE001
+                except Exception as exc:  # noqa: BLE001
                     warnings.warn(
                         f"Taxonomie illisible ignorée : {yaml_path} — {exc}. "
                         "Les features associées seront 0 pour toute la session.",

@@ -34,7 +34,6 @@ import subprocess
 import warnings
 from pathlib import Path
 
-from ..constants import NODE_TYPES
 from ..layer1.representation import UDRepresentation
 
 

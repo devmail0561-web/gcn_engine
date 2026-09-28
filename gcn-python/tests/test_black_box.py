@@ -1,5 +1,6 @@
-from conftest import make_test_pipeline, make_word_embedding
+from conftest import make_test_pipeline
 from gcn_python.constants import NODE_TYPES
+
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les 5 findings du red-team 12ᵉ audit (F1–F5)."""
@@ -15,12 +16,11 @@ def _make_minimal_checkpoint(tmp_path: Path) -> Path:
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
-    enc = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                      d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe = make_test_pipeline()
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipe, ckpt)

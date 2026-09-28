@@ -109,7 +109,7 @@ def extract_discourse_relation(
     import datetime as _dt
     try:
         from .. import __version__ as _ver
-    except Exception:
+    except Exception:  # noqa: BLE001
         _ver = "unknown"
 
     edge_dict = {

@@ -25,7 +25,6 @@ from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
 from ..training.checkpoint import load_checkpoint
 
-
 _FORBIDDEN_EVAL_DIRS = {"final", "c1_merged", "c1_oversampled"}
 
 def run_eval(

@@ -71,10 +71,10 @@ def nlu_route(
 
     if tokens is not None:
         try:
-            from ..layer1.sentence_type import classify, SentenceType
+            from ..layer1.sentence_type import SentenceType, classify
             profile = classify(tokens)
             is_question = profile.sentence_type == SentenceType.INTERROGATIVE
-        except Exception:
+        except Exception:  # noqa: S110, BLE001
             pass
 
     if not is_question:
@@ -90,8 +90,8 @@ def nlu_route(
 
 
 def semantic_resolve_concept(
-    query_vecs: "np.ndarray",
-    graph_index: "list[tuple[np.ndarray, str]]",
+    query_vecs: np.ndarray,
+    graph_index: list[tuple[np.ndarray, str]],
     threshold: float = 0.3,
 ) -> str | None:
     """Résolution sémantique : vecteur(s) de la requête → label du nœud le plus proche.

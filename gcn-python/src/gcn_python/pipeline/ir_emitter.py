@@ -66,10 +66,7 @@ def confidence_d6(
 
 def _clause_has_sconj(tokens: list[dict]) -> bool:
     """True si la clause porte une subordonnée SCONJ (mark/SCONJ)."""
-    for t in tokens or []:
-        if t.get("dep_rel") == "mark" or t.get("pos") == "SCONJ":
-            return True
-    return False
+    return any(t.get("dep_rel") == "mark" or t.get("pos") == "SCONJ" for t in tokens or [])
 
 
 def orient_edge_d7(
@@ -265,7 +262,7 @@ def emit(
     _now_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         from .. import __version__ as _gcn_version
-    except Exception:
+    except Exception:  # noqa: BLE001
         _gcn_version = "unknown"
 
     import math

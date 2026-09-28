@@ -201,8 +201,8 @@ class CausalGraph:
     @staticmethod
     def _normalize(s: str) -> str:
         """Normalise un label : ligatures, fold accents (NFD→ASCII), lowercase, strip ponctuation."""
-        import unicodedata as _ud
         import re as _re
+        import unicodedata as _ud
         pre = (s or "").replace('œ', 'oe').replace('Œ', 'oe').replace('æ', 'ae').replace('Æ', 'ae')
         nfd = _ud.normalize('NFD', pre)
         ascii_str = nfd.encode('ascii', 'ignore').decode('ascii')
@@ -570,17 +570,23 @@ class InstructionHandler:
         flow_family = {"data_dependency", "control_dependency", "sequence"}
 
         def rel_sim(r):
-            if r == p_rel: return 1.0
-            if r in causal_family and p_rel in causal_family: return 0.6
-            if r in flow_family and p_rel in flow_family: return 0.6
+            if r == p_rel:
+                return 1.0
+            if r in causal_family and p_rel in causal_family:
+                return 0.6
+            if r in flow_family and p_rel in flow_family:
+                return 0.6
             return 0.0
 
         def type_sim(t, pt):
-            if t == pt: return 1.0
+            if t == pt:
+                return 1.0
             dyn = {"action", "transition"}
             sta = {"etat", "etat_systemique"}
-            if t in dyn and pt in dyn: return 0.5
-            if t in sta and pt in sta: return 0.5
+            if t in dyn and pt in dyn:
+                return 0.5
+            if t in sta and pt in sta:
+                return 0.5
             return 0.0
 
         from collections import Counter as _Ctr
@@ -758,7 +764,7 @@ class InstructionHandler:
         if not matching:
             return f"density: node '{arg}' not found"
         nid = matching[0]
-        degree = sum(1 for s,d,_,_ in self.graph.edges if s == nid or d == nid)
+        degree = sum(1 for s,d,_,_ in self.graph.edges if nid in (s, d))
         local_d = degree / (2 * (n - 1)) if n > 1 else 0.0
         return (f"density: '{arg}'  local={local_d:.3f}  degree={degree}\n"
                 f"  global={global_d:.3f}  ({n} nodes, {e} edges)")
@@ -772,7 +778,7 @@ class InstructionHandler:
         if not matching:
             return f"coverage: node '{arg}' not found"
         nid = matching[0]
-        incident = [(s,d,a) for s,d,a,_ in self.graph.edges if s==nid or d==nid]
+        incident = [(s,d,a) for s,d,a,_ in self.graph.edges if nid in (s, d)]
         degree = len(incident)
         n_prov = sum(1 for _,_,a in incident if a.get("provenance") is not None)
         n_e = len(self.graph.edges)
@@ -794,7 +800,7 @@ class InstructionHandler:
         confs = []
         n_prov = 0
         for s,d,attrs,_ in self.graph.edges:
-            if s == nid or d == nid:
+            if nid in (s, d):
                 c = attrs.get("confidence")
                 try:
                     confs.append(float(c) if c is not None else 1.0)

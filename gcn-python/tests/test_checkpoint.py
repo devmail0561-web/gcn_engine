@@ -1,11 +1,12 @@
-from conftest import make_test_pipeline, make_word_embedding
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
-from gcn_python.constants import NODE_TYPES
 import numpy as np
 import pytest
+
+from conftest import make_test_pipeline, make_word_embedding
+from gcn_python.constants import NODE_TYPES
 
 
 def test_checkpoint_pytorch_rgcn(tmp_path: Path):
@@ -13,9 +14,7 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
     pytest.importorskip("torch")  # skip si PyTorch absent
 
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.pytorch_rgcn import RGCNLayerPT
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
     vocab = FeatureVocabulary()
@@ -44,12 +43,9 @@ def test_checkpoint_pytorch_rgcn(tmp_path: Path):
 def test_checkpoint_untrusted_refused(tmp_path: Path):
     """Sécurité : load_checkpoint refuse par défaut (pickle non fiable)."""
     from gcn_python.layer1.features import FeatureVocabulary
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
     from gcn_python.training.checkpoint import load_checkpoint, save_checkpoint
 
-    vocab = FeatureVocabulary()
+    FeatureVocabulary()
     pipeline = make_test_pipeline()
     ckpt = tmp_path / "model.npz"
     save_checkpoint(pipeline, ckpt)
@@ -89,9 +85,6 @@ def test_backward_slice_mismatch_raises():
 
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer1.representation import UDRepresentation
-    from gcn_python.layer2.reference import MLPEncoder
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
 
     def _rep(lemma: str) -> UDRepresentation:
         return UDRepresentation(
@@ -101,7 +94,7 @@ def test_backward_slice_mismatch_raises():
             has_advcl=False, has_temporal_obl=False, token_span=(1, 2),
         )
 
-    vocab = FeatureVocabulary()
+    FeatureVocabulary()
     pipeline = make_test_pipeline()
     pipeline.forward([_rep("baisser"), _rep("réduire")], "Les ventes baissent puis on réduit.")
     d_edge = np.zeros((0, 11), dtype=np.float32)
@@ -242,9 +235,9 @@ def test_load_checkpoint_restores_inference_hyperparams(tmp_path: Path):
     ckpt = tmp_path / "model_d1.npz"
     save_checkpoint(pipe_src, ckpt)
 
-    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe_dst = make_test_pipeline(
         edge_threshold=0.0, drop_morph=False, temperature=1.0)
     load_checkpoint(pipe_dst, ckpt, trusted=True)
@@ -293,9 +286,9 @@ def test_load_checkpoint_arch_missing_inference_keys_keeps_pipeline_values(tmp_p
     np.savez_compressed(ckpt, **arrays)
 
     # Pipeline avec valeurs non-défaut — doivent être conservées
-    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe_dst = make_test_pipeline(
         edge_threshold=0.9, drop_morph=True, temperature=2.5)
     with _w.catch_warnings(record=True):
@@ -391,9 +384,9 @@ def test_load_checkpoint_validates_n_rgcn_layers(tmp_path: Path):
     ckpt = tmp_path / "model_1layer.npz"
     save_checkpoint(pipe1, ckpt)
 
-    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe2 = make_test_pipeline(n_rgcn_layers=2)
     with pytest.raises(ValueError, match="n_rgcn_layers"):
         load_checkpoint(pipe2, ckpt, trusted=True)
@@ -420,9 +413,9 @@ def test_load_checkpoint_validates_n_rgcn_layers_reverse(tmp_path: Path):
     ckpt = tmp_path / "model_2layers.npz"
     save_checkpoint(pipe2, ckpt)
 
-    enc1 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr1 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe1 = make_test_pipeline(n_rgcn_layers=1)
     with pytest.raises(ValueError, match="n_rgcn_layers"):
         load_checkpoint(pipe1, ckpt, trusted=True)
@@ -449,9 +442,9 @@ def test_load_checkpoint_n_rgcn_layers_matching_no_error(tmp_path: Path):
     save_checkpoint(pipe_src, ckpt)
     W_extra_before = pipe_src._graph_layers[1].W_0.copy()
 
-    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe_dst = make_test_pipeline(n_rgcn_layers=2)
     W_extra_r_before = pipe_src._graph_layers[1].W_r.copy()
     load_checkpoint(pipe_dst, ckpt, trusted=True)
@@ -497,9 +490,9 @@ def test_load_checkpoint_n_rgcn_layers_absent_warns_for_multilayer(tmp_path: Pat
     arrays["_arch_json"] = np.array([_json.dumps(arch)], dtype=object)
     np.savez_compressed(ckpt, **arrays)
 
-    enc2 = MLPEncoder(d_clause=vocab.d_clause_effective(4),
+    MLPEncoder(d_clause=vocab.d_clause_effective(4),
                       d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr2 = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
     pipe2 = make_test_pipeline(n_rgcn_layers=2)
     with _w.catch_warnings(record=True) as caught:
         _w.simplefilter("always")

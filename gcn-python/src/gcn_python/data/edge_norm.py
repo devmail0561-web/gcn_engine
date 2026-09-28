@@ -167,7 +167,7 @@ def _norm_single(src_raw: Any, dst_raw: Any, attrs: dict, outer: dict,
     return result
 
 
-def normalize_edge(e: Any) -> "dict | list[dict] | None":
+def normalize_edge(e: Any) -> dict | list[dict] | None:
     """Normalise une arête tuple [src,dst,attrs] ou dict -> dict canonique.
 
     Retourne None si relation absente (warn) ou format invalide.
@@ -224,8 +224,12 @@ def normalize_edge(e: Any) -> "dict | list[dict] | None":
         relation = _get_relation(attrs, outer)
         if relation and sanitize_text(str(relation)) not in ("joint_cause", "joint_prevent"):
             relation = "joint_cause"  # forcer le type joint sur 2 sources
-        e1 = dict(attrs); e1["source"] = src_list[0]; e1["relation"] = relation
-        e2 = dict(attrs); e2["source"] = src_list[1]; e2["relation"] = relation
+        e1 = dict(attrs)
+        e1["source"] = src_list[0]
+        e1["relation"] = relation
+        e2 = dict(attrs)
+        e2["source"] = src_list[1]
+        e2["relation"] = relation
         r1 = _norm_single(src_list[0], dst_raw, e1, e1, joint_group_id=jgid)
         r2 = _norm_single(src_list[1], dst_raw, e2, e2, joint_group_id=jgid)
         return [r for r in (r1, r2) if r is not None] or None

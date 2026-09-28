@@ -14,12 +14,12 @@ import contextlib
 import datetime
 import hashlib
 import json
+import threading as _threading
 import warnings
 from pathlib import Path
 
 import numpy as np
 
-import threading as _threading
 _HANDLES: dict[str, object] = {}
 _HANDLES_LOCK = _threading.Lock()
 _MAX_HANDLES = 8
@@ -107,7 +107,7 @@ def load_graph_vecs_index(path: Path) -> list[tuple[np.ndarray, str]]:
                 label = meta.get("node_label", "")
                 if label:
                     label_map[k] = label
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: S110, BLE001
             pass
     try:
         handle = _get_handle(path)
@@ -118,10 +118,11 @@ def load_graph_vecs_index(path: Path) -> list[tuple[np.ndarray, str]]:
                 continue
             vec = np.array(handle[k], dtype=np.float32)
             result.append((vec, label))
-        return result
     except Exception as exc:  # noqa: BLE001
         warnings.warn(f"graph_vecs : index non chargé ({exc}).", UserWarning, stacklevel=2)
         return []
+    else:
+        return result
 
 
 def load_graph_vec(path: Path, key: str,

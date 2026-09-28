@@ -20,7 +20,9 @@ from gcn_python.layer2.reference import MLPEncoder
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def _enc(seed=42, edge_dropout=0.3, d_eff=None, n_node_types=len(_NODE_TYPES)):
+def _enc(seed=42, edge_dropout=0.3, d_eff=None, n_node_types=None):
+    if n_node_types is None:
+        n_node_types = len(_NODE_TYPES)
     vocab = FeatureVocabulary()
     d_cl = vocab.d_clause
     d_eff = d_eff or d_cl

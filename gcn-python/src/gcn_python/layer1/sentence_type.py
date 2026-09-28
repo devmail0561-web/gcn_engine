@@ -64,7 +64,7 @@ class LangMarkers:
     discourse_connectors: dict = field(default_factory=dict)
 
     @classmethod
-    def from_json(cls, data: dict) -> "LangMarkers":
+    def from_json(cls, data: dict) -> LangMarkers:
         return cls(
             interrogative_lemmas=frozenset(
                 str(x).lower() for x in data.get("interrogative_lemmas", [])
@@ -78,7 +78,7 @@ class LangMarkers:
         )
 
     @classmethod
-    def load(cls, path) -> "LangMarkers":
+    def load(cls, path) -> LangMarkers:
         import json
 
         return cls.from_json(json.loads(Path(path).read_text(encoding="utf-8")))
@@ -197,10 +197,10 @@ def _classify_type(tokens: list[dict], root: dict | None,
     if root_morph.get("Mood") == "Imp":
         return SentenceType.IMPERATIVE
     # VerbForm=Inf sans sujet → impératif
-    if root_morph.get("VerbForm") == "Inf":
-        if not any(t.get("dep_rel") in ("nsubj", "nsubj:pass", "expl:subj", "csubj")
-                   for t in tokens):
-            return SentenceType.IMPERATIVE
+    if root_morph.get("VerbForm") == "Inf" and not any(
+        t.get("dep_rel") in ("nsubj", "nsubj:pass", "expl:subj", "csubj") for t in tokens
+    ):
+        return SentenceType.IMPERATIVE
     if root and root.get("pos") == "VERB":
         has_subject = any(
             t.get("dep_rel") in ("nsubj", "nsubj:pass", "expl:subj", "csubj")

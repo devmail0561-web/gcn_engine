@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
 import warnings
@@ -10,9 +11,14 @@ from pathlib import Path
 import click
 import numpy as np
 
-from ..constants import (ALL_RELATION_TYPES, COARSE_NODE_TYPES, COARSE_RELATION_TYPES,
-                         FINE_TO_COARSE_NODE, FINE_TO_COARSE_RELATION, INTENT_TYPES,
-                         NODE_TYPES, RELATION_TYPES, coarse_node, coarse_relation)
+from ..constants import (
+    ALL_RELATION_TYPES,
+    INTENT_TYPES,
+    NODE_TYPES,
+    RELATION_TYPES,
+    coarse_node,
+    coarse_relation,
+)
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..evaluation.metrics import (
     edge_accuracy,
@@ -502,8 +508,8 @@ def train_cmd(
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
     # Provenance — enregistrée dans _arch_json pour traçabilité complète.
-    import hashlib as _hl
     import datetime as _dt
+    import hashlib as _hl
     _h = _hl.sha256()
     for _p in sorted(data_dir.glob("*.json")):
         _h.update(_p.read_bytes())
@@ -535,7 +541,7 @@ def train_cmd(
     # Passe unique sur le dataset : edge logit mask + optional weights/vocab
     node_class_weights = None
     edge_class_weights = None
-    _edge_logit_mask: "np.ndarray | None" = None
+    _edge_logit_mask: np.ndarray | None = None
     from collections import Counter
     node_counts: Counter = Counter()
     edge_counts: Counter = Counter()
@@ -549,10 +555,8 @@ def train_cmd(
                 node_counts[int(label)] += 1
         # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
         if n_intent_types > 0 and sample.sentence.intent:
-            try:
+            with contextlib.suppress(ValueError):
                 intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
-            except ValueError:
-                pass
         if word_embedding is not None:
             reps_s, _, _ = reps_from_sentence(sample.sentence)
             # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
@@ -582,7 +586,7 @@ def train_cmd(
                 f"(N=0 dans le dataset) — masquées tant que N=0."
             )
     # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
-    _intent_logit_mask: "np.ndarray | None" = None
+    _intent_logit_mask: np.ndarray | None = None
     if n_intent_types > 0 and intent_counts:
         _intent_logit_mask = np.zeros(n_intent_types, dtype=bool)
         for c in range(n_intent_types):
@@ -981,12 +985,10 @@ def train_cmd(
                 # Éq.6 — label d'intention (si annoté et tête active)
                 _gold_intent = None
                 if n_intent_types > 0 and sample.sentence.intent:
-                    try:
+                    with contextlib.suppress(ValueError):
                         _gold_intent = np.array(
                             [INTENT_TYPES.index(sample.sentence.intent)], dtype=np.int64
                         )
-                    except ValueError:
-                        pass
 
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
@@ -1258,7 +1260,7 @@ def train_cmd(
                     if pipeline._cached_edge_logits is not None and len(_vs.edge_map) > 0:
                         _val_logits.append(pipeline._cached_edge_logits)
                         _val_labels.extend(list(_vs.edge_map.values()))
-                except Exception:
+                except Exception:  # noqa: S110, BLE001
                     pass
             if _val_logits and len(_val_labels) >= 10:
                 import numpy as _np
@@ -1268,7 +1270,7 @@ def train_cmd(
                 pipeline.temperature = best_t
                 click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
                 save_checkpoint(pipeline, output)
-        except Exception as _t5_err:
+        except Exception as _t5_err:  # noqa: BLE001
             click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
 
     click.echo(f"Checkpoint sauvegardé : {output}")

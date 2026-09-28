@@ -6,7 +6,6 @@ Vérifie que le fix bridge.py:187 (has_advcl=(node_type=="condition"))
 est bien en place. La partie end-to-end de T4 (20 phrases conditionnelles
 annotées) est dans gcn-datasets/test/ et sera exécutée séparément (nécessite D.0).
 """
-import pytest
 
 from gcn_python.frontend.bridge import NODE_TYPE_TO_DEP, NODE_TYPE_TO_POS
 

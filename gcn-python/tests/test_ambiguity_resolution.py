@@ -1,8 +1,6 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests Éq.11 ETUDE — résolution d'ambiguïté (θ_ambiguity)."""
-import numpy as np
-import pytest
 from gcn_python.constants import THETA_AMBIGUITY_DEFAULT
 from gcn_python.pipeline.ir_emitter import emit
 

@@ -439,11 +439,11 @@ def run_discuss(
                                     _parts = _nlu_cmd.split(": ", 1)
                                     if len(_parts) == 2:
                                         _nlu_cmd = f"{_parts[0]}: {_resolved}"
-                        except Exception:  # noqa: BLE001
+                        except Exception:  # noqa: S110, BLE001
                             pass
                     if cir.get("edges") and session.session_dir is not None:
                         session.collect(engine, user_input, cir)
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: S110, BLE001
                     pass
 
             if _nlu_cmd:

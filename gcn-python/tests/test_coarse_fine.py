@@ -1,16 +1,16 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """Tests D4/§15 ETUDE — progression coarse→fine."""
-import pytest
 from gcn_python.constants import (
-    COARSE_NODE_TYPES, COARSE_RELATION_TYPES,
-    FINE_TO_COARSE_NODE, FINE_TO_COARSE_RELATION,
-    NODE_TYPES, RELATION_TYPES,
-    coarse_node, coarse_relation,
+    COARSE_NODE_TYPES,
+    COARSE_RELATION_TYPES,
+    NODE_TYPES,
+    RELATION_TYPES,
+    coarse_node,
+    coarse_relation,
 )
-from gcn_python.layer1.features import vectorize_clause, FeatureVocabulary
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause
 from gcn_python.layer1.representation import UDRepresentation
-
 
 # ---------------------------------------------------------------------------
 # Remapping relation fine → coarse
@@ -121,10 +121,7 @@ def test_promotion_excludes_from_remap():
     promoted = {"cause"}
     # Simuler la logique du train.py : si rel in promoted → garder fine
     for rel in RELATION_TYPES:
-        if rel in promoted:
-            active = rel  # promu → inchangé
-        else:
-            active = coarse_relation(rel)
+        active = rel if rel in promoted else coarse_relation(rel)
         assert active is not None
 
 
