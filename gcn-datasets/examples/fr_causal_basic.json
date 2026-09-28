@@ -105,7 +105,7 @@
             "dep_head": 0,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "action",
+              "causal_class": "processus",
               "attributes": {
                 "direction": "forward",
                 "reversibility": true
@@ -175,7 +175,7 @@
             },
             {
               "id": "n002",
-              "type": "action",
+              "type": "processus",
               "label": "réduire(coûts)",
               "token_span": [
                 6,
@@ -267,7 +267,7 @@
             "dep_head": 0,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "etat",
+              "causal_class": "etat_local",
               "attributes": {
                 "direction": "none"
               }
@@ -340,7 +340,7 @@
             "dep_head": 4,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "transition",
+              "causal_class": "processus",
               "attributes": {
                 "direction": "forward"
               }
@@ -359,7 +359,7 @@
           "nodes": [
             {
               "id": "n001",
-              "type": "etat",
+              "type": "etat_local",
               "label": "souffrance(marché)",
               "token_span": [
                 2,
@@ -382,7 +382,7 @@
             },
             {
               "id": "n002",
-              "type": "transition",
+              "type": "processus",
               "label": "chute(demande)",
               "token_span": [
                 8,
@@ -446,7 +446,7 @@
             "dep_head": 0,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "action",
+              "causal_class": "processus",
               "attributes": {
                 "direction": "forward"
               }
@@ -476,7 +476,7 @@
             "dep_head": 2,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "transition",
+              "causal_class": "processus",
               "attributes": {
                 "direction": "forward"
               }
@@ -495,7 +495,7 @@
           "nodes": [
             {
               "id": "n001",
-              "type": "action",
+              "type": "processus",
               "label": "travailler(il)",
               "token_span": [
                 1,
@@ -517,7 +517,7 @@
             },
             {
               "id": "n002",
-              "type": "transition",
+              "type": "processus",
               "label": "réussir(il)",
               "token_span": [
                 4,

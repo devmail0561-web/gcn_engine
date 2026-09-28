@@ -146,7 +146,7 @@
         "nodes": [
           {
             "id": "n001",
-            "type": "etat",
+            "type": "etat_local",
             "label": "total = sum(sales)",
             "source_span": {
               "code_span": {
@@ -191,7 +191,7 @@
           },
           {
             "id": "n003",
-            "type": "action",
+            "type": "processus",
             "label": "reduction = total * 0.1",
             "source_span": {
               "code_span": {
@@ -213,7 +213,7 @@
           },
           {
             "id": "n004",
-            "type": "etat",
+            "type": "etat_local",
             "label": "return reduction",
             "source_span": {
               "code_span": {
@@ -235,7 +235,7 @@
           },
           {
             "id": "n005",
-            "type": "etat",
+            "type": "etat_local",
             "label": "return 0.0",
             "source_span": {
               "code_span": {
@@ -444,7 +444,7 @@
           },
           {
             "id": "n003",
-            "type": "transition",
+            "type": "processus",
             "label": "inventory.remove(item)",
             "source_span": {
               "code_span": {
@@ -468,7 +468,7 @@
           },
           {
             "id": "n004",
-            "type": "action",
+            "type": "processus",
             "label": "log_removal(item)",
             "source_span": {
               "code_span": {

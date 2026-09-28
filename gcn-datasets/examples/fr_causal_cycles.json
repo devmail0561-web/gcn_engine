@@ -119,7 +119,7 @@
             "dep_head": 0,
             "gcn": {
               "causal_type": "verbe",
-              "causal_class": "action",
+              "causal_class": "processus",
               "attributes": {
                 "direction": "forward",
                 "reversibility": true
@@ -166,7 +166,7 @@
           "nodes": [
             {
               "id": "n002",
-              "type": "action",
+              "type": "processus",
               "label": "réduire(coûts)",
               "token_span": [
                 1,

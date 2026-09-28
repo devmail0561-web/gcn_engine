@@ -20,7 +20,7 @@
           },
           {
             "id": 1,
-            "node_type": "action",
+            "node_type": "processus",
             "label": "réduire(coûts)",
             "origin": "explicit"
           }
@@ -63,7 +63,7 @@
         "nodes": [
           {
             "id": 0,
-            "node_type": "etat_systemique",
+            "node_type": "etat_global",
             "label": "crise",
             "origin": "explicit"
           },
@@ -112,7 +112,7 @@
         "nodes": [
           {
             "id": 0,
-            "node_type": "action",
+            "node_type": "processus",
             "label": "vacciner",
             "origin": "explicit"
           },
@@ -161,13 +161,13 @@
         "nodes": [
           {
             "id": 0,
-            "node_type": "action",
+            "node_type": "processus",
             "label": "load_data",
             "origin": "explicit"
           },
           {
             "id": 1,
-            "node_type": "action",
+            "node_type": "processus",
             "label": "process",
             "origin": "explicit"
           }
@@ -216,7 +216,7 @@
           },
           {
             "id": 1,
-            "node_type": "etat",
+            "node_type": "etat_local",
             "label": "stabilité(bénéfices)",
             "origin": "explicit"
           }
