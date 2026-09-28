@@ -579,7 +579,7 @@ def train_cmd(
         if n_inactive > 0:
             click.echo(
                 f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
-                f"(N=0 dans le dataset) — activer à N_min."
+                f"(N=0 dans le dataset) — masquées tant que N=0."
             )
     # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
     _intent_logit_mask: "np.ndarray | None" = None
@@ -1264,9 +1264,9 @@ def train_cmd(
                 import numpy as _np
                 _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
                 _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=_np.int64)
-                best_t = optimize_temperature(_all_logits, _all_labels)
+                best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
                 pipeline.temperature = best_t
-                click.echo(f"T5-min : température optimisée = {best_t:.3f}")
+                click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
                 save_checkpoint(pipeline, output)
         except Exception as _t5_err:
             click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")

@@ -142,7 +142,9 @@ def test_s7_temporal_gap_computed():
                   [(0, 5), (10, 15)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None)])
     gap = result["edges"][0][2]["temporal_gap"]
-    assert gap == 1, f"gap={gap}"
+    assert isinstance(gap, dict), f"temporal_gap doit être un dict TemporalGap, reçu {gap!r}"
+    assert gap["max"] == 1, f"gap['max']={gap.get('max')}"
+    assert gap["nature"] == "deferred", f"gap['nature']={gap.get('nature')}"
 
 
 def test_s7_cycles_detected():
@@ -160,7 +162,8 @@ def test_s7_in_cycle_marked_on_edges():
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None),
                    (1, 0, "enable", 1.0, False, None)])
-    assert all(e[2]["in_cycle"] is True for e in result["edges"])
+    assert all(isinstance(e[2]["in_cycle"], int) for e in result["edges"]), \
+        "in_cycle doit être un entier (cycle_id) pour les arêtes en cycle"
 
 
 def test_s7_no_cycle_in_cycle_false():
@@ -168,7 +171,8 @@ def test_s7_no_cycle_in_cycle_false():
     result = emit("test", ["processus", "processus"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None)])
-    assert all(e[2]["in_cycle"] is False for e in result["edges"])
+    assert all(e[2]["in_cycle"] is None for e in result["edges"]), \
+        "in_cycle doit être None pour les arêtes hors cycle"
 
 
 # ── L-5 scope heuristique ───────────────────────────────────────────────────

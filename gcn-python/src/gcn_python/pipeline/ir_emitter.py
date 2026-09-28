@@ -313,7 +313,8 @@ def emit(
                 joint_group_id = _jgid
 
         # §9.4 algèbre de négation — promotion "condition" si third présent sans site
-        third_dict = ({"role": third_role, "node": third_node} if third_role else None)
+        third_dict = ({"role": third_role, "node": third_node}
+                      if (third_role and third_node is not None) else None)
         if negated and negation_site is None and third_dict is not None:
             negation_site = "condition"
         relation, third_dict, source_polarity = apply_negation_algebra(
@@ -334,10 +335,12 @@ def emit(
                 f"emit : confidence non finie ({confidence!r}) pour l'arête "
                 f"{src}->{dst} — JSON refusé par serde Rust."
             )
-        # S-7 temporal_gap : différence d'indices temporels entre les deux clauses
+        # S-7 temporal_gap : différence d'indices temporels → struct TemporalGap Rust
         t_src = temporal_rank[src] if src < len(temporal_rank) else None
         t_dst = temporal_rank[dst] if dst < len(temporal_rank) else None
-        t_gap = (t_dst - t_src) if (t_src is not None and t_dst is not None) else None
+        _t_gap_int = (t_dst - t_src) if (t_src is not None and t_dst is not None) else None
+        t_gap = ({"min": None, "max": _t_gap_int, "nature": "deferred"}
+                 if _t_gap_int is not None else None)
         edges.append([src, dst, {
             "relation": relation,
             "confidence": conf,
@@ -423,7 +426,7 @@ def emit(
         src_e, dst_e = edge[0], edge[1]
         src_cid = node_to_cycle.get(src_e)
         dst_cid = node_to_cycle.get(dst_e)
-        edge[2]["in_cycle"] = (src_cid is not None and src_cid == dst_cid)
+        edge[2]["in_cycle"] = src_cid if (src_cid is not None and src_cid == dst_cid) else None
 
     import datetime
     return {

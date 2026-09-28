@@ -46,6 +46,8 @@ def ece_score(
             "ece_score : probs (N, C) et labels (N,) non vides requis, "
             f"reçu probs.shape={probs.shape}, labels.shape={labels.shape}."
         )
+    if not np.isfinite(probs).all():
+        raise ValueError("ece_score : probabilités non finies (NaN/Inf) — calibration impossible.")
     confs = probs.max(axis=1)
     preds = probs.argmax(axis=1)
     correct = (preds == labels).astype(float)

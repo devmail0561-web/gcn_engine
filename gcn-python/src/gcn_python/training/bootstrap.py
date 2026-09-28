@@ -230,6 +230,14 @@ def _normalize_edge(e) -> "dict | list[dict] | None":
         return _build(sources_list[0])
 
     if len(sources_list) == 2:
+        if relation not in ("joint_cause", "joint_prevent"):
+            import warnings
+            warnings.warn(
+                f"bootstrap : arête multi-source avec relation '{relation}' — "
+                "edge_norm forcera joint_cause à l'ingestion moteur.",
+                UserWarning,
+                stacklevel=2,
+            )
         key = f"{target}|{'|'.join(sorted(sources_list))}"
         jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
         return [_build(sources_list[0], jgid), _build(sources_list[1], jgid)]
