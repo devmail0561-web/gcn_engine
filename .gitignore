@@ -45,6 +45,10 @@ benchmark-validation/*.npz
 docs/
 .opencode/
 
+# Archives et anciens fichiers de travail
+archive_v2/
+ancien/
+
 # Notes internes dans les outils
 gcn-tools/gcn-scraper/audit.txt
 gcn-tools/gcn-scraper/note.txt

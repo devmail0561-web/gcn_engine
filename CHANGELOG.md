@@ -64,14 +64,27 @@ Tous les checkpoints v2 sont incompatibles avec ce build (réentraînement requi
 - 78 tests Python : 0 régression.
 - 185 tests Rust : 0 régression.
 
-#### À faire avant merge en production (voir §STATUS du plan)
+#### Correctifs bloquants v3.0 (commit 05b2a2c)
 
-- `bootstrap._normalize_edge` (chemin bootstrap.py) : non patché pour joint_group_id.
-- `scripts/init_v3_stub.py` : migration checkpoints v2 → stub v3 (He-init).
-- Protocole entraînement v3.0 : masquer/geler les 8 logits vides dans `train.py` (P2 plan).
-- `gcn-transformers/base.py:66` : garde `if d_clause == 79` à mettre à jour pour 106.
-- Tests gates : `test_sentence_type.py` (~60 tests), B.5 (d_clause_equals_106, voice, prontype), C.4 (+6 ir_emitter), D.1-D.5.
-- T5-min, D6-shadow, `REGLE_EQUILIBRE_DATASET.md`.
+- **`training/bootstrap.py`** : `_normalize_edge` et `_cir_to_doc` patchés pour `joint_group_id` — `normalize_edge` retourne maintenant `list[dict]` sur 2 sources (JOINT_CAUSE), `_cir_to_doc` aplatit les listes.
+- **`scripts/init_v3_stub.py`** (nouveau) : migration checkpoints v2 → stub v3. Lit le checkpoint v2, compute les shapes v3 (d_ecl 877→987), He-init les nouveaux poids, archive v2 dans `archive_v2/`. Output : avertissement "réentraînement obligatoire".
+- **`pipeline/cgnp.py`** : `_cross_entropy(…, logit_mask: np.ndarray | None)` — masque `-1e9` avant softmax pour les 8 classes d'arêtes sans annotation (empêche la fuite de probabilité). `loss()` accepte `edge_logit_mask`.
+- **`training/train.py`** : `_edge_logit_mask` calculé par `edge_counts.get(c, 0) == 0` et transmis aux deux appels `pipeline.loss()`.
+- **`gcn-transformers/base.py`** : garde mise à jour `if d_clause in (79, 106)` (était `== 79`).
+
+#### Tests de régression v3.0 (commit 4fc741b)
+
+- **Nouveaux tests** : `test_sentence_type.py` (60 cas — module complet sentence_type), `test_layer1_b5.py` (5 cas — d_clause=106, voice, prontype, bridge), `test_ir_emitter_c4.py` (6 cas — 19 types, 8 nœuds, joint_group_id), `test_cross_lingual.py` (8 cas — T1 fixtures DE logique), `test_bridge_fix.py` (8 cas — B0.1 has_advcl=True pour condition), `test_calibration.py` (5 cas — T5 temperature, isotonic).
+- **Corrections régressions** : `d_edge_closed_loop(D, 7)` hardcodé → `len(NODE_TYPES)` dans 20+ fichiers test ; gradients `(N, 7)` / `(N, 11)` → `(N, len(NODE_TYPES))` / `(N, len(RELATION_TYPES))` ; `d_emb=1` → `d_emb=2` (108 = 106+2 divisible par 4 pour MHA) ; `has_advcl=False` → `True` pour nœud condition.
+- **Rétrocompat from_json()** : `setdefault("voice_values", [])` (liste vide, pas `UD_VOICE_VALUES`) — préserve `d_clause=79` pour les checkpoints v2.
+- **`test_robustness.py`** : 2 tests checkpoint v2 marqués `xfail(strict=False)` (incompatibles d_clause 79→106, migrer avec `init_v3_stub.py`).
+- **Résultat final : 558 passed, 0 failed, 3 xfailed** (stable).
+
+#### Restant (plan-moins — non bloquant, deferred)
+
+- T5-min : optimisation température (code dans `cgnp.py:52,100,520`, tests `test_calibration.py` OK, pas encore de routine d'optimisation).
+- D6-shadow : émission dual confidence fields dans `ir_emitter.py`.
+- `REGLE_EQUILIBRE_DATASET.md` : doc locale (gitignored — `docs/`).
 
 ---
 

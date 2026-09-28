@@ -35,9 +35,10 @@ SB-fix  ████████████████████  100%  9 pa
 v2.5.0  ████████████████████  100%  4 phases architecturales : fastText, PairNorm/DropEdge, MHA, CompGCN
 EMB     ████████████████████  100%  Validation embeddings : 4 configs, fine-tuning +45% edge
 Pearl+  ████████████████████  100%  Extensions Pearl P1–P3 : provenance, normalize, temporal, abductif, méta, analogie
+v3.0    ████████████████████  100%  Migration D1-D10 plan-moins : 8 nœuds, 19 relations, d_clause 106, logit mask
 ```
 
-**Tests Python : 425 / 425 passent** (`pytest gcn-python/tests/`, 1 xfailed stable)
+**Tests Python : 558 / 558 passent** (`pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
 **Tests Rust : 185 / 185 passent** (`cargo test --workspace`)
 
 ---
@@ -905,3 +906,77 @@ gcn-train --data-dir gcn-datasets/real/train_final/ \
 | `parent: None` sur tous les nœuds | `frontend-fr`, `frontend-en`, `frontend-code`, `knowledge` | ✅ |
 
 **Vérification :** `cargo test --workspace` 185/185 ✅ — `pytest gcn-python/tests/` 425/425 ✅ (1 xfailed stable)
+
+---
+
+## Plan migration D1-D10 — v3.0 ✅ (2026-09-27)
+
+**Objectif :** implémenter les 10 décisions stratégiques du plan de migration moteur (BREAKING).
+**Trajectoire :** plan-moins (~10-14j) — phases A, B.1-B.3, C-min, D.0-min + correctifs bloquants.
+
+### Phase A — NLU / Layer1 (D1)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `sentence_type.py` — `classify()`, `LangMarkers`, `SentenceProfile` 7 champs | `layer1/sentence_type.py` | ✅ |
+| `lang_markers.json` — lexiques FR/EN (9 catégories subordonnants) | `gcn-datasets/configs/lang_markers.json` | ✅ |
+| `UDRepresentation.sentence_profile` property | `layer1/representation.py` | ✅ |
+| 60 tests sentence_type | `tests/test_sentence_type.py` | ✅ |
+
+### Phase B.1-B.3 — Breaking changes (D2, D5)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `NODE_TYPES` 7 → **8** (`"contrainte"`) | `constants.py` | ✅ |
+| `RELATION_TYPES` 11 → **19** (8 nouveaux) | `constants.py` | ✅ |
+| `UD_VOICE_VALUES` (3), `UD_PRONTYPE_VALUES` (7) | `constants.py` | ✅ |
+| `d_clause` 79 → **106** (+voice+prontype+positionnels+ternaires) | `layer1/features.py` | ✅ |
+| `_compute_positional_features` → `float[12]` | `layer1/features.py` | ✅ |
+| `_compute_ternary_features` → `float[5]` | `layer1/features.py` | ✅ |
+| Flags ablation `no_positional`, `no_ternary` (gate C.7) | `layer1/features.py` | ✅ |
+| `from_json()` rétrocompat v2 — `setdefault(voice_values, [])` | `layer1/features.py` | ✅ |
+| Bug `label_builder.py` — index positionnel → strings directes | `pipeline/label_builder.py` | ✅ |
+| Bug `bridge.py` — `NODE_TYPE_TO_POS/DEP` string-keyed 8 types | `frontend/bridge.py` | ✅ |
+
+### Phase C-min — Rust + edge_norm (D2, D3)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `RelationType` 11 → 19 variants + `is_joint()` | `gcn-ir/src/edge.rs` | ✅ |
+| `CausalEdge.joint_group_id: Option<String>` (serde default) | `gcn-ir/src/edge.rs` | ✅ |
+| 7 sites Rust patchés `joint_group_id: None` | `frontend-fr/en/code`, `knowledge`, `backend`, `middleend` | ✅ |
+| `normalize_edge` → `list[dict]` sur 2 sources, `sha256[:16]` déterministe | `data/edge_norm.py` | ✅ |
+| `bootstrap._normalize_edge` + `_cir_to_doc` patchés | `training/bootstrap.py` | ✅ |
+
+### Protocole entraînement v3.0 (D8)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `_cross_entropy(…, logit_mask)` — masque -1e9 pour 8 classes vides | `pipeline/cgnp.py` | ✅ |
+| `_edge_logit_mask` calculé et transmis à `pipeline.loss()` | `training/train.py` | ✅ |
+| Garde `if d_clause in (79, 106)` | `gcn-transformers/base.py` | ✅ |
+
+### D.0-min — OOV split (D6)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `d0_min_oov_split.py` — split automatique via lexique train | `scripts/d0_min_oov_split.py` | ✅ |
+| 30 phrases OOV extraites | `gcn-datasets/test/oov_split_test.json` | ✅ |
+| `init_v3_stub.py` — migration checkpoint v2 → stub v3, He-init | `scripts/init_v3_stub.py` | ✅ |
+
+### Tests et régressions
+
+| Résultat | Détail |
+|---|---|
+| 558 passed, 0 failed, 3 xfailed | pytest gcn-python/tests/ (2026-09-27) |
+| 3 xfailed attendus | checkpoints v2 `prod_v1.npz` incompatibles d_clause 79→106 |
+| 185 Rust | cargo test --workspace — 0 régression |
+
+### Restant plan-moins (deferred)
+
+| Tâche | Condition | Statut |
+|---|---|---|
+| T5-min — optimisation température | après T3 mesure (signal K1) | 🟠 deferred |
+| D6-shadow — dual confidence fields | après T4 mesure | 🟠 deferred |
+| A.5/A.6 — instructions.py + discuss.py | après UD frontend dispo | 🔵 conditionnel |
+| Phase E chiffrage — ternaire + Pearl grouping | avant merge C complet | 🔵 conditionnel |
