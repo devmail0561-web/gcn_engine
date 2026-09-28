@@ -11,30 +11,70 @@ from typing import Protocol, runtime_checkable
 from .normalize import normalize_annotation
 
 
-NODE_TYPES = ["etat", "action", "transition", "processus", "condition", "entite", "etat_systemique"]
-RELATION_TYPES = ["cause", "enable", "prevent", "condition", "concession", "sequence",
-                  "motivation", "filter", "opposition", "data_dependency", "control_dependency"]
+# v4 — 8 types de nœuds (D5 ETUDE)
+NODE_TYPES = [
+    "etat", "action", "transition", "processus",
+    "condition", "entite", "etat_systemique", "contrainte",
+]
+# v4 — 19 types de relations (D2 ETUDE)
+RELATION_TYPES = [
+    "cause", "enable", "prevent", "condition", "concession", "sequence",
+    "motivation", "filter", "opposition", "data_dependency", "control_dependency",
+    "analogy", "counterfactual",
+    "conditional_cause", "mediated_cause", "joint_cause",
+    "conditional_prevent", "mediated_prevent", "joint_prevent",
+]
 
-SYSTEM_PROMPT = f"""Tu es un annotateur de relations causales en français.
-Pour chaque phrase, produis un CausalIR (Causal Intermediary Representation) au format JSON.
+SYSTEM_PROMPT = f"""Tu es un annotateur expert de relations causales (FR/EN).
+Pour chaque phrase, produis un CausalIR au format JSON v4 (schéma ETUDE §11).
 
-Types de nœuds disponibles : {json.dumps(NODE_TYPES)}
-Types de relations disponibles : {json.dumps(RELATION_TYPES)}
+=== TYPES DE NŒUDS (8) ===
+{json.dumps(NODE_TYPES)}
 
-Règles :
-- Chaque nœud a un "id" (ex: "n001"), un "type" (un des NODE_TYPES), un "label", et un "token_span" [début, fin]
-- Chaque arête a "source", "target", "relation" (un des RELATION_TYPES)
-- Le token_span est [index_du_premier_token, index_du_dernier_token] (inclus)
-- Si tu ne peux pas déterminer un token_span exact, utilise [0, 0]
+=== TYPES DE RELATIONS (19) ===
+{json.dumps(RELATION_TYPES)}
 
-Format de sortie attendu (JSON uniquement, pas de texte avant ou après) :
+=== RÈGLES OBLIGATOIRES ===
+
+NŒUDS :
+- "id" : identifiant unique (ex: "n001")
+- "type" : un des 8 NODE_TYPES
+- "label" : expression du concept dans la phrase
+- "token_span" : [index_premier_token, index_dernier_token] (0-based)
+- "pos" : UPOS du token source (VERB/NOUN/ADJ/...)
+- "morph" : dict des traits morphologiques UD (Tense, Mood, Voice, ...)
+
+ARÊTES (schéma v4) :
+- "sources" : LISTE d'ids de nœuds sources (ex: ["n001"] ou ["n001","n002"] pour joint_cause)
+- "target" : id du nœud cible
+- "relation" : un des 19 RELATION_TYPES
+- "confidence" : certitude 0.0–1.0
+- "polarity" : "positive" | "negative" (negative si la cible est niée)
+- "voice" : "active" | "passive"
+- "modality" : "indicative" | "subjunctive" | "conditional" | "imperative"
+- "has_restriction" : true si restriction exclusive (ne...que / only if)
+- "condition_prominence" : "foreground" | "background" | null (position de la condition)
+
+RELATIONS TERNAIRES :
+- conditional_cause / conditional_prevent : ajouter "third": {{"role": "condition", "node": "id_du_tiers"}}
+- mediated_cause / mediated_prevent : ajouter "third": {{"role": "mediator", "node": "id_du_médiateur"}}
+- joint_cause / joint_prevent : "sources": ["n001", "n002"], "third": null (PAS de third)
+
+INTENT (questions uniquement) :
+- Ajouter "intent" sur la phrase si c'est une question : explain|effects|chain|chain_t|counterfactual|abduct|summarize|analogy|spof|centrality|before|delay|density|coverage|reliability|diff|zoom_in|zoom_out|aggregate|verbalize
+- Laisser "intent": "" pour les déclaratifs
+
+IMPORTANT : utiliser "sources" (liste), JAMAIS "source" (singulier).
+
+Format de sortie (JSON uniquement) :
 {{
   "document": {{
     "id": "llm-001",
     "sentences": [
       {{
         "id": "s001",
-        "text": "la phrase d'entrée",
+        "text": "la phrase",
+        "intent": "",
         "cir": {{
           "nodes": [...],
           "edges": [...]
@@ -44,68 +84,73 @@ Format de sortie attendu (JSON uniquement, pas de texte avant ou après) :
   }}
 }}
 
-Exemples few-shot :
+=== EXEMPLES ===
 
-Phrase : "La pluie cause l'inondation"
+Phrase : "La pluie cause l'inondation."
 {{
-  "document": {{
-    "id": "ex-001",
-    "sentences": [{{
-      "id": "s001",
-      "text": "La pluie cause l'inondation",
-      "cir": {{
-        "nodes": [
-          {{"id": "n001", "type": "processus", "label": "pluie", "token_span": [1, 1]}},
-          {{"id": "n002", "type": "etat", "label": "inondation", "token_span": [3, 3]}}
-        ],
-        "edges": [
-          {{"source": "n001", "target": "n002", "relation": "cause"}}
-        ]
-      }}
-    }}]
-  }}
+  "document": {{"id": "ex-001", "sentences": [{{
+    "id": "s001", "text": "La pluie cause l'inondation.", "intent": "",
+    "cir": {{
+      "nodes": [
+        {{"id": "n001", "type": "processus", "label": "pluie", "token_span": [1,1], "pos": "NOUN", "morph": {{}}}},
+        {{"id": "n002", "type": "etat", "label": "inondation", "token_span": [3,3], "pos": "NOUN", "morph": {{}}}}
+      ],
+      "edges": [
+        {{"sources": ["n001"], "target": "n002", "relation": "cause",
+          "confidence": 0.9, "polarity": "positive", "voice": "active",
+          "modality": "indicative", "has_restriction": false, "third": null}}
+      ]
+    }}
+  }}]}}
 }}
 
-Phrase : "Le gouvernement a决定 d'interdire les plastiques"
+Phrase : "Si les traitements échouent, le médicament est prescrit."
 {{
-  "document": {{
-    "id": "ex-002",
-    "sentences": [{{
-      "id": "s001",
-      "text": "Le gouvernement a décidé d'interdire les plastiques",
-      "cir": {{
-        "nodes": [
-          {{"id": "n001", "type": "action", "label": "décider", "token_span": [2, 2]}},
-          {{"id": "n002", "type": "action", "label": "interdire", "token_span": [4, 4]}},
-          {{"id": "n003", "type": "entite", "label": "plastiques", "token_span": [6, 6]}}
-        ],
-        "edges": [
-          {{"source": "n001", "target": "n002", "relation": "motivation"}},
-          {{"source": "n002", "target": "n003", "relation": "filter"}}
-        ]
-      }}
-    }}]
-  }}
+  "document": {{"id": "ex-002", "sentences": [{{
+    "id": "s001", "text": "Si les traitements échouent, le médicament est prescrit.", "intent": "",
+    "cir": {{
+      "nodes": [
+        {{"id": "n001", "type": "processus", "label": "échec traitements", "token_span": [1,2], "pos": "VERB", "morph": {{"Mood": "Ind"}}}},
+        {{"id": "n002", "type": "evenement", "label": "prescription médicament", "token_span": [3,5], "pos": "VERB", "morph": {{"Voice": "Pass"}}}}
+      ],
+      "edges": [
+        {{"sources": ["n001"], "target": "n002", "relation": "condition",
+          "confidence": 0.85, "polarity": "positive", "voice": "passive",
+          "modality": "indicative", "has_restriction": false,
+          "condition_prominence": "foreground", "third": null}}
+      ]
+    }}
+  }}]}}
 }}
 
-Phrase : "Bien que le chômage ait diminué, la pauvreté persiste"
+Phrase : "La pluie et le vent causent ensemble les inondations."
 {{
-  "document": {{
-    "id": "ex-003",
-    "sentences": [{{
-      "id": "s001",
-      "text": "Bien que le chômage ait diminué, la pauvreté persiste",
-      "cir": {{
-        "nodes": [
-          {{"id": "n001", "type": "processus", "label": "chômage", "token_span": [2, 2]}},
-          {{"id": "n002", "type": "etat", "label": "pauvreté", "token_span": [5, 5]}}
-        ],
-        "edges": [
-          {{"source": "n001", "target": "n002", "relation": "concession"}}
-        ]
-      }}
-    }}]
-  }}
+  "document": {{"id": "ex-003", "sentences": [{{
+    "id": "s001", "text": "La pluie et le vent causent ensemble les inondations.", "intent": "",
+    "cir": {{
+      "nodes": [
+        {{"id": "n001", "type": "processus", "label": "pluie", "token_span": [1,1], "pos": "NOUN", "morph": {{}}}},
+        {{"id": "n002", "type": "processus", "label": "vent", "token_span": [3,3], "pos": "NOUN", "morph": {{}}}},
+        {{"id": "n003", "type": "etat", "label": "inondations", "token_span": [6,6], "pos": "NOUN", "morph": {{}}}}
+      ],
+      "edges": [
+        {{"sources": ["n001", "n002"], "target": "n003", "relation": "joint_cause",
+          "confidence": 0.80, "polarity": "positive", "voice": "active",
+          "modality": "indicative", "has_restriction": false, "third": null}},
+        {{"sources": ["n002"], "target": "n003", "relation": "joint_cause",
+          "confidence": 0.80, "polarity": "positive", "voice": "active",
+          "modality": "indicative", "has_restriction": false, "third": null}}
+      ]
+    }}
+  }}]}}
+}}
+
+Phrase : "Pourquoi les ventes ont-elles baissé ?"
+{{
+  "document": {{"id": "ex-004", "sentences": [{{
+    "id": "s001", "text": "Pourquoi les ventes ont-elles baissé ?", "intent": "explain",
+    "cir": {{"nodes": [], "edges": []}}
+  }}]}}
 }}
 """
 

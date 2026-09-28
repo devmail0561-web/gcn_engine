@@ -1,87 +1,118 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: MIT
-"""Normalisation et validation des annotations LLM."""
+"""Normalisation et validation des annotations LLM — schéma v4 (ETUDE §11)."""
 from __future__ import annotations
 
 import warnings
 
+# v4 — 8 types de nœuds (D5 ETUDE)
+NODE_TYPES = {
+    "etat", "action", "transition", "processus",
+    "condition", "entite", "etat_systemique", "contrainte",
+}
 
-NODE_TYPES = {"etat", "action", "transition", "processus", "condition", "entite", "etat_systemique"}
-RELATION_TYPES = {"cause", "enable", "prevent", "condition", "concession", "sequence",
-                  "motivation", "filter", "opposition", "data_dependency", "control_dependency"}
+# v4 — 19 types de relations (D2 ETUDE)
+RELATION_TYPES = {
+    "cause", "enable", "prevent", "condition", "concession", "sequence",
+    "motivation", "filter", "opposition", "data_dependency", "control_dependency",
+    "analogy", "counterfactual",
+    "conditional_cause", "mediated_cause", "joint_cause",
+    "conditional_prevent", "mediated_prevent", "joint_prevent",
+}
 
-# Variantes LLM → valeurs canoniques
+TERNARY_RELATIONS = {
+    "conditional_cause", "mediated_cause",
+    "conditional_prevent", "mediated_prevent",
+}
+JOINT_RELATIONS = {"joint_cause", "joint_prevent"}
+
+VALID_POLARITY = {"positive", "negative"}
+VALID_VOICE = {"active", "passive"}
+VALID_MODALITY = {"indicative", "subjunctive", "conditional", "imperative"}
+VALID_PROMINENCE = {"foreground", "background"}
+VALID_THIRD_ROLES = {"condition", "mediator"}
+
 NODE_TYPE_ALIASES: dict[str, str] = {
     "état": "etat",
     "état_systémique": "etat_systemique",
     "état systemique": "etat_systemique",
-    "etat_systemique": "etat_systemique",
     "etat systemique": "etat_systemique",
-    "Etat": "etat",
-    "Action": "action",
-    "Transition": "transition",
-    "Processus": "processus",
-    "Condition": "condition",
-    "Entite": "entite",
-    "Entité": "entite",
+    "état_local": "etat",
+    "état_global": "etat_systemique",
+    "etat_local": "etat",
+    "etat_global": "etat_systemique",
+    "concept": "entite",
+    "evenement": "etat_systemique",
+    "événement": "etat_systemique",
+    "constraint": "contrainte",
+    "Etat": "etat", "Action": "action", "Transition": "transition",
+    "Processus": "processus", "Condition": "condition",
+    "Entite": "entite", "Entité": "entite", "Contrainte": "contrainte",
 }
 
 RELATION_TYPE_ALIASES: dict[str, str] = {
-    "enables": "enable",
-    "prevents": "prevent",
-    "concedes": "concession",
-    "sequences": "sequence",
-    "motivates": "motivation",
-    "filters": "filter",
+    "enables": "enable", "prevents": "prevent",
+    "concedes": "concession", "sequences": "sequence",
+    "motivates": "motivation", "filters": "filter",
     "opposes": "opposition",
-    "data_dep": "data_dependency",
-    "control_dep": "control_dependency",
-    "Cause": "cause",
-    "Enable": "enable",
-    "Prevent": "prevent",
-    "Condition": "condition",
-    "Concession": "concession",
-    "Sequence": "sequence",
-    "Motivation": "motivation",
-    "Filter": "filter",
-    "Opposition": "opposition",
+    "data_dep": "data_dependency", "control_dep": "control_dependency",
+    "conditional": "condition",
+    "Cause": "cause", "Enable": "enable", "Prevent": "prevent",
+    "Condition": "condition", "Concession": "concession",
+    "Sequence": "sequence", "Motivation": "motivation",
+    "Filter": "filter", "Opposition": "opposition",
+    "ConditionalCause": "conditional_cause",
+    "MediatedCause": "mediated_cause",
+    "JointCause": "joint_cause",
 }
 
 
 def normalize_node_type(raw: str) -> str | None:
-    """Normalise un type de nœud LLM en valeur canonique. Retourne None si invalide."""
-    normalized = raw.strip().lower().replace("-", "_").replace(" ", "_")
-    if normalized in NODE_TYPES:
-        return normalized
-    canonical = NODE_TYPE_ALIASES.get(normalized)
-    if canonical and canonical in NODE_TYPES:
-        return canonical
-    # Essayer sans accents courants
-    normalized = normalized.replace("é", "e").replace("è", "e").replace("ê", "e")
-    if normalized in NODE_TYPES:
-        return normalized
+    s = raw.strip().lower().replace("-", "_").replace(" ", "_")
+    if s in NODE_TYPES:
+        return s
+    c = NODE_TYPE_ALIASES.get(s)
+    if c and c in NODE_TYPES:
+        return c
+    s2 = s.replace("é", "e").replace("è", "e").replace("ê", "e")
+    if s2 in NODE_TYPES:
+        return s2
     return None
 
 
 def normalize_relation_type(raw: str) -> str | None:
-    """Normalise un type de relation LLM en valeur canonique. Retourne None si invalide."""
-    normalized = raw.strip().lower().replace("-", "_").replace(" ", "_")
-    if normalized in RELATION_TYPES:
-        return normalized
-    canonical = RELATION_TYPE_ALIASES.get(normalized)
-    if canonical and canonical in RELATION_TYPES:
-        return canonical
+    s = raw.strip().lower().replace("-", "_").replace(" ", "_")
+    if s in RELATION_TYPES:
+        return s
+    c = RELATION_TYPE_ALIASES.get(s)
+    if c and c in RELATION_TYPES:
+        return c
     return None
 
 
+def _normalize_third(third_raw) -> dict | None:
+    if not third_raw or not isinstance(third_raw, dict):
+        return None
+    role = str(third_raw.get("role", "")).lower()
+    if role not in VALID_THIRD_ROLES:
+        return None
+    node = str(third_raw.get("node", ""))
+    polarity = third_raw.get("polarity")
+    return {
+        "role": role,
+        "node": node,
+        "polarity": str(polarity).lower() if polarity in VALID_POLARITY else None,
+    }
+
+
 def normalize_annotation(raw: dict) -> dict:
-    """Normalise et valide une annotation LLM brute.
+    """Normalise une annotation LLM brute vers le schéma v4 (ETUDE §11).
 
-    - Corrige les types de nœuds/relations non standard
-    - Supprime les nœuds/arêtes avec des types invalides
-    - Retourne le document normalisé
-
-    Émet un warning pour chaque entrée corrigée ou supprimée.
+    - NODE_TYPES 8 / RELATION_TYPES 19
+    - source → sources (liste)
+    - third normalisé pour les ternaires
+    - polarity, voice, modality validés
+    - intent transmis tel quel
     """
     doc = raw.get("document", raw)
     sentences = doc.get("sentences", [])
@@ -89,48 +120,70 @@ def normalize_annotation(raw: dict) -> dict:
     for sent in sentences:
         cir = sent.get("cir", {})
 
-        # Normaliser les nœuds
+        # Nœuds
         valid_nodes = []
-        node_ids = set()
+        node_ids: set[str] = set()
         for node in cir.get("nodes", []):
-            raw_type = node.get("type", "")
-            norm_type = normalize_node_type(raw_type)
+            norm_type = normalize_node_type(node.get("type", ""))
             if norm_type is None:
                 warnings.warn(
-                    f"Nœud '{node.get('id', '?')}' type invalide '{raw_type}' — supprimé.",
+                    f"Nœud '{node.get('id', '?')}' type invalide '{node.get('type')}' — supprimé.",
                     UserWarning, stacklevel=2,
                 )
                 continue
             node["type"] = norm_type
-            node_id = node.get("id", "")
-            if node_id in node_ids:
-                warnings.warn(
-                    f"Nœud ID dupliqué '{node_id}' — conservé (première occurrence).",
-                    UserWarning, stacklevel=2,
-                )
-            node_ids.add(node_id)
+            nid = str(node.get("id", ""))
+            node_ids.add(nid)
             valid_nodes.append(node)
 
-        # Normaliser les arêtes
+        # Arêtes
         valid_edges = []
         for edge in cir.get("edges", []):
-            raw_rel = edge.get("relation", "")
-            norm_rel = normalize_relation_type(raw_rel)
+            # Relation
+            norm_rel = normalize_relation_type(edge.get("relation", ""))
             if norm_rel is None:
                 warnings.warn(
-                    f"Arête {edge.get('source', '?')}→{edge.get('target', '?')} "
-                    f"relation invalide '{raw_rel}' — supprimée.",
+                    f"Arête relation invalide '{edge.get('relation')}' — supprimée.",
                     UserWarning, stacklevel=2,
                 )
                 continue
             edge["relation"] = norm_rel
-            # Vérifier que source et target existent dans les nœuds valides
-            if edge.get("source") not in node_ids or edge.get("target") not in node_ids:
-                warnings.warn(
-                    f"Arête {edge.get('source', '?')}→{edge.get('target', '?')} "
-                    f"réfère un nœud inexistant — conservée (vérification paresseuse).",
-                    UserWarning, stacklevel=2,
-                )
+
+            # sources (liste) — shim depuis source singulier
+            if "sources" not in edge or not edge["sources"]:
+                legacy = edge.get("source")
+                edge["sources"] = [str(legacy)] if legacy else []
+            else:
+                edge["sources"] = [str(s) for s in edge["sources"]]
+            edge.pop("source", None)
+
+            # third — ternaires
+            if norm_rel in TERNARY_RELATIONS:
+                edge["third"] = _normalize_third(edge.get("third"))
+            elif norm_rel in JOINT_RELATIONS:
+                edge["third"] = None   # joint = deux arêtes, pas de third
+            else:
+                edge.setdefault("third", None)
+
+            # Qualifications (défauts si absents)
+            pol = str(edge.get("polarity", "positive")).lower()
+            edge["polarity"] = pol if pol in VALID_POLARITY else "positive"
+
+            voice = str(edge.get("voice", "active")).lower()
+            edge["voice"] = voice if voice in VALID_VOICE else "active"
+
+            mod = str(edge.get("modality", "indicative")).lower()
+            edge["modality"] = mod if mod in VALID_MODALITY else "indicative"
+
+            edge.setdefault("has_restriction", False)
+            edge.setdefault("confidence", None)
+
+            cp = edge.get("condition_prominence")
+            if cp and str(cp).lower() in VALID_PROMINENCE:
+                edge["condition_prominence"] = str(cp).lower()
+            else:
+                edge["condition_prominence"] = None
+
             valid_edges.append(edge)
 
         cir["nodes"] = valid_nodes

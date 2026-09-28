@@ -12,10 +12,19 @@ from pathlib import Path
 
 
 # Types de nœuds valides
-NODE_TYPES = ["etat", "action", "transition", "processus", "condition", "entite", "etat_systemique"]
-
-# Types de relations valides
-RELATION_TYPES = ["cause", "enable", "prevent", "condition", "concession", "sequence", "motivation", "filter", "opposition", "data_dependency", "control_dependency"]
+# v4 — 8 types de nœuds (D5 ETUDE)
+NODE_TYPES = [
+    "etat", "action", "transition", "processus",
+    "condition", "entite", "etat_systemique", "contrainte",
+]
+# v4 — 19 types de relations (D2 ETUDE)
+RELATION_TYPES = [
+    "cause", "enable", "prevent", "condition", "concession", "sequence",
+    "motivation", "filter", "opposition", "data_dependency", "control_dependency",
+    "analogy", "counterfactual",
+    "conditional_cause", "mediated_cause", "joint_cause",
+    "conditional_prevent", "mediated_prevent", "joint_prevent",
+]
 
 
 def analyze_sentence(text: str) -> dict | None:

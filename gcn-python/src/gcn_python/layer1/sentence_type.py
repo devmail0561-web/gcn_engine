@@ -275,7 +275,13 @@ def _classify_complexity(tokens: list[dict]) -> Complexity:
 
 def _classify_subordination(tokens: list[dict],
                             markers: LangMarkers | None) -> SubordinationType:
-    # Couche 1 : NONE (structure seule ne distingue pas condition/cause/concession)
+    # Couche 1 — signal structurel Tense=Past : advcl au passé → SEQUENCE probable
+    for t in tokens:
+        if t.get("dep_rel") == "advcl":
+            morph = t.get("morph", {}) or {}
+            if morph.get("Tense") == "Past":
+                return SubordinationType.SEQUENCE
+    # Couche 1 : NONE sinon (structure seule ne distingue pas condition/cause/concession)
     if markers is None or not markers.subordination_markers:
         return SubordinationType.NONE
     lemmas = {str(t.get("lemma", "")).lower()
