@@ -45,10 +45,10 @@ benchmark-validation/*.npz
 docs/
 .opencode/
 
-# Archives et anciens fichiers de travail
-archive_v2/
-ancien/
-benchmark-validation/
+# Données de travail consolidées dans gcn-datasets/
+gcn-datasets/archive_v2/
+gcn-datasets/DATA/
+gcn-datasets/data_manifest.json
 
 # Cache outils à la racine
 /.pytest_cache/
