@@ -48,6 +48,11 @@ docs/
 # Archives et anciens fichiers de travail
 archive_v2/
 ancien/
+benchmark-validation/
+
+# Cache outils à la racine
+/.pytest_cache/
+/.ruff_cache/
 
 # Notes internes dans les outils
 gcn-tools/gcn-scraper/audit.txt
