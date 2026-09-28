@@ -106,6 +106,9 @@ def _parse_dataset_sentence(s: dict, lang: str = "", silver_weight: float = 1.0)
         edges=edges,
         causal_pattern=s.get("causal_pattern", ""),
         weight=weight,
+        intent=s.get("intent", ""),
+        sentence_profile=s.get("sentence_profile") or s.get("cir", {}).get("sentence_profile"),
+        salience=s.get("salience") or s.get("cir", {}).get("salience"),
     )
 
 
@@ -148,6 +151,7 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
             UserWarning, stacklevel=3,
         )
         node_type = "action"
+    morph_raw = n.get("morph") or {}
     return ClauseRecord(
         node_id=n.get("id", ""),
         node_type=node_type,
@@ -158,6 +162,8 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
         origin=n.get("origin", "explicit"),
         attributes=attrs,
         modifiers=n.get("modifiers", []) or [],
+        pos=n.get("pos", ""),
+        morph=morph_raw if isinstance(morph_raw, dict) else {},
     )
 
 
@@ -200,6 +206,25 @@ def _parse_edge(e: dict) -> EdgeRecord:
         negated = None
     _exp_raw = attrs.get("explicit", e.get("explicit"))
     explicit = bool(_exp_raw) if _exp_raw is not None else None  # N-4 : None si absent
+    # §11.5 ETUDE — third (relation ternaire)
+    third_raw = e.get("third") or attrs.get("third")
+    third = None
+    if third_raw and isinstance(third_raw, dict) and third_raw.get("role"):
+        third = {
+            "role": str(third_raw["role"]),
+            "node": str(third_raw.get("node", "")),
+            "polarity": third_raw.get("polarity"),
+        }
+
+    # §11.5 ETUDE — qualifications de l'arête
+    polarity = str(e.get("polarity") or attrs.get("polarity") or "positive")
+    voice = str(e.get("voice") or attrs.get("voice") or "active")
+    modality = str(e.get("modality") or attrs.get("modality") or "indicative")
+    has_restriction_raw = e.get("has_restriction", attrs.get("has_restriction", False))
+    has_restriction = bool(has_restriction_raw)
+    condition_prominence_raw = e.get("condition_prominence") or attrs.get("condition_prominence")
+    condition_prominence = str(condition_prominence_raw) if condition_prominence_raw else None
+
     return EdgeRecord(
         source=sources[0] if sources else "",
         target=target,
@@ -209,4 +234,10 @@ def _parse_edge(e: dict) -> EdgeRecord:
         negated=negated,
         marker_token=attrs.get("marker_token", e.get("marker_token")),
         sources=sources,
+        third=third,
+        polarity=polarity,
+        voice=voice,
+        modality=modality,
+        has_restriction=has_restriction,
+        condition_prominence=condition_prominence,
     )

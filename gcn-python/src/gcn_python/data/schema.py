@@ -29,6 +29,9 @@ class ClauseRecord:
     origin: str
     attributes: dict[str, object] = field(default_factory=dict)
     modifiers: list[dict] = field(default_factory=list)
+    # §11.4 ETUDE — token source du nœud (pos, morph)
+    pos: str = ""
+    morph: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -41,6 +44,14 @@ class EdgeRecord:
     negated: bool | None = None       # None = non renseigné (détection pipeline)
     marker_token: int | None = None
     sources: list[str] | None = None  # champ canonique v2 (remplace source)
+    # §11.5 ETUDE — relation ternaire
+    third: dict | None = None         # {"role": "condition"|"mediator", "node": str, "polarity"?: str}
+    # §11.5 ETUDE — qualifications de l'arête
+    polarity: str = "positive"                  # "positive" | "negative"
+    voice: str = "active"                       # "active" | "passive"
+    modality: str = "indicative"               # "indicative" | "subjunctive" | "conditional" | "imperative"
+    has_restriction: bool = False               # restriction exclusive (ne…que)
+    condition_prominence: str | None = None     # "foreground" | "background" (D7 + Éq.9)
 
     def __post_init__(self):
         # Shim rétrocompat : sources est canonique, source reste lisible.
@@ -71,3 +82,6 @@ class SentenceRecord:
     causal_pattern: str = ""  # métadonnée pour split stratifié uniquement, pas propagé aux features
     weight: float = 1.0  # Amélioration F : pondération gold=1.0 / silver=silver_weight
     intent: str = ""    # Éq.6 : label d'intention pour la tête NLU ; "" = non annoté
+    # §11.6 ETUDE — profil phrastique et saillance
+    sentence_profile: dict | None = None   # SentenceProfile sérialisé (optionnel)
+    salience: dict | None = None           # {topic_node, focus_node, condition_prominence}
