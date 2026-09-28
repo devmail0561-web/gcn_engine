@@ -46,34 +46,69 @@ impl DegreeMaps {
             *in_deg.entry(*d).or_insert(0usize) += 1;
         }
         let type_map = ir.nodes.iter().map(|n| (n.id, n.node_type)).collect();
-        Self { out_deg, in_deg, type_map }
+        Self {
+            out_deg,
+            in_deg,
+            type_map,
+        }
     }
 }
 
-fn edge_signature(dm: &DegreeMaps, src: NodeId, dst: NodeId, confidence: f32, relation: RelationType) -> EdgeSignature {
+fn edge_signature(
+    dm: &DegreeMaps,
+    src: NodeId,
+    dst: NodeId,
+    confidence: f32,
+    relation: RelationType,
+) -> EdgeSignature {
     let src_type = dm.type_map.get(&src).copied().unwrap_or(NodeType::Entite);
     let dst_type = dm.type_map.get(&dst).copied().unwrap_or(NodeType::Entite);
     let src_out_degree = dm.out_deg.get(&src).copied().unwrap_or(0);
     let dst_in_degree = dm.in_deg.get(&dst).copied().unwrap_or(0);
-    EdgeSignature { relation, src_type, dst_type, confidence, src_out_degree, dst_in_degree }
+    EdgeSignature {
+        relation,
+        src_type,
+        dst_type,
+        confidence,
+        src_out_degree,
+        dst_in_degree,
+    }
 }
 
 fn relation_similarity(a: RelationType, b: RelationType) -> f32 {
-    if a == b { return 1.0; }
+    if a == b {
+        return 1.0;
+    }
     // Famille causale directe : cause, enable, condition
-    let causal = [RelationType::Cause, RelationType::Enable, RelationType::Condition];
+    let causal = [
+        RelationType::Cause,
+        RelationType::Enable,
+        RelationType::Condition,
+    ];
     // Famille de flux : data_dependency, control_dependency, sequence
-    let flow = [RelationType::DataDependency, RelationType::ControlDependency, RelationType::Sequence];
-    if causal.contains(&a) && causal.contains(&b) { return 0.6; }
-    if flow.contains(&a) && flow.contains(&b) { return 0.6; }
+    let flow = [
+        RelationType::DataDependency,
+        RelationType::ControlDependency,
+        RelationType::Sequence,
+    ];
+    if causal.contains(&a) && causal.contains(&b) {
+        return 0.6;
+    }
+    if flow.contains(&a) && flow.contains(&b) {
+        return 0.6;
+    }
     0.0
 }
 
 fn type_similarity(a: NodeType, b: NodeType) -> f32 {
-    if a == b { return 1.0; }
+    if a == b {
+        return 1.0;
+    }
     // EtatLocal et EtatGlobal sont des états proches (D5)
     let state = [NodeType::EtatLocal, NodeType::EtatGlobal];
-    if state.contains(&a) && state.contains(&b) { return 0.5; }
+    if state.contains(&a) && state.contains(&b) {
+        return 0.5;
+    }
     0.0
 }
 
@@ -85,7 +120,7 @@ fn similarity(pattern: &EdgeSignature, candidate: &EdgeSignature) -> f32 {
     let conf_prox = 1.0 - (pattern.confidence - candidate.confidence).abs().min(1.0);
     let degree_prox = {
         let d_out = pattern.src_out_degree.abs_diff(candidate.src_out_degree) as f32;
-        let d_in  = pattern.dst_in_degree.abs_diff(candidate.dst_in_degree) as f32;
+        let d_in = pattern.dst_in_degree.abs_diff(candidate.dst_in_degree) as f32;
         1.0 / (1.0 + d_out + d_in)
     };
     // Poids : relation > type > confiance > degré
@@ -102,37 +137,51 @@ pub fn find_analogies(ir: &CausalIR, from: &str, to: &str, min_score: f32) -> Ve
     let to_n = normalize_label(to);
 
     // Trouver l'arête patron
-    let src_node = ir.nodes.iter()
+    let src_node = ir
+        .nodes
+        .iter()
         .find(|n| normalize_label(&n.label) == from_n);
-    let dst_node = ir.nodes.iter()
-        .find(|n| normalize_label(&n.label) == to_n);
+    let dst_node = ir.nodes.iter().find(|n| normalize_label(&n.label) == to_n);
     let (src_id, dst_id) = match (src_node, dst_node) {
         (Some(s), Some(d)) => (s.id, d.id),
         _ => return vec![],
     };
 
-    let pattern_edge = ir.edges.iter()
+    let pattern_edge = ir
+        .edges
+        .iter()
         .find(|(s, d, _)| *s == src_id && *d == dst_id);
     let (_, _, pattern_e) = match pattern_edge {
         Some(e) => e,
         None => return vec![],
     };
     let dm = DegreeMaps::from_ir(ir);
-    let pattern_sig = edge_signature(&dm, src_id, dst_id, pattern_e.confidence, pattern_e.relation);
+    let pattern_sig = edge_signature(
+        &dm,
+        src_id,
+        dst_id,
+        pattern_e.confidence,
+        pattern_e.relation,
+    );
 
     let nm: std::collections::HashMap<NodeId, &gcn_ir::CausalNode> =
         ir.nodes.iter().map(|n| (n.id, n)).collect();
 
-    let mut matches: Vec<AnalogyMatch> = ir.edges.iter()
+    let mut matches: Vec<AnalogyMatch> = ir
+        .edges
+        .iter()
         .filter(|(s, d, _)| !(*s == src_id && *d == dst_id))
         .filter_map(|(s, d, e)| {
             let cand_sig = edge_signature(&dm, *s, *d, e.confidence, e.relation);
             let score = similarity(&pattern_sig, &cand_sig);
-            if score < min_score { return None; }
+            if score < min_score {
+                return None;
+            }
             let from_label = nm.get(s).map(|n| n.label.clone()).unwrap_or_default();
-            let to_label   = nm.get(d).map(|n| n.label.clone()).unwrap_or_default();
+            let to_label = nm.get(d).map(|n| n.label.clone()).unwrap_or_default();
             Some(AnalogyMatch {
-                from_label, to_label,
+                from_label,
+                to_label,
                 relation: e.relation,
                 confidence: e.confidence,
                 similarity_score: score,
@@ -140,10 +189,11 @@ pub fn find_analogies(ir: &CausalIR, from: &str, to: &str, min_score: f32) -> Ve
         })
         .collect();
 
-    matches.sort_by(|a, b|
-        b.similarity_score.partial_cmp(&a.similarity_score)
+    matches.sort_by(|a, b| {
+        b.similarity_score
+            .partial_cmp(&a.similarity_score)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(a.from_label.cmp(&b.from_label))
-    );
+    });
     matches
 }

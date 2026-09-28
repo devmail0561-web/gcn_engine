@@ -14,8 +14,10 @@ pub mod scope;
 pub mod temporal;
 
 pub use code::{CodeAttributes, CodeCausalType, ControlFlow, DataFlow};
-pub use edge::{CausalEdge, CycleId, Derivation, ExtractionMethod, Provenance, RelationType,
-               TernaryRole, TernaryThird};
+pub use edge::{
+    CausalEdge, CycleId, Derivation, ExtractionMethod, Provenance, RelationType, TernaryRole,
+    TernaryThird,
+};
 pub use error::{GcnError, GcnResult};
 pub use ir::{
     Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, IrMetadata,
@@ -123,7 +125,8 @@ mod tests {
             third: None,
         };
         let s2 = serde_json::to_string(&edge2).expect("serialize CausalEdge with provenance");
-        let back2: CausalEdge = serde_json::from_str(&s2).expect("deserialize CausalEdge with provenance");
+        let back2: CausalEdge =
+            serde_json::from_str(&s2).expect("deserialize CausalEdge with provenance");
         assert!(back2.provenance.is_some());
     }
 
