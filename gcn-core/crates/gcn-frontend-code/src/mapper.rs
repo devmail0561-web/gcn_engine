@@ -38,6 +38,7 @@ pub fn node_type_str_to_enum(s: &str) -> Option<NodeType> {
         "condition" => Some(NodeType::Condition),
         "entite" => Some(NodeType::Entite),
         "etat_systemique" => Some(NodeType::EtatSystemique),
+        "contrainte" => Some(NodeType::Contrainte),
         _ => None,
     }
 }

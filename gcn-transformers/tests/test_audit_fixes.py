@@ -259,7 +259,7 @@ def test_all_bugs_integration(dimensions):
     # 1. Batch vide (Bug #5)
     X_empty = np.zeros((0, dimensions["d_clause"]), dtype=np.float32)
     logits_empty = encoder.forward_batch(X_empty)
-    assert logits_empty.shape == (0, 7)
+    assert logits_empty.shape == (0, 8)
 
     # 2. Batch normal
     X = np.random.randn(3, dimensions["d_clause"]).astype(np.float32)
@@ -288,4 +288,4 @@ def test_all_bugs_integration(dimensions):
     # 8. Prochain forward auto zero_grad si besoin
     X2 = np.random.randn(2, dimensions["d_clause"]).astype(np.float32)
     logits2 = encoder.forward_batch(X2)
-    assert logits2.shape == (2, 7)
+    assert logits2.shape == (2, 8)

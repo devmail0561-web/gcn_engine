@@ -14,12 +14,13 @@ A5 : _set_training_mode — RGCNLayerGAT.training False après eval(), True apr�
 import numpy as np
 import pytest
 
+from gcn_python.constants import NODE_TYPES as _NODE_TYPES
 from gcn_python.layer1.features import FeatureVocabulary
 from gcn_python.layer2.reference import MLPEncoder
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def _enc(seed=42, edge_dropout=0.3, d_eff=None, n_node_types=7):
+def _enc(seed=42, edge_dropout=0.3, d_eff=None, n_node_types=len(_NODE_TYPES)):
     vocab = FeatureVocabulary()
     d_cl = vocab.d_clause
     d_eff = d_eff or d_cl

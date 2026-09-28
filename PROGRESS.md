@@ -36,6 +36,7 @@ v2.5.0  ████████████████████  100%  4 ph
 EMB     ████████████████████  100%  Validation embeddings : 4 configs, fine-tuning +45% edge
 Pearl+  ████████████████████  100%  Extensions Pearl P1–P3 : provenance, normalize, temporal, abductif, méta, analogie
 v3.0    ████████████████████  100%  Migration D1-D10 plan-moins : 8 nœuds, 19 relations, d_clause 106, logit mask
+Audit   ████████████████████  100%  Conformité code↔plan : Contrainte Rust, logit mask, D1 features, dims v3
 ```
 
 **Tests Python : 558 / 558 passent** (`pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
@@ -50,8 +51,8 @@ v3.0    ████████████████████  100%  Migr
 | Composant | Fichier | Statut |
 |---|---|---|
 | Types CIR | `gcn-ir/src/ir.rs` | ✅ |
-| NodeType (7 variantes) | `gcn-ir/src/node.rs` | ✅ |
-| RelationType (11 variantes) | `gcn-ir/src/edge.rs` | ✅ |
+| NodeType (8 variantes v3.0) | `gcn-ir/src/node.rs` | ✅ |
+| RelationType (19 variantes v3.0) | `gcn-ir/src/edge.rs` | ✅ |
 | Scope (6 variantes) | `gcn-ir/src/scope.rs` | ✅ |
 | Modifier (12 variantes) | `gcn-ir/src/modifier.rs` | ✅ |
 | TemporalRef + TemporalGap | `gcn-ir/src/temporal.rs` | ✅ |

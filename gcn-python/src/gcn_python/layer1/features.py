@@ -177,7 +177,6 @@ OBJ_DEP_RELS = frozenset({'obj', 'iobj'})
 
 CLAUSE_POOLING_MODES = ("root", "mean", "max")
 
-_COND_SCONJ = frozenset({"si", "if", "unless", "falls", "wenn", "sauf", "provided"})
 _SUBJ_RELS  = frozenset({"nsubj", "nsubj:pass"})
 _OBJ_RELS   = frozenset({"obj", "iobj"})
 _NEG_RELS   = frozenset({"advmod", "aux"})
@@ -257,10 +256,8 @@ def _compute_ternary_features(tokens: list[dict]) -> np.ndarray:
         morph = t.get("morph", {})
         if dep in _SUBJ_RELS:
             subj_count += 1
-        if dep == "advcl":
-            lemma = t.get("lemma", "").lower()
-            if lemma in _COND_SCONJ:
-                has_advcl_cond = True
+        if dep == "mark" and t.get("pos", "") == "SCONJ":
+            has_advcl_cond = True
         if dep == "obl":
             has_obl = True
         if dep == "cc":

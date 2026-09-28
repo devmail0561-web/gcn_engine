@@ -20,21 +20,21 @@ class CamembertEncoder(TransformerEncoderBase):
 
     def __init__(
         self,
-        d_clause: int = 79,
-        d_edge: int = 365,
+        d_clause: int = 106,
+        d_edge: int = 475,
         freeze_layers: int = 10,
         learning_rate: float = 1e-5,
         device: str | None = None,
         model_name: str = "camembert-base",
-        n_node_types: int = 7,
-        n_relation_types: int = 11,
+        n_node_types: int = 8,
+        n_relation_types: int = 19,
     ):
         """
         Initialise CamemBERT encoder.
 
         Args:
-            d_clause: Dimension features UD (79 par défaut)
-            d_edge: Dimension edge vectors (365 par défaut)
+            d_clause: Dimension features UD (106 v3.0)
+            d_edge: Dimension edge vectors (475 v3.0)
             freeze_layers: Nombre de couches Transformer à geler (10/12 par défaut)
             learning_rate: Learning rate AdamW (1e-5 recommandé)
             device: "cuda", "cpu", ou None (auto-détection)

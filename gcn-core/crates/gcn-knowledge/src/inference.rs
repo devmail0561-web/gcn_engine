@@ -193,6 +193,7 @@ fn class_name_to_node_type(class_name: &str) -> Option<NodeType> {
         "processus" => Some(NodeType::Processus),
         "agent" | "patient" | "abstrait" | "relation" => Some(NodeType::Entite),
         "etat_systemique" => Some(NodeType::EtatSystemique),
+        "contrainte" => Some(NodeType::Contrainte),
         _ => None, // "auxiliaire" et autres POS non causaux
     }
 }

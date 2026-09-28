@@ -586,6 +586,12 @@ fn build_label(
             ),
             None => if verb_lemma.is_empty() { "action".to_string() } else { verb_lemma.to_string() },
         },
+        NodeType::Contrainte => entity
+            .as_deref()
+            .filter(|e| !e.is_empty())
+            .or(if !verb_lemma.is_empty() { Some(verb_lemma) } else { None })
+            .unwrap_or("constraint")
+            .to_string(),
         NodeType::Etat | NodeType::Transition | NodeType::Processus => {
             let nom = nominalize_with_table(
                 if verb_lemma.is_empty() {

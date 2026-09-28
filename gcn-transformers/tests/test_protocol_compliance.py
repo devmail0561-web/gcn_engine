@@ -60,8 +60,8 @@ def test_implements_causal_encoder_protocol(encoder_class, dimensions):
     assert hasattr(encoder, 'n_relation_types')
 
     # Attributs requis pour --weighted-loss
-    assert encoder.n_node_types == 7
-    assert encoder.n_relation_types == 11
+    assert encoder.n_node_types == 8
+    assert encoder.n_relation_types == 19
 
 
 @pytest.mark.parametrize("encoder_class", [

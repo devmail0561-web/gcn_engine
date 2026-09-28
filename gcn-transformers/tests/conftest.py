@@ -21,9 +21,9 @@ def vocab():
 @pytest.fixture
 def dimensions(vocab):
     """Dimensions d_clause et d_edge correctes."""
-    d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
-    d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=7, d_emb=0,
-                                      subject_object_emb=False)  # 365
+    d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)
+    d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=8, d_emb=0,
+                                      subject_object_emb=False)
     return {"d_clause": d_eff, "d_edge": d_edge}
 
 

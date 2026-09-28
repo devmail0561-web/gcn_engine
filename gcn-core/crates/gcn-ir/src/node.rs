@@ -18,6 +18,7 @@ pub enum NodeType {
     Condition,
     Entite,
     EtatSystemique,
+    Contrainte,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl NodeType {
             NodeType::Condition => CausalDirection::Suspended,
             NodeType::Entite => CausalDirection::None,
             NodeType::EtatSystemique => CausalDirection::Accumulative,
+            NodeType::Contrainte => CausalDirection::Suspended,
         }
     }
 }

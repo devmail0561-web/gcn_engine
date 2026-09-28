@@ -519,103 +519,104 @@ def train_cmd(
             raise click.ClickException(f"Aucune sentence dans {val_dir}")
         click.echo(f"Val : {len(val_loader)} sentences")
 
-    # Passe unique : class weights + vocab embeddings (évite deux itérations sur le dataset)
+    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
     node_class_weights = None
     edge_class_weights = None
     _edge_logit_mask: "np.ndarray | None" = None
-    if weighted_loss or word_embedding is not None:
-        from collections import Counter
-        node_counts: Counter = Counter()
-        edge_counts: Counter = Counter()
-        all_lemmas: list[str] = []
-        for sample in loader:
-            if weighted_loss:
-                for label in sample.gold_node_labels:
-                    node_counts[int(label)] += 1
-                for rel in sample.edge_map.values():
-                    edge_counts[int(rel)] += 1
-            if word_embedding is not None:
-                reps_s, _, _ = reps_from_sentence(sample.sentence)
-                # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
-                # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
-                if clause_pooling == "root" and not subject_object_emb:
-                    all_lemmas.extend(r.root_lemma for r in reps_s)
-                else:
-                    from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
-                    for r in reps_s:
-                        if clause_pooling == "root":
-                            all_lemmas.append(r.root_lemma)
-                        else:
-                            all_lemmas.extend(_pool_lemmas(r, clause_pooling))
-                        if subject_object_emb:
-                            all_lemmas.extend(_find_subj_obj_lemmas(r))
+    from collections import Counter
+    node_counts: Counter = Counter()
+    edge_counts: Counter = Counter()
+    all_lemmas: list[str] = []
+    for sample in loader:
+        for rel in sample.edge_map.values():
+            edge_counts[int(rel)] += 1
         if weighted_loss:
-            if node_counts:
-                total_nodes = sum(node_counts.values())
-                n_node_classes = len(NODE_TYPES)
-                node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
-                for c in range(n_node_classes):
-                    count = node_counts.get(c, 1)
-                    node_class_weights[c] = total_nodes / (n_node_classes * count)
-                if max_class_weight > 0:
-                    node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
-                click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3), strict=False))}")
-            if edge_counts:
-                total_edges = sum(edge_counts.values())
-                n_edge_classes = encoder.n_relation_types
-                edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
-                _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
-                for c in range(n_edge_classes):
-                    count = edge_counts.get(c, 0)
-                    if count > 0:
-                        edge_class_weights[c] = total_edges / (n_edge_classes * count)
-                        _edge_logit_mask[c] = True
-                    # sinon : weight=0 et masque=False → classe inactive (protocole v3.0)
-                n_active = int(_edge_logit_mask.sum())
-                n_inactive = n_edge_classes - n_active
-                if n_inactive > 0:
-                    click.echo(
-                        f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
-                        f"(N=0 dans le dataset) — activer à N_min."
-                    )
-                if max_class_weight > 0:
-                    edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-                click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES[:n_active], edge_class_weights[:n_active].round(3), strict=False))}")
-        if word_embedding is not None and all_lemmas:
-            word_embedding.build_vocab(all_lemmas)
-            click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
-            if _fasttext_path is not None:
-                # Phase A : remplissage fastText après build_vocab (vocab connu).
-                # fastText subword → get_word_vector répond pour tout lemme.
+            for label in sample.gold_node_labels:
+                node_counts[int(label)] += 1
+        if word_embedding is not None:
+            reps_s, _, _ = reps_from_sentence(sample.sentence)
+            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
+            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
+            if clause_pooling == "root" and not subject_object_emb:
+                all_lemmas.extend(r.root_lemma for r in reps_s)
+            else:
+                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
+                for r in reps_s:
+                    if clause_pooling == "root":
+                        all_lemmas.append(r.root_lemma)
+                    else:
+                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
+                    if subject_object_emb:
+                        all_lemmas.extend(_find_subj_obj_lemmas(r))
+    if edge_counts:
+        n_edge_classes = encoder.n_relation_types
+        _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
+        for c in range(n_edge_classes):
+            if edge_counts.get(c, 0) > 0:
+                _edge_logit_mask[c] = True
+        n_active = int(_edge_logit_mask.sum())
+        n_inactive = n_edge_classes - n_active
+        if n_inactive > 0:
+            click.echo(
+                f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
+                f"(N=0 dans le dataset) — activer à N_min."
+            )
+    if weighted_loss:
+        if node_counts:
+            total_nodes = sum(node_counts.values())
+            n_node_classes = len(NODE_TYPES)
+            node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
+            for c in range(n_node_classes):
+                count = node_counts.get(c, 1)
+                node_class_weights[c] = total_nodes / (n_node_classes * count)
+            if max_class_weight > 0:
+                node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
+            click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3), strict=False))}")
+        if edge_counts:
+            total_edges = sum(edge_counts.values())
+            edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
+            for c in range(n_edge_classes):
+                count = edge_counts.get(c, 0)
+                if count > 0:
+                    edge_class_weights[c] = total_edges / (n_edge_classes * count)
+            if max_class_weight > 0:
+                edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
+            click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES[:n_active], edge_class_weights[:n_active].round(3), strict=False))}")
+    if word_embedding is not None and all_lemmas:
+        word_embedding.build_vocab(all_lemmas)
+        click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
+        if _fasttext_path is not None:
+            # Phase A : remplissage fastText après build_vocab (vocab connu).
+            # fastText subword → get_word_vector répond pour tout lemme.
+            try:
+                import fasttext as _ft
+                _ft_model = _ft.load_model(str(_fasttext_path))
+            except ImportError:
                 try:
-                    import fasttext as _ft
+                    import fasttext_wheel as _ft
                     _ft_model = _ft.load_model(str(_fasttext_path))
-                except ImportError:
-                    try:
-                        import fasttext_wheel as _ft
-                        _ft_model = _ft.load_model(str(_fasttext_path))
-                    except ImportError as _e:
-                        raise click.ClickException(
-                            "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
-                            "pip install fasttext-wheel"
-                        ) from _e
-                _n_ft = 0
-                for _lemma in dict.fromkeys(all_lemmas):
-                    _vec = np.asarray(
-                        _ft_model.get_word_vector(_lemma), dtype=np.float32)
-                    if _vec.shape != (300,):
-                        continue
-                    _idx = word_embedding._vocab.get(_lemma)
-                    if _idx is not None:
-                        word_embedding._E[_idx] = _vec
-                        _n_ft += 1
-                # Plage pré-entraînée = tous les non-spéciaux (comme load_from_file
-                # appelé juste après __init__ : start=3). Spéciaux _absent (1-2)
-                # restent entraînables même avec frozen=True.
-                word_embedding._pretrained_start = 3
-                word_embedding._pretrained_end = len(word_embedding._lemmas)
-                word_embedding.frozen = True
-                click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
+                except ImportError as _e:
+                    raise click.ClickException(
+                        "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
+                        "pip install fasttext-wheel"
+                    ) from _e
+            _n_ft = 0
+            for _lemma in dict.fromkeys(all_lemmas):
+                _vec = np.asarray(
+                    _ft_model.get_word_vector(_lemma), dtype=np.float32)
+                if _vec.shape != (300,):
+                    continue
+                _idx = word_embedding._vocab.get(_lemma)
+                if _idx is not None:
+                    word_embedding._E[_idx] = _vec
+                    _n_ft += 1
+            # Plage pré-entraînée = tous les non-spéciaux (comme load_from_file
+            # appelé juste après __init__ : start=3). Spéciaux _absent (1-2)
+            # restent entraînables même avec frozen=True.
+            word_embedding._pretrained_start = 3
+            word_embedding._pretrained_end = len(word_embedding._lemmas)
+            word_embedding.frozen = True
+            click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 

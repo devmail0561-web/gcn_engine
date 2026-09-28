@@ -40,8 +40,8 @@ class TransformerEncoderBase:
         freeze_layers: int = 10,
         learning_rate: float = 1e-5,
         device: str | None = None,
-        n_node_types: int = 7,
-        n_relation_types: int = 11,
+        n_node_types: int = 8,
+        n_relation_types: int = 19,
     ):
         """
         Initialise l'encodeur Transformer.
@@ -50,13 +50,13 @@ class TransformerEncoderBase:
         AVANT d'appeler super().__init__(), car __init__ accède à self.model.config.
 
         Args:
-            d_clause: Dimension features UD (79 par défaut = vocab.d_clause_effective(0, False))
-            d_edge: Dimension edge vectors (365 par défaut = vocab.d_edge_closed_loop(...))
+            d_clause: Dimension features UD (106 v3.0 = vocab.d_clause_effective(0, False))
+            d_edge: Dimension edge vectors (475 v3.0 = vocab.d_edge_closed_loop(106, 8))
             freeze_layers: Nombre de couches Transformer à geler (10/12 par défaut)
             learning_rate: Learning rate AdamW (1e-5 recommandé pour Transformers)
             device: "cuda", "cpu", ou None (auto-détection)
-            n_node_types: Nombre de types de nœuds (7 par défaut : NODE_TYPES)
-            n_relation_types: Nombre de relations causales (11 par défaut : RELATION_TYPES)
+            n_node_types: Nombre de types de nœuds (8 v3.0 : NODE_TYPES)
+            n_relation_types: Nombre de relations causales (19 v3.0 : RELATION_TYPES)
 
         Raises:
             RuntimeError: Si self.model n'existe pas (sous-classe doit l'instancier avant)

@@ -7,6 +7,29 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Audit post-v3.0 — conformité code↔plan (2026-09-28)
+
+Audit exhaustif code vs plan (19 findings F1-F19), implémentation des 10 fixes moteur.
+
+#### CRITICAL
+
+- **`gcn-ir/node.rs`** : ajout variante `Contrainte` au enum `NodeType` (8/8 types, synchro Python↔Rust).
+  Sites corrigés : `node.rs`, `mapper.rs`, `inference.rs`, `fr/annotator.rs`, `en/annotator.rs`, `lib.rs` (test serde).
+- **`train.py`** : `_edge_logit_mask` découplé de `--weighted-loss` — le masque des classes vides est désormais toujours construit, même sans pondération. Empêche la dilution softmax sur les 19 relations.
+
+#### HIGH — Violation D1 corrigée
+
+- **`features.py`** : `_COND_SCONJ` (frozenset de lemmas hardcodés) supprimé de layer 1. Remplacé par check purement UD (`dep_rel="mark"` + `POS="SCONJ"`). Zéro lemme en layer 1 conformément à D1.
+
+#### MEDIUM — gcn-transformers v2→v3
+
+- **Defaults v3** dans `base.py`, `camembert.py`, `codebert.py`, `xlm_roberta.py` : `n_node_types` 7→8, `n_relation_types` 11→19, `d_clause` 79→106, `d_edge` 365→475.
+- **Tests** : `quick_test.py` (dims 234/987, shapes ×8), `test_audit_fixes.py` (shapes ×8), `test_protocol_compliance.py` (assertions 8/19), `conftest.py` (n_node_types=8).
+- **`test_regression_v230.py`** : `n_node_types` dynamique via `len(NODE_TYPES)`.
+- **Docstrings** : toutes les mentions 79/365/7/11 remplacées par valeurs v3.
+
+**Tests : 185 Rust + 558 Python = 743 verts, 0 régression.**
+
 ### Plan-moins v3.0 — implémentation (2026-09-27, commit d9ad8ca)
 
 Première implémentation du [plan de migration D1-D10](docs/PLAN_MIGRATION_MOTEUR_PHASES_ABCD.md).

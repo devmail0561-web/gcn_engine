@@ -5,6 +5,14 @@ All notable changes to gcn-transformers will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-28
+
+### Changed (BREAKING)
+- **Defaults v3.0** : `n_node_types` 7→8, `n_relation_types` 11→19, `d_clause` 79→106, `d_edge` 365→475.
+  Affecte `TransformerEncoderBase`, `XLMRobertaEncoder`, `CamembertEncoder`, `CodeBERTEncoder`.
+- **Tests** : `quick_test.py`, `conftest.py`, `test_audit_fixes.py`, `test_protocol_compliance.py` mis à jour pour v3.0.
+- **Docstrings** : toutes les références aux anciennes dimensions remplacées.
+
 ## [1.0.0] - 2026-09-25
 
 ### Added

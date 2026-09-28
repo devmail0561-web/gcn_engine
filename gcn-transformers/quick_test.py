@@ -6,13 +6,11 @@ from gcn_transformers import XLMRobertaEncoder
 
 print("=== Quick Test Corrections Audit ===\n")
 
-# Dimensions standard pour d_emb=128 (défaut depuis v2.5.0 — cf. CHANGELOG).
-# d_clause = vocab.d_clause_effective(128, False) = 79 + 128 = 207
-# d_edge   = vocab.d_edge_closed_loop(207, 7, 128, False) = 877
-# Utiliser 79/365 instancierait en mode aveugle au lexique et déclencherait
-# le UserWarning ajouté dans TransformerEncoderBase.__init__.
-d_clause = 207
-d_edge = 877
+# Dimensions standard v3.0 pour d_emb=128.
+# d_clause = vocab.d_clause_effective(128, False) = 106 + 128 = 234
+# d_edge   = vocab.d_edge_closed_loop(234, 8, 128, False) = 987
+d_clause = 234
+d_edge = 987
 
 print("1. Test instanciation (Bug #2 validation)...")
 try:
@@ -26,7 +24,7 @@ except Exception as e:
 print("2. Test batch vide (Bug #5)...")
 X_empty = np.zeros((0, d_clause), dtype=np.float32)
 logits_empty = encoder.forward_batch(X_empty)
-assert logits_empty.shape == (0, 7), f"Shape incorrecte: {logits_empty.shape}"
+assert logits_empty.shape == (0, 8), f"Shape incorrecte: {logits_empty.shape}"
 print(f"   ✓ Batch vide OK: shape={logits_empty.shape}\n")
 
 # Test Bug #1 : update_edge applique gradients
@@ -71,7 +69,7 @@ print("   ✓ Bug #4 CORRIGÉ: évite double step\n")
 print("5. Test forward/backward normal...")
 X3 = np.random.randn(3, d_clause).astype(np.float32)
 logits3 = encoder.forward_batch(X3)
-assert logits3.shape == (3, 7)
+assert logits3.shape == (3, 8)
 grads3, dx3 = encoder.backward_node_dx(np.ones_like(logits3))
 assert dx3.shape == X3.shape
 print(f"   ✓ Forward/backward OK: logits.shape={logits3.shape}\n")

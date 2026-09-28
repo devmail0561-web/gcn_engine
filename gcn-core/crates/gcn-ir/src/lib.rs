@@ -52,6 +52,7 @@ mod tests {
             NodeType::Condition,
             NodeType::Entite,
             NodeType::EtatSystemique,
+            NodeType::Contrainte,
         ] {
             let s = serde_json::to_string(&nt).expect("serialize NodeType");
             let back: NodeType = serde_json::from_str(&s).expect("deserialize NodeType");
