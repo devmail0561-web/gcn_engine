@@ -102,3 +102,21 @@ NEGATION_PREVENT_MAP: dict[str, str] = {
 
 # Éq.11 ETUDE — seuil d'ambiguïté (calibré sur validation, prior 0.65)
 THETA_AMBIGUITY_DEFAULT: float = 0.65
+
+# Éq.6 ETUDE — types d'intention (tête MLP apprise, n_intent_types=0 = désactivé)
+INTENT_TYPES: list[str] = [
+    # Causal
+    "explain", "effects", "abduct", "counterfactual",
+    # Path
+    "chain", "chain_t", "before", "delay",
+    # Structure
+    "spof", "centrality", "analogy",
+    # Méta-qualité
+    "summarize", "density", "coverage", "reliability", "diff",
+    # Navigation
+    "zoom_in", "zoom_out", "aggregate",
+    # Génération
+    "verbalize",
+    # Extraction (déclaratif → CIR)
+    "none",
+]

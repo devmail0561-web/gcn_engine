@@ -11,7 +11,7 @@ import click
 import numpy as np
 
 from ..constants import (ALL_RELATION_TYPES, COARSE_NODE_TYPES, COARSE_RELATION_TYPES,
-                         FINE_TO_COARSE_NODE, FINE_TO_COARSE_RELATION,
+                         FINE_TO_COARSE_NODE, FINE_TO_COARSE_RELATION, INTENT_TYPES,
                          NODE_TYPES, RELATION_TYPES, coarse_node, coarse_relation)
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..evaluation.metrics import (
@@ -189,6 +189,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--ss-final-epoch", default=50, show_default=True, type=int,
               help="Epoch (incluse) où p_gold atteint 0.0 avec --scheduled-sampling. "
                    "Avant : p_gold = 1 - (epoch-1)/ss_final_epoch. Après : p_gold = 0.0.")
+@click.option("--n-intent-types", default=0, show_default=True, type=int,
+              help="Éq.6 : active la tête d'intention (0=désactivé). "
+                   "Doit correspondre à len(INTENT_TYPES) si > 0. "
+                   "Requiert des phrases annotées avec SentenceRecord.intent.")
 @click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
               help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
                    "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
@@ -251,6 +255,7 @@ def train_cmd(
     d_rel_emb: int,
     scheduled_sampling: bool,
     ss_final_epoch: int,
+    n_intent_types: int,
     coarse_phase: bool,
     coarse_n_min: int,
 ) -> None:
@@ -468,7 +473,8 @@ def train_cmd(
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
                            gat_residual=gat_residual, assembler=assembler,
-                           no_mood=coarse_phase, no_tense=coarse_phase)
+                           no_mood=coarse_phase, no_tense=coarse_phase,
+                           n_intent_types=n_intent_types)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
@@ -536,6 +542,7 @@ def train_cmd(
     from collections import Counter
     node_counts: Counter = Counter()
     edge_counts: Counter = Counter()
+    intent_counts: Counter = Counter()
     all_lemmas: list[str] = []
     for sample in loader:
         for rel in sample.edge_map.values():
@@ -543,6 +550,12 @@ def train_cmd(
         if weighted_loss:
             for label in sample.gold_node_labels:
                 node_counts[int(label)] += 1
+        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
+        if n_intent_types > 0 and sample.sentence.intent:
+            try:
+                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
+            except ValueError:
+                pass
         if word_embedding is not None:
             reps_s, _, _ = reps_from_sentence(sample.sentence)
             # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
@@ -571,6 +584,16 @@ def train_cmd(
                 f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
                 f"(N=0 dans le dataset) — activer à N_min."
             )
+    # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
+    _intent_logit_mask: "np.ndarray | None" = None
+    if n_intent_types > 0 and intent_counts:
+        _intent_logit_mask = np.zeros(n_intent_types, dtype=bool)
+        for c in range(n_intent_types):
+            if intent_counts.get(c, 0) > 0:
+                _intent_logit_mask[c] = True
+        n_active_intent = int(_intent_logit_mask.sum())
+        click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
+
     # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min
     # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
     _active_node_types = NODE_TYPES
@@ -958,6 +981,16 @@ def train_cmd(
                     if _surfaces:
                         _gold_surface = _surfaces[0]
 
+                # Éq.6 — label d'intention (si annoté et tête active)
+                _gold_intent = None
+                if n_intent_types > 0 and sample.sentence.intent:
+                    try:
+                        _gold_intent = np.array(
+                            [INTENT_TYPES.index(sample.sentence.intent)], dtype=np.int64
+                        )
+                    except ValueError:
+                        pass
+
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
                     edge_loss_weight=edge_loss_weight,
@@ -968,6 +1001,8 @@ def train_cmd(
                     label_smoothing=label_smoothing,
                     sample_weight=sample.sentence.weight,
                     edge_sample_weights=_edge_sw,  # S-5 : confidence par arête
+                    gold_intent=_gold_intent,
+                    intent_logit_mask=_intent_logit_mask,
                 )
 
                 if not decoder_only:

@@ -21,6 +21,7 @@ from pathlib import Path
 
 import click
 
+from .pipeline.nlu_routing import nlu_route
 from .verbalizer.decoder import ReferenceDecoder
 from .verbalizer.instructions import CausalGraph, InstructionHandler, parse_command
 from .verbalizer.query_report import QueryVerbalizer
@@ -404,26 +405,27 @@ def run_discuss(
                 print("  Corpus vide. Utilisez /analyze <fichier> pour charger des documents.")
                 continue
             print()
-            response = _format_response(handler, user_input)
-            # Fallback entrée libre : si rien trouvé et moteur dispo, analyser la
-            # question elle-même (Python→Rust sens unique) puis réessayer une fois.
-            if "No causal structure" in response and engine is not None:
+            # Éq.6 — analyser la question : intent routing (tête apprise ou surface)
+            # + enrichissement du graphe si la question contient de la causalité
+            _nlu_cmd = None
+            if engine is not None:
                 try:
                     cir = engine.analyze(user_input)
-                    concepts = extract_concepts_from_cir(cir)
-                    if cir.get("edges"):
-                        # Répondre depuis la question uniquement — ne pas modifier le graphe corpus.
-                        tmp_handler = InstructionHandler()
-                        tmp_handler.add_cir(cir)
-                        tmp_response = _format_response(tmp_handler, user_input)
-                        if "No causal structure" not in tmp_response:
-                            response = tmp_response
-                        if session.session_dir is not None:
-                            session.collect(engine, user_input, cir)
-                    elif concepts:
-                        response += f"\n  (concepts détectés dans la question : {', '.join(concepts)} — source=question, non corpus)"
-                except Exception as _e:  # noqa: BLE001  # fallback best-effort : réponse enrichie d'une note
-                    response += f"\n  (fallback analyze impossible : {_e})"
+                    _reps = getattr(engine._pipeline, '_cached_reps', None)
+                    _nlu_cmd = nlu_route(
+                        user_input,
+                        tokens=_reps[0].tokens if _reps else None,
+                        pipeline=engine._pipeline,
+                    )
+                    if cir.get("edges") and session.session_dir is not None:
+                        session.collect(engine, user_input, cir)
+                except Exception:  # noqa: BLE001
+                    pass
+
+            if _nlu_cmd:
+                response = handler.execute(_nlu_cmd) or _format_response(handler, user_input)
+            else:
+                response = _format_response(handler, user_input)
             print(response)
             print()
             _answered = "No causal structure" not in response

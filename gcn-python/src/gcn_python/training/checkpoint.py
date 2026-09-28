@@ -151,6 +151,20 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         if hasattr(link_pred, 'to_json'):
             arrays["_link_pred_meta_json"] = np.array([link_pred.to_json()], dtype=object)
 
+    # Éq.6 : sauvegarder la tête d'intention si active (clés séparées, ne pollue pas encoder_*)
+    if (hasattr(pipeline.encoder, '_intent_layers')
+            and getattr(pipeline.encoder, 'n_intent_types', 0) > 0):
+        for i, layer in enumerate(pipeline.encoder._intent_layers):
+            arrays[f"intent_layer_{i}_W"] = layer.W
+            arrays[f"intent_layer_{i}_b"] = layer.b
+        import json as _json_ckpt
+        from ..constants import INTENT_TYPES as _INTENT_TYPES
+        arrays["_intent_meta_json"] = np.array(
+            [_json_ckpt.dumps({"n_intent_types": pipeline.encoder.n_intent_types,
+                               "intent_types": _INTENT_TYPES})],
+            dtype=object,
+        )
+
     # S9 : sauvegarder word_embedding si présent
     if getattr(pipeline, 'word_embedding', None) is not None:
         we = pipeline.word_embedding
@@ -249,8 +263,9 @@ def load_checkpoint(
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
-                       "link_pred_", "hyperedge_", "assembler_", "_mha_")
+                       "link_pred_", "hyperedge_", "assembler_", "_mha_", "intent_layer_")
     _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E",
+                    "_intent_meta_json",
                     "_arch_json", "_link_pred_meta_json", "_assembler_meta_json",
                     "word_emb_pretrained_start", "word_emb_pretrained_end"}
     unexpected = set(data.files) - _VALID_EXACT
@@ -485,6 +500,16 @@ def load_checkpoint(
                 key = f"{prefix}_{j}"
                 if key in data:
                     p[:] = data[key]
+
+    # Éq.6 : restaurer la tête d'intention si présente dans le checkpoint
+    if ("_intent_meta_json" in data
+            and hasattr(pipeline.encoder, '_intent_layers')):
+        for i, layer in enumerate(pipeline.encoder._intent_layers):
+            w_key, b_key = f"intent_layer_{i}_W", f"intent_layer_{i}_b"
+            if w_key in data and data[w_key].shape == layer.W.shape:
+                layer.W[:] = data[w_key]
+            if b_key in data and data[b_key].shape == layer.b.shape:
+                layer.b[:] = data[b_key]
 
     # S9 : restaurer word_embedding si présent dans le checkpoint
     if "_word_emb_vocab_json" in data:

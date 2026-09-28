@@ -70,3 +70,4 @@ class SentenceRecord:
     lang: str = ""  # conservé comme métadonnée, non utilisé en calcul
     causal_pattern: str = ""  # métadonnée pour split stratifié uniquement, pas propagé aux features
     weight: float = 1.0  # Amélioration F : pondération gold=1.0 / silver=silver_weight
+    intent: str = ""    # Éq.6 : label d'intention pour la tête NLU ; "" = non annoté

@@ -64,6 +64,7 @@ class MLPEncoder:
         weight_decay: float = 0.0,
         grad_clip: float | None = None,
         mlp_hidden: int = 128,
+        n_intent_types: int = 0,
     ):
         if not (0.0 <= edge_dropout < 1.0):
             raise ValueError(
@@ -106,6 +107,17 @@ class MLPEncoder:
         self._node_cache: list = []
         self._edge_cache: list = []
         self._edge_dropout_masks: list = []
+
+        # Intent MLP (Éq.6) : d_clause → mlp_hidden → 64 → n_intent_types
+        # n_intent_types=0 = désactivé (non-breaking)
+        self.n_intent_types = n_intent_types
+        if n_intent_types > 0:
+            self._intent_layers = [
+                _LinearLayer(d_clause, mlp_hidden, rng),
+                _LinearLayer(mlp_hidden, 64, rng),
+                _LinearLayer(64, n_intent_types, rng),
+            ]
+            self._intent_cache: list = []
 
     def _forward_mlp(
         self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list,
@@ -190,6 +202,18 @@ class MLPEncoder:
             d_logits, self._edge_layers, self._edge_cache,
             dropout_masks=self._edge_dropout_masks,
         )
+
+    def forward_intent(self, x: np.ndarray) -> np.ndarray:
+        """Éq.6 — tête d'intention (duck-typé, disponible si n_intent_types > 0)."""
+        self._intent_cache = []
+        return self._forward_mlp(x, self._intent_layers, self._intent_cache)
+
+    def backward_intent(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+        grads, _ = self._backward_mlp(d_logits, self._intent_layers, self._intent_cache)
+        return grads
+
+    def update_intent(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        self._apply_grads(self._intent_layers, grads, lr)
 
     def snapshot_node_cache(self) -> list:
         """Snapshot du cache node + inputs des couches (pour backward par nœud)."""

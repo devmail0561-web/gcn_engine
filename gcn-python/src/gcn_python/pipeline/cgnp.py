@@ -68,6 +68,7 @@ class CGNPipeline:
         theta_ambiguity: float = THETA_AMBIGUITY_DEFAULT,
         no_mood: bool = False,
         no_tense: bool = False,
+        n_intent_types: int = 0,
     ):
         if clause_pooling not in CLAUSE_POOLING_MODES:
             raise ValueError(
@@ -119,6 +120,9 @@ class CGNPipeline:
         self.theta_ambiguity = float(theta_ambiguity)
         self.no_mood = bool(no_mood)
         self.no_tense = bool(no_tense)
+        self.n_intent_types = int(n_intent_types)
+        self._cached_intent_logits: "np.ndarray | None" = None
+        self._cached_d_intent: "np.ndarray | None" = None
         if bfs_depth is not None:
             bfs_depth = int(bfs_depth)
             if bfs_depth < 1:
@@ -359,6 +363,14 @@ class CGNPipeline:
                              subject_object_emb=self.subject_object_emb) for r in reps
         ])  # (N, D_effective)
         self._cached_clause_vecs = clause_vecs
+
+        # Éq.6 — tête d'intention (non-breaking : désactivée si n_intent_types=0)
+        if self.n_intent_types > 0 and hasattr(self.encoder, 'forward_intent'):
+            self._cached_intent_logits = np.stack(
+                [self.encoder.forward_intent(v) for v in clause_vecs]
+            )
+        else:
+            self._cached_intent_logits = None
         # Routage des gradients d'embeddings (A+B) — miroir exact du forward
         if self.word_embedding is not None:
             self._cached_pool_routing = [
@@ -737,6 +749,8 @@ class CGNPipeline:
         label_smoothing: float = 0.0,  # lissage des labels [0, 1]
         sample_weight: float = 1.0,  # F : poids gold/silver de la phrase
         edge_sample_weights: np.ndarray | None = None,  # S-5 : (E,) poids par arête (confidence)
+        gold_intent: np.ndarray | None = None,           # Éq.6 : (1,) int — index dans INTENT_TYPES
+        intent_logit_mask: np.ndarray | None = None,     # Éq.6 : (N_INTENTS,) bool
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -791,6 +805,19 @@ class CGNPipeline:
                 "(overflow softmax, labels corrompus ?).",
                 UserWarning, stacklevel=2,
             )
+
+        # Éq.6 — Intent loss (optionnel — supervisé si gold_intent fourni)
+        self._cached_d_intent = None
+        if (gold_intent is not None
+                and self.n_intent_types > 0
+                and self._cached_intent_logits is not None
+                and hasattr(self.encoder, 'forward_intent')):
+            _intent_logits = self._cached_intent_logits[:len(gold_intent)]
+            intent_loss, d_intent = _cross_entropy(
+                _intent_logits, gold_intent, logit_mask=intent_logit_mask
+            )
+            total_loss += intent_loss
+            self._cached_d_intent = d_intent
 
         # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
@@ -975,6 +1002,14 @@ class CGNPipeline:
             self.encoder.update_node(all_node_grads, lr)
         if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
             self.encoder.update_edge(all_edge_grads, lr)
+
+        # --- Éq.6 : intent backward + update ---
+        if (self._cached_d_intent is not None
+                and hasattr(self.encoder, 'backward_intent')
+                and hasattr(self.encoder, 'update_intent')):
+            intent_grads = self.encoder.backward_intent(self._cached_d_intent)
+            self.encoder.update_intent(intent_grads, lr)
+            self._cached_d_intent = None
 
         # --- Décodeur backward + update (sans couplage vers d_enriched — P3e) ---
         if (self.decoder is not None
