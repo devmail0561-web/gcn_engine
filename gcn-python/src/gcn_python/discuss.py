@@ -209,9 +209,11 @@ def run_discuss(
     log_path: Path | None = None,
     session_dir: Path | None = None,
     taxonomy_dir: Path | None = None,
+    vecs_index: Path | None = None,
 ) -> None:
     """Lance la session de discussion."""
     from .cli.session import SessionStore
+    from .data.graph_vecs import load_graph_vecs_index
     from .engine import GCNEngine
 
     # Session persistante : graphe + vecs + historique (anti-perte)
@@ -236,6 +238,13 @@ def run_discuss(
         except Exception as e:  # noqa: BLE001  # checkpoint illisible : message d'erreur CLI, sans moteur
             print(f"\n  Erreur de chargement du checkpoint : {e}")
             print("  Impossible d'analyser sans checkpoint.")
+
+    # Index de vecteurs de graphe pour résolution sémantique (--vecs-index)
+    _graph_vec_index: list = []
+    if vecs_index is not None and vecs_index.exists():
+        _graph_vec_index = load_graph_vecs_index(vecs_index)
+        if _graph_vec_index:
+            print(f"\n  Index sémantique chargé : {len(_graph_vec_index)} nœuds vectorisés")
 
     # Charger ou créer le graphe de session
     handler = InstructionHandler()
@@ -417,6 +426,21 @@ def run_discuss(
                         tokens=_reps[0].tokens if _reps else None,
                         pipeline=engine._pipeline,
                     )
+                    # Résolution sémantique : si index disponible, affiner le concept DSL
+                    # via cosine entre enriched_vecs de la requête et nœuds du graphe
+                    if _nlu_cmd and _graph_vec_index:
+                        try:
+                            from .pipeline.nlu_routing import semantic_resolve_concept
+                            _qvecs = getattr(engine._pipeline, '_cached_enriched_vecs', None)
+                            if _qvecs is not None and len(_qvecs) > 0:
+                                _resolved = semantic_resolve_concept(_qvecs, _graph_vec_index)
+                                if _resolved:
+                                    # Remplacer le concept textuel par le label résolu
+                                    _parts = _nlu_cmd.split(": ", 1)
+                                    if len(_parts) == 2:
+                                        _nlu_cmd = f"{_parts[0]}: {_resolved}"
+                        except Exception:  # noqa: BLE001
+                            pass
                     if cir.get("edges") and session.session_dir is not None:
                         session.collect(engine, user_input, cir)
                 except Exception:  # noqa: BLE001
@@ -460,6 +484,10 @@ def run_discuss(
 @click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire des taxonomies causales (transmis à gcn-cli --data-dir). "
                    "Parité avec gcn-bootstrap et gcn-index.")
+@click.option("--vecs-index", "vecs_index", default=None, type=click.Path(path_type=Path),
+              help="Fichier graph_vecs.npz produit par gcn-index --vecs-out. "
+                   "Active la résolution sémantique des requêtes : le concept de la question "
+                   "est résolu vers le nœud du graphe le plus proche (espace R-GCN).")
 def discuss_cmd(
     ckpt: Path | None,
     graph_path: Path | None,
@@ -467,7 +495,9 @@ def discuss_cmd(
     log_path: Path | None,
     session_dir: Path | None,
     taxonomy_dir: Path | None,
+    vecs_index: Path | None,
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
     run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,
-               log_path=log_path, session_dir=session_dir, taxonomy_dir=taxonomy_dir)
+               log_path=log_path, session_dir=session_dir, taxonomy_dir=taxonomy_dir,
+               vecs_index=vecs_index)

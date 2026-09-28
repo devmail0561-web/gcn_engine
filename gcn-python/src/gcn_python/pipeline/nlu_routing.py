@@ -87,3 +87,39 @@ def nlu_route(
     if len(words) >= 2 and words[0] != words[-1]:
         return f"chain: {words[0]} {words[-1]}"
     return f"explain: {words[-1]}"
+
+
+def semantic_resolve_concept(
+    query_vecs: "np.ndarray",
+    graph_index: "list[tuple[np.ndarray, str]]",
+    threshold: float = 0.3,
+) -> str | None:
+    """Résolution sémantique : vecteur(s) de la requête → label du nœud le plus proche.
+
+    query_vecs : enriched_vecs de la requête (N_clauses × d_eff), produits par forward().
+    graph_index : [(enriched_vec, node_label), ...] depuis load_graph_vecs_index().
+    threshold   : score cosine minimum pour accepter un match.
+
+    Retourne le node_label du meilleur nœud ou None si sous le seuil.
+    Dans le même espace vectoriel (même modèle) — pas d'embedding externe requis.
+    """
+    if query_vecs is None or len(query_vecs) == 0 or not graph_index:
+        return None
+
+    best_label: str | None = None
+    best_score: float = threshold
+
+    for q_vec in query_vecs:
+        q_norm = float(np.linalg.norm(q_vec))
+        if q_norm == 0.0:
+            continue
+        for g_vec, label in graph_index:
+            g_norm = float(np.linalg.norm(g_vec))
+            if g_norm == 0.0:
+                continue
+            score = float(np.dot(q_vec, g_vec) / (q_norm * g_norm))
+            if score > best_score:
+                best_score = score
+                best_label = label
+
+    return best_label

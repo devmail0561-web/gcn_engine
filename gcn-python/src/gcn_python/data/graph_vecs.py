@@ -88,6 +88,42 @@ def _get_handle(path: Path):
         return handle
 
 
+def load_graph_vecs_index(path: Path) -> list[tuple[np.ndarray, str]]:
+    """Charge tous les vecteurs du graphe et retourne [(vec, node_label), ...].
+
+    Utilisé pour la résolution sémantique : trouver le nœud du graphe
+    dont le vecteur enrichi R-GCN est le plus proche du vecteur de la requête.
+    Retourne [] si le fichier est absent ou illisible.
+    """
+    path = Path(path)
+    if not path.exists():
+        return []
+    manifest_p = path.with_suffix(".manifest.json")
+    label_map: dict[str, str] = {}
+    if manifest_p.exists():
+        try:
+            manifest = json.loads(manifest_p.read_text(encoding="utf-8"))
+            for k, meta in manifest.get("entries", {}).items():
+                label = meta.get("node_label", "")
+                if label:
+                    label_map[k] = label
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        handle = _get_handle(path)
+        result = []
+        for k in handle.files:
+            label = label_map.get(k, "")
+            if not label:
+                continue
+            vec = np.array(handle[k], dtype=np.float32)
+            result.append((vec, label))
+        return result
+    except Exception as exc:  # noqa: BLE001
+        warnings.warn(f"graph_vecs : index non chargé ({exc}).", UserWarning, stacklevel=2)
+        return []
+
+
 def load_graph_vec(path: Path, key: str,
                    expected_checkpoint_hash: str | None = None) -> np.ndarray | None:
     """Charge un vecteur par clé stable. Retourne None si absent/stale (warn)."""
