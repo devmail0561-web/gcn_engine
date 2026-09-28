@@ -5,7 +5,7 @@ use gcn_ir::{CausalCycle, CausalIR};
 use serde::{Deserialize, Serialize};
 
 use crate::error::BackendError;
-use crate::pearl::{self, CausalLink, TemporalChainResult, AbductionHypothesis};
+use crate::pearl::{self, AbductionHypothesis, CausalLink, SpofScore, TemporalChainResult};
 
 fn split_pair(rest: &str, cmd: &str) -> Result<(String, String), BackendError> {
     let (a, b) = rest.split_once("->")
@@ -607,11 +607,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             }
             let (total_pairs, scores) = pearl::spof_all(ir);
             let spof_nodes: Vec<SpofNodeDto> = scores.into_iter()
-                .map(|(label, paths_cut)| {
+                .map(|s: SpofScore| {
                     let spof_score = if total_pairs > 0 {
-                        paths_cut as f32 / total_pairs as f32
+                        s.score as f32 / total_pairs as f32
                     } else { 0.0 };
-                    SpofNodeDto { label, paths_cut, spof_score }
+                    SpofNodeDto { label: s.label, paths_cut: s.score, spof_score }
                 })
                 .collect();
             Ok(QueryResult::SpofReport { total_pairs, nodes: spof_nodes })

@@ -17,6 +17,10 @@ pub struct CausalLink {
     pub relation: RelationType,
     pub confidence: f32,
     pub negated: bool,
+    /// Éq.12 — identifiant de groupe JOINT_CAUSE/JOINT_PREVENT (sha256[:16], déterministe).
+    pub joint_group_id: Option<String>,
+    /// Éq.12 — NodeId du tiers (médiateur ou condition) pour les arêtes ternaires.
+    pub third_node: Option<NodeId>,
 }
 
 /// Pearl niveau 2 — résultat d'une intervention do-calculus sur un nœud.
@@ -121,6 +125,10 @@ fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
 }
 
 /// WHY: reverse BFS — find all causal ancestors of nodes matching `label`
+///
+/// Éq.12 : pour les arêtes JointCause/JointPrevent, joint_group_id est propagé
+/// dans chaque CausalLink — les co-sources partageant le même joint_group_id
+/// représentent une nécessité conjointe (A₁ ET A₂ ensemble).
 pub fn why(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>)> {
     let g = build(ir);
     let (nm, em) = build_maps(ir);
@@ -147,6 +155,10 @@ pub fn what(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>)> {
 }
 
 /// CHAIN: find causal path from the best node matching `from` to `to`
+///
+/// Éq.12 : si un lien JointCause est sur le chemin, joint_group_id est inclus
+/// dans le CausalLink. L'appelant peut inspecter joint_group_id pour vérifier
+/// que les 2 co-sources sont présentes (partial_joint = une seule source trouvée).
 pub fn chain(ir: &CausalIR, from: &str, to: &str) -> Option<Vec<CausalLink>> {
     let g = build(ir);
     let src = find_best(ir, from)?;
@@ -278,7 +290,21 @@ fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<Cau
         relation: e.relation,
         confidence: e.confidence,
         negated: e.negated,
+        joint_group_id: e.joint_group_id.clone(),
+        third_node: e.third.as_ref().map(|t| NodeId(t.node as u32)),
     })
+}
+
+/// Éq.12 — groupe les arêtes JointCause/JointPrevent par joint_group_id.
+fn group_by_joint_id(em: &EdgeMap) -> HashMap<String, Vec<(NodeId, NodeId)>> {
+    em.iter()
+        .filter_map(|((s, d), e)| {
+            e.joint_group_id.as_ref().map(|g| (g.clone(), (NodeId(*s), NodeId(*d))))
+        })
+        .fold(HashMap::new(), |mut m, (g, p)| {
+            m.entry(g).or_default().push(p);
+            m
+        })
 }
 
 fn reachable_pairs_with_graph(g: &CausalGraph, nodes: &[gcn_ir::CausalNode], exclude: Option<NodeIndex>) -> usize {
@@ -329,21 +355,44 @@ pub fn count_reachable_pairs_without(ir: &CausalIR, excluded: NodeId) -> usize {
     reachable_pairs_with_graph(&g, &ir.nodes, Some(excluded_idx))
 }
 
+/// Score SPOF étendu avec flag super_spof (Éq.12).
+#[derive(Debug, Clone)]
+pub struct SpofScore {
+    pub label: String,
+    pub score: usize,
+    /// true si le nœud est source d'au moins 1 arête JointCause/JointPrevent.
+    pub is_super_spof: bool,
+}
+
 /// Calcule SPOF pour tous les nœuds en un seul build du graphe.
-pub fn spof_all(ir: &CausalIR) -> (usize, Vec<(String, usize)>) {
+///
+/// Éq.12 : `is_super_spof` = vrai si le nœud apparaît dans au moins un groupe joint_group_id.
+pub fn spof_all(ir: &CausalIR) -> (usize, Vec<SpofScore>) {
     let g = build(ir);
+    let (_, em) = build_maps(ir);
     let total = reachable_pairs_with_graph(&g, &ir.nodes, None);
-    let mut scores: Vec<(String, usize)> = ir.nodes.iter()
+
+    // Éq.12 — nœuds impliqués dans un joint_group
+    let joint_sources: HashSet<NodeId> = em.iter()
+        .filter(|(_, e)| e.joint_group_id.is_some())
+        .map(|((s, _), _)| NodeId(*s))
+        .collect();
+
+    let mut scores: Vec<SpofScore> = ir.nodes.iter()
         .map(|n| {
             let ex = g.node_indices.get(&n.id).copied();
             let without = match ex {
                 Some(idx) => reachable_pairs_with_graph(&g, &ir.nodes, Some(idx)),
                 None => total,
             };
-            (n.label.clone(), total.saturating_sub(without))
+            SpofScore {
+                label: n.label.clone(),
+                score: total.saturating_sub(without),
+                is_super_spof: joint_sources.contains(&n.id),
+            }
         })
         .collect();
-    scores.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    scores.sort_by(|a, b| b.score.cmp(&a.score).then(a.label.cmp(&b.label)));
     (total, scores)
 }
 
@@ -555,8 +604,45 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
 
     let actual_effects = bfs_descendants(&nm, &em, &g, target.id);
 
-    // Nœuds atteignables depuis les racines SANS X
-    let reachable_without_x = reachable_from_roots_without(&g, target.id);
+    // Éq.12 — nœuds à exclure du graphe résiduel (en plus de X)
+    let mut extra_excluded: HashSet<NodeId> = HashSet::new();
+
+    // JointCause([X,A₂]→C) : nécessité conjointe — si X est supprimé, C disparaît
+    // même si A₂ reste. Identifier les groupes joint où X est membre → exclure leur cible.
+    let joint_groups = group_by_joint_id(&em);
+    for (gid, members) in &joint_groups {
+        let x_in_group = members.iter().any(|(s, _)| *s == target.id);
+        if x_in_group {
+            // La cible du groupe = dst commun à tous les membres
+            if let Some((_, dst)) = members.first() {
+                extra_excluded.insert(*dst);
+            }
+        }
+        let _ = gid; // utilisé seulement pour le groupement
+    }
+
+    // MediatedCause(X→C via M) : si M n'a pas d'autre source → M disparaît aussi
+    for (_, _dst, edge) in &ir.edges {
+        if edge.relation == RelationType::MediatedCause {
+            if let Some(third) = &edge.third {
+                let mediator_id = NodeId(third.node as u32);
+                let other_sources = ir.edges.iter().filter(|(s, _d, e)| {
+                    *s != target.id && *s == mediator_id
+                        || (*s != target.id && e.relation != RelationType::MediatedCause
+                            && _dst == &mediator_id)
+                }).count();
+                if other_sources == 0 {
+                    extra_excluded.insert(mediator_id);
+                }
+            }
+        }
+    }
+
+    // Nœuds atteignables depuis les racines SANS X (et sans les nœuds dépendants)
+    let mut reachable_without_x = reachable_from_roots_without(&g, target.id);
+    for ex in &extra_excluded {
+        reachable_without_x.remove(ex);
+    }
 
     // Effets uniques = atteignables depuis X mais pas depuis les racines sans X.
     // Dédup par NodeId (pas par label) pour préserver la cardinalité quand deux nœuds

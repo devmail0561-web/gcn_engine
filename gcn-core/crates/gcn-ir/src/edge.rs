@@ -42,6 +42,25 @@ impl RelationType {
     }
 }
 
+/// D2/Éq.12 ETUDE — rôle du tiers dans une relation ternaire.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TernaryRole {
+    Condition,
+    Mediator,
+}
+
+/// D2/Éq.12 ETUDE — tiers d'une arête ternaire (condition ou médiateur).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TernaryThird {
+    pub role: TernaryRole,
+    /// Identifiant du nœud tiers (u64 = NodeId.0).
+    pub node: u64,
+    /// Polarité du tiers si négation R2 (§9.4) : "negative" ou absent.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub polarity: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CycleId(pub u32);
 
@@ -147,4 +166,7 @@ pub struct CausalEdge {
     /// sha256(target|sorted_sources)[:16] — déterministe, identique sur les 2 arêtes JointCause/JointPrevent
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub joint_group_id: Option<String>,
+    /// D2/Éq.12 — tiers de la relation ternaire (condition ou médiateur).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub third: Option<TernaryThird>,
 }

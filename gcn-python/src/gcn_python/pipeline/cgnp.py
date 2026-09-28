@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPES, RELATION_TYPES, THETA_AMBIGUITY_DEFAULT
 from ..layer1.features import (
     CLAUSE_POOLING_MODES,
     FeatureVocabulary,
@@ -65,6 +65,9 @@ class CGNPipeline:
         subject_object_emb: bool = False,
         gat_residual: bool = False,
         assembler=None,
+        theta_ambiguity: float = THETA_AMBIGUITY_DEFAULT,
+        no_mood: bool = False,
+        no_tense: bool = False,
     ):
         if clause_pooling not in CLAUSE_POOLING_MODES:
             raise ValueError(
@@ -113,6 +116,9 @@ class CGNPipeline:
             )
         self.edge_threshold = float(edge_threshold)
         self.drop_morph = bool(drop_morph)
+        self.theta_ambiguity = float(theta_ambiguity)
+        self.no_mood = bool(no_mood)
+        self.no_tense = bool(no_tense)
         if bfs_depth is not None:
             bfs_depth = int(bfs_depth)
             if bfs_depth < 1:
@@ -347,6 +353,8 @@ class CGNPipeline:
         clause_vecs = np.stack([
             vectorize_clause(r, self.vocabulary, self.word_embedding,
                              drop_morph=self.drop_morph,
+                             no_mood=self.no_mood,
+                             no_tense=self.no_tense,
                              clause_pooling=self.clause_pooling,
                              subject_object_emb=self.subject_object_emb) for r in reps
         ])  # (N, D_effective)
@@ -381,7 +389,7 @@ class CGNPipeline:
 
         # Couche 3 — R-GCN message passing (AVANT edge classification)
         enriched = clause_vecs
-        edge_triples: list[tuple[int, int, str, float, bool, int | None]] = []
+        edge_triples: list[tuple] = []
         if len(reps) > 1:
             # Paires d'arêtes pour le R-GCN (toutes les paires si all_pairs, sinon adjacentes)
             _edge_pairs_rgcn = (
@@ -517,13 +525,24 @@ class CGNPipeline:
                 if _snap:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
                 rel_idx = int(np.argmax(edge_logit))
-                rel_conf = float(_softmax((edge_logit / self.temperature).reshape(1, -1))[0, rel_idx])
+                edge_probs = _softmax((edge_logit / self.temperature).reshape(1, -1))[0]
+                rel_conf = float(edge_probs[rel_idx])
                 rel_conf = (0.0 if not np.isfinite(rel_conf)
                             else min(1.0, max(0.0, rel_conf)))
                 marker_tok_id = connector.token_span[0] if connector is not None else None
-                negated = _detect_negation(reps[src_i], reps[dst_i], connector)
+                negated, negation_site = _detect_negation(reps[src_i], reps[dst_i], connector)
+                # Éq.11 — résolution d'ambiguïté (θ_ambiguity)
+                if rel_conf < self.theta_ambiguity and rel_conf >= self.edge_threshold:
+                    top2 = np.argsort(edge_probs)[-2:][::-1]
+                    candidates = [(self.relation_types[int(i)], float(edge_probs[i])) for i in top2]
+                    ambiguous = True
+                else:
+                    candidates = None
+                    ambiguous = False
                 if rel_conf >= self.edge_threshold:
-                    edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf, negated, marker_tok_id))
+                    edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf,
+                                         negated, marker_tok_id,
+                                         negation_site, ambiguous, candidates))
 
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)
@@ -555,12 +574,18 @@ class CGNPipeline:
             for i, nt in enumerate(node_types)
         ]
         temporal_refs = [_infer_temporal_ref(r) for r in reps]  # S-1
+        # D6-shadow (plan §C.5) : prior ETUDE en champ séparé, ML inchangé.
+        # Mood = clause cible (effet), fallback source ; connecteur explicite
+        # si marker présent. Salience positionnelle : follow-up (0.0 ici).
+        mood_by_node = {i: (r.mood if r.mood not in ("", "_absent") else "Ind")
+                        for i, r in enumerate(reps)}
 
         return emit(text, node_types, node_labels, token_spans,
                     scopes, edge_triples, node_origins=node_origins,
                     node_attributes=node_attributes,
                     node_inferred=[o == "inferred" for o in node_origins],
-                    temporal_refs=temporal_refs)
+                    temporal_refs=temporal_refs,
+                    mood_by_node=mood_by_node)
 
     def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
         """Filtre les caches MLP d'arêtes aux seuls indices valides.
@@ -1350,23 +1375,26 @@ _NEG_LEMMAS = frozenset({"pas", "plus", "jamais", "rien", "guère", "nullement",
                           "personne", "aucun", "aucune"})
 
 
-def _detect_negation(src_rep, dst_rep, connector_rep) -> bool:
+def _detect_negation(src_rep, dst_rep, connector_rep) -> tuple[bool, str | None]:
     """Détecte la négation morphologique ET analytique (ne…pas).
+
+    Retourne (negated, negation_site) où negation_site ∈ {"src", "dst", None}.
+    None = négation détectée sur le connecteur ou non localisée (R2/condition).
 
     Couverture :
     - Polarity=Neg sur le root (morphologique)
     - Lemme négatif (pas, jamais, rien…) avec dep_rel advmod dans les tokens
     """
-    for rep in (src_rep, dst_rep, connector_rep):
+    for rep, site in ((src_rep, "src"), (dst_rep, "dst"), (connector_rep, None)):
         if rep is None:
             continue
         if getattr(rep, 'is_negative', False):
-            return True
+            return (True, site)
         for tok in getattr(rep, 'tokens', []):
             if (tok.get('lemma') in _NEG_LEMMAS
                     and tok.get('dep_rel') == 'advmod'):
-                return True
-    return False
+                return (True, site)
+    return (False, None)
 
 
 _SCOPE_UNIVERSAL = frozenset({

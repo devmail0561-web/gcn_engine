@@ -68,6 +68,7 @@ pub fn emit(ann: SentenceAnnotation, source_text: String, doc_ref: Option<String
                 provenance: Some(Provenance::with_ref(doc_ref.clone(), edge_span)),
                 derivation: None,
                 joint_group_id: None,
+                third: None,
             },
         ));
     }

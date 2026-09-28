@@ -348,6 +348,8 @@ def vectorize_clause(
     subject_object_emb: bool = False,
     no_positional: bool = False,
     no_ternary: bool = False,
+    no_mood: bool = False,
+    no_tense: bool = False,
 ) -> np.ndarray:
     """UDRepresentation → np.ndarray[d_clause (+ d_emb si word_embedding fourni)]
 
@@ -372,9 +374,11 @@ def vectorize_clause(
         mood_vec   = _one_hot("_absent", vocab.mood_values,   vocab._idx_mood)
         polarity   = np.zeros(1, dtype=np.float32)
     else:
-        tense_vec  = _one_hot(rep.tense,  vocab.tense_values,  vocab._idx_tense)
+        tense_val  = "_absent" if no_tense else rep.tense
+        mood_val   = "_absent" if no_mood  else rep.mood
+        tense_vec  = _one_hot(tense_val,  vocab.tense_values,  vocab._idx_tense)
         aspect_vec = _one_hot(rep.aspect, vocab.aspect_values, vocab._idx_aspect)
-        mood_vec   = _one_hot(rep.mood,   vocab.mood_values,   vocab._idx_mood)
+        mood_vec   = _one_hot(mood_val,   vocab.mood_values,   vocab._idx_mood)
         polarity   = np.array([1.0 if rep.is_negative else 0.0], dtype=np.float32)
     # Voice one-hot (couche 1 UD)
     voice_val = rep.root_morph.get("Voice", "_absent")

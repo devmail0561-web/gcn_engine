@@ -416,6 +416,7 @@ mod tests {
                 provenance: None,
                 derivation: None,
                 joint_group_id: None,
+                third: None,
             },
         )
     }

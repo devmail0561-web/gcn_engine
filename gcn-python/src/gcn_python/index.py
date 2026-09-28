@@ -20,6 +20,7 @@ from pathlib import Path
 import click
 
 from .discuss import _read_texts, _split_lines
+from .pipeline.discourse import extract_discourse_relation
 from .verbalizer.instructions import CausalGraph
 
 log = logging.getLogger(__name__)
@@ -108,9 +109,11 @@ def index_cmd(
     # F4 : préfixe par bloc (sentence avec arêtes), pas par fichier — évite les
     # collisions d'ids quand deux phrases du même fichier produisent les mêmes ids.
     block_idx = 0
+    _prev_cir: dict | None = None
     for _file_idx, (filename, content) in enumerate(texts, 1):
         lines = _split_lines(content, min_line_len=min_line_len)
         n_new = 0
+        _prev_cir = None  # reset entre fichiers
         for line in lines:
             # Séquence correcte : segmenter en phrases, un analyze() par phrase,
             # puis bloc de discours avec ids préfixés (bBBBBB_nMMM).
@@ -120,6 +123,17 @@ def index_cmd(
                 except Exception as exc:  # noqa: BLE001  # phrase invalide : log + phrase suivante
                     log.warning("index: analyze impossible (%s) : %s", filename, exc)
                     continue
+                # Éq.10 — relation discursive inter-phrasale (best-effort)
+                try:
+                    _disc = extract_discourse_relation(
+                        _prev_cir, cir,
+                        getattr(engine._pipeline, "_cached_reps", []) or [],
+                    )
+                    if _disc is not None:
+                        cir.setdefault("edges", []).append(_disc)
+                except Exception:  # noqa: BLE001
+                    pass
+                _prev_cir = cir
                 if cir.get("edges"):
                     block_idx += 1
                     # Collecte vecs AVANT préfixage (positions = ordre cir["nodes"])

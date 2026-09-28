@@ -10,7 +10,9 @@ from pathlib import Path
 import click
 import numpy as np
 
-from ..constants import ALL_RELATION_TYPES, NODE_TYPES, RELATION_TYPES
+from ..constants import (ALL_RELATION_TYPES, COARSE_NODE_TYPES, COARSE_RELATION_TYPES,
+                         FINE_TO_COARSE_NODE, FINE_TO_COARSE_RELATION,
+                         NODE_TYPES, RELATION_TYPES, coarse_node, coarse_relation)
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..evaluation.metrics import (
     edge_accuracy,
@@ -187,6 +189,11 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--ss-final-epoch", default=50, show_default=True, type=int,
               help="Epoch (incluse) où p_gold atteint 0.0 avec --scheduled-sampling. "
                    "Avant : p_gold = 1 - (epoch-1)/ss_final_epoch. Après : p_gold = 0.0.")
+@click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
+              help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
+                   "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
+@click.option("--coarse-n-min", default=400, show_default=True, type=int,
+              help="Nombre minimum d'exemples par type fin pour promotion coarse→fine.")
 @click.option("--seed", default=None, type=int,
               help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
@@ -244,6 +251,8 @@ def train_cmd(
     d_rel_emb: int,
     scheduled_sampling: bool,
     ss_final_epoch: int,
+    coarse_phase: bool,
+    coarse_n_min: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
     from ..data.verbalize_loader import VerbalizerDataLoader
@@ -458,7 +467,8 @@ def train_cmd(
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
-                           gat_residual=gat_residual, assembler=assembler)
+                           gat_residual=gat_residual, assembler=assembler,
+                           no_mood=coarse_phase, no_tense=coarse_phase)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
@@ -561,6 +571,44 @@ def train_cmd(
                 f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
                 f"(N=0 dans le dataset) — activer à N_min."
             )
+    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min
+    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
+    _active_node_types = NODE_TYPES
+    _active_relation_types = RELATION_TYPES
+    _node_remap: dict[int, int] | None = None
+    _edge_remap: dict[int, int] | None = None
+    if coarse_phase:
+        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
+        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
+        # Types actifs = promoted (fine) + groupes coarse des non-promoted
+        _fine_to_active_rel: dict[str, str] = {}
+        _fine_to_active_node: dict[str, str] = {}
+        for r in RELATION_TYPES:
+            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
+        for n in NODE_TYPES:
+            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
+        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
+                                        key=lambda x: (x not in RELATION_TYPES, x))
+        _active_node_types = sorted(set(_fine_to_active_node.values()),
+                                    key=lambda x: (x not in NODE_TYPES, x))
+        # Tables de remapping (index fin → index actif)
+        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
+        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
+        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
+                       for i, r in enumerate(RELATION_TYPES)}
+        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
+                       for i, n in enumerate(NODE_TYPES)}
+        # Recompute pipeline types
+        pipeline.relation_types = _active_relation_types
+        pipeline.node_types = _active_node_types
+        # Reset edge logit mask for active types
+        _edge_logit_mask = np.ones(len(_active_relation_types), dtype=bool)
+        click.echo(
+            f"  [coarse] {len(_active_relation_types)} relations actives, "
+            f"{len(_active_node_types)} nœuds actifs. "
+            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
+        )
+
     if weighted_loss:
         if node_counts:
             total_nodes = sum(node_counts.values())
@@ -895,6 +943,14 @@ def train_cmd(
                     gold_edge = None
                     edge_logits_arg = None
                     _edge_sw = None
+
+                # D4 — remapping labels coarse si actif
+                if _node_remap is not None and gold_node is not None:
+                    gold_node = np.array([_node_remap.get(int(i), int(i)) for i in gold_node],
+                                         dtype=np.int64)
+                if _edge_remap is not None and gold_edge is not None:
+                    gold_edge = np.array([_edge_remap.get(int(i), int(i)) for i in gold_edge],
+                                         dtype=np.int64)
 
                 _gold_surface = None
                 if verb_source_map:

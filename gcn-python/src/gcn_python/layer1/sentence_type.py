@@ -61,6 +61,7 @@ class LangMarkers:
     negation_particles: frozenset[str] = frozenset()
     restriction_patterns: tuple = ()
     subordination_markers: dict = field(default_factory=dict)
+    discourse_connectors: dict = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: dict) -> "LangMarkers":
@@ -73,6 +74,7 @@ class LangMarkers:
             ),
             restriction_patterns=tuple(data.get("restriction_patterns", [])),
             subordination_markers=dict(data.get("subordination_markers", {})),
+            discourse_connectors=dict(data.get("discourse_connectors", {})),
         )
 
     @classmethod

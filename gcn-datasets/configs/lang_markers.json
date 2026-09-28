@@ -148,5 +148,30 @@
       "while",
       "during"
     ]
+  },
+  "discourse_connectors": {
+    "cause": {
+      "lemmas": ["donc", "par consequent", "ainsi", "c est pourquoi", "de ce fait",
+                 "therefore", "thus", "hence", "consequently", "as a result"],
+      "confidence": 0.80,
+      "inverted": false
+    },
+    "cause_inverted": {
+      "lemmas": ["en effet", "car", "parce que", "because", "for", "indeed"],
+      "confidence": 0.75,
+      "inverted": true
+    },
+    "concession": {
+      "lemmas": ["cependant", "neanmoins", "pourtant", "toutefois", "malgre cela",
+                 "however", "nevertheless", "yet", "still", "that said"],
+      "confidence": 0.80,
+      "inverted": false
+    },
+    "sequence": {
+      "lemmas": ["ensuite", "puis", "apres", "d abord", "premierement", "enfin",
+                 "then", "next", "first", "finally", "afterwards", "subsequently"],
+      "confidence": 0.80,
+      "inverted": false
+    }
   }
 }

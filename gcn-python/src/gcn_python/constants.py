@@ -49,3 +49,56 @@ UD_PRONTYPE_VALUES = ["Int", "Rel", "Prs", "Dem", "Ind", "Art", "_absent"]  # 7 
 
 # Subject POS categories
 SUBJECT_POS_CATS = ["PRON", "NOUN", "PROPN", "_other", "_absent"]  # 5
+
+# D4/§15 ETUDE — groupes coarse→fine (niveau 1 : position+POS sans Mood/Tense)
+COARSE_RELATION_GROUPS: dict[str, list[str]] = {
+    "causale":       ["cause", "enable", "condition", "motivation",
+                      "conditional_cause", "mediated_cause", "joint_cause"],
+    "restrictive":   ["filter", "concession",
+                      "conditional_prevent", "mediated_prevent", "joint_prevent"],
+    "negative":      ["prevent", "opposition"],
+    "sequentielle":  ["sequence"],
+    "systemique":    ["data_dependency", "control_dependency"],
+    # analogy, counterfactual : hors §15, pas de groupe coarse → restent fine
+}
+FINE_TO_COARSE_RELATION: dict[str, str] = {
+    fine: coarse
+    for coarse, fines in COARSE_RELATION_GROUPS.items()
+    for fine in fines
+}
+COARSE_RELATION_TYPES: list[str] = list(COARSE_RELATION_GROUPS)
+
+COARSE_NODE_GROUPS: dict[str, list[str]] = {
+    "action_coarse":    ["processus", "action", "transition", "etat"],
+    "nominal_coarse":   ["entite"],
+    "evenement_coarse": ["etat_systemique"],
+    "condition_coarse": ["condition", "contrainte"],
+}
+FINE_TO_COARSE_NODE: dict[str, str] = {
+    fine: coarse
+    for coarse, fines in COARSE_NODE_GROUPS.items()
+    for fine in fines
+}
+COARSE_NODE_TYPES: list[str] = list(COARSE_NODE_GROUPS)
+
+
+def coarse_relation(rel: str) -> str:
+    """Mappe un type fin vers son groupe coarse. Types hors §15 → inchangés."""
+    return FINE_TO_COARSE_RELATION.get(rel, rel)
+
+
+def coarse_node(nt: str) -> str:
+    """Mappe un type nœud fin vers son groupe coarse."""
+    return FINE_TO_COARSE_NODE.get(nt, nt)
+
+
+# §9.4 ETUDE — algèbre de négation : mapping cause → prevent (R1)
+NEGATION_PREVENT_MAP: dict[str, str] = {
+    "cause":             "prevent",
+    "conditional_cause": "conditional_prevent",
+    "mediated_cause":    "mediated_prevent",
+    "joint_cause":       "joint_prevent",
+}
+
+# Éq.11 ETUDE — seuil d'ambiguïté (calibré sur validation, prior 0.65)
+THETA_AMBIGUITY_DEFAULT: float = 0.65

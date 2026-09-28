@@ -88,6 +88,7 @@ pub fn control_edge_with_ref(relation: RelationType, doc_ref: Option<String>, sp
         in_cycle: None,
         provenance: Some(Provenance::with_ref(doc_ref, span)),
         derivation: None,
-                joint_group_id: None,
+        joint_group_id: None,
+        third: None,
     }
 }
