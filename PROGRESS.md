@@ -35,12 +35,14 @@ SB-fix  ████████████████████  100%  9 pa
 v2.5.0  ████████████████████  100%  4 phases architecturales : fastText, PairNorm/DropEdge, MHA, CompGCN
 EMB     ████████████████████  100%  Validation embeddings : 4 configs, fine-tuning +45% edge
 Pearl+  ████████████████████  100%  Extensions Pearl P1–P3 : provenance, normalize, temporal, abductif, méta, analogie
-v3.0    ████████████████████  100%  Migration D1-D10 plan-moins : 8 nœuds, 19 relations, d_clause 106, logit mask
-Audit   ████████████████████  100%  Conformité code↔plan : Contrainte Rust, logit mask, D1 features, dims v3
+v3.0    ████████████████████  100%  Migration D1-D10 plan-moins : 8 nœuds, 19 relations, d_clause 106, logit mask, tests D
+Audit   ████████████████████  100%  Conformité code↔plan (2026-09-28) : Contrainte Rust, logit mask, D1 features, dims v3
+v4.0    ████████████████████  100%  ETUDE complète : §9.4 négation, Éq.6/10/11/12, D4 coarse/fine, schéma v4
+AuditC  ████████████████████  100%  Correctifs audit C1-C5 : D5 renommage, hash joint, metrics K2, Pearl serde, T5-min
 ```
 
-**Tests Python : 558 / 558 passent** (`pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
-**Tests Rust : 185 / 185 passent** (`cargo test --workspace`)
+**Tests Python : 668 / 668 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
+**Tests Rust : 0 échec** (`cargo test --workspace`)
 
 ---
 
@@ -965,19 +967,106 @@ gcn-train --data-dir gcn-datasets/real/train_final/ \
 | 30 phrases OOV extraites | `gcn-datasets/test/oov_split_test.json` | ✅ |
 | `init_v3_stub.py` — migration checkpoint v2 → stub v3, He-init | `scripts/init_v3_stub.py` | ✅ |
 
-### Tests et régressions
+### Correctifs bloquants (05b2a2c) + Tests Phase D (18dec59)
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `bootstrap._normalize_edge` joint_group_id sha256 | `training/bootstrap.py` | ✅ |
+| Logit mask 8 classes vides (cgnp.py + train.py) | `pipeline/cgnp.py`, `training/train.py` | ✅ |
+| Guard `d_clause in (79,106)` + defaults v3 transformers | `gcn-transformers/base.py` + 4 fichiers | ✅ |
+| `test_cross_lingual.py` T1 logique (DE fixtures) | `tests/test_cross_lingual.py` | ✅ |
+| `test_bridge_fix.py` T4 unitaire (8 types v3.0) | `tests/test_bridge_fix.py` | ✅ |
+| `test_calibration.py` T5 (ECE<0.15, roundtrip nus) | `tests/test_calibration.py` | ✅ |
+| `REGLE_EQUILIBRE_DATASET.md` v3.0 (19 rel, N_min=20) | `docs/current/REGLE_EQUILIBRE_DATASET.md` | ✅ |
+
+### Audit post-v3.0 (fe8d88b) — 10 fixes conformité
+
+| Composant | Fichier | Statut |
+|---|---|---|
+| `NodeType::Contrainte` Rust synchro 8/8 Python | `node.rs`, `lib.rs` + 4 sites | ✅ |
+| `_edge_logit_mask` découplé de `--weighted-loss` | `training/train.py` | ✅ |
+| Violation D1 : 0 lemmes durs dans sentence_type + features | `sentence_type.py`, `features.py` | ✅ |
+| 61 tests `test_sentence_type.py` | `tests/test_sentence_type.py` | ✅ |
+| 5 tests `test_layer1_b5.py` (B.5) | `tests/test_layer1_b5.py` | ✅ |
+| 6 tests `test_ir_emitter_c4.py` (C.4) | `tests/test_ir_emitter_c4.py` | ✅ |
+| Inventaire dims dérivées — 17 fichiers v3 | divers | ✅ |
+
+### Tests et régressions (v3.0, 2026-09-28)
 
 | Résultat | Détail |
 |---|---|
-| 558 passed, 0 failed, 3 xfailed | pytest gcn-python/tests/ (2026-09-27) |
+| 558 passed, 0 failed, 3 xfailed | pytest gcn-python/tests/ (base v3.0) |
 | 3 xfailed attendus | checkpoints v2 `prod_v1.npz` incompatibles d_clause 79→106 |
 | 185 Rust | cargo test --workspace — 0 régression |
 
-### Restant plan-moins (deferred)
+---
 
-| Tâche | Condition | Statut |
+## v4.0 — ETUDE complète + Audit C1-C5 ✅
+
+**Tests Python : 668 / 668** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed)
+**Tests Rust : 0 échec**
+
+### ETUDE — items moteur core restants (tous implémentés)
+
+| Item | Commit | Description |
 |---|---|---|
-| T5-min — optimisation température | après T3 mesure (signal K1) | 🟠 deferred |
-| D6-shadow — dual confidence fields | après T4 mesure | 🟠 deferred |
-| A.5/A.6 — instructions.py + discuss.py | après UD frontend dispo | 🔵 conditionnel |
-| Phase E chiffrage — ternaire + Pearl grouping | avant merge C complet | 🔵 conditionnel |
+| §9.4 Algèbre de négation (R1/R2/R3) | 41808e0 | `apply_negation_algebra()` dans ir_emitter.py — Neg(dst)→prevent, Neg(cond)→polarity:negative, Neg(src)→counterfactual |
+| Éq.11 Résolution ambiguïté (θ=0.65) | 41808e0 | `theta_ambiguity` dans CGNPipeline, passe cohérence locale dans emit() |
+| D4/§15 Coarse→fine | 41808e0 | `no_mood/no_tense` dans vectorize_clause, `--coarse-phase` train.py, COARSE_RELATION_GROUPS |
+| Éq.10 Discours inter-phrasal | 41808e0 | `pipeline/discourse.py`, `lang_markers.json` discourse_connectors, intégration index.py |
+| Éq.12 Pearl ternaire | 41808e0 | `group_by_joint_id`, `SpofScore.is_super_spof`, counterfactual JointCause, pearl.rs |
+| Éq.6 NLU routing (tête MLP apprise) | 9337328 | 21 INTENT_TYPES, `MLPEncoder.forward_intent()`, `nlu_routing.py`, `--n-intent-types`, checkpoint |
+| Schéma annotation v4 | 1ccc9e3 | EdgeRecord(third, polarity, voice, modality, has_restriction, condition_prominence), SentenceRecord(intent, sentence_profile, salience), ClauseRecord(pos, morph) |
+| all_pairs=True obligatoire | cf209c2 | Toutes les arêtes annotées supervisées, filtre gap>1 supprimé |
+| Tense=Past+advcl → SEQUENCE | 92d6f57 | Couche 1 déterministe dans sentence_type.py |
+| gcn-annotate v4 | 92d6f57 | NODE_TYPES D5, RELATION_TYPES 19, SYSTEM_PROMPT v4, normalize v4 |
+
+### Audit C1-C5 — Corrections critiques
+
+| Critique | Commit | Fix |
+|---|---|---|
+| C1 joint_group_id hash | f130de3 | `normalize_node_id` avant hash dans edge_norm.py |
+| C2 D5 renommage | f130de3 | processus/etat_local/etat_global/entite/condition/concept/evenement/contrainte, NODE_TYPE_ALIASES, Rust synchro |
+| C3 metrics K2 | f130de3 | `edge_macro_f1(class_subset=)`, `RELATION_TYPES_V2` (11 types v2) |
+| C4 Pearl LinkDto | f130de3 | `LinkDto(joint_group_id, third_node_label)`, serde snake_case ("cause" pas "Cause") |
+| C5 dead code câblé | f130de3 | `detect_ternary()` appelé dans ir_emitter, `optimize_temperature` post-train dans train.py |
+
+### Architecture moteur (état v4)
+
+```
+Couche 0 : UDRepresentation — tokens UD (id, form, lemma, pos, dep_rel, dep_head, morph)
+Couche 1 : vectorize_clause (d_clause=106 dims) + sentence_type (SentenceProfile 7 champs)
+           Features : UPOS(18) + dep_rel(38) + subject_pos(5) + Tense(5) + Aspect(4) + Mood(5)
+                    + Voice(3) + PronType(7) + polarity(1) + flags(3) + positionnels(12) + ternaires(5)
+Couche 2 : MLPEncoder — 3 têtes supervisées :
+           ├── nœuds  : d_clause → mlp_hidden → 64 → 8  (D5 ETUDE)
+           ├── arêtes : d_edge → 256 → 128 → 64 → 19   (v3.0)
+           └── intent : d_clause → mlp_hidden → 64 → 21  (Éq.6, n_intent_types=0 = désactivé)
+Couche 3 : R-GCN message passing (bidirectionnel, GAT optionnel)
+Couche 4 : Pearl 21+ requêtes — WHY/WHAT/CHAIN/chain_t/before/delay/DO/COUNTERFACTUAL/EXPLAIN
+                               ANALOGY/SPOF(SUPER-SPOF)/CENTRALITY/DENSITY/COVERAGE/RELIABILITY/DIFF
+                               ZOOM_IN/ZOOM_OUT/AGGREGATE/NORM_DIFF
+NLU routing : nlu_routing.py — Éq.6, priorité 1=tête apprise, priorité 2=heuristique surface UD
+Discours  : discourse.py — Éq.10, connecteurs inter-phrasaux depuis lang_markers.json
+```
+
+### NODE_TYPES D5 (8 types, constants.py)
+
+```python
+["processus", "etat_local", "etat_global", "entite", "condition",
+ "concept", "evenement", "contrainte"]
+# Aliases v2→D5 : etat→etat_local, action→processus, transition→processus,
+#                  etat_systemique→etat_global
+```
+
+### Restant — uniquement annotation + entraînement + décisions externes
+
+| Tâche | Nature | Condition |
+|---|---|---|
+| Annotation INTENT (SentenceRecord.intent) | Annotation humaine | Requis pour entraîner tête Éq.6 |
+| Annotation ternaires (conditional_cause, joint_cause…) | Annotation humaine | Requis pour supervision D2 |
+| Réentraînement v4.0 | Entraînement | Datasets annotés v4 |
+| K1 ablation Mood (ΔF1) | Mesure post-entraînement | — |
+| K2 macro-F1 11 classes partagées v2↔v3 | Mesure post-entraînement | `edge_macro_f1(class_subset=RELATION_TYPES_V2)` |
+| K3 T4 e2e bridge fix | Mesure + 20 phrases conditionnelles | — |
+| D.0-médical 25 phrases OOV | Annotation humaine (owner Michel) | Si D.0-min F1 < 70% |

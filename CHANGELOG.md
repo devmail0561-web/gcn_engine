@@ -5,7 +5,153 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [Unreleased] — v4.0
+
+### BREAKING — D5 Ontologie nœuds (C2)
+
+- **`constants.py`** : `NODE_TYPES` renommé vers la taxonomie D5 ETUDE :
+  `processus`, `etat_local`, `etat_global`, `entite`, `condition`, `concept`, `evenement`, `contrainte`.
+  Fusion D5 : action + transition → processus ; renommages : etat → etat_local, etat_systemique → etat_global.
+  Ajout : concept, evenement.
+- **`NODE_TYPE_ALIASES`** : migration transparente v2→D5 dans `loader.py` et `json_reader.py`.
+  Données annotées avec "action", "etat", "etat_systemique" sont remappées automatiquement.
+- **Rust `gcn-ir/node.rs`** : enum `NodeType` mis à jour — `EtatLocal`, `EtatGlobal`, `Concept`, `Evenement`.
+  Aliases serde : `#[serde(alias = "etat")]` sur `EtatLocal`, `#[serde(alias = "etat_systemique")]` sur `EtatGlobal`,
+  `#[serde(alias = "action", alias = "transition")]` sur `Processus`.
+  `causal_direction()` recalculé pour 8 variants D5.
+- **`gcn-annotate`** : `normalize.py` et `annotator.py` mis à jour — 8 types D5, SYSTEM_PROMPT v4.
+
+### §9.4 Algèbre de négation ternaire
+
+- **`pipeline/ir_emitter.py`** : `apply_negation_algebra(relation, negation_site, third, negated)`.
+  R1 Neg(dst) → PREVENT / *_PREVENT. R2 Neg(condition) → `third["polarity"]="negative"`.
+  R3 Neg(src) → COUNTERFACTUAL ou `source_polarity="negative"` (joint).
+- **`pipeline/cgnp.py`** : `_detect_negation()` retourne `(bool, negation_site)` — site ∈ `{"src","dst",None}`.
+- **`constants.py`** : `NEGATION_PREVENT_MAP` (mapping cause→prevent, 4 entrées).
+- Nouveaux champs CIR : `source_polarity`, `ambiguous`, `candidates`.
+
+### Éq.11 Résolution d'ambiguïté
+
+- **`pipeline/cgnp.py`** : `theta_ambiguity` (défaut `THETA_AMBIGUITY_DEFAULT=0.65`), calcul `edge_probs` top-2.
+- **`pipeline/ir_emitter.py`** : passe cohérence locale (endpoint partagé) après construction des arêtes.
+- **`constants.py`** : `THETA_AMBIGUITY_DEFAULT`.
+
+### D4/§15 Progression coarse→fine
+
+- **`constants.py`** : `COARSE_RELATION_GROUPS` (5 groupes), `FINE_TO_COARSE_RELATION`, `COARSE_RELATION_TYPES`,
+  `COARSE_NODE_GROUPS`, `FINE_TO_COARSE_NODE`, `COARSE_NODE_TYPES`.
+  Fonction `coarse_relation()`, `coarse_node()`.
+- **`layer1/features.py`** : `vectorize_clause(no_mood=, no_tense=)` — masque Mood/Tense en mode coarse.
+- **`pipeline/cgnp.py`** : `no_mood`, `no_tense` propagés depuis `__init__`.
+- **`training/train.py`** : `--coarse-phase`, `--coarse-n-min` (défaut 400).
+  Remapping gold labels + logit_mask adapté au mode coarse.
+
+### Éq.10 Relations discursives inter-phrasales
+
+- **`pipeline/discourse.py`** (nouveau) : `extract_discourse_relation(cir_prev, cir_curr, reps_curr, lang_markers)`.
+  Couche 1 : POS+position (CCONJ/ADV id≤2). Couche 2 : `lang_markers.discourse_connectors` (JSON, 0 lemme hardcodé).
+  Fallbacks : anaphore (conf=0.50), juxtaposition (conf=0.35).
+- **`gcn-datasets/configs/lang_markers.json`** : section `discourse_connectors` (FR+EN, 4 catégories).
+- **`layer1/sentence_type.py`** : `LangMarkers.discourse_connectors`.
+- **`index.py`** : intégration via `pipeline._cached_reps`.
+
+### Éq.12 Requêtes Pearl ternaires
+
+- **`gcn-ir/edge.rs`** : `TernaryRole`, `TernaryThird` (role, node: u64, polarity?), `CausalEdge.third`.
+- **`gcn-ir/lib.rs`** : exports `TernaryRole`, `TernaryThird`.
+- **`gcn-backend/pearl.rs`** : `CausalLink(joint_group_id, third_node)`, `group_by_joint_id()`,
+  counterfactual JointCause (co-nécessité), SpofScore.is_super_spof.
+- **`gcn-backend/query.rs`** : `LinkDto(joint_group_id, third_node_label)`, relation en snake_case serde
+  (fix C4 — "cause" au lieu de "Cause").
+- 6 sites frontends patchés : `third: None` dans constructeurs CausalEdge.
+
+### Éq.6 NLU routing (tête MLP apprise)
+
+- **`constants.py`** : `INTENT_TYPES` (21 types : explain/effects/abduct/counterfactual/chain/chain_t/
+  before/delay/spof/centrality/analogy/summarize/density/coverage/reliability/diff/zoom_in/zoom_out/aggregate/verbalize/none).
+- **`data/schema.py`** : `SentenceRecord.intent: str = ""`.
+- **`layer2/reference.py`** : `MLPEncoder(n_intent_types=0)` — `_intent_layers`, `forward_intent()`,
+  `backward_intent()`, `update_intent()` (miroir tête nœuds, He-init).
+- **`pipeline/cgnp.py`** : `n_intent_types`, `_cached_intent_logits`, `_cached_d_intent`,
+  `loss(gold_intent=, intent_logit_mask=)`, `backward()` propage le gradient intent.
+- **`training/train.py`** : `--n-intent-types`, comptage `intent_counts`, `_intent_logit_mask`,
+  `gold_intent` extrait depuis `sample.sentence.intent`.
+- **`training/checkpoint.py`** : sauvegarde `intent_layer_*_W/b` + `_intent_meta_json` séparé de `encoder_*`.
+- **`pipeline/nlu_routing.py`** (nouveau) : `nlu_route(text, tokens, pipeline)` — priorité 1 : tête apprise,
+  priorité 2 : heuristique surface UD (SentenceType, 2 concepts→chain).
+- **`discuss.py`** : câblage `nlu_route`, suppression `--lang-markers` (incorrect architecturalement).
+
+### Schéma annotation v4 (§11 ETUDE)
+
+- **`data/schema.py`** :
+  - `EdgeRecord` : `third`, `polarity`, `voice`, `modality`, `has_restriction`, `condition_prominence`.
+  - `ClauseRecord` : `pos`, `morph`.
+  - `SentenceRecord` : `sentence_profile`, `salience`.
+- **`data/json_reader.py`** : `_parse_edge` lit `third` + qualifications ; `_parse_clause_node` lit `pos`/`morph` ;
+  `_parse_dataset_sentence` lit `intent`, `sentence_profile`, `salience`.
+  `NODE_TYPE_ALIASES` appliqués à la lecture.
+
+### all_pairs=True obligatoire
+
+- **`data/loader.py`** : défaut `all_pairs=True`, filtre gap>1 supprimé, warning "longue distance" supprimé.
+- **`pipeline/cgnp.py`** : défaut `all_pairs=True`.
+- **`training/train.py`** : `--all-pairs` défaut True.
+- Toutes les arêtes annotées dans une phrase sont supervisées, quelle que soit la distance entre clauses.
+
+### Tense=Past+advcl → SEQUENCE (couche 1)
+
+- **`layer1/sentence_type.py`** : règle structurelle ajoutée dans `_classify_subordination()` :
+  `advcl` avec `Tense=Past` → `SubordinationType.SEQUENCE` (couche 1, sans lemme).
+
+### gcn-annotate v4
+
+- **`normalize.py`** : NODE_TYPES D5 (8), RELATION_TYPES 19, migration `source`→`sources`, validation `third`.
+- **`annotator.py`** : SYSTEM_PROMPT v4 — `sources` (liste), `third`, `polarity`, `voice`, `modality`, `intent`.
+  4 exemples few-shot : cause, condition, joint_cause, question (intent=explain).
+
+### Correctifs audit C1-C5
+
+- **C1** `edge_norm.py:219` : `normalize_node_id` appliqué sur `dst_raw` et sources avant hash sha256.
+  Cohérence garantie avec `bootstrap.py` qui normalisait déjà.
+- **C3** `evaluation/metrics.py` : `edge_f1_per_class(class_subset=)`, `edge_macro_f1(class_subset=)`.
+  `RELATION_TYPES_V2` (11 types partagés v2↔v3) pour K2 dans `constants.py`.
+- **C5** `detect_ternary()` câblé dans `ir_emitter.py:emit()`. `optimize_temperature` câblé en fin de
+  `train.py` sur val set (T5-min).
+
+### Tests (668 Python / 0 Rust)
+
+Nouveaux fichiers de tests : `test_negation_algebra.py` (11), `test_ambiguity_resolution.py` (5),
+`test_coarse_fine.py` (11), `test_discourse.py` (10), `test_nlu_routing.py` (33),
+`test_intent_head.py` (10), `test_ternary_pearl.rs` (6 Rust).
+
+### Plan-moins — restes implémentés (C.5, C.3, C.6-min, D3, T5-min)
+
+- **D6-shadow (`pipeline/ir_emitter.py`)** : `confidence_d6()` transcrite à
+  l'identique de l'ETUDE §9.0 (rung R1=0.50/R2=0.75/R3=0.65, f(Mood),
+  g(connecteur), Δ+0.10). Chaque arête émise porte `confidence` (ML,
+  inchangé), `confidence_ml` (alias) et `confidence_d6`. Câblage pipeline :
+  `cgnp.py` passe `mood_by_node` (clause cible, fallback source).
+  Extensions documentées pour les 5 relations absentes de l'ETUDE
+  (`*_prevent` → R2/R3 par analogie, `data/control_dependency` → R1).
+- **9-tuple v3 (`ir_emitter.py`, plan §C.3)** : `emit()` accepte 6-tuple
+  legacy et 9-tuple `(src, dst, rel, conf, neg, marker, third_role,
+  third_node, joint_group_id)` — stockage `third` + `joint_group_id`,
+  rétrocompatible.
+- **D7 + Éq.7 (helpers, plan §C.5)** : `orient_edge_d7()` (source = clause
+  SCONJ, sauf SEQUENCE = ordre temporel) + `apply_voice_eq7()` (Voice=Pass
+  → Agent logique en src). Ordre D7 puis Éq.7. Opt-in
+  (`apply_orientation=False` par défaut) jusqu'à validation T4 e2e (K3).
+  Inclut le test obligatoire passif+conditionnel du plan.
+- **Détecteur ternaire minimal C.6** : `detect_ternary()` heuristique UD
+  (SCONJ → condition, obl → mediator, joint passthrough). Stockage seul —
+  supervision + groupement Pearl = Phase E à chiffrer.
+- **T5-min production (`evaluation/calibration.py`)** : `softmax`,
+  `ece_score`, `optimize_temperature` (grid search ECE),
+  `apply_isotonic_params` (params nus, fallback identité). Ordre D6 → T5
+  respecté (T5 calibre les sorties D6).
+- **D3 FILTER (`test_filter_vs_conditional.py`)** : FILTER direct
+  `third=None` distingué de CONDITIONAL_CAUSE (9-tuple avec third).
+- **Tests : 588 Python passed / 3 xfailed (+30), Rust 0 régression.**
 
 ### Audit post-v3.0 — conformité code↔plan (2026-09-28)
 

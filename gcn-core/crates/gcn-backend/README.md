@@ -96,22 +96,41 @@ if let Some((label, result)) = counterfactual(&ir, "pluie") {
 pub struct CausalLink {
     pub from_label: String,
     pub to_label: String,
+    pub from_id: NodeId,
     pub to_id: NodeId,
     pub relation: RelationType,
     pub confidence: f32,
     pub negated: bool,
+    // Éq.12 — ternaire
+    pub joint_group_id: Option<String>,  // co-nécessité JointCause/JointPrevent
+    pub third_node: Option<NodeId>,      // médiateur ou condition
+}
+
+pub struct SpofScore {
+    pub label: String,
+    pub score: usize,
+    pub is_super_spof: bool,  // nœud source d'un groupe JointCause
 }
 
 pub struct InterventionResult {
-    pub severed: Vec<CausalLink>,  // arêtes coupées par l'intervention
-    pub effects: Vec<CausalLink>,  // effets propagés en avant
+    pub severed: Vec<CausalLink>,
+    pub effects: Vec<CausalLink>,
 }
 
 pub struct CounterfactualResult {
-    pub actual_effects: Vec<CausalLink>, // effets réels de X
-    pub unique_effects: Vec<String>,     // effets sans chemin sans X
+    pub actual_effects: Vec<CausalLink>,
+    pub unique_effects: Vec<String>,  // gère JointCause (co-nécessité) et MediatedCause
 }
 ```
+
+`CausalLink.relation` est sérialisé en snake_case via serde : `"cause"`, `"joint_cause"`, etc.
+(Fix C4 audit — plus le format Debug `"Cause"`.)
+
+### Éq.12 — Comportement ternaire Pearl
+
+- **WHY/CHAIN** : `CausalLink.joint_group_id` propagé pour identifier les co-sources
+- **COUNTERFACTUAL** : `JointCause([A,A₂]→C)` — si A supprimé, C disparaît même si A₂ reste
+- **SPOF** : `is_super_spof=true` si nœud dans au moins 1 groupe `joint_group_id`
 
 ---
 
@@ -130,17 +149,31 @@ let result = execute(&q, &ir)?;
 println!("{}", serde_json::to_string_pretty(&result)?);
 ```
 
-### Syntaxe GCN-QL
+### Syntaxe GCN-QL (21+ requêtes)
 
 | Requête | Niveau Pearl | Description |
 |---------|-------------|-------------|
-| `WHY <label>` | 1 | Causes directes et indirectes d'un nœud |
-| `WHAT <label>` | 1 | Effets directs et indirects d'un nœud |
-| `CHAIN <a> -> <b>` | 1 | Chemin causal le plus court de a vers b |
-| `CYCLES` | — | Liste tous les cycles de rétroaction détectés |
-| `GAPS` | — | Liste les arêtes portant une lacune temporelle causale |
-| `DO <label>` | 2 | Intervention do-calculus sur un nœud |
-| `COUNTERFACTUAL <label>` | 3 | Analyse contrefactuelle : que sans X ? |
+| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé) |
+| `WHAT <label>` | 1 | Effets directs et indirects |
+| `CHAIN <a> -> <b>` | 1 | Chemin causal le plus court |
+| `CHAIN_T <a> -> <b>` | 1 | Chemin causal avec info temporelle |
+| `BEFORE <a>, <b>` | 1 | A précède-t-il B ? |
+| `DELAY <a> -> <b>` | 1 | Délai estimé A→B |
+| `EXPLAIN <label>` | 1 | Raisonnement abductif — causes candidates |
+| `CYCLES` | — | Cycles de rétroaction |
+| `GAPS` | — | Lacunes temporelles causales |
+| `SPOF` | — | Points de défaillance unique (+ SUPER-SPOF JointCause) |
+| `CENTRALITY <label>` | — | Centralité causale d'un nœud |
+| `DENSITY` | — | Densité du graphe |
+| `COVERAGE <label>` | — | Couverture causale d'un concept |
+| `RELIABILITY <label>` | — | Fiabilité des réponses |
+| `ANALOGY <a> -> <b>` | — | Patterns causaux similaires |
+| `NORM_DIFF <a>, <b>` | — | Écart normatif A→B |
+| `DO <label>` | 2 | Intervention do-calculus |
+| `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés) |
+| `ZOOM_IN <label>` | — | Sous-graphe enfants (hiérarchie multi-échelle) |
+| `ZOOM_OUT <label>` | — | Nœud parent |
+| `AGGREGATE <label>` | — | Vue agrégée nœud + enfants |
 
 ### `Query` (enum)
 

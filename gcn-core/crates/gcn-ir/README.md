@@ -66,19 +66,26 @@ ir.has_gaps()   -> bool      // présence de lacunes temporelles causales
 
 ## Types de nœuds
 
-### `NodeType` — 7 types causaux
+### `NodeType` — 8 types D5 (ETUDE §8)
 
 ```rust
 pub enum NodeType {
-    Etat,           // état stable d'une entité
-    Action,         // action délibérée d'un agent
-    Transition,     // passage d'un état à un autre
-    Processus,      // processus continu ou naturel
-    Condition,      // condition nécessaire ou suffisante
+    #[serde(alias = "action", alias = "transition")]
+    Processus,      // processus/action continu — absorbe action+transition (D5)
+    #[serde(rename = "etat_local", alias = "etat")]
+    EtatLocal,      // état local stable d'une entité
+    #[serde(rename = "etat_global", alias = "etat_systemique")]
+    EtatGlobal,     // propriété systémique d'un ensemble
     Entite,         // entité non-causale (acteur, objet)
-    EtatSystemique, // propriété systémique d'un ensemble
+    Condition,      // condition nécessaire ou suffisante
+    Concept,        // concept abstrait (D5 nouveau)
+    Evenement,      // événement ponctuel (D5 nouveau)
+    Contrainte,     // contrainte réglementaire ou physique
 }
 ```
+
+Aliases serde pour backward compat : `"etat"→EtatLocal`, `"etat_systemique"→EtatGlobal`,
+`"action"→Processus`, `"transition"→Processus`.
 
 Méthode associée :
 ```rust
@@ -109,17 +116,36 @@ pub struct CausalNode {
 
 ## Types d'arêtes
 
-### `RelationType` — 11 relations causales
+### `RelationType` — 19 relations (v3.0 ETUDE §9)
 
 ```rust
 pub enum RelationType {
+    // 11 relations directes
     Cause, Enable, Prevent, Condition, Concession,
     Sequence, Motivation, Filter, Opposition,
     DataDependency, ControlDependency,
+    // 8 relations ternaires v3.0
+    Analogy, Counterfactual,
+    ConditionalCause, MediatedCause, JointCause,
+    ConditionalPrevent, MediatedPrevent, JointPrevent,
 }
 
-// Détecte les relations signalant une lacune causale cachée
 relation.signals_causal_gap() -> bool  // true pour Concession et Opposition
+relation.is_joint() -> bool            // true pour JointCause et JointPrevent
+```
+
+Sérialisé en snake_case via serde : `"cause"`, `"joint_cause"`, `"conditional_prevent"`, etc.
+
+### `TernaryThird` — tiers d'une relation ternaire
+
+```rust
+pub enum TernaryRole { Condition, Mediator }
+
+pub struct TernaryThird {
+    pub role: TernaryRole,
+    pub node: u64,                      // NodeId.0 du nœud tiers
+    pub polarity: Option<String>,       // "negative" si Règle 2 §9.4
+}
 ```
 
 ### `CausalEdge`
@@ -127,12 +153,16 @@ relation.signals_causal_gap() -> bool  // true pour Concession et Opposition
 ```rust
 pub struct CausalEdge {
     pub relation: RelationType,
-    pub confidence: f32,             // [0.0, 1.0]
+    pub confidence: f32,                // [0.0, 1.0]
     pub temporal_gap: Option<TemporalGap>,
-    pub explicit: bool,              // marqueur lexical présent
+    pub explicit: bool,                 // marqueur lexical présent
     pub negated: bool,
     pub marker_token: Option<u32>,
     pub in_cycle: Option<CycleId>,
+    pub provenance: Option<Provenance>, // traçabilité source
+    pub derivation: Option<Derivation>,
+    pub joint_group_id: Option<String>, // sha256[:16], identique sur 2 arêtes JointCause
+    pub third: Option<TernaryThird>,    // tiers pour relations ternaires
 }
 ```
 

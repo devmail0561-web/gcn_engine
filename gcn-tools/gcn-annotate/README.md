@@ -1,56 +1,87 @@
-# gcn-annotate — Outil d'annotation LLM pour GCN-NL
+# gcn-annotate — Outil d'annotation LLM v4
 
-Outil externe (hors moteur) qui utilise des LLMs (Anthropic Claude, OpenAI GPT) pour annoter automatiquement des phrases en structure causale GCN-NL.
+Outil externe (hors moteur) pour annoter des phrases en structure causale GCN-NL v4.
+Utilise des LLMs (Anthropic Claude, OpenAI GPT) et produit le schéma ETUDE §11.
+
+---
 
 ## Installation
 
 ```bash
-# Basique (CLI only)
-pip install gcn-annotate
-
-# Avec support Anthropic
-pip install gcn-annotate[anthropic]
-
-# Avec support OpenAI
-pip install gcn-annotate[openai]
-
-# Tout
+pip install gcn-annotate[anthropic]   # avec Claude
+pip install gcn-annotate[openai]      # avec GPT
 pip install gcn-annotate[anthropic,openai]
 ```
 
+---
+
 ## Usage
 
-### Annotation
-
 ```bash
-# Annotations depuis un fichier de phrases
-gcn-annotate annotate --input phrases.txt --output dataset_llm/ --lang fr
+# Annotation depuis un fichier de phrases (une par ligne)
+gcn-annotate annotate --input phrases.txt --output dataset/ --lang fr
 
-# Avec un backend spécifique
-gcn-annotate annotate --input phrases.txt --output dataset_llm/ --llm-backend openai --model gpt-4o
+# Avec backend spécifique
+gcn-annotate annotate --input phrases.txt --output dataset/ \
+  --llm-backend openai --model gpt-4o
 
-# Batch size personnalisé
-gcn-annotate annotate --input phrases.txt --output dataset_llm/ --batch-size 20
+# Évaluation vs gold
+gcn-annotate eval --gold gold.json --pred pred.json
 ```
 
-Le fichier `phrases.txt` contient une phrase par ligne. L'outil produit un fichier JSON au format gcn-nl compatible avec `gcn-python` :
+---
+
+## Format de sortie — Schéma v4 (ETUDE §11)
 
 ```json
 {
   "document": {
-    "id": "llm-phrases",
-    "lang": "fr",
+    "id": "llm-001",
     "sentences": [
       {
         "id": "s001",
-        "text": "La pluie cause l'inondation",
+        "text": "Si les traitements échouent, le médicament est prescrit.",
+        "intent": "",
         "cir": {
+          "sentence_profile": {
+            "sentence_type": "declarative",
+            "subordination": "condition"
+          },
+          "salience": {
+            "focus_node": "n001",
+            "condition_prominence": "foreground"
+          },
           "nodes": [
-            {"id": "n001", "type": "processus", "label": "pluie", "token_span": [1, 1]},
-            {"id": "n002", "type": "etat", "label": "inondation", "token_span": [3, 3]}
+            {
+              "id": "n001",
+              "type": "processus",
+              "label": "échec traitements",
+              "token_span": [0, 2],
+              "pos": "VERB",
+              "morph": {"Mood": "Ind", "Tense": "Pres"}
+            },
+            {
+              "id": "n002",
+              "type": "evenement",
+              "label": "prescription médicament",
+              "token_span": [3, 5],
+              "pos": "VERB",
+              "morph": {"Voice": "Pass"}
+            }
           ],
           "edges": [
-            {"source": "n001", "target": "n002", "relation": "cause"}
+            {
+              "sources": ["n001"],
+              "target": "n002",
+              "relation": "conditional_cause",
+              "third": {"role": "condition", "node": "n001"},
+              "confidence": 0.85,
+              "polarity": "positive",
+              "voice": "passive",
+              "modality": "indicative",
+              "has_restriction": false,
+              "condition_prominence": "foreground"
+            }
           ]
         }
       }
@@ -59,70 +90,120 @@ Le fichier `phrases.txt` contient une phrase par ligne. L'outil produit un fichi
 }
 ```
 
-### Évaluation
-
-```bash
-# Comparer annotations LLM vs gold standard
-gcn-annotate eval --gold gold.json --pred pred_llm.json
-```
-
-Sortie :
-```
-Nodes : 150 alignés, accuracy = 0.820
-Edges : 89 alignés, accuracy = 0.719
-Gold nodes: 150 | Pred nodes: 148
-Gold edges: 92 | Pred edges: 89
-```
+---
 
 ## Types supportés
 
-**Types de nœuds** (7) : `etat`, `action`, `transition`, `processus`, `condition`, `entite`, `etat_systemique`
+### NODE_TYPES D5 — 8 types (ETUDE §8)
 
-**Types de relations** (11) : `cause`, `enable`, `prevent`, `condition`, `concession`, `sequence`, `motivation`, `filter`, `opposition`, `data_dependency`, `control_dependency`
+| Type | Description | Direction causale |
+|------|-------------|-------------------|
+| `processus` | Processus/action — absorbe action+transition v2 | Both |
+| `etat_local` | État local stable (était "etat" en v2) | Backward |
+| `etat_global` | Propriété systémique (était "etat_systemique" en v2) | Accumulative |
+| `entite` | Entité non-causale (acteur, objet) | None |
+| `condition` | Condition nécessaire ou suffisante | Suspended |
+| `concept` | Concept abstrait (nouveau D5) | None |
+| `evenement` | Événement ponctuel (nouveau D5) | Forward |
+| `contrainte` | Contrainte réglementaire ou physique | Suspended |
 
-## Normalisation
+### RELATION_TYPES — 19 types (v3.0)
 
-L'outil normalise automatiquement les variantes LLM :
-- `"État"` → `"etat"`, `"enables"` → `"enable"`, etc.
-- Les types invalides sont supprimés avec un warning
-- Les nœuds/arêtes corrompus sont filtrés
+**11 directes :** `cause`, `enable`, `prevent`, `condition`, `concession`, `sequence`, `motivation`, `filter`, `opposition`, `data_dependency`, `control_dependency`
+
+**8 ternaires v3.0 :** `analogy`, `counterfactual`, `conditional_cause`, `mediated_cause`, `joint_cause`, `conditional_prevent`, `mediated_prevent`, `joint_prevent`
+
+---
+
+## Règles d'annotation obligatoires
+
+### `sources` — liste (jamais `source` singulier)
+
+```json
+"sources": ["n001"]          // relation directe
+"sources": ["n001", "n002"]  // joint_cause — deux sources
+```
+
+### `third` — tiers pour relations ternaires
+
+```json
+// conditional_cause / conditional_prevent
+"third": {"role": "condition", "node": "n003"}
+
+// mediated_cause / mediated_prevent
+"third": {"role": "mediator", "node": "n003"}
+
+// joint_cause / joint_prevent — PAS de third, deux arêtes séparées
+"third": null
+```
+
+### `intent` — uniquement pour les questions
+
+```json
+"intent": "explain"   // "Pourquoi X ?"
+"intent": "chain"     // "Comment A mène à B ?"
+"intent": ""          // déclaratif (laisser vide)
+```
+
+Valeurs : `explain`, `effects`, `abduct`, `counterfactual`, `chain`, `chain_t`,
+`before`, `delay`, `spof`, `centrality`, `analogy`, `summarize`, `density`,
+`coverage`, `reliability`, `diff`, `zoom_in`, `zoom_out`, `aggregate`, `verbalize`, `none`
+
+### Qualifications d'arête
+
+| Champ | Valeurs |
+|-------|---------|
+| `polarity` | `"positive"` \| `"negative"` |
+| `voice` | `"active"` \| `"passive"` |
+| `modality` | `"indicative"` \| `"subjunctive"` \| `"conditional"` \| `"imperative"` |
+| `has_restriction` | `true` \| `false` (ne...que / only if) |
+| `condition_prominence` | `"foreground"` \| `"background"` \| `null` |
+
+---
+
+## Normalisation automatique
+
+Le module `normalize.py` applique :
+- Migration v2→D5 : `"etat"→"etat_local"`, `"action"→"processus"`, `"etat_systemique"→"etat_global"`, `"transition"→"processus"`
+- `source` singulier → `sources: [...]` (shim backward compat)
+- Validation `third.role` ∈ `{"condition","mediator"}`
+- Défauts : `polarity="positive"`, `voice="active"`, `modality="indicative"`, `has_restriction=false`
+- Types invalides supprimés avec warning
+
+---
 
 ## Intégration avec gcn-python
 
 ```bash
 # 1. Annoter
-gcn-annotate annotate --input corpus_brut.txt --output dataset_llm/
+gcn-annotate annotate --input corpus.txt --output dataset_v4/
 
 # 2. Entraîner
-gcn-train --data-dir dataset_llm/ --epochs 50 --output model.npz
+cd gcn-python
+gcn-train \
+  --data-dir dataset_v4/ \
+  --val-dir val_v4/ \
+  --epochs 100 --lr 0.0005 \
+  --weighted-loss --use-attention --bidirectional \
+  --output model_v4.npz
 
-# 3. Évaluer
-gcn-eval --data-dir dataset_llm/ --model-path model.npz
+# 3. Tête intention (si questions annotées avec intent)
+gcn-train --data-dir dataset_v4/ --n-intent-types 21 --output model_v4_intent.npz
 ```
 
-## Coût estimé
-
-Pour 1000 phrases avec `--batch-size 10` (100 appels API) :
-- Input ~350k tokens + output ~150k tokens
-- Claude Sonnet : ~$0.07–$0.15
-- GPT-4o : ~$0.10–$0.25
+---
 
 ## Architecture
 
 ```
 gcn-annotate/
 ├── src/gcn_annotate/
-│   ├── __init__.py
-│   ├── annotator.py    # LLMAnnotator protocol + AnthropicAnnotator + OpenAIAnnotator
-│   ├── normalize.py    # Normalisation types nœuds/relations, validation
-│   └── cli.py          # CLI click : annotate + eval
+│   ├── annotator.py      # SYSTEM_PROMPT v4, AnthropicAnnotator, OpenAIAnnotator
+│   ├── normalize.py      # NODE_TYPES D5, RELATION_TYPES 19, migration v2→D5, validate third
+│   ├── auto_annotate.py  # analyse_sentence() — patterns structurels (FR+EN)
+│   ├── smart_annotate.py # annotation guidée avec contexte
+│   ├── balanced_auto.py  # annotation équilibrée par type
+│   ├── split_dataset.py  # split train/val/test stratifié
+│   └── cli.py            # CLI : annotate, eval
 └── pyproject.toml
-```
-
-## Développement
-
-```bash
-cd gcn-tools/gcn-annotate
-pip install -e ".[dev]"
-pytest tests/
 ```
