@@ -91,12 +91,22 @@ class FeatureVocabulary:
 
     @property
     def d_conn(self) -> int:
+        """Dimension structurelle du connecteur (sans embedding)."""
         return (
             len(self.upos_tags)              # UPOS du connecteur
-            + len(self.connector_lemmas)     # lemme (0 si pas de lexique fourni)
             + len(self.connector_dep_rels)   # dep_rel du connecteur
             + 2                              # direction + distance
+            # connector_lemmas one-hot retiré — remplacé par embedding (D10)
         )
+
+    def d_conn_effective(self, d_emb: int) -> int:
+        """Dimension connecteur avec embedding du lemme (D10 ETUDE).
+
+        Sans embedding : d_conn seul (structurel pur).
+        Avec embedding : d_conn + d_emb (lemme connecteur appris, pas configuré).
+        Source unique : appeler ici, jamais recalculer manuellement.
+        """
+        return self.d_conn + d_emb
 
     def d_clause_effective(self, d_emb: int, subject_object_emb: bool = False) -> int:
         """Dimension clause avec embeddings (Amélioration B — point unique de vérité).
@@ -109,21 +119,31 @@ class FeatureVocabulary:
 
     N_INTERACTION_FEATURES = 4  # shared_pos, shared_subject, clause_distance, obj_xor
 
+    def d_edge_effective(self, d_emb: int = 0) -> int:
+        """Dimension de base d'une arête (sans closed-loop).
+
+        = 2×d_clause + d_conn_effective(d_emb) + N_INTERACTION_FEATURES
+        Source unique — jamais recalculer manuellement.
+        """
+        return 2 * self.d_clause + self.d_conn_effective(d_emb) + self.N_INTERACTION_FEATURES
+
     @property
     def d_edge(self) -> int:
-        return 2 * self.d_clause + self.d_conn + self.N_INTERACTION_FEATURES
+        """Dimension arête sans embeddings (rétrocompat).
+        Préférer d_edge_effective(d_emb) si word_embedding est actif.
+        """
+        return self.d_edge_effective(d_emb=0)
 
     def d_edge_closed_loop(self, d_effective: int, n_node_types: int, d_emb: int = 0,
                            subject_object_emb: bool = False) -> int:
         """Dimension du edge MLP en closed-loop.
 
-        Base arête = d_edge + embeddings lexicaux des 2 clauses
+        Base arête = d_edge_effective(d_emb) + embeddings lexicaux des 2 clauses
         (1×d_emb par clause sans B, 3×d_emb avec B : pooling + sujet + objet),
         suivie de 2*d_effective (vecteurs R-GCN) + 2*n_node_types (probas types).
-        Identique à l'ancienne formule quand B est inactif.
         """
         _emb_per_clause = 3 * d_emb if subject_object_emb else d_emb
-        return self.d_edge + 2 * _emb_per_clause + 2 * d_effective + 2 * n_node_types
+        return self.d_edge_effective(d_emb) + 2 * _emb_per_clause + 2 * d_effective + 2 * n_node_types
 
     def to_json(self) -> str:
         return json.dumps({
@@ -446,23 +466,30 @@ def vectorize_connector(
     dst_idx: int,
     n_clauses: int,
     vocab: FeatureVocabulary,
+    word_embedding=None,
 ) -> np.ndarray:
-    """Connector features between two clauses → np.ndarray[d_conn]"""
+    """Connector features between two clauses → np.ndarray[d_conn_effective(d_emb)].
+
+    D10 ETUDE : le lemme du connecteur est encodé via word_embedding (appris, pas configuré).
+    Sans word_embedding : couche 1 structurelle seule (UPOS + dep_rel + position).
+    """
+    d_emb = word_embedding.d_emb if word_embedding is not None else 0
     if marker_rep is not None:
-        upos_vec  = _one_hot(marker_rep.root_pos, vocab.upos_tags, vocab._idx_upos)
-        lemma_vec = _one_hot(marker_rep.root_lemma, vocab.connector_lemmas, vocab._idx_conn_lemma) \
-                    if vocab.connector_lemmas else np.zeros(0, dtype=np.float32)
-        dep_vec   = _one_hot(marker_rep.root_dep_rel, vocab.connector_dep_rels, vocab._idx_conn_dep)
+        upos_vec = _one_hot(marker_rep.root_pos, vocab.upos_tags, vocab._idx_upos)
+        dep_vec  = _one_hot(marker_rep.root_dep_rel, vocab.connector_dep_rels, vocab._idx_conn_dep)
+        # D10 — embedding du lemme connecteur appris (remplace one-hot configuré)
+        emb_vec  = word_embedding.lookup(marker_rep.root_lemma) \
+                   if word_embedding is not None else np.zeros(d_emb, dtype=np.float32)
     else:
-        upos_vec  = np.zeros(len(vocab.upos_tags), dtype=np.float32)
-        lemma_vec = np.zeros(len(vocab.connector_lemmas), dtype=np.float32)
-        dep_vec   = np.zeros(len(vocab.connector_dep_rels), dtype=np.float32)
+        upos_vec = np.zeros(len(vocab.upos_tags), dtype=np.float32)
+        dep_vec  = np.zeros(len(vocab.connector_dep_rels), dtype=np.float32)
+        emb_vec  = np.zeros(d_emb, dtype=np.float32)
 
     pos_vec = np.array(
         [float(src_idx < dst_idx), abs(dst_idx - src_idx) / max(n_clauses, 1)],
         dtype=np.float32,
     )
-    return np.concatenate([upos_vec, lemma_vec, dep_vec, pos_vec])
+    return np.concatenate([upos_vec, dep_vec, emb_vec, pos_vec])
 
 
 def vectorize_edge(
@@ -485,7 +512,7 @@ def vectorize_edge(
                          clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
         vectorize_clause(dst, vocab, word_embedding, drop_morph=drop_morph,
                          clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
-        vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab),
+        vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab, word_embedding),
         interaction,
     ])
 

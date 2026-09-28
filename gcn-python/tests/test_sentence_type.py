@@ -376,9 +376,12 @@ def test_lang_markers_from_json():
     assert (["ne", "que"],) == m.restriction_patterns or ["ne", "que"] in m.restriction_patterns
 
 
-def test_lang_markers_load_file():
-    assert LANG_MARKERS_PATH.exists(), f"lang_markers.json introuvable : {LANG_MARKERS_PATH}"
-    m = LangMarkers.load(LANG_MARKERS_PATH)
+def test_lang_markers_from_json_basic():
+    """LangMarkers se construit depuis un dict inline — pas de fichier requis."""
+    m = LangMarkers.from_json({
+        "interrogative_lemmas": ["pourquoi", "comment"],
+        "negation_particles": ["ne", "pas"],
+    })
     assert len(m.interrogative_lemmas) > 0
     assert len(m.negation_particles) > 0
 

@@ -124,24 +124,24 @@ def _make_connector(lemma, pos="SCONJ") -> UDRepresentation:
 # ---------------------------------------------------------------------------
 
 def test_connecteur_si_vs_bien_que_change_vecteur():
-    """
-    Avec un lexique de connecteurs fourni, deux connecteurs différents
-    produisent des vecteurs edge différents.
-    Sans lexique (défaut language-agnostic), les lemmes ne sont pas encodés.
-    """
-    # Fournir le lexique FR — la différence "si" vs "bien" est encodée
-    vocab = FeatureVocabulary(connector_lemmas=CONNECTOR_LEMMAS)
+    """D10 ETUDE — deux connecteurs différents produisent des vecteurs différents
+    via word_embedding (appris), pas via connector_lemmas (configuré)."""
+    from gcn_python.layer1.embedding import WordEmbedding
+    we = WordEmbedding(d_emb=8, seed=42)   # minimal embedding, graines fixes
+    we.add_lemma("si")    # connecteur conditionnel
+    we.add_lemma("bien")  # connecteur concessif
+    vocab = FeatureVocabulary()
     src = _make_rep("baisser", morph={"Tense": "Pres"})
     dst = _make_rep("réduire", morph={"Tense": "Pres"})
     conn_si   = _make_connector("si")
     conn_bien = _make_connector("bien")
 
-    vec_si   = vectorize_edge(src, dst, conn_si,   1, 2, 3, vocab)
-    vec_bien = vectorize_edge(src, dst, conn_bien,  1, 2, 3, vocab)
+    vec_si   = vectorize_edge(src, dst, conn_si,   1, 2, 3, vocab, word_embedding=we)
+    vec_bien = vectorize_edge(src, dst, conn_bien, 1, 2, 3, vocab, word_embedding=we)
 
     assert not np.array_equal(vec_si, vec_bien), (
         "Vecteurs identiques malgré des connecteurs différents — "
-        "le connecteur n'est pas encodé dans vectorize_edge."
+        "word_embedding.lookup() doit distinguer 'si' de 'bien'."
     )
 
 

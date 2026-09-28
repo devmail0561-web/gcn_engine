@@ -33,9 +33,15 @@ def _rep_with_tokens(tokens: list[dict]):
 
 
 def _markers() -> LangMarkers:
-    return LangMarkers.load(
-        "/home/virus-one/Bureau/projet_CNM/gcn-datasets/configs/lang_markers.json"
-    )
+    """Fixture inline — les markers ne viennent pas d'un fichier de config externe."""
+    return LangMarkers.from_json({
+        "discourse_connectors": {
+            "cause": {"lemmas": ["donc", "ainsi", "therefore"], "confidence": 0.80, "inverted": False},
+            "cause_inverted": {"lemmas": ["car", "parce que", "because"], "confidence": 0.75, "inverted": True},
+            "concession": {"lemmas": ["cependant", "neanmoins", "however"], "confidence": 0.80, "inverted": False},
+            "sequence": {"lemmas": ["ensuite", "puis", "then", "next"], "confidence": 0.80, "inverted": False},
+        }
+    })
 
 
 # ---------------------------------------------------------------------------
