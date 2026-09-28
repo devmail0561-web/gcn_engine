@@ -7,6 +7,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Correctifs post-audit D5/D10 (2026-09-28)
+
+- **`gcn-backend/analogy.rs`** : tableau `dynamic` mort supprimé (`Processus==Processus` capté par `a==b` — branche dead code depuis D5). Commentaires D4 (`Action/Transition`) remplacés par D5.
+- **`gcn-ir/lib.rs`** : `node_type_serde_roundtrip` étendu aux 8 NodeType D5 — `Concept` et `Evenement` ajoutés, doublons `Processus` supprimés.
+- **`gcn-frontend-fr/src/tagger.rs` / `annotator.rs`** : commentaires stale `EtatSystemique` → `EtatGlobal`.
+- **`integration_code.rs`** : messages d'assert D4 (`Action`/`Transition`) mis à jour → `Processus`.
+- **`evaluation/calibration.py`** (nouveau) : module T5-min + ECE (PHASE D §D.5) — `softmax`, `ece_score`, `optimize_temperature`, `apply_isotonic_params`. Briques NumPy pures, fallback identité si clés `calibrator_x/y` absentes (rétrocompat checkpoints v2/v3).
+- **`tests/test_calibration.py`** : 12 tests unitaires (softmax, ECE, T5-min, isotonie) — 12/12 verts.
+- **`gcn-datasets/examples/` (5 fichiers JSON)** : migration NodeType D4→D5 — `action`→`processus`, `transition`→`processus`, `etat`→`etat_local`, `etat_systemique`→`etat_global`. Supprime les `UserWarning` du `VerbalizerDataLoader`.
+
 ### BREAKING — D5 Ontologie nœuds (C2)
 
 - **`constants.py`** : `NODE_TYPES` renommé vers la taxonomie D5 ETUDE :

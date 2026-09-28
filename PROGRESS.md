@@ -39,9 +39,10 @@ v3.0    ████████████████████  100%  Migr
 Audit   ████████████████████  100%  Conformité code↔plan (2026-09-28) : Contrainte Rust, logit mask, D1 features, dims v3
 v4.0    ████████████████████  100%  ETUDE complète : §9.4 négation, Éq.6/10/11/12, D4 coarse/fine, schéma v4
 AuditC  ████████████████████  100%  Correctifs audit C1-C5 : D5 renommage, hash joint, metrics K2, Pearl serde, T5-min
+AuditD2 ████████████████████  100%  Post-audit D5/D10 : dead code analogy, serde 8 types, calibration §D.5, datasets D4→D5
 ```
 
-**Tests Python : 668 / 668 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
+**Tests Python : 685 / 685 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
 **Tests Rust : 0 échec** (`cargo test --workspace`)
 
 ---
