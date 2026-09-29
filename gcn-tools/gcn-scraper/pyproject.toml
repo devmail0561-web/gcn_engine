@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "gcn-scraper"
 version = "3.0.0"
-description = "Scraper multilingue agnostique pour le dataset GCN causal (50k+ phrases)"
+description = "Collecteur multilingue pour corpus GCN-NL — Wikipedia/HAL/arXiv/GitHub/RSS/web (FR/EN/ES/DE + code Python/Rust/JS), filtrage causal, déduplication SQLite, reprise sur interruption"
 requires-python = ">=3.10"
 classifiers = [
     "License :: OSI Approved :: MIT License",

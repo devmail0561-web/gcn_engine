@@ -655,12 +655,7 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
             let other_sources = ir
                 .edges
                 .iter()
-                .filter(|(s, _d, e)| {
-                    *s != target.id && *s == mediator_id
-                        || (*s != target.id
-                            && e.relation != RelationType::MediatedCause
-                            && _dst == &mediator_id)
-                })
+                .filter(|(s, d, _e)| *d == mediator_id && *s != target.id)
                 .count();
             if other_sources == 0 {
                 extra_excluded.insert(mediator_id);

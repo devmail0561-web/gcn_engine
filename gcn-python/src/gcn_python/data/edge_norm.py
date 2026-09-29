@@ -223,7 +223,13 @@ def normalize_edge(e: Any) -> dict | list[dict] | None:
         jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
         relation = _get_relation(attrs, outer)
         if relation and sanitize_text(str(relation)) not in ("joint_cause", "joint_prevent"):
-            relation = "joint_cause"  # forcer le type joint sur 2 sources
+            import warnings as _w
+            _w.warn(
+                f"edge_norm: relation '{relation}' sur 2 sources remplacée par 'joint_cause'. "
+                "Annoter explicitement joint_cause/joint_prevent pour supprimer cet avertissement.",
+                UserWarning, stacklevel=4,
+            )
+            relation = "joint_cause"
         e1 = dict(attrs)
         e1["source"] = src_list[0]
         e1["relation"] = relation

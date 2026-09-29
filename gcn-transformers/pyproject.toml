@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gcn-transformers"
-version = "1.0.0"
-description = "Transformer-based encoders for GCN Causal Engine (CamemBERT, XLM-RoBERTa, CodeBERT)"
+version = "1.1.0"
+description = "Encodeurs Transformer drop-in pour GCN Causal Engine v4.0 — CamemBERT (FR), XLM-RoBERTa (multilingue), CodeBERT (code) ; interface identique à MLPEncoder, dimensions d_clause=106 / 8 nœuds / 19 relations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ authors = [
     {name = "Michel Tendeng", email = "devmail0561-web@gcn-engine.org"},
 ]
 dependencies = [
-    "gcn-python>=2.5.0",
+    "gcn-python>=4.0.0",
     "transformers>=4.30.0",
     "torch>=2.0.0",
     "numpy>=1.24.0",

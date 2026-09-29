@@ -438,7 +438,7 @@ def train_cmd(
         click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
         if connector_vocab is not None:
             from ..verbalizer.trainable import LexicalConnectorAssembler
-            assembler = LexicalConnectorAssembler(connector_vocab)
+            assembler = LexicalConnectorAssembler(connector_vocab, n_relations=len(RELATION_TYPES))
             verbalize_mode = "lexical"
             click.echo(f"Assembleur lexical : {len(connector_vocab)} connecteurs (mode lexical)")
         elif legacy_decoder:

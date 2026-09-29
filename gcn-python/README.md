@@ -1,7 +1,7 @@
 # gcn-python — Moteur de raisonnement causal GCN-Core
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Tests](https://img.shields.io/badge/tests-668-passing)](tests/)
+[![Tests](https://img.shields.io/badge/tests-685-passing)](tests/)
 
 Implémentation de référence NumPy du moteur causal GCN-Core. Extrait la structure causale de texte et répond à des requêtes Pearl sur le graphe résultant.
 
@@ -167,6 +167,28 @@ Options notables :
 
 ## Inférence
 
+### GCNEngine — point d'entrée haut niveau
+
+```python
+from gcn_python import GCNEngine
+
+# Charger un checkpoint entraîné
+engine = GCNEngine.from_pretrained("checkpoints/model_v4.npz")
+
+# Analyser une phrase
+cir = engine.analyze("Si les traitements échouent, le médecin prescrit un autre médicament.")
+print(cir["edges"][0][2]["relation"])   # "condition"
+print(cir["nodes"][0]["type"])          # "processus"
+
+# Analyser plusieurs phrases
+results = engine.analyze_batch([
+    "La pluie cause des inondations.",
+    "Si la demande baisse, les ventes chutent.",
+])
+```
+
+### Inférence via CLI
+
 ```bash
 # Session interactive
 gcn-discuss --checkpoint model.npz
@@ -215,12 +237,102 @@ cmd = nlu_route("Pourquoi les ventes baissent ?", pipeline=pipeline)
 
 ---
 
+## Modules clés — exemples
+
+### FeatureVocabulary + vectorize_clause
+
+```python
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause
+from gcn_python.data.loader import reps_from_sentence
+
+vocab = FeatureVocabulary()
+print(vocab.d_clause)                           # 106
+print(vocab.d_clause_effective(d_emb=128))      # 234
+
+# Vectoriser une clause depuis un SentenceRecord
+reps, idxs, conn_reps = reps_from_sentence(sample)
+vec = vectorize_clause(reps[0], vocab)          # ndarray (106,)
+```
+
+### SentenceProfile — classify()
+
+```python
+from gcn_python.layer1.sentence_type import classify, LangMarkers
+
+tokens = [
+    {"id": 0, "form": "Si",      "lemma": "si",     "pos": "SCONJ",
+     "dep_rel": "mark", "dep_head": 2, "morph": {}},
+    {"id": 2, "form": "échoue",  "lemma": "échouer", "pos": "VERB",
+     "dep_rel": "advcl", "dep_head": 4, "morph": {"Mood": "Ind"}},
+]
+profile = classify(tokens)
+print(profile.sentence_type)      # SentenceType.DECLARATIVE
+print(profile.subordination)      # SubordinationType.CONDITION
+print(profile.is_complex)         # True
+```
+
+### MLPEncoder + RGCNLayer
+
+```python
+from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer2.reference import MLPEncoder
+from gcn_python.layer3.reference import RGCNLayer
+from gcn_python.constants import RELATION_TYPES, NODE_TYPES
+
+vocab  = FeatureVocabulary()
+d_eff  = vocab.d_clause_effective(d_emb=128)        # 234
+d_edge = vocab.d_edge_closed_loop(d_eff, 8, 128)   # 1115
+
+encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+graph   = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=len(RELATION_TYPES))  # 19
+```
+
+### GCNDataLoader
+
+```python
+from pathlib import Path
+from gcn_python.data.loader import GCNDataLoader
+
+loader = GCNDataLoader(Path("gcn-datasets/splits/train/"))
+for sample in loader:
+    print(sample.sentence.text)
+    print(sample.gold_node_labels)   # ndarray (N,)
+    print(sample.edge_map)           # {(i,j): relation_idx}
+```
+
+### Évaluation
+
+```python
+from gcn_python.evaluation.metrics import edge_macro_f1, node_f1_per_class
+from gcn_python.constants import RELATION_TYPES_V2
+
+# F1 macro sur les 11 classes v2 partagées (métrique K2)
+f1 = edge_macro_f1(y_true, y_pred, class_subset=RELATION_TYPES_V2)
+
+# F1 par classe avec support
+per_class = node_f1_per_class(y_true, y_pred)
+for name, (p, r, f, sup) in per_class.items():
+    if sup > 0:
+        print(f"{name}: F1={f:.3f} (n={sup})")
+```
+
+### Checkpoint
+
+```python
+from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+save_checkpoint(pipeline, Path("checkpoints/model_v4.npz"))
+pipeline2 = load_checkpoint(Path("checkpoints/model_v4.npz"))
+```
+
+---
+
 ## Tests
 
 ```bash
 cd gcn-python
 PYTHONPATH=src python -m pytest tests/ -v
-# 668 passed, 3 xfailed (checkpoints v2 incompatibles d_clause 79→106)
+# 685 passed, 3 xfailed (checkpoints v2 incompatibles d_clause 79→106)
 ```
 
 Les 3 xfailed sont attendus : les checkpoints v2 (`prod_v1.npz`, d_clause=79) sont incompatibles

@@ -8,6 +8,7 @@ import warnings
 
 import numpy as np
 
+from ..constants import RELATION_TYPES
 from ..layer2.reference import _LinearLayer
 
 
@@ -518,7 +519,7 @@ class LexicalConnectorAssembler:
         self,
         connector_vocab: list[str],
         d_rel: int = 16,
-        n_relations: int = 11,
+        n_relations: int = len(RELATION_TYPES),
         seed: int = 42,
     ) -> None:
         if not connector_vocab:
@@ -593,4 +594,4 @@ class LexicalConnectorAssembler:
     def from_json(cls, s: str) -> LexicalConnectorAssembler:
         data = json.loads(s)
         return cls(data["connector_vocab"], d_rel=data.get("d_rel", 16),
-                   n_relations=data.get("n_relations", 11))
+                   n_relations=data.get("n_relations", len(RELATION_TYPES)))

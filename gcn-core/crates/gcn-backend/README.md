@@ -1,6 +1,6 @@
 # gcn-backend — Raisonnement Pearl, GCN-QL et Export
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-backend)](https://crates.io/crates/gcn-backend)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -30,7 +30,7 @@ CausalIR  (après gcn-middleend)
 
 ```toml
 [dependencies]
-gcn-backend = "2.5.0"
+gcn-backend = "4.0.0"
 ```
 
 ---
@@ -87,6 +87,20 @@ if let Some((label, result)) = counterfactual(&ir, "pluie") {
     println!("Effets réels de '{}' : {}", label, result.actual_effects.len());
     println!("Effets uniquement dus à '{}' : {:?}", label, result.unique_effects);
     // unique_effects = effets sans chemin alternatif depuis les vraies racines
+}
+```
+
+### SPOF — Points de défaillance unique
+
+```rust
+use gcn_backend::pearl::spof_all;
+
+let (total_pairs, scores) = spof_all(&ir);
+for score in &scores {
+    if score.score > 0 {
+        println!("{} coupe {} paires causales (super_spof={})",
+                 score.label, score.score, score.is_super_spof);
+    }
 }
 ```
 

@@ -2,7 +2,7 @@
 name = "gcn-ir"
 version.workspace = true
 edition = "2024"
-description = "Représentation Intermédiaire Causale — types fondamentaux du moteur GCN-Core"
+description = "Types CIR v4.0 du moteur GCN-Core — 8 NodeType D5, 19 RelationType, TernaryThird, joint_group_id, CausalEdge, CausalNode, serde JSON"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"

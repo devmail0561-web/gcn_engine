@@ -114,14 +114,14 @@ AuditD2 ████████████████████  100%  Post
 | RGCNLayer référence NumPy | `gcn-python/layer3/reference.py` | ✅ |
 | CGNPipeline.forward() | `gcn-python/pipeline/cgnp.py` | ✅ |
 | ir_emitter (→ JSON Rust) | `gcn-python/pipeline/ir_emitter.py` | ✅ |
-| gcn-forward CLI | `gcn-python/pipeline/cli.py` | ✅ |
+| gcn-forward CLI | supprimé (v2.5.1) | ~~✅~~ |
 | backward() rétropropagation + SGD | `gcn-python/pipeline/cgnp.py` | ✅ |
 | loss() cross-entropie NumPy | `gcn-python/pipeline/cgnp.py` | ✅ |
 | GCNDataLoader + TrainingSample | `gcn-python/data/loader.py` | ✅ |
 | gcn-train CLI (boucle SGD) | `gcn-python/training/train.py` | ✅ |
 | gcn-bootstrap CLI (génération JSON) | `gcn-python/training/bootstrap.py` | ✅ |
 | checkpoint save/load (.npz) | `gcn-python/training/checkpoint.py` | ✅ |
-| gcn-forward --model-path | `gcn-python/pipeline/cli.py` | ✅ |
+| gcn-forward --model-path | supprimé (v2.5.1) | ~~✅~~ |
 | backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
 | Protocol CausalGraph backward | `gcn-python/layer3/interface.py` | ✅ |
 
@@ -211,7 +211,7 @@ AuditD2 ████████████████████  100%  Post
 
 **Limites connues :**
 - Pearl niveau 1 uniquement (association / observationnel)
-- `gcn forward` requiert que `gcn-python` soit installé et `gcn-forward` dans le PATH
+- `gcn forward` : supprimé en v2.5.1 (redondant avec `gcn-train`/`gcn-eval`)
 
 ---
 

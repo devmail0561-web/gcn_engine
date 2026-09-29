@@ -29,3 +29,29 @@ jobs:
       - run: pip install -e "gcn-python[dev]"
       - run: ruff check gcn-python/src/ gcn-python/tests/
       - run: pytest gcn-python/tests/ -q
+
+  transformers:
+    name: gcn-transformers — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-python[dev]"
+      - run: pip install -e "gcn-transformers[dev]"
+      - run: pytest gcn-transformers/tests/ -q
+
+  annotate:
+    name: gcn-annotate — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-python[dev]"
+      - run: pip install -e "gcn-tools/gcn-annotate[dev]"
+      - run: pytest gcn-tools/gcn-annotate/tests/ -q
+
+  scraper:
+    name: gcn-scraper — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-tools/gcn-scraper[dev]"
+      - run: pytest gcn-tools/gcn-scraper/tests/ -q

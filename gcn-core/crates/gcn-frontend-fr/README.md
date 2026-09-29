@@ -1,6 +1,6 @@
 # gcn-frontend-fr — Parser Causal Français
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-frontend-fr)](https://crates.io/crates/gcn-frontend-fr)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -30,7 +30,7 @@ Frontend symbolique français du moteur **GCN-Core**. Analyse du texte naturel f
 
 ```toml
 [dependencies]
-gcn-frontend-fr = "2.5.0"
+gcn-frontend-fr = "4.0.0"
 ```
 
 ---

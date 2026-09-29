@@ -7,8 +7,8 @@ import warnings
 
 # v4 — 8 types de nœuds (D5 ETUDE)
 NODE_TYPES = {
-    "etat", "action", "transition", "processus",
-    "condition", "entite", "etat_systemique", "contrainte",
+    "processus", "etat_local", "etat_global", "entite",
+    "condition", "concept", "evenement", "contrainte",
 }
 
 # v4 — 19 types de relations (D2 ETUDE)
@@ -33,21 +33,27 @@ VALID_PROMINENCE = {"foreground", "background"}
 VALID_THIRD_ROLES = {"condition", "mediator"}
 
 NODE_TYPE_ALIASES: dict[str, str] = {
-    "état": "etat",
-    "état_systémique": "etat_systemique",
-    "état systemique": "etat_systemique",
-    "etat systemique": "etat_systemique",
-    "état_local": "etat",
-    "état_global": "etat_systemique",
-    "etat_local": "etat",
-    "etat_global": "etat_systemique",
-    "concept": "entite",
-    "evenement": "etat_systemique",
-    "événement": "etat_systemique",
+    # v2 → v4 (migration)
+    "etat": "etat_local",
+    "etat_systemique": "etat_global",
+    "action": "processus",
+    "transition": "processus",
+    # accents / espaces
+    "état": "etat_local",
+    "état_systémique": "etat_global",
+    "état systemique": "etat_global",
+    "etat systemique": "etat_global",
+    "état_local": "etat_local",
+    "état_global": "etat_global",
+    "événement": "evenement",
+    # aliases hors-champ
     "constraint": "contrainte",
-    "Etat": "etat", "Action": "action", "Transition": "transition",
+    # Pascal case
+    "Etat": "etat_local", "Action": "processus", "Transition": "processus",
     "Processus": "processus", "Condition": "condition",
     "Entite": "entite", "Entité": "entite", "Contrainte": "contrainte",
+    "Concept": "concept", "Evenement": "evenement", "Événement": "evenement",
+    "EtatLocal": "etat_local", "EtatGlobal": "etat_global",
 }
 
 RELATION_TYPE_ALIASES: dict[str, str] = {

@@ -1,6 +1,6 @@
-# gcn-knowledge — Taxonomies, Lexicon et Moteur d'Inférence
+# gcn-knowledge — Chargeur de Taxonomies et Lexicon Causal
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-knowledge)](https://crates.io/crates/gcn-knowledge)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -31,7 +31,7 @@ gcn-references/taxonomies/*.yaml
 
 ```toml
 [dependencies]
-gcn-knowledge = "2.5.0"
+gcn-knowledge = "4.0.0"
 ```
 
 ---
@@ -160,7 +160,7 @@ engine.infer_scope("tous", "DET") -> Option<Scope>
 // Retourne Some(Scope::Universal), Some(Scope::Existential), etc.
 
 // Score de confiance structurel [0.1, 1.0]
-engine.score_confidence(NodeType::Action, NodeType::Etat, RelationType::Cause, true)
+engine.score_confidence(NodeType::Processus, NodeType::EtatLocal, RelationType::Cause, true)
 // explicit=true → base 1.0, ajusté ±0.15/±0.10 selon la triple (from, to, rel)
 // explicit=false → base 0.5
 ```

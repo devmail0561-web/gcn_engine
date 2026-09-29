@@ -16,7 +16,7 @@
 
 schema:
   name: "GCN-PL"
-  version: "1.0"
+  version: "4.0"
   description: >
     Format de dataset pour l'annotation causale de langages de programmation.
     Chaque snippet de code est annote a deux niveaux : noeuds AST avec
@@ -392,42 +392,52 @@ cir_node:
     type:
       type: enum
       required: true
+      migration_aliases:
+        etat: etat_local
+        etat_systemique: etat_global
+        action: processus
+        transition: processus
       values:
-        etat:
-          description: >
-            Etat d'une variable ou d'une entite. Pas de dynamique causale
-            propre — repond a "qu'est-ce qui a produit cet etat ?".
-          code_mapping: "variable_state, return_value, let_declaration"
-        action:
-          description: >
-            Intervention causale directe — un appel de fonction, une
-            affectation, une operation qui produit un effet.
-          code_mapping: "assignment, function_call"
-        transition:
-          description: >
-            Changement d'etat ponctuel — mutation, passage d'un etat
-            a un autre. Delta instantane.
-          code_mapping: "mutation, assignment (quand transition d'etat)"
         processus:
           description: >
-            Cause continue — boucle, iteration, accumulation progressive.
-            Le temps est intrinseque au processus.
-          code_mapping: "loop (for, while)"
-        condition:
+            Action ou transformation dynamique (absorbe action + transition v1).
+            Appels de fonction, affectations, mutations, boucles.
+          code_mapping: "assignment, function_call, mutation, loop"
+        etat_local:
           description: >
-            Suspend la chaine causale jusqu'a evaluation. Branchement
-            conditionnel, pattern matching, assertion.
-          code_mapping: "conditional (if, match, switch), assertion"
+            Etat d'une variable ou entite specifique.
+            Repond a "qu'est-ce qui a produit cet etat ?".
+          code_mapping: "variable_state, return_value, let_declaration"
+        etat_global:
+          description: >
+            Contexte global filtrant — configuration, etat d'environnement.
+            Affecte toutes les chaines causales du snippet.
+          code_mapping: "import_dependency, global state"
         entite:
           description: >
             Agent ou patient structurel — type, classe, module.
             Ne produit pas de causalite directe mais peuple la chaine.
           code_mapping: "type_definition (class, struct, enum)"
-        etat_systemique:
+        condition:
           description: >
-            Contexte global filtrant — configuration, etat d'environnement.
-            Affecte toutes les chaines causales du snippet.
-          code_mapping: "import_dependency, global state"
+            Suspend la chaine causale jusqu'a evaluation.
+            Branchement conditionnel, pattern matching, assertion.
+          code_mapping: "conditional (if, match, switch), assertion"
+        concept:
+          description: >
+            Abstraction, mesure, grandeur — constante, configuration, seuil.
+            NOUVEAU D5. (NOUN abstrait + contexte quantitatif)
+          code_mapping: "constant, threshold, config value"
+        evenement:
+          description: >
+            Fait ponctuel date ou datable — exception levee, event emis.
+            NOUVEAU D5.
+          code_mapping: "exception raise, event emit"
+        contrainte:
+          description: >
+            Restriction exclusive ou condition bloquante — guard clause, assert strict.
+            NOUVEAU D5.
+          code_mapping: "guard clause, strict assertion, early return"
 
     label:
       type: string
@@ -596,55 +606,70 @@ cir_edge:
         Identifiant du noeud cible (effet, consommateur, consequence).
       format: "n<numero>"
 
+    sources:
+      type: list[string]
+      required: false
+      description: >
+        Sources multiples pour joint_cause / joint_prevent.
+        Pour les relations directes, utiliser source (string).
+
+    source:
+      type: string
+      required: false
+      description: >
+        Source unique pour les relations non-joint.
+
+    third:
+      type: object
+      required: false
+      description: >
+        Tiers ternaire v4.0 — condition ou mediateur.
+      fields:
+        role:
+          type: enum
+          values: [condition, mediator]
+        node:
+          type: string
+        polarity:
+          type: enum
+          values: [positive, negative]
+          required: false
+
+    joint_group_id:
+      type: string
+      required: false
+      description: "sha256(target|sorted_sources)[:16] — lien entre les deux aretes joint."
+
     relation:
       type: enum
       required: true
       values:
-        data_dependency:
-          description: >
-            Dependance de donnees — le noeud cible lit une valeur
-            produite par le noeud source. Flux de donnees.
-          examples: ["total lu par la condition", "reduction lue par return"]
-
-        control_dependency:
-          description: >
-            Dependance de controle — le noeud cible n'est execute
-            que si le noeud source (condition) est evalue a vrai/faux.
-          examples: ["if branch => body", "match arm => action"]
-
-        condition:
-          description: >
-            Relation conditionnelle — le noeud source est une condition
-            qui suspend l'execution du noeud cible.
-          examples: ["total < threshold => reduction = ...", "status == Declining => reduce_costs"]
-
-        sequence:
-          description: >
-            Relation sequentielle — le noeud cible est execute apres
-            le noeud source dans l'ordre du programme.
-          examples: ["assignment => return", "evaluate => match"]
-
-        cause:
-          description: >
-            Relation causale directe — le noeud source cause
-            l'execution ou l'etat du noeud cible.
-          examples: ["mutation => nouvel etat", "appel => effet de bord"]
-
-        enable:
-          description: >
-            Facilitation — le noeud source rend possible (mais ne force pas)
-            l'execution du noeud cible.
-          examples: ["import => utilisation du module"]
-
-        prevent:
-          description: >
-            Prevention — le noeud source empeche l'execution du noeud cible.
-          examples: ["guard clause => early return", "assert failure => block"]
-
+        # Relations directes partagees avec GCN-NL
+        - cause
+        - enable
+        - prevent
+        - condition
+        - sequence
+        - data_dependency
+        - control_dependency
+        # Relations v4.0
+        - concession
+        - motivation
+        - filter
+        - opposition
+        - analogy
+        - counterfactual
+        - conditional_cause
+        - mediated_cause
+        - joint_cause
+        - conditional_prevent
+        - mediated_prevent
+        - joint_prevent
       description: >
-        Type de relation causale entre les deux noeuds.
-        Les relations data_dependency et control_dependency sont specifiques
-        au code; les autres sont partagees avec GCN-NL.
+        Type de relation causale entre les deux noeuds (19 total v4.0).
+        data_dependency et control_dependency sont specifiques au code.
+        Les relations ternaires (conditional_cause, mediated_cause, joint_cause,
+        *_prevent) requierent les champs third / sources / joint_group_id.
 
     attributes:
       type: object
@@ -824,7 +849,7 @@ conventions:
     # cause, enable, prevent
 
   node_type_names: "snake_case"
-    # etat, action, transition, processus, condition, entite, etat_systemique
+    # processus, etat_local, etat_global, entite, condition, concept, evenement, contrainte (v4.0 D5)
 
   encoding: "UTF-8"
 

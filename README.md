@@ -3,9 +3,9 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-186%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-467%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-192%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-685%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -312,13 +312,18 @@ pub struct CausalIR {
     pub metadata: IrMetadata,
 }
 
-// Types de nœuds
-pub enum NodeType { Etat, Action, Transition, Processus, Condition, Entite, EtatSystemique }
+// Types de nœuds (8 — v3.0)
+pub enum NodeType { Processus, EtatLocal, EtatGlobal, Entite, Condition, Concept, Evenement, Contrainte }
 
-// Types de relations
+// Types de relations (19 — v3.0)
 pub enum RelationType {
+    // 11 directes
     Cause, Enable, Prevent, Condition, Concession, Sequence,
-    Motivation, Filter, Opposition, DataDependency, ControlDependency
+    Motivation, Filter, Opposition, DataDependency, ControlDependency,
+    // 8 ternaires/counterfactual
+    Analogy, Counterfactual,
+    ConditionalCause, MediatedCause, JointCause,
+    ConditionalPrevent, MediatedPrevent, JointPrevent,
 }
 
 // CIR v2 — traçabilité sur chaque arête (champs optionnels, backward compat)
@@ -408,11 +413,11 @@ class MyEncoder:
     """Implémentation PyTorch, JAX ou autre — à vous de choisir."""
 
     def forward_node(self, x: np.ndarray) -> np.ndarray:
-        # x: (D_clause = 80,) → retourne (7,) logits sur NodeType
+        # x: (D_clause = 106,) → retourne (8,) logits sur NodeType
         ...
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
-        # x: (D_edge ≈ 346,) → retourne (11,) logits sur RelationType
+        # x: (D_edge ≈ 475,) → retourne (19,) logits sur RelationType
         ...
 
     def parameters(self) -> list[np.ndarray]: ...

@@ -7,6 +7,25 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Correctifs audit 2 (2026-09-29)
+
+- **`gcn-backend/src/query.rs`** : `&input[..200]` (octet) → slicing `char_indices().nth(200)` — élimine le panic UTF-8 sur requêtes contenant é/ü/à en position 199.
+- **`scripts/init_v3_stub.py`** : `np.load(allow_pickle=True)` → `guarded_np_load` — audit pickle préalable avant chargement du checkpoint v2 (vecteur RCE colmaté).
+- **`gcn-python/verbalizer/trainable.py`** : `LexicalConnectorAssembler` `n_relations` défaut `11` → `len(RELATION_TYPES)` (19). Idem `from_json`. Élimine le `ValueError` sur les 8 nouveaux types v3.
+- **`gcn-python/training/train.py`** : appel `LexicalConnectorAssembler` avec `n_relations=len(RELATION_TYPES)` explicite.
+- **`gcn-python/data/edge_norm.py`** : `UserWarning` émis quand une relation est silencieusement remplacée par `joint_cause` sur 2 sources.
+- **`gcn-core/crates/gcn-backend/src/pearl.rs`** : filtre `MediatedCause` corrigé — `*d == mediator_id && *s != target.id` (arêtes *arrivant* au médiateur) au lieu de `*s == mediator_id` (sortant). Élimine les faux causaux Pearl sur le contrefactuel.
+- **`gcn-tools/gcn-annotate/src/gcn_annotate/normalize.py`** : `NODE_TYPES` mis à jour vers les 8 types D5 v4 (`processus`, `etat_local`, `etat_global`, `entite`, `condition`, `concept`, `evenement`, `contrainte`). Aliases inversés v2→v4 (était v4→v2).
+
+### Nettoyage docs/schémas (2026-09-29)
+
+- **`gcn-transformers/README.md`** : commentaires `d_clause=79→106`, `n_node_types=7→8`, `n_relations=11→19`, `d_edge=365→475`, `207→234`.
+- **`gcn-transformers/tests/test_audit_fixes.py`** : `d_clause=79, d_edge=365` → `106, 475`.
+- **`README.md`** : exemple `CausalEncoder` mis à jour (D_clause 80→106, D_edge 346→475, 7→8 nœuds, 11→19 relations). Enum `NodeType`/`RelationType` → v3.0. Badges tests : 186→192 Rust, 467→685 Python.
+- **`gcn-datasets/schemas/gcn-nl.schema.yaml`** : version 1.0→4.0 ; 7 types → 8 types D5 avec aliases migration ; 11 relations → 19 ; ajout champs `sources`, `third`, `joint_group_id`, `intent`.
+- **`gcn-datasets/schemas/gcn-pl.schema.yaml`** : version 1.0→4.0 ; types nœuds D5 avec code_mappings ; 19 relations ; champs ternaires.
+- **`gcn-datasets/schemas/gcn-verbalize.schema.yaml`** : version 1.0→4.0 ; types D5 ; format edge v4 avec tous les champs.
+
 ### Correctifs post-audit D5/D10 (2026-09-28)
 
 - **`gcn-backend/analogy.rs`** : tableau `dynamic` mort supprimé (`Processus==Processus` capté par `a==b` — branche dead code depuis D5). Commentaires D4 (`Action/Transition`) remplacés par D5.

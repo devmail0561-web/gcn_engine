@@ -27,6 +27,8 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "gcn-python" / "src"))
 
+from gcn_python.security.npz_guard import guarded_np_load  # noqa: E402
+
 # v3.0 constants
 N_RELATIONS_V3 = 19
 N_NODE_TYPES_V3 = 8
@@ -53,7 +55,7 @@ def stub_v3(
 
     # --- Charger le checkpoint v2 ---
     print(f"Lecture checkpoint v2 : {v2_path}")
-    data = np.load(v2_path, allow_pickle=True)
+    data = guarded_np_load(v2_path)
     arch_v2 = json.loads(str(data["_arch_json"][0]))
 
     # --- Architecture v2 ---
