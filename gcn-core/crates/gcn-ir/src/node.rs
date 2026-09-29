@@ -41,6 +41,22 @@ pub enum CausalDirection {
 }
 
 impl NodeType {
+    /// Nom canonique snake_case (identique au serde) → `NodeType`.
+    /// Source unique des conversions dans le moteur (D1).
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s {
+            "processus" => Some(NodeType::Processus),
+            "etat_local" => Some(NodeType::EtatLocal),
+            "etat_global" => Some(NodeType::EtatGlobal),
+            "entite" => Some(NodeType::Entite),
+            "condition" => Some(NodeType::Condition),
+            "concept" => Some(NodeType::Concept),
+            "evenement" => Some(NodeType::Evenement),
+            "contrainte" => Some(NodeType::Contrainte),
+            _ => None,
+        }
+    }
+
     pub fn causal_direction(&self) -> CausalDirection {
         match self {
             NodeType::Processus => CausalDirection::Both,

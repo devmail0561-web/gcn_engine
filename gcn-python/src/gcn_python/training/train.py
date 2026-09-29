@@ -37,6 +37,66 @@ from ..pipeline.cgnp import CGNPipeline
 from .checkpoint import save_checkpoint
 
 
+def collect_val_logits_for_calibration(val_loader, pipeline, all_pairs: bool = True):
+    """Collecte (logits arêtes, labels gold) sur le val set pour T5-min (B2 audit).
+
+    Chemin forward direct via `reps_from_sentence` (même chemin que
+    `_run_eval_pass`) + alignement logits↔gold via `edge_map`. Les phrases en
+    échec émettent `UserWarning` (jamais de `except: pass` silencieux).
+
+    Retourne `(_val_logits, _val_labels, _t5_skipped)` — la décision
+    (gate N>=10, `optimize_temperature`, messages) reste à l'appelant.
+    """
+    _val_logits, _val_labels = [], []
+    _t5_skipped = 0
+    for _vs in val_loader:
+        try:
+            _reps, _valid_idxs, _conn_reps = reps_from_sentence(_vs.sentence)
+            if not _reps or len(_reps) < 2:
+                continue
+            pipeline.forward(
+                _reps, _vs.sentence.text,
+                clause_positions=_valid_idxs,
+                n_total_clauses=len(_vs.sentence.clauses),
+                connector_reps=_conn_reps,
+            )
+            _logits = pipeline._cached_edge_logits
+            if _logits is None or len(_logits) == 0 or not _vs.edge_map:
+                continue
+            # Aligner logits ↔ gold comme _run_eval_pass : les paires
+            # sont ordonnées sur les reps, les clés edge_map sur les
+            # indices de clauses originaux.
+            if all_pairs:
+                _pairs = [
+                    (_valid_idxs[i], _valid_idxs[j])
+                    for i in range(len(_valid_idxs))
+                    for j in range(i + 1, len(_valid_idxs))
+                ]
+            else:
+                _pairs = [
+                    (_valid_idxs[k], _valid_idxs[k + 1])
+                    for k in range(len(_valid_idxs) - 1)
+                ]
+            _gold_full = np.array(
+                [_vs.edge_map.get(p, -1) for p in _pairs], dtype=np.int64
+            )
+            _mask = _gold_full >= 0
+            if _mask.any():
+                _idxs = np.where(_mask)[0]
+                # Garde : le forward peut filtrer (seuil) — ne garder
+                # que les indices valides dans la plage des logits.
+                _idxs = _idxs[_idxs < len(_logits)]
+                if len(_idxs) > 0:
+                    _val_logits.append(_logits[_idxs])
+                    _val_labels.extend(_gold_full[_idxs].tolist())
+        except Exception as _e:  # noqa: BLE001
+            _t5_skipped += 1
+            warnings.warn(f"T5-min : phrase {_vs.sentence.id!r} ignorée — {_e}",
+                          UserWarning, stacklevel=2)
+            continue
+    return _val_logits, _val_labels, _t5_skipped
+
+
 def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> list:
     """UDRepresentation minimaux depuis labels CIR pour le verbalizer (enriched_vecs réels)."""
     from ..layer1.representation import UDRepresentation
@@ -323,7 +383,7 @@ def train_cmd(
             # Phase A : d_emb=300 imposé, frozen=True par défaut.
             # Les vecteurs sont remplis après build_vocab (lemmes connus).
             d_emb = 300
-            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True)
+            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True, seed=_init_seed)
             click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
         elif embedding_file is not None and (embedding_dim == 0 or not _dim_from_cli):
             # Détecter la dimension depuis la première ligne du fichier
@@ -337,7 +397,7 @@ def train_cmd(
         else:
             d_emb = embedding_dim
         if d_emb > 0:
-            word_embedding = WordEmbedding(d_emb=d_emb)
+            word_embedding = WordEmbedding(d_emb=d_emb, seed=_init_seed)
             if embedding_file is not None:
                 n_loaded = word_embedding.load_from_file(str(embedding_file))
                 click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
@@ -477,7 +537,7 @@ def train_cmd(
                            subject_object_emb=subject_object_emb,
                            gat_residual=gat_residual, assembler=assembler,
                            no_mood=coarse_phase, no_tense=coarse_phase,
-                           n_intent_types=n_intent_types)
+                           n_intent_types=n_intent_types, seed=_init_seed)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
@@ -493,7 +553,8 @@ def train_cmd(
     link_pred_head = None
     if link_pred:
         from ..layer3.link_pred import LinkPredHead
-        link_pred_head = LinkPredHead(d_in=d_effective, src_aggregation=src_aggregation)
+        link_pred_head = LinkPredHead(d_in=d_effective, seed=_init_seed,
+                                      src_aggregation=src_aggregation)
         pipeline.link_predictor = link_pred_head
         click.echo(f"LinkPredHead : d_in={d_effective} src_agg={src_aggregation} "
                    f"neg_ratio={neg_ratio} bfs_depth={bfs_depth}")
@@ -1250,18 +1311,17 @@ def train_cmd(
         save_checkpoint(pipeline, output)
 
     # T5-min : optimiser la température sur le val set si disponible (C5 fix)
+    # §2.7 ETUDE : chemin forward direct via reps (pas de passage str via le
+    # bridge — _cached_edge_logits restait vide et `except: pass` masquait tout).
     if val_loader is not None:
         try:
             from ..evaluation.calibration import optimize_temperature
-            _val_logits, _val_labels = [], []
-            for _vs in val_loader:
-                try:
-                    pipeline.forward(_vs.sentence.text)
-                    if pipeline._cached_edge_logits is not None and len(_vs.edge_map) > 0:
-                        _val_logits.append(pipeline._cached_edge_logits)
-                        _val_labels.extend(list(_vs.edge_map.values()))
-                except Exception:  # noqa: S110, BLE001
-                    pass
+            _val_logits, _val_labels, _t5_skipped = collect_val_logits_for_calibration(
+                val_loader, pipeline, all_pairs)
+            if _t5_skipped > 0:
+                click.echo(f"T5-min : {_t5_skipped} phrase(s) ignorée(s) (voir warnings).")
+            if not _val_logits:
+                click.echo("T5-min : aucun logit collecté — chemin forward incorrect ou val sans arêtes")
             if _val_logits and len(_val_labels) >= 10:
                 import numpy as _np
                 _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]

@@ -32,6 +32,9 @@ pub fn relation_type_str_to_enum(rt: &str) -> Option<RelationType> {
         "enable" => Some(RelationType::Enable),
         "prevent" => Some(RelationType::Prevent),
         "motivation" => Some(RelationType::Motivation),
+        // §2.12 ETUDE : `filter` détectable par règle ("ne...que si") —
+        // les ternaires restent au ML (detect_ternary dans ir_emitter.py).
+        "filter" | "filtre" | "filtrage" => Some(RelationType::Filter),
         _ => None,
     }
 }

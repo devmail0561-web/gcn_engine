@@ -217,10 +217,13 @@ dependencies = [
  "gcn-backend",
  "gcn-frontend-code",
  "gcn-frontend-fr",
+ "gcn-frontend-graph",
+ "gcn-frontend-table",
  "gcn-ir",
  "gcn-knowledge",
  "gcn-middleend",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -262,6 +265,28 @@ dependencies = [
  "smallvec",
  "thiserror",
  "unicode-normalization",
+]
+
+[[package]]
+name = "gcn-frontend-graph"
+version = "4.0.0"
+dependencies = [
+ "gcn-ir",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "thiserror",
+]
+
+[[package]]
+name = "gcn-frontend-table"
+version = "4.0.0"
+dependencies = [
+ "gcn-ir",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "thiserror",
 ]
 
 [[package]]

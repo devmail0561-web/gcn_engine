@@ -38,8 +38,28 @@ impl CausalIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceLanguage {
-    Natural { lang: NaturalLanguage },
-    Programming { lang: ProgrammingLanguage },
+    Natural {
+        lang: NaturalLanguage,
+    },
+    Programming {
+        lang: ProgrammingLanguage,
+    },
+    /// Graphe typé explicite (STIX 2.x, dépendances, arbres de faute...) —
+    /// P2.1 ETUDE (`gcn-frontend-graph`). Additif : les CIR existants
+    /// (natural/programming) désérialisent toujours.
+    Graph {
+        format: GraphFormat,
+    },
+}
+
+/// Format de graphe source pour `SourceLanguage::Graph`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphFormat {
+    /// Bundle STIX 2.x (`{"type":"bundle","objects":[...]}`).
+    Stix21,
+    /// Données tabulaires cause/effet (CSV — P2.3 ETUDE, `gcn-frontend-table`).
+    Table,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -213,7 +213,7 @@ fn test_spof_super_spof_flag() {
             ),
         ],
     );
-    let (_, scores) = pearl::spof_all(&ir);
+    let (_, scores) = pearl::spof_all(&ir).expect("spof_all sur petit graphe");
     // A et B sont dans le groupe joint → super_spof
     for s in &scores {
         if s.label == "A" || s.label == "B" {

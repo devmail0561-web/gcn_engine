@@ -74,8 +74,8 @@ def stub_v3(
     n_all_rel_v2 = n_relations_v2  # already bidi in checkpoint
     n_all_rel_v3 = N_RELATIONS_V3 * 2 if bidi else N_RELATIONS_V3
 
-    # Recalcule d_conn depuis la forme encoder_6 v2
-    # encoder_6 = (mlp_hidden_edge, d_edge_closed_loop)
+    # Recalcule d_conn depuis la forme encoder_6 v2 (formule v2, SANS l'embedding
+    # connecteur D10 : d_edge = 2*d_clause + d_conn + 4).
     # d_edge_closed_loop = d_edge + 2*d_emb_per_clause + 2*d_eff + 2*n_node_types_v2
     # d_emb_per_clause = 3*d_emb si subject_object_emb else d_emb
     d_emb_per_clause = 3 * d_emb if subject_object_emb else d_emb
@@ -83,12 +83,33 @@ def stub_v3(
     enc6_shape = data["encoder_6"].shape  # (mlp_hidden_edge, d_ecl_v2)
     d_ecl_v2 = enc6_shape[1]
     d_edge_v2 = d_ecl_v2 - 2 * d_emb_per_clause - 2 * d_eff_v2 - 2 * n_node_types_v2
-    # d_edge = 2*d_clause + d_conn + 4
     d_clause_v2 = d_eff_v2 - d_emb - (2 * d_emb if subject_object_emb else 0)
     d_conn = d_edge_v2 - 2 * d_clause_v2 - 4
 
-    d_edge_v3 = 2 * D_CLAUSE_V3 + d_conn + 4
-    d_ecl_v3 = d_edge_v3 + 2 * d_emb_per_clause + 2 * d_eff_v3 + 2 * N_NODE_TYPES_V3
+    # Dimensions v3 : source unique = FeatureVocabulary vivant (jamais recalculé
+    # à la main — la formule a changé avec D10 "embedding connecteur appris" :
+    # d_edge_effective inclut désormais d_conn_effective = d_conn + d_emb).
+    from gcn_python.layer1.features import FeatureVocabulary
+    _vocab = FeatureVocabulary()
+    if _vocab.d_clause != D_CLAUSE_V3:
+        raise ValueError(
+            f"init_v3_stub : FeatureVocabulary.d_clause={_vocab.d_clause} ≠ "
+            f"D_CLAUSE_V3={D_CLAUSE_V3} — mettre à jour le script."
+        )
+    if _vocab.d_conn != d_conn:
+        raise ValueError(
+            f"init_v3_stub : d_conn dérivé du v2 ({d_conn}) ≠ vocab vivant "
+            f"({_vocab.d_conn}) — le checkpoint v2 utilisait des connector_lemmas "
+            "non standards ; stub non fiable, abandon."
+        )
+    d_eff_v3_live = _vocab.d_clause_effective(d_emb, subject_object_emb)
+    if d_eff_v3_live != d_eff_v3:
+        raise ValueError(
+            f"init_v3_stub : d_eff recalculé ({d_eff_v3}) ≠ vocab vivant "
+            f"({d_eff_v3_live}) — mettre à jour le script."
+        )
+    d_ecl_v3 = _vocab.d_edge_closed_loop(d_eff_v3, N_NODE_TYPES_V3, d_emb,
+                                         subject_object_emb)
 
     print(f"  v2 : d_clause={d_clause_v2}, d_eff={d_eff_v2}, n_rel={n_relations_v2}, "
           f"n_nodes={n_node_types_v2}, d_ecl={d_ecl_v2}")
@@ -150,6 +171,7 @@ def stub_v3(
     arch_v3 = dict(arch_v2)
     arch_v3.update({
         "d_eff":           d_eff_v3,
+        "d_hidden":        d_eff_v3,  # P0-fix : d_hidden = graph d_out = d_eff (le stub porte des graph (38, 234, 234))
         "n_relations":     n_all_rel_v3,
         "schema":          "3.0",
         "stub_from":       str(v2_path.name),

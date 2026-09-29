@@ -54,6 +54,64 @@ Sortie `--format dot` : graphe Graphviz (rendu avec `dot -Tpng`)
 
 ---
 
+### `gcn analyze-graph` — Bundle STIX 2.x → CausalIR
+
+Ingère un bundle STIX 2.x (MITRE ATT&CK, CTI structuré) via `gcn-frontend-graph` : relations explicites et typées, zéro ML. Les relations non causales et références pendantes sont ignorées mais comptées (stderr).
+
+```bash
+gcn analyze-graph bundle.json --format json > graph.json
+gcn analyze-graph bundle.json --format dot | dot -Tpng > graph.png
+```
+
+| Argument/Option | Type | Défaut | Description |
+|---|---|---|---|
+| `<bundle>` | positional | requis | Fichier bundle STIX 2.x |
+| `--format <FORMAT>` | `json` \| `dot` | `json` | Format de sortie |
+
+---
+
+### `gcn analyze-table` — CSV cause/effet → CausalIR
+
+Ingère un tableau via `gcn-frontend-table` : chaque ligne produit un couple (source, target, edge). Le schéma vient des paramètres — jamais deviné. Lignes sans arête ignorées mais comptées (stderr) ; fichier malformé → erreur typée.
+
+```bash
+gcn analyze-table --input risques.csv \
+  --cause-col facteur --effect-col resultat \
+  --relation-col relation --confidence-col confiance \
+  --format json > graph.json
+```
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `--input <PATH>` | `PathBuf` | requis | Fichier CSV |
+| `--cause-col <NOM>` | `String` | `cause` | En-tête colonne des causes |
+| `--effect-col <NOM>` | `String` | `effect` | En-tête colonne des effets |
+| `--relation-col <NOM>` | `String` | — | Colonne relations snake_case (sinon `Cause`) |
+| `--confidence-col <NOM>` | `String` | — | Colonne confiances [0,1] (sinon 1.0) |
+| `--default-relation <NOM>` | `String` | `cause` | Relation sans colonne (snake_case) |
+| `--node-type <NOM>` | `String` | `entite` | Type de nœud des cellules (snake_case) |
+| `--delimiter <C>` | `String` | `,` | Délimiteur (1 caractère ASCII) |
+| `--format <FORMAT>` | `json` \| `dot` | `json` | Format de sortie |
+
+---
+
+### `gcn extract-text` — Document → phrases (préprocesseur P2.2)
+
+Étape de pipeline avant `gcn analyze` : extrait le texte (TXT recopie, HTML détaggué, IPYNB markdown seul, PDF via `pdftotext` poppler — erreur explicite sinon) puis découpe en phrases, une par ligne.
+
+```bash
+gcn extract-text --input rapport.pdf --output phrases.txt
+gcn extract-text --input page.html | gcn analyze "..." --data-dir ...
+```
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `--input <PATH>` | `PathBuf` | requis | Document source |
+| `--output <PATH>` | `PathBuf` | stdout | Fichier de sortie (une phrase/ligne) |
+| `--format <FORMAT>` | `txt` \| `html` \| `pdf` \| `ipynb` | auto (extension) | Force le format |
+
+---
+
 ### `gcn query` — Raisonnement GCN-QL
 
 Interroge un fichier `CausalIR` JSON avec le langage GCN-QL.

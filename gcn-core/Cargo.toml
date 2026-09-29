@@ -6,6 +6,8 @@ members = [
     "crates/gcn-frontend-fr",
     "crates/gcn-frontend-en",
     "crates/gcn-frontend-code",
+    "crates/gcn-frontend-graph",
+    "crates/gcn-frontend-table",
     "crates/gcn-middleend",
     "crates/gcn-backend",
     "crates/gcn-verbalizer",

@@ -69,6 +69,7 @@ class CGNPipeline:
         no_mood: bool = False,
         no_tense: bool = False,
         n_intent_types: int = 0,
+        seed: int = 42,
     ):
         if clause_pooling not in CLAUSE_POOLING_MODES:
             raise ValueError(
@@ -141,6 +142,8 @@ class CGNPipeline:
         # n_rgcn_layers=0 : pipeline MLP-seul (message passing ignoré).
         # E4 : les couches supplémentaires sont du même type que graph
         # (LayerClass = type(graph)) — GAT préserve l'attention à chaque couche.
+        # §2.8 ETUDE : seed configurable (dérivé de --seed) au lieu du 42 hardcodé.
+        self._seed = int(seed)
         self.n_rgcn_layers = n_rgcn_layers
         self._graph_layers: list = [] if n_rgcn_layers == 0 else [graph]
         if n_rgcn_layers > 1:
@@ -150,7 +153,7 @@ class CGNPipeline:
                     _kwargs: dict = {
                         "d_in": graph.d_in, "d_out": graph.d_out,
                         "n_relations": graph.n_relations,
-                        "seed": extra_i * 100 + 42,
+                        "seed": self._seed + extra_i * 100,
                     }
                     _kwargs["dropout"] = getattr(
                         graph, 'dropout_rate', getattr(graph, 'dropout', 0.0))
@@ -185,7 +188,7 @@ class CGNPipeline:
                         _extra = LayerClass(
                             d_in=graph.d_in, d_out=graph.d_out,
                             n_relations=graph.n_relations,
-                            seed=extra_i * 100 + 42,
+                            seed=self._seed + extra_i * 100,
                         )
                     self._graph_layers.append(_extra)
                 # E1/E4 : intermédiaires en relu, finale en sigmoid

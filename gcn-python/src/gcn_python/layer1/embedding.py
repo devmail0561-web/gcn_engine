@@ -63,8 +63,16 @@ class WordEmbedding:
     # ── forward / backward ───────────────────────────────────────────
 
     def lookup(self, lemma: str) -> np.ndarray:
-        """Retourne une copie de l'embedding pour lemma (ou _unk si absent)."""
-        idx = self._vocab.get(lemma, 0)
+        """Retourne une copie de l'embedding pour lemma (zéro si OOV vrai).
+
+        §2.9 ETUDE (Option A) : un lemme absent du vocabulaire n'est PAS
+        mappé sur `_unk` — il produit un vecteur zéro. `_unk` (indice 0)
+        n'est retourné que pour le lemme explicite "_unk" et garde sa
+        sémantique d'inconnu au lieu d'absorber le bruit OOV du bridge.
+        """
+        idx = self._vocab.get(lemma)
+        if idx is None:
+            return np.zeros(self.d_emb, dtype=np.float32)
         return self._E[idx].copy()
 
     def _is_frozen_idx(self, idx: int) -> bool:
@@ -77,8 +85,10 @@ class WordEmbedding:
         )
 
     def backward(self, d_emb: np.ndarray, lemma: str) -> None:
-        """Accumule le gradient pour l'embedding de lemma (no-op si gelé)."""
-        idx = self._vocab.get(lemma, 0)
+        """Accumule le gradient pour l'embedding de lemma (no-op si gelé ou OOV)."""
+        idx = self._vocab.get(lemma)
+        if idx is None:
+            return  # OOV vrai : no-op — _unk reste propre (§2.9 ETUDE)
         if self._is_frozen_idx(idx):
             return  # accumuler rien
         if self._grad_accum is None:

@@ -43,19 +43,12 @@ pub fn node_type_str_to_enum(s: &str) -> Option<NodeType> {
     }
 }
 
+/// Délègue aux noms canoniques `gcn_ir` (source unique, B3 audit).
+/// Accepte en plus les 8 relations v3.0 (jamais présentes dans les YAML AST
+/// actuels — sans effet sur les données existantes, future-proof).
+/// `node_type_str_to_enum` ci-dessus est VOLONTAIREMENT inchangé : les YAML
+/// utilisent les aliases v2 (`action`, `transition`, `etat`) que les noms
+/// canoniques rejettent à raison.
 pub fn relation_type_str_to_enum(s: &str) -> Option<RelationType> {
-    match s {
-        "cause" => Some(RelationType::Cause),
-        "enable" => Some(RelationType::Enable),
-        "prevent" => Some(RelationType::Prevent),
-        "condition" => Some(RelationType::Condition),
-        "concession" => Some(RelationType::Concession),
-        "sequence" => Some(RelationType::Sequence),
-        "motivation" => Some(RelationType::Motivation),
-        "filter" => Some(RelationType::Filter),
-        "opposition" => Some(RelationType::Opposition),
-        "data_dependency" => Some(RelationType::DataDependency),
-        "control_dependency" => Some(RelationType::ControlDependency),
-        _ => None,
-    }
+    RelationType::from_name(s)
 }

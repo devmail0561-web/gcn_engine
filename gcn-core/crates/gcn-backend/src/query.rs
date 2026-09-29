@@ -644,7 +644,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     SPOF_MAX_NODES
                 )));
             }
-            let (total_pairs, scores) = pearl::spof_all(ir);
+            let (total_pairs, scores) = pearl::spof_all(ir)?;
             let spof_nodes: Vec<SpofNodeDto> = scores
                 .into_iter()
                 .map(|s: SpofScore| {

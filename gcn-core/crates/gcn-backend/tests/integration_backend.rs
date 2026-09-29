@@ -347,7 +347,9 @@ fn dot_export_contains_nodes_and_edges() {
     assert!(dot.contains("n0"));
     assert!(dot.contains("n1"));
     assert!(dot.contains("n0 -> n1"));
-    assert!(dot.contains("Cause"));
+    // §2.11 ETUDE : snake_case serde, cohérent avec le JSON (plus de PascalCase Debug).
+    assert!(dot.contains("cause"));
+    assert!(!dot.contains("Cause"));
 }
 
 #[test]

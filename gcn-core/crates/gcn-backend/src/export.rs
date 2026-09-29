@@ -21,16 +21,26 @@ pub fn to_dot(ir: &CausalIR) -> Result<String, BackendError> {
             gcn_ir::NodeType::EtatGlobal => "ellipse",
             _ => "box",
         };
+        // Même cohérence serde que pour les relations (§2.11).
+        let node_type = serde_json::to_value(node.node_type)
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("{:?}", node.node_type).to_lowercase());
         out.push_str(&format!(
-            "  n{} [label=\"{}\", shape={}, tooltip=\"{:?}\"];\n",
-            node.id.0, label, shape, node.node_type
+            "  n{} [label=\"{}\", shape={}, tooltip=\"{}\"];\n",
+            node.id.0, label, shape, node_type
         ));
     }
 
     out.push('\n');
 
     for (src, dst, edge) in &ir.edges {
-        let rel = format!("{:?}", edge.relation);
+        // §2.11 ETUDE : snake_case serde (cohérent avec query.rs:link_to_dto),
+        // pas Debug PascalCase — le DOT reste parsable avec les mêmes règles que le JSON.
+        let rel = serde_json::to_value(edge.relation)
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("{:?}", edge.relation).to_lowercase());
         let color = edge_color(edge);
         let style = if edge.negated { "dashed" } else { "solid" };
         let conf = format!("{:.2}", edge.confidence);

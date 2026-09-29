@@ -7,6 +7,30 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Session v4 : 7 bugs ouverts corrigés + P0/P2 (2026-09-29, branche `feat/p2-frontends`)
+
+**Bugs moteur §2.7–§2.13 (tous clos ; §2.10 volontairement sans changement) :**
+- **`training/train.py` (T5-min silencieuse)** : boucle réécrite — `reps_from_sentence` + `pipeline.forward(reps, …)` (même chemin que `_run_eval_pass`), alignement logits↔gold, `warnings.warn` par phrase au lieu de `except: pass`, message si zéro logit. Puis extrait en `collect_val_logits_for_calibration()` testable (`tests/test_t5_collection.py`, 2 tests).
+- **`training/train.py` + `pipeline/cgnp.py` (seed partiel)** : `CGNPipeline` accepte `seed` (couches R-GCN extra en `seed + extra_i*100`) ; `_init_seed` propagé à `WordEmbedding` (×2), `CGNPipeline`, `LinkPredHead` (défautait à 0).
+- **`layer1/embedding.py` (OOV→`_unk`, Option A)** : `lookup()` retourne zéro pour les OOV vrais, `backward()` no-op — `_unk` reste propre.
+- **`gcn-backend/src/export.rs` (DOT PascalCase)** : relations ET tooltip nœuds en snake_case serde (cohérent avec `link_to_dto`) ; test DOT mis à jour.
+- **`gcn-backend/src/pearl.rs` (`spof_all` sans garde)** : retourne `Result` avec garde interne 500 nœuds (**breaking** — bump mineur requis) ; appelants MAJ (`query.rs`, test, README). Constante dédupliquée ensuite, sémantique silencieuse de `count_reachable_pairs*` documentée.
+- **`gcn-frontend-fr/en/src/rules.rs`** : `filter`/`filtre`/`filtrage` → `RelationType::Filter` (ternaires au ML, décision tenue).
+- **Hyperarêtes** : confirmé sans changement (attente N_min=20 ternaires annotés).
+
+**P0 — stub v3 (`scripts/init_v3_stub.py`, `gcn-datasets/checkpoints/stub_v3.npz`) :**
+- 2 bugs du script corrigés : `d_hidden` restait à 207 (→ 234) et `d_ecl` ignorait l'embedding connecteur D10 (987 → 1115 via `FeatureVocabulary`, source unique). Stub chargeable (`load_checkpoint` OK) + forward bout-en-bout vérifié. Variable morte `d_edge_v3` supprimée (review).
+
+**P2.1 — `gcn-frontend-graph` (nouveau crate)** : STIX 2.x → CausalIR, mapping compilé SANS YAML (règle moteur), `SourceSpan::Synthetic`, confiance 1.0, `GraphParseReport` (ignorés comptés). `SourceLanguage::Graph { Stix21 }` (additif). CLI `gcn analyze-graph`. Audit : `detects` → `Enable` ajouté (couverture ATT&CK).
+
+**P2.2 — `gcn extract-text` (module `gcn-cli`)** : TXT recopie, HTML détaggué en interne, IPYNB markdown seul, PDF via `pdftotext` externe (erreur explicite sans poppler), découpeur de phrases FR/EN. Review : panique `strip_tag_blocks` sur caractères multi-octets (ex. U+0130) corrigée (recherche ASCII sans ombre minuscule).
+
+**P2.3 — `gcn-frontend-table` (nouveau crate)** : CSV cause/effet → CausalIR, schéma en paramètres CLI, parseur RFC-4180 sans dépendance, `TableParseReport`. Audit : confiances hors [0,1] → ignorées+comptées (plus de clamp silencieux), `DuplicateColumn` typée. `SourceLanguage::Graph { Table }`. CLI `gcn analyze-table`.
+
+**Refactor D1 (source unique)** : `RelationType::from_name` / `NodeType::from_name` ajoutés dans `gcn-ir` (roundtrip serde prouvé 19+8) ; `gcn-frontend-code/mapper.rs` (relations) délégué. `node_type_str_to_enum` du même fichier inchangé (aliases v2 `action/transition/etat` rejetés à raison).
+
+**Règle moteur rappelée** : taxonomies = guides d'annotation (référençables) ; **zéro YAML chargé dans le moteur, savoir compilé** — vérifié (aucune dep YAML ajoutée, aucun `Lexicon::load` dans le nouveau code).
+
 ### Correctifs audit 2 (2026-09-29)
 
 - **`gcn-backend/src/query.rs`** : `&input[..200]` (octet) → slicing `char_indices().nth(200)` — élimine le panic UTF-8 sur requêtes contenant é/ü/à en position 199.

@@ -28,6 +28,8 @@ pub fn relation_type_str_to_enum(rt: &str) -> Option<RelationType> {
         "enable" => Some(RelationType::Enable),
         "prevent" => Some(RelationType::Prevent),
         "motivation" => Some(RelationType::Motivation),
+        // §2.12 ETUDE : `filter` détectable par règle — parité avec le frontend FR.
+        "filter" => Some(RelationType::Filter),
         _ => None,
     }
 }

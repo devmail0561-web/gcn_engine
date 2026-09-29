@@ -20,8 +20,8 @@ pub use edge::{
 };
 pub use error::{GcnError, GcnResult};
 pub use ir::{
-    Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, IrMetadata,
-    NaturalLanguage, ProgrammingLanguage, SourceLanguage,
+    Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, GraphFormat,
+    IrMetadata, NaturalLanguage, ProgrammingLanguage, SourceLanguage,
 };
 pub use modifier::{FrequencyKind, LocationScope, Maturity, Modifier};
 pub use node::{

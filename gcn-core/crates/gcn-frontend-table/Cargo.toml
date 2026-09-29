@@ -1,0 +1,18 @@
+[package]
+name = "gcn-frontend-table"
+version.workspace = true
+edition = "2024"
+description = "Frontend tabulaire (CSV cause/effet) → CausalIR — P2.3 ETUDE, symbolique pur, zéro ML"
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+gcn-ir = { path = "../gcn-ir", version = "4.0.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+smallvec = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

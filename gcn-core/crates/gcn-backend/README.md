@@ -95,7 +95,7 @@ if let Some((label, result)) = counterfactual(&ir, "pluie") {
 ```rust
 use gcn_backend::pearl::spof_all;
 
-let (total_pairs, scores) = spof_all(&ir);
+let (total_pairs, scores) = spof_all(&ir).expect("graphe < 500 nœuds");
 for score in &scores {
     if score.score > 0 {
         println!("{} coupe {} paires causales (super_spof={})",

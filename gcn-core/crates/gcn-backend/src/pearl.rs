@@ -347,6 +347,10 @@ fn reachable_pairs_with_graph(
 const SPOF_MAX_NODES: usize = 500;
 
 /// Compte le nombre de paires (s,d) avec s≠d qui ont un chemin orienté dans le graphe.
+///
+/// Garde anti-DoS : au-delà de `SPOF_MAX_NODES`, retourne 0 SANS calculer
+/// (sémantique silencieuse historique — contrairement à `spof_all` qui
+/// retourne `Err`, car changer cette signature casserait l'API).
 pub fn count_reachable_pairs(ir: &CausalIR) -> usize {
     if ir.nodes.len() > SPOF_MAX_NODES {
         return 0;
@@ -356,6 +360,9 @@ pub fn count_reachable_pairs(ir: &CausalIR) -> usize {
 }
 
 /// Compte les paires atteignables après suppression virtuelle de `excluded`.
+///
+/// Même garde silencieuse que `count_reachable_pairs` (voir sa doc) :
+/// 0 au-delà de `SPOF_MAX_NODES`, sans erreur.
 pub fn count_reachable_pairs_without(ir: &CausalIR, excluded: NodeId) -> usize {
     if ir.nodes.len() > SPOF_MAX_NODES {
         return 0;
@@ -380,7 +387,18 @@ pub struct SpofScore {
 /// Calcule SPOF pour tous les nœuds en un seul build du graphe.
 ///
 /// Éq.12 : `is_super_spof` = vrai si le nœud apparaît dans au moins un groupe joint_group_id.
-pub fn spof_all(ir: &CausalIR) -> (usize, Vec<SpofScore>) {
+///
+/// §2.13 ETUDE : garde anti-DoS — O(n²·(n+e)) sans garde exposait tout
+/// appelant direct de la crate (le CLI garde déjà 500 nœuds dans query.rs).
+/// Retourne `Err` au-delà de `SPOF_MAX_NODES` au lieu de calculer.
+pub fn spof_all(ir: &CausalIR) -> Result<(usize, Vec<SpofScore>), crate::error::BackendError> {
+    if ir.nodes.len() > SPOF_MAX_NODES {
+        return Err(crate::error::BackendError::QueryParseError(format!(
+            "SPOF: graph too large ({} nodes > {})",
+            ir.nodes.len(),
+            SPOF_MAX_NODES
+        )));
+    }
     let g = build(ir);
     let (_, em) = build_maps(ir);
     let total = reachable_pairs_with_graph(&g, &ir.nodes, None);
@@ -409,7 +427,7 @@ pub fn spof_all(ir: &CausalIR) -> (usize, Vec<SpofScore>) {
         })
         .collect();
     scores.sort_by(|a, b| b.score.cmp(&a.score).then(a.label.cmp(&b.label)));
-    (total, scores)
+    Ok((total, scores))
 }
 
 /// Hypothèse abductive — cause candidate d'un effet observé.

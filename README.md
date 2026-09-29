@@ -72,6 +72,8 @@ projet_CNM/
 │   │   ├── gcn-frontend-fr/    Parser français symbolique (bootstrap annotation)
 │   │   ├── gcn-frontend-en/    Parser anglais symbolique (bootstrap annotation)
 │   │   ├── gcn-frontend-code/  Parser code AST (Python, Rust, JS via tree-sitter)
+│   │   ├── gcn-frontend-graph/ Parser graphes typés STIX 2.x → CausalIR (P2.1, zéro ML)
+│   │   ├── gcn-frontend-table/ Parser tabulaire CSV cause/effet → CausalIR (P2.3, zéro ML)
 │   │   ├── gcn-middleend/      Construction graphe, cycles, validation
 │   │   ├── gcn-backend/        Raisonnement Pearl étendu + GCN-QL (21 requêtes) + export
 │   │   ├── gcn-verbalizer/     Décodeur CausalIR → surface (pont Rust)
@@ -558,21 +560,23 @@ Structure minimale d'un exemple annoté :
 ## Tests
 
 ```bash
-# Suite complète Rust (185 tests)
+# Suite complète Rust (211 tests)
 cd gcn-core && cargo test --workspace
 
 # Par crate
-cargo test -p gcn-ir              # 10 tests (dont normalize_label, provenance serde)
+cargo test -p gcn-ir              # 11 tests (dont normalize_label, provenance serde, from_name)
 cargo test -p gcn-knowledge        # 26 tests (dont AliasTable)
-cargo test -p gcn-frontend-fr      # 21 tests
+cargo test -p gcn-frontend-fr      # 23 tests
 cargo test -p gcn-frontend-en      # 17 tests (dont isomorphisme fr↔en)
-cargo test -p gcn-frontend-code    # 30 tests (Python, Rust, JS)
+cargo test -p gcn-frontend-code    # 31 tests (Python, Rust, JS)
+cargo test -p gcn-frontend-graph   #  6 tests (STIX → CIR, tables, roundtrip)
+cargo test -p gcn-frontend-table   #  6 tests (CSV → CIR, RFC-4180, transparence)
 cargo test -p gcn-middleend        # 17 tests (dont MissingProvenance)
-cargo test -p gcn-backend          # 49 tests (Pearl 1-2-3 + temporel, abductif, méta, analogie)
+cargo test -p gcn-backend          # 62 tests (Pearl 1-2-3 + temporel, abductif, méta, analogie)
 cargo test -p gcn-verbalizer       #  3 tests
-cargo test -p gcn-cli              #  0 test (binaire seul)
+cargo test -p gcn-cli              #  9 tests (extract-text : HTML/phrases/notebooks)
 
-# Python — gcn-python (425 tests, 0 skipped, 1 xfail strict)
+# Python — gcn-python (687 tests, 3 xfailed attendus : checkpoint v2 → v3)
 cd gcn-python && python -m pytest
 # Dont :
 #   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
