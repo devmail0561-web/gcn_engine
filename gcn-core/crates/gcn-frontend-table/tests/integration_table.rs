@@ -34,6 +34,7 @@ fn csv_lignes_produisent_aretes_avec_rapport() {
             skipped_empty: 1,
             skipped_unknown_relation: 1,
             skipped_bad_confidence: 1,
+            skipped_field_count: 0,
         }
     );
     assert!(matches!(
@@ -147,4 +148,27 @@ fn cir_json_roundtrip() {
     assert!(s.contains("\"table\""), "format table tracé");
     let back: gcn_ir::CausalIR = serde_json::from_str(&s).expect("deserialize CIR");
     assert_eq!(back.edges.len(), 3);
+}
+
+// ─── P0-4 : ligne malformée → partiel compté, erreur seulement si tout est HS ─
+
+#[test]
+fn p04_field_count_partiel_lignes_valides_conservees() {
+    // Ligne 2 : 3 champs au lieu de 2 → ignorée + comptée, les autres passent.
+    let csv = "cause,effect\npluie,inondation\ntrop,peu,champs\nsoleil,secheresse\n";
+    let (ir, report) = parse_table(csv, &TableSchema::default(), None).expect("partiel OK");
+    assert_eq!(ir.edges.len(), 2, "2 lignes valides conservées : {ir:?}");
+    assert_eq!(report.skipped_field_count, 1);
+    assert_eq!(report.total_skipped(), 1);
+}
+
+#[test]
+fn p04_field_count_erreur_si_aucune_ligne_valide() {
+    // Toutes les lignes malformées → Err (pas un IR vide silencieux).
+    let csv = "cause,effect\na,b,c\nd,e,f\n";
+    let err = parse_table(csv, &TableSchema::default(), None).unwrap_err();
+    assert!(
+        matches!(err, TableParserError::FieldCount(..)),
+        "attendu FieldCount, obtenu {err:?}"
+    );
 }

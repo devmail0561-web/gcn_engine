@@ -116,6 +116,12 @@ impl InferenceEngine {
 
     /// Enrichit un `CausalIR` en 3 passes borrow-safe et retourne les notes produites.
     ///
+    /// P2-5 : volontairement OPT-IN (jamais appelé par middleend/frontends/CLI).
+    /// `enrich` MUTE le CIR (types inférés, confiances recalibrées) : le câbler
+    /// dans `process()` altérerait silencieusement tous les frontends et les
+    /// données de bootstrap. Réservé à l'outillage d'annotation qui sait ce
+    /// qu'il fait (cf. tests + README pour l'usage).
+    ///
     /// - **Passe 1** : résolution des types de nœuds avec `origin == Inferred`
     ///   via `attributes.entity` (lookup NOUN dans les taxonomies).
     /// - **Passe 2** : snapshot `NodeId → NodeType` post-passe 1.

@@ -100,6 +100,10 @@ fn build_node(id: NodeId, clause: &ClauseAnnotation, temporal_index: Option<i32>
         modifiers.push(Modifier::Negation { total: true });
     }
 
+    // P1-3 : asymétrie temporelle FR/EN documentée (volontaire, pas un bug).
+    // FR "depuis" = passé borné conventionnel Range{-60, 0} ; EN progressif
+    // ("is falling") = présent non borné → Unresolved (cf. en/emitter.rs).
+    // Ne pas unifier sans base linguistique : les deux formes ne sont pas équivalentes.
     let temporal_ref = if clause.has_depuis {
         modifiers.push(Modifier::Temporality {
             anchor: TemporalAnchor::Past,

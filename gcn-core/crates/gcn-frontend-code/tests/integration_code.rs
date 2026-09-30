@@ -480,3 +480,68 @@ fn test_js_invalid_syntax_is_err() {
         "syntaxe JS invalide (unclosed function) doit retourner Err"
     );
 }
+
+// ---------------------------------------------------------------------------
+// P0-3 : CodeParseReport — kinds non mappés comptés, plus de `continue` aveugle
+// ---------------------------------------------------------------------------
+
+#[test]
+fn p03_unmapped_kinds_counted_in_report() {
+    use gcn_frontend_code::parse_python_with_report;
+    // `assert x` (expression_statement simple) : selon le mapping YAML, certains
+    // kinds passent, d'autres non — l'essentiel : le rapport existe et est cohérent.
+    let (ir, report) = parse_python_with_report("if x < y:\n    reduce(z)\n", &taxonomies_root())
+        .expect("parse failed");
+    assert!(!ir.nodes.is_empty());
+    assert_eq!(
+        report.total_skipped(),
+        report.skipped_unmapped + report.truncated_labels
+    );
+    // Cas avec des kinds hors mapping (break/pass) : ils doivent être comptés,
+    // pas silencieusement ignorés.
+    let (_, report2) = parse_python_with_report("while True:\n    break\n", &taxonomies_root())
+        .expect("parse failed");
+    assert!(
+        report2.skipped_unmapped > 0,
+        "kinds non mappés (break) comptés, obtenu {report2:?}"
+    );
+}
+
+#[test]
+fn p03_function_name_populates_agent_attribute() {
+    // P3 : attributes.agent = nom défini via le champ AST `name`.
+    let ir = parse_python("def compute(x):\n    return x * 2\n", &taxonomies_root())
+        .expect("parse failed");
+    let f = ir
+        .nodes
+        .iter()
+        .find(|n| n.label.contains("compute"))
+        .expect("nœud fonction attendu");
+    assert_eq!(
+        f.attributes.agent.as_deref(),
+        Some("compute"),
+        "agent = nom défini, obtenu {:?}",
+        f.attributes
+    );
+}
+
+#[test]
+fn p03_long_labels_truncated_at_256_and_counted() {
+    use gcn_frontend_code::{MAX_LABEL_CHARS, parse_python_with_report};
+    assert_eq!(MAX_LABEL_CHARS, 256);
+    // Une expression très longue en une ligne → label tronqué + compté.
+    let long_call = format!("result = some_function_name({})", "x, ".repeat(200));
+    let (ir, report) =
+        parse_python_with_report(&long_call, &taxonomies_root()).expect("parse failed");
+    assert!(
+        report.truncated_labels > 0,
+        "troncature comptée, obtenu {report:?}"
+    );
+    for n in &ir.nodes {
+        assert!(
+            n.label.chars().count() <= MAX_LABEL_CHARS,
+            "label > 256 chars : {:?}...",
+            n.label.chars().take(40).collect::<String>()
+        );
+    }
+}

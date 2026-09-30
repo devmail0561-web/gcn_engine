@@ -9,11 +9,19 @@ use gcn_ir::{
 };
 use tree_sitter::Parser;
 
-use crate::common::{control_edge, emit_node};
+use crate::common::{CodeParseReport, control_edge, emit_node};
 use crate::error::CodeParserError;
 use crate::resources::CodeResources;
 
 pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
+    Ok(parse_with_report(source, taxonomies_root)?.0)
+}
+
+/// P0-3 : variante avec `CodeParseReport` (kinds ignorés + troncatures comptés).
+pub fn parse_with_report(
+    source: &str,
+    taxonomies_root: &Path,
+) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
     let res = CodeResources::load_python(taxonomies_root)?;
 
     let mut parser = Parser::new();
@@ -33,24 +41,36 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
     let mut nodes: Vec<CausalNode> = Vec::new();
     let mut edges: Vec<(NodeId, NodeId, CausalEdge)> = Vec::new();
     let mut next_id: u32 = 0;
+    let mut report = CodeParseReport::default();
 
-    walk_block(root, src_bytes, &res, &mut nodes, &mut edges, &mut next_id);
+    walk_block(
+        root,
+        src_bytes,
+        &res,
+        &mut nodes,
+        &mut edges,
+        &mut next_id,
+        &mut report,
+    );
 
-    Ok(CausalIR {
-        source_lang: SourceLanguage::Programming {
-            lang: ProgrammingLanguage::Python,
+    Ok((
+        CausalIR {
+            source_lang: SourceLanguage::Programming {
+                lang: ProgrammingLanguage::Python,
+            },
+            source_text: source.to_string(),
+            nodes,
+            edges,
+            cycles: vec![],
+            unresolved: vec![],
+            metadata: IrMetadata {
+                schema_version: "2.0".to_string(),
+                pipeline: vec!["gcn-frontend-code".to_string()],
+                created_at: None,
+            },
         },
-        source_text: source.to_string(),
-        nodes,
-        edges,
-        cycles: vec![],
-        unresolved: vec![],
-        metadata: IrMetadata {
-            schema_version: "2.0".to_string(),
-            pipeline: vec!["gcn-frontend-code".to_string()],
-            created_at: None,
-        },
-    })
+        report,
+    ))
 }
 
 fn walk_block(
@@ -60,6 +80,7 @@ fn walk_block(
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut block_ids: Vec<NodeId> = Vec::new();
     let mut cursor = node.walk();
@@ -76,10 +97,12 @@ fn walk_block(
         };
         let kind = child.kind();
         let Some(&node_type) = res.kind_to_node_type.get(kind) else {
+            // P0-3 : kind non mappé → ignoré MAIS compté (était `continue` silencieux).
+            report.skipped_unmapped += 1;
             continue;
         };
 
-        let id = emit_node(child, src, node_type, nodes, next_id, res);
+        let id = emit_node(child, src, node_type, nodes, next_id, res, report);
         let edge_rel = res
             .kind_to_edge_type
             .get(kind)
@@ -90,11 +113,11 @@ fn walk_block(
         // sélectionne la fonction de traversée selon la topologie de l'AST, pas le sens causal.
         // Les types de nœuds et relations causaux viennent de gcn-knowledge (YAML).
         let body_ids = match kind {
-            "if_statement" => walk_if(child, src, res, nodes, edges, next_id),
+            "if_statement" => walk_if(child, src, res, nodes, edges, next_id, report),
             "for_statement" | "while_statement" | "function_definition" | "with_statement" => {
-                walk_body_of(child, src, res, nodes, edges, next_id)
+                walk_body_of(child, src, res, nodes, edges, next_id, report)
             }
-            "try_statement" => walk_try(child, src, res, nodes, edges, next_id),
+            "try_statement" => walk_try(child, src, res, nodes, edges, next_id, report),
             _ => vec![],
         };
         for body_id in body_ids {
@@ -117,14 +140,15 @@ fn walk_if(
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut body_ids = Vec::new();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id)),
+            "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id, report)),
             "elif_clause" | "else_clause" => {
-                body_ids.extend(walk_body_of(child, src, res, nodes, edges, next_id));
+                body_ids.extend(walk_body_of(child, src, res, nodes, edges, next_id, report));
             }
             _ => {}
         }
@@ -139,11 +163,12 @@ fn walk_body_of(
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "block" {
-            return walk_block(child, src, res, nodes, edges, next_id);
+            return walk_block(child, src, res, nodes, edges, next_id, report);
         }
     }
     vec![]
@@ -156,25 +181,26 @@ fn walk_try(
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut body_ids = Vec::new();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id)),
+            "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id, report)),
             "except_clause" => {
                 let node_type = res
                     .kind_to_node_type
                     .get("except_clause")
                     .copied()
                     .unwrap_or(NodeType::EtatLocal);
-                let except_id = emit_node(child, src, node_type, nodes, next_id, res);
+                let except_id = emit_node(child, src, node_type, nodes, next_id, res, report);
                 let edge_rel = res
                     .kind_to_edge_type
                     .get("except_clause")
                     .copied()
                     .unwrap_or(RelationType::Concession);
-                for hid in walk_body_of(child, src, res, nodes, edges, next_id) {
+                for hid in walk_body_of(child, src, res, nodes, edges, next_id, report) {
                     edges.push((except_id, hid, control_edge(edge_rel)));
                 }
                 body_ids.push(except_id);

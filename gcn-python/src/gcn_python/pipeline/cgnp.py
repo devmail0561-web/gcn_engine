@@ -665,12 +665,14 @@ class CGNPipeline:
         gcn_bin: str = "gcn",
         taxonomy_dir=None,
         text_parser=None,
+        subcommand: str = "analyze",
     ) -> dict:
         """
         Texte brut → CausalIR dict (bridge + forward en une opération).
 
         text_parser (optionnel) : tout objet implémentant le Protocol TextParser
-          (layer0/interface.py). Si None, utilise GCNBridgeParser(gcn_bin, taxonomy_dir).
+          (layer0/interface.py). Si None, utilise GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand).
+        subcommand : sous-commande gcn-cli en clair (défaut "analyze", ex. "analyze-en").
         Qualité approximative si text_parser=None — voir frontend.bridge.
 
         Raises:
@@ -686,7 +688,7 @@ class CGNPipeline:
                 UserWarning,
                 stacklevel=2,
             )
-            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
+            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand)
         reps, connector_reps = text_parser.parse(text)
         # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
         _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
@@ -707,6 +709,7 @@ class CGNPipeline:
         text: str,
         gcn_bin: str = "gcn",
         taxonomy_dir=None,
+        subcommand: str = "analyze",
     ) -> dict | None:
         """
         Comme analyze(), retourne None si gcn est absent ou l'appel échoue.
@@ -714,6 +717,8 @@ class CGNPipeline:
         Usage recommandé pour les pipelines CI/CD sans gcn-cli installé.
         Vérifie via shutil.which() avant d'appeler le subprocess.
         Aucun UserWarning émis (l'appelant connaît les limitations).
+
+        subcommand : sous-commande gcn-cli en clair (défaut "analyze").
 
         Returns:
             CausalIR dict, ou None si gcn_bin introuvable ou erreur.
@@ -734,7 +739,7 @@ class CGNPipeline:
         for _obj, _ in _layers_tr:
             _obj.training = False
         try:
-            cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
+            cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir, subcommand)
             reps, connector_reps = _cir_to_reps_and_connectors(cir)
             return self.forward(reps, text, connector_reps=connector_reps)
         except GCNBridgeError:

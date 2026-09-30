@@ -76,6 +76,7 @@ class GCNEngine:
         device: str = "cpu",
         trusted: bool = False,
         taxonomy_dir=None,
+        subcommand: str = "analyze",
     ) -> GCNEngine:
         """
         Charge un modèle depuis un checkpoint .npz et retourne un GCNEngine prêt.
@@ -249,11 +250,13 @@ class GCNEngine:
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : gcn-cli si disponible, sinon bridge heuristique
+        # subcommand : sous-commande en clair (défaut "analyze") — aucune
+        # langue nommée ici (moteur langue-agnostique).
         import shutil
         text_parser = None
         if shutil.which(gcn_bin):
             from .frontend.bridge import GCNBridgeParser
-            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir)
+            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand)
 
         return cls(pipeline, text_parser=text_parser)
 
@@ -286,6 +289,31 @@ class GCNEngine:
             text,
             text_parser=self._text_parser,
         )
+
+    def analyze_or_skip(self, text: str) -> dict | None:
+        """
+        Comme analyze(), retourne None si gcn-cli est absent ou l'appel échoue.
+
+        P0-10 : chemin non-raise pour les pipelines batch/CI (index, discuss
+        sur corpus) — l'appelant loggue le skip avec le contexte fichier/ligne.
+        Réutilise le parser déjà configuré (binaire + sous-commande).
+        """
+        from .frontend.bridge import GCNBridgeParser
+
+        parser = self._text_parser
+        if isinstance(parser, GCNBridgeParser):
+            return self._pipeline.analyze_or_skip(
+                text,
+                gcn_bin=parser.gcn_bin,
+                taxonomy_dir=parser.taxonomy_dir,
+                subcommand=parser.subcommand,
+            )
+        try:
+            return self.analyze(text)
+        except Exception as exc:  # noqa: BLE001 — contrat None-safe : warn nommé, jamais silencieux
+            import warnings as _w
+            _w.warn(f"analyze_or_skip : phrase ignorée — {exc}", UserWarning, stacklevel=2)
+            return None
 
     def verbalize(self, text: str, use_neural: bool = False) -> dict:
         """

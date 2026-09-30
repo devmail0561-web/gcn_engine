@@ -149,7 +149,11 @@ impl Query {
         }
 
         let preview = {
-            let end = input.char_indices().nth(200).map(|(i, _)| i).unwrap_or(input.len());
+            let end = input
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(input.len());
             &input[..end]
         };
         Err(BackendError::QueryParseError(format!(
@@ -164,11 +168,21 @@ impl Query {
 pub enum QueryResult {
     Causes {
         target: String,
+        /// Liens causaux de TOUS les nœuds matchés (concaténés).
+        /// P0-1 : `execute()` ne jetait que la première correspondance —
+        /// désormais `links` couvre tous les matchs, `matched_targets` les nomme.
         links: Vec<LinkDto>,
+        /// Labels de tous les nœuds matchés par la requête (le 1er = `target`).
+        #[serde(default)]
+        matched_targets: Vec<String>,
     },
     Effects {
         source: String,
+        /// Effets de TOUS les nœuds matchés (concaténés, cf. P0-1).
         links: Vec<LinkDto>,
+        /// Labels de tous les nœuds matchés par la requête (le 1er = `source`).
+        #[serde(default)]
+        matched_sources: Vec<String>,
     },
     Path {
         from: String,
@@ -419,32 +433,46 @@ pub struct TemporalLinkDto {
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     match query {
         Query::Why(label) => {
-            let mut results = pearl::why(ir, label);
+            let results = pearl::why(ir, label);
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (target, links) = results
-                .drain(..)
-                .next()
+            // P0-1 : agréger TOUS les matchs au lieu du premier seul.
+            let matched_targets: Vec<String> = results.iter().map(|(t, _)| t.clone()).collect();
+            let target = matched_targets
+                .first()
+                .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let links: Vec<LinkDto> = results
+                .iter()
+                .flat_map(|(_, ls)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .collect();
             Ok(QueryResult::Causes {
                 target,
-                links: links.iter().map(link_to_dto).collect(),
+                links,
+                matched_targets,
             })
         }
 
         Query::What(label) => {
-            let mut results = pearl::what(ir, label);
+            let results = pearl::what(ir, label);
             if results.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
-            let (source, links) = results
-                .drain(..)
-                .next()
+            // P0-1 : agréger TOUS les matchs au lieu du premier seul.
+            let matched_sources: Vec<String> = results.iter().map(|(s, _)| s.clone()).collect();
+            let source = matched_sources
+                .first()
+                .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let links: Vec<LinkDto> = results
+                .iter()
+                .flat_map(|(_, ls)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .collect();
             Ok(QueryResult::Effects {
                 source,
-                links: links.iter().map(link_to_dto).collect(),
+                links,
+                matched_sources,
             })
         }
 
@@ -462,7 +490,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 from: from.clone(),
                 to: to.clone(),
                 found,
-                links: links.unwrap_or_default().iter().map(link_to_dto).collect(),
+                links: links
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|l| link_to_dto(ir, l))
+                    .collect(),
             })
         }
 
@@ -494,8 +526,8 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             Ok(QueryResult::Intervention {
                 target,
                 severed_count: result.severed.len(),
-                severed: result.severed.iter().map(link_to_dto).collect(),
-                effects: result.effects.iter().map(link_to_dto).collect(),
+                severed: result.severed.iter().map(|l| link_to_dto(ir, l)).collect(),
+                effects: result.effects.iter().map(|l| link_to_dto(ir, l)).collect(),
             })
         }
 
@@ -504,7 +536,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             Ok(QueryResult::CounterfactualDiff {
                 target,
-                actual_effects: result.actual_effects.iter().map(link_to_dto).collect(),
+                actual_effects: result
+                    .actual_effects
+                    .iter()
+                    .map(|l| link_to_dto(ir, l))
+                    .collect(),
                 unique_effects: result.unique_effects,
             })
         }
@@ -584,7 +620,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     confidence: e.confidence,
                     negated: e.negated,
                     joint_group_id: e.joint_group_id.clone(),
-                    third_node_label: None,
+                    // P1-5 : même résolution que link_to_dto, depuis CausalEdge.third.
+                    third_node_label: e.third.as_ref().and_then(|t| {
+                        ir.nodes
+                            .iter()
+                            .find(|n| n.id.0 as u64 == t.node)
+                            .map(|n| n.label.clone())
+                    }),
                 })
                 .collect();
             let mean_confidence = if outgoing.is_empty() {
@@ -636,12 +678,12 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Spof => {
-            const SPOF_MAX_NODES: usize = 500;
-            if ir.nodes.len() > SPOF_MAX_NODES {
+            // Garde : constante unique pearl::SPOF_MAX_NODES (pas de doublon local).
+            if ir.nodes.len() > pearl::SPOF_MAX_NODES {
                 return Err(BackendError::QueryParseError(format!(
                     "SPOF: graph too large ({} nodes > {}). Use CENTRALITY on specific nodes instead.",
                     ir.nodes.len(),
-                    SPOF_MAX_NODES
+                    pearl::SPOF_MAX_NODES
                 )));
             }
             let (total_pairs, scores) = pearl::spof_all(ir)?;
@@ -677,7 +719,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             let path_exists = links.is_some();
             let path_links_dto: Vec<LinkDto> = links
                 .as_ref()
-                .map(|ls| ls.iter().map(link_to_dto).collect())
+                .map(|ls| ls.iter().map(|l| link_to_dto(ir, l)).collect())
                 .unwrap_or_default();
             let n_edges_on_path = path_links_dto.len();
             let observed_confidence = links
@@ -921,7 +963,7 @@ pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>,
         return Err(BackendError::NodeNotFound(to.to_string()));
     }
     pearl::chain(ir, from, to)
-        .map(|links| links.iter().map(link_to_dto).collect())
+        .map(|links| links.iter().map(|l| link_to_dto(ir, l)).collect())
         .ok_or_else(|| BackendError::NoPath(from.to_string(), to.to_string()))
 }
 
@@ -938,12 +980,21 @@ fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
     }
 }
 
-fn link_to_dto(l: &CausalLink) -> LinkDto {
+fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
     // C4 fix : sérialiser la relation en snake_case via serde (pas Debug)
     let relation = serde_json::to_value(l.relation)
         .ok()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| format!("{:?}", l.relation).to_lowercase());
+    // P1-5 : résoudre le tiers ternaire (médiateur/condition) en label.
+    // Était `None` systématique alors que `CausalLink.third_node` est peuplé
+    // depuis `CausalEdge.third` (pearl.rs) — perte ternaire de bout en bout.
+    let third_node_label = l.third_node.and_then(|tid| {
+        ir.nodes
+            .iter()
+            .find(|n| n.id == tid)
+            .map(|n| n.label.clone())
+    });
     LinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),
@@ -951,7 +1002,7 @@ fn link_to_dto(l: &CausalLink) -> LinkDto {
         confidence: l.confidence,
         negated: l.negated,
         joint_group_id: l.joint_group_id.clone(),
-        third_node_label: None, // résolu par l'appelant si nécessaire
+        third_node_label,
     }
 }
 

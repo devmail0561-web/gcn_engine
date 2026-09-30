@@ -652,3 +652,114 @@ def test_silver_weight_0_7_reduces_edge_loss(tmp_path: Path):
     loss_silver, _, _ = pipe.loss(nl, el, np.array([0, 1]), np.array([3]),
                                   sample_weight=0.7)
     assert loss_silver < loss_gold
+
+
+def _p06_dataset_no_tokens():
+    """1 phrase avec cir mais tokens=[] → reps vides → 100% ignorée."""
+    return {
+        "document": {
+            "lang": "fr",
+            "sentences": [
+                {
+                    "id": "s-empty",
+                    "text": "Phrase sans tokens annotés.",
+                    "tokens": [],
+                    "cir": {
+                        "nodes": [
+                            {"id": "n1", "type": "processus", "label": "x",
+                             "token_span": [0, 0]},
+                        ],
+                        "edges": [],
+                    },
+                }
+            ],
+        }
+    }
+
+
+def test_p06_empty_epoch_raises_not_silent(tmp_path: Path):
+    """P0-6 : epoch à 0 sample → ValueError (pas avg_loss=0.0 silencieux)."""
+    import json
+
+    from click.testing import CliRunner
+
+    from gcn_python.training.train import train_cmd
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "train.json").write_text(
+        json.dumps(_p06_dataset_no_tokens()), encoding="utf-8"
+    )
+    runner = CliRunner()
+    result = runner.invoke(train_cmd, [
+        "--data-dir", str(data_dir),
+        "--epochs", "1",
+        "--output", str(tmp_path / "model.npz"),
+    ])
+    assert result.exit_code != 0, f"epoch vide doit échouer, sortie :\n{result.output}"
+    assert "0 sample" in str(result.exception) or "0 sample" in result.output, (
+        f"message attendu ('0 sample'), obtenu : {result.exception!r}\n{result.output}"
+    )
+
+
+def test_p07_nonfinite_loss_stops_training(tmp_path: Path):
+    """P0-7 : loss non finie → ValueError avec l'id de phrase (pas de suite silencieuse)."""
+    import json
+    from unittest.mock import patch
+
+    import numpy as np
+    from click.testing import CliRunner
+
+    from gcn_python.training.train import train_cmd
+
+    dataset = {
+        "document": {
+            "lang": "fr",
+            "sentences": [
+                {
+                    "id": "s1",
+                    "text": "Les ventes baissent parce que les prix augmentent.",
+                    "tokens": [
+                        {"id": 1, "form": "Les", "lemma": "le", "pos": "DET",
+                         "dep_rel": "det", "dep_head": 2, "morph": {}},
+                        {"id": 2, "form": "ventes", "lemma": "vente", "pos": "NOUN",
+                         "dep_rel": "nsubj", "dep_head": 3, "morph": {}},
+                        {"id": 3, "form": "baissent", "lemma": "baisser", "pos": "VERB",
+                         "dep_rel": "root", "dep_head": 0, "morph": {}},
+                        {"id": 4, "form": "augmentent", "lemma": "augmenter", "pos": "VERB",
+                         "dep_rel": "advcl", "dep_head": 3, "morph": {}},
+                    ],
+                    "cir": {
+                        "nodes": [
+                            {"id": "n1", "type": "processus", "label": "baisse ventes",
+                             "token_span": [1, 3]},
+                            {"id": "n2", "type": "etat_local", "label": "hausse prix",
+                             "token_span": [4, 4]},
+                        ],
+                        "edges": [
+                            {"source": "n2", "target": "n1", "relation": "cause",
+                             "attributes": {"confidence": 1.0, "explicit": True,
+                                           "negated": False}},
+                        ],
+                    },
+                }
+            ],
+        }
+    }
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "train.json").write_text(json.dumps(dataset), encoding="utf-8")
+    runner = CliRunner()
+    with patch(
+        "gcn_python.pipeline.cgnp.CGNPipeline.loss",
+        return_value=(float("inf"), np.zeros((2, 8)), np.zeros((1, 19))),
+    ):
+        result = runner.invoke(train_cmd, [
+            "--data-dir", str(data_dir),
+            "--epochs", "1",
+            "--output", str(tmp_path / "model.npz"),
+        ])
+    assert result.exit_code != 0, f"loss inf doit arrêter, sortie :\n{result.output}"
+    assert "non finie" in str(result.exception) or "non finie" in result.output, (
+        f"message attendu ('non finie'), obtenu : {result.exception!r}\n{result.output}"
+    )

@@ -159,10 +159,12 @@ fn annotate_sentence(tokens: &[TaggedToken], res: &LexicalResources) -> Sentence
     let norm_lower: Vec<String> = lower_seq.iter().map(|s| normalize_clitic(s)).collect();
     let norm_refs: Vec<&str> = norm_lower.iter().map(|s| s.as_str()).collect();
 
-    if let Some(ann) = try_causal_verb(tokens, res) {
+    // P1-3 : marqueurs multi-mots d'abord (comme EN) — un marqueur explicite
+    // ("parce que", "si", ...) bat un verbe causal générique qui le contiendrait.
+    if let Some(ann) = try_causal_marker(tokens, &norm_refs, res) {
         return ann;
     }
-    if let Some(ann) = try_causal_marker(tokens, &norm_refs, res) {
+    if let Some(ann) = try_causal_verb(tokens, res) {
         return ann;
     }
 

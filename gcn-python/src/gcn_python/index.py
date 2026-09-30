@@ -118,10 +118,19 @@ def index_cmd(
             # Séquence correcte : segmenter en phrases, un analyze() par phrase,
             # puis bloc de discours avec ids préfixés (bBBBBB_nMMM).
             for sent in segment_sentences(line):
+                # P0-10 : analyze_or_skip (None si gcn absent/échec bridge) au lieu de
+                # try/except aveugle — le skip est nommé avec le contexte.
+                # Les erreurs forward (ValueError/RuntimeError/...) restent visibles
+                # par phrase (log + suivante), jamais silencieuses ni fatales au batch.
                 try:
-                    cir = engine.analyze(sent)
-                except Exception as exc:  # noqa: BLE001  # phrase invalide : log + phrase suivante
-                    log.warning("index: analyze impossible (%s) : %s", filename, exc)
+                    cir = engine.analyze_or_skip(sent)
+                except (ValueError, RuntimeError, KeyError, IndexError, TypeError) as exc:
+                    log.warning("index: forward impossible (%s) : %s : %r",
+                                filename, exc, sent[:80])
+                    continue
+                if cir is None:
+                    log.warning("index: phrase ignorée (gcn indisponible ou échec) : %s : %r",
+                                filename, sent[:80])
                     continue
                 # Éq.10 — relation discursive inter-phrasale (best-effort)
                 try:

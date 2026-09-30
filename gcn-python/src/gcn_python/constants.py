@@ -45,7 +45,9 @@ SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unkn
 
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
 TEMPORAL_REF_DEFAULT = "unresolved"
-AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]  # RÉSERVÉ — non utilisé v2.0
+# P2-5 : AGENT_TYPE_VALUES supprimé (listait human/collective/institutional/natural
+# sans aucun usage — grep nul hors définition ; agent_type reste un champ libre
+# Option<String> côté Rust et une clé attributes côté Python).
 
 # Universal Dependencies constants
 UPOS_TAGS = ["ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM",

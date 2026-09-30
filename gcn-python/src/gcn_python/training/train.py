@@ -948,14 +948,19 @@ def train_cmd(
             epoch_sent_edge_gold: list[list[str]] = []
             _asm_pred_idxs: list[int] = []  # G3 : connecteurs prédits (par arête)
             _asm_gold_idxs: list = []       # G3 : connecteurs gold (None exclus)
+            # P0-6 : compteur de samples sautés SANS warn (clauses vides, reps
+            # vides, logits vides) — une epoch à 0 sample ne doit pas être silencieuse.
+            _n_skip_silent = 0
 
             for sample in loader:
                 if not sample.sentence.clauses:
+                    _n_skip_silent += 1
                     continue
 
                 try:
                     reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
                     if not reps:
+                        _n_skip_silent += 1
                         continue
                     if scheduled_sampling and ss_final_epoch > 0:
                         _p_gold = max(0.0, 1.0 - (epoch - 1) / ss_final_epoch)
@@ -982,6 +987,7 @@ def train_cmd(
                 node_logits = pipeline._cached_node_logits
                 edge_logits = pipeline._cached_edge_logits
                 if node_logits is None or len(node_logits) == 0:
+                    _n_skip_silent += 1
                     continue
 
                 if valid_clause_idxs:
@@ -1064,6 +1070,14 @@ def train_cmd(
                     gold_intent=_gold_intent,
                     intent_logit_mask=_intent_logit_mask,
                 )
+                # P0-7 : loss non finie → STOP avec contexte (pas de training
+                # continué sur gradients corrompus ; loss() ne fait que warner).
+                if not np.isfinite(loss_val):
+                    raise ValueError(
+                        f"[epoch {epoch}] loss non finie ({loss_val!r}) sur phrase "
+                        f"{sample.sentence.id!r} — arrêt (overflow softmax, labels "
+                        "corrompus ?). Corrigez les données ou l'architecture."
+                    )
 
                 if not decoder_only:
                     _mgn = max_grad_norm if max_grad_norm > 0 else None
@@ -1197,6 +1211,19 @@ def train_cmd(
                             epoch_asm_loss += _a_loss   # C2.4 : séparé de epoch_loss
                             n_asm_samples += 1          # C2.4 : n_samples reste par phrase
 
+            # P0-6 : skips silencieux visibles par epoch ; epoch vide = STOP
+            # (avant : avg_loss = 0.0 enregistré sans aucun signal).
+            if _n_skip_silent:
+                warnings.warn(
+                    f"[epoch {epoch}] {_n_skip_silent} sample(s) ignoré(s) sans signal "
+                    "(clauses vides, reps vides ou logits vides).",
+                    UserWarning, stacklevel=2,
+                )
+            if n_samples == 0:
+                raise ValueError(
+                    f"[epoch {epoch}] 0 sample entraîné ({_n_skip_silent} ignoré(s)) — "
+                    "arrêt : données vides ou 100% filtrées. Vérifiez --data-dir."
+                )
             avg_loss = epoch_loss / max(n_samples, 1)
             metrics = {
                 "node_accuracy": node_accuracy(epoch_node_preds, epoch_node_gold),

@@ -100,6 +100,8 @@ fn build_node(id: NodeId, clause: &ClauseAnnotation, temporal_index: Option<i32>
     }
 
     // Progressive aspect ("is failing", "was increasing") → mark as ongoing process
+    // P1-3 : asymétrie FR/EN documentée (cf. fr/emitter.rs) — le progressif
+    // anglais n'a pas d'équivalent au "depuis" borné français, d'où Unresolved.
     let temporal_ref = if clause.is_progressive {
         modifiers.push(Modifier::Temporality {
             anchor: TemporalAnchor::Present,

@@ -23,13 +23,20 @@ pub use mapper::{
     is_supported_relationship, stix_object_type_to_node_type, stix_relationship_to_relation_type,
 };
 pub use stix::parse_bundle_with_report as parse_stix_bundle_with_report;
-pub use stix::{GraphParseReport, parse_bundle as parse_stix_bundle};
+// P0-5 : ré-export de l'alias déprécié (compat) — warning assumé ici, pas chez l'appelant.
+#[allow(deprecated)]
+pub use stix::parse_bundle as parse_stix_bundle;
 
 use gcn_ir::CausalIR;
 
 use crate::error::GraphParserError as GraphError;
 
 /// Alias conservé pour symétrie avec `gcn-frontend-code::parse_python` et al.
+/// P0-5 : aveugle aux ignorés — préférer `parse_stix_bundle_with_report`.
+#[deprecated(
+    since = "4.0.0",
+    note = "Aveugle aux ignorés : utilisez `parse_stix_bundle_with_report`."
+)]
 pub fn parse_stix(bundle_json: &str) -> Result<CausalIR, GraphError> {
-    parse_stix_bundle(bundle_json)
+    Ok(parse_stix_bundle_with_report(bundle_json)?.0)
 }

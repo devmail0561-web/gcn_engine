@@ -1298,3 +1298,145 @@ fn parse_comma_separator_for_pair_queries() {
         Query::Delay("feu".into(), "fumée".into())
     );
 }
+
+// ─── P0-1 : WHY/WHAT agrègent TOUS les matchs (pas le premier seul) ──────────
+
+#[test]
+fn p01_why_returns_all_matching_targets() {
+    // Deux nœuds matchant "ventes" (exact + préfixe), ancêtres distincts.
+    let ir = make_ir(
+        vec![
+            node(0, "hausse prix", NodeType::Processus),
+            node(1, "ventes", NodeType::Processus),
+            node(2, "promo", NodeType::Processus),
+            node(3, "ventes web", NodeType::Processus),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHY ventes?").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes {
+        links,
+        matched_targets,
+        ..
+    } = result
+    {
+        assert_eq!(
+            matched_targets.len(),
+            2,
+            "les 2 nœuds matchés doivent apparaître, obtenu {matched_targets:?}"
+        );
+        assert!(matched_targets.contains(&"ventes".to_string()));
+        assert!(matched_targets.contains(&"ventes web".to_string()));
+        // Les ancêtres des DEUX cibles doivent être présents (avant : 1er seul).
+        assert!(
+            links.iter().any(|l| l.from == "hausse prix"),
+            "ancêtre de 'ventes' manquant : {links:?}"
+        );
+        assert!(
+            links.iter().any(|l| l.from == "promo"),
+            "ancêtre de 'ventes web' manquant (P0-1) : {links:?}"
+        );
+    } else {
+        panic!("expected Causes result");
+    }
+}
+
+#[test]
+fn p01_what_returns_all_matching_sources() {
+    let ir = make_ir(
+        vec![
+            node(0, "pluie", NodeType::Processus),
+            node(1, "inondation", NodeType::Evenement),
+            node(2, "pluie acide", NodeType::Processus),
+            node(3, "corrosion", NodeType::Processus),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHAT pluie?").unwrap(), &ir).unwrap();
+    if let QueryResult::Effects {
+        links,
+        matched_sources,
+        ..
+    } = result
+    {
+        assert_eq!(matched_sources.len(), 2, "obtenu {matched_sources:?}");
+        assert!(links.iter().any(|l| l.to == "inondation"), "{links:?}");
+        assert!(
+            links.iter().any(|l| l.to == "corrosion"),
+            "effet de 'pluie acide' manquant (P0-1) : {links:?}"
+        );
+    } else {
+        panic!("expected Effects result");
+    }
+}
+
+// ─── P0-2 : chain_strict Err(NoPath) vs execute found:false ──────────────────
+
+#[test]
+fn p02_chain_strict_errors_on_missing_path_while_execute_reports_not_found() {
+    use gcn_backend::chain_strict;
+    let ir = make_ir(
+        vec![
+            node(0, "soleil", NodeType::Processus),
+            node(1, "lune", NodeType::Processus),
+        ],
+        vec![],
+    );
+    // Chemin non-strict : found:false, pas d'erreur.
+    let result = execute(&Query::parse("CHAIN soleil -> lune?").unwrap(), &ir).unwrap();
+    if let QueryResult::Path { found, .. } = result {
+        assert!(!found);
+    } else {
+        panic!("expected Path result");
+    }
+    // Strict : Err(NoPath).
+    let err = chain_strict(&ir, "soleil", "lune").unwrap_err();
+    assert!(
+        matches!(err, BackendError::NoPath(_, _)),
+        "attendu NoPath, obtenu {err:?}"
+    );
+}
+
+// ─── P1-5 : third_node_label résolu (plus None systématique) ─────────────────
+
+#[test]
+fn p15_third_node_label_resolved_in_why() {
+    use gcn_ir::{TernaryRole, TernaryThird};
+    let third_id = 2u32;
+    let (s, d, mut e) = edge(0, 1, RelationType::MediatedCause);
+    e.third = Some(TernaryThird {
+        role: TernaryRole::Mediator,
+        node: third_id as u64,
+        polarity: None,
+    });
+    let ir = make_ir(
+        vec![
+            node(0, "stress", NodeType::Processus),
+            node(1, "burnout", NodeType::Processus),
+            node(third_id, "sommeil", NodeType::Processus),
+            // Arête vers le médiateur pour que le contrefactuel ne le purge pas
+            // (sans objet ici — WHY seulement).
+        ],
+        vec![(s, d, e), edge(third_id, 1, RelationType::Enable)],
+    );
+    let result = execute(&Query::parse("WHY burnout?").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes { links, .. } = result {
+        let mediated = links
+            .iter()
+            .find(|l| l.relation == "mediated_cause")
+            .expect("arête mediated_cause attendue");
+        assert_eq!(
+            mediated.third_node_label,
+            Some("sommeil".to_string()),
+            "third_node_label doit être résolu (P1-5), obtenu {links:?}"
+        );
+    } else {
+        panic!("expected Causes result");
+    }
+}

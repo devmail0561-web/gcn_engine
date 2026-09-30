@@ -64,11 +64,16 @@ pub struct TableParseReport {
     pub skipped_unknown_relation: usize,
     /// Lignes à confiance illisible.
     pub skipped_bad_confidence: usize,
+    /// Lignes dont le nombre de champs ≠ en-tête (P0-4 : partiel, plus d'abort).
+    pub skipped_field_count: usize,
 }
 
 impl TableParseReport {
     pub fn total_skipped(&self) -> usize {
-        self.skipped_empty + self.skipped_unknown_relation + self.skipped_bad_confidence
+        self.skipped_empty
+            + self.skipped_unknown_relation
+            + self.skipped_bad_confidence
+            + self.skipped_field_count
     }
 }
 
@@ -107,6 +112,9 @@ pub fn parse_table(
     let mut nodes: Vec<CausalNode> = Vec::new();
     let mut id_by_label: HashMap<String, NodeId> = HashMap::new();
     let mut edges: Vec<(NodeId, NodeId, CausalEdge)> = Vec::new();
+    // P0-4 : première ligne malformée (n° CSV 1-based, nb champs) pour l'erreur
+    // "aucune ligne valide".
+    let mut first_field_mismatch: Option<(usize, usize)> = None;
 
     let node_for = |label: &str,
                     nodes: &mut Vec<CausalNode>,
@@ -134,12 +142,14 @@ pub fn parse_table(
     };
 
     for (row_no, row) in data.iter().enumerate() {
+        // P0-4 : ligne malformée → ignorée + comptée (pas d'abort).
+        // Erreur seulement si AUCUNE ligne valide (voir garde après la boucle).
         if row.len() != header.len() {
-            return Err(TableParserError::FieldCount(
-                row_no + 2,
-                header.len(),
-                row.len(),
-            ));
+            report.skipped_field_count += 1;
+            if first_field_mismatch.is_none() {
+                first_field_mismatch = Some((row_no + 2, row.len()));
+            }
+            continue;
         }
         let cause = row[cause_idx].trim();
         let effect = row[effect_idx].trim();
@@ -190,6 +200,14 @@ pub fn parse_table(
     }
 
     edges.sort_by_key(|(s, d, _)| (s.0, d.0));
+
+    // P0-4 : erreur seulement si aucune ligne valide du tout (sinon l'appelant
+    // croirait à un CSV vide alors que tout était malformé).
+    if edges.is_empty()
+        && let Some((row_no, got)) = first_field_mismatch
+    {
+        return Err(TableParserError::FieldCount(row_no, header.len(), got));
+    }
 
     Ok((
         CausalIR {

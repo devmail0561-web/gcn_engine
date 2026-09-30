@@ -4,8 +4,10 @@
 P1 — Pont texte brut → UDRepresentation via gcn-cli subprocess.
 
 Ce module permet au moteur ML Python de traiter du texte brut sans dépendance
-NLP externe (spaCy interdit, pas de PyO3). Le bridge appelle `gcn analyze`
-(CLI Rust) et construit des UDRepresentation heuristiques depuis le CIR produit.
+NLP externe (spaCy interdit, pas de PyO3). Le bridge appelle `gcn <subcommand>`
+(CLI Rust, défaut `analyze`) et construit des UDRepresentation heuristiques
+depuis le CIR produit. Aucune langue n'est nommée ici : le bridge route une
+chaîne de sous-commande, sans liste de langues en dur.
 
 QUALITÉ DE L'INFÉRENCE :
   Les UDRepresentation produits sont APPROXIMATIFS — les champs UD (root_pos,
@@ -19,7 +21,7 @@ QUALITÉ DE L'INFÉRENCE :
   | root_morph      | toujours {} → _absent pour Tense/Mood    | dégradé    |
   | is_negative     | toujours False (morph={})                | 0%         |
   | has_object      | attributes.patient is not None           | ~90%       |
-  | has_advcl       | toujours False (CIR ne porte pas l'info) | conservatif|
+  | has_advcl       | True si node_type == "condition"          | conservatif|
   | has_temporal_obl| temporal_ref not in (None, "unresolved") | ~85%       |
   | subject_pos     | attributes.agent présent → NOUN          | ~70%       |
 
@@ -343,16 +345,25 @@ def _call_gcn_analyze(
     text: str,
     gcn_bin: str,
     taxonomy_dir: Path | None,
+    subcommand: str = "analyze",
 ) -> dict:
     """
-    Appelle `gcn analyze <text>` et retourne le CIR parsé.
+    Appelle `gcn <subcommand> ... <text>` et retourne le CIR parsé.
+
+    subcommand : nom de sous-commande gcn-cli en clair (défaut "analyze").
+    Exemples : "analyze" (français), "analyze-en" (anglais). Libre par design :
+    le bridge ne connaît AUCUNE langue — il route une chaîne vers le binaire,
+    sans liste de langues en dur (moteur langue-agnostique, règle D1).
+    Chaîne vide refusée.
 
     Raises:
         GCNBridgeError: binaire absent, timeout, code non-zéro, JSON invalide.
     """
+    if not subcommand or not subcommand.strip():
+        raise GCNBridgeError("subcommand vide — nom de sous-commande invalide.")
     gcn_bin = _resolve_gcn_bin(gcn_bin)  # résout + vérifie existence; lève GCNBridgeError
     # --data-dir est toujours transmis : sans lui, clap rejette la commande.
-    cmd = [gcn_bin, "analyze", "--data-dir", str(_resolve_taxonomy_dir(taxonomy_dir))]
+    cmd = [gcn_bin, subcommand, "--data-dir", str(_resolve_taxonomy_dir(taxonomy_dir))]
     # -- sépare explicitement les options du texte (évite "--option" passé comme texte)
     cmd += ["--", text]
 
@@ -373,13 +384,13 @@ def _call_gcn_analyze(
         ) from None
     except subprocess.TimeoutExpired:
         raise GCNBridgeError(
-            f"Timeout (30s) lors de `{gcn_bin} analyze`. "
+            f"Timeout (30s) lors de `{gcn_bin} {subcommand}`. "
             f"Texte (80 premiers chars) : {text[:80]!r}"
         ) from None
 
     if proc.returncode != 0:
         raise GCNBridgeError(
-            f"`{gcn_bin} analyze` a échoué (code {proc.returncode}) :\n"
+            f"`{gcn_bin} {subcommand}` a échoué (code {proc.returncode}) :\n"
             f"{proc.stderr.strip()[:300]}"
         )
 
@@ -387,7 +398,7 @@ def _call_gcn_analyze(
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise GCNBridgeError(
-            f"Sortie JSON invalide de `{gcn_bin} analyze` : {exc}. "
+            f"Sortie JSON invalide de `{gcn_bin} {subcommand}` : {exc}. "
             f"Début de la sortie : {proc.stdout[:100]!r}"
         ) from exc
 
@@ -395,6 +406,9 @@ def _call_gcn_analyze(
 class GCNBridgeParser:
     """
     Implémentation de layer0.interface.TextParser via le subprocess gcn-cli.
+
+    subcommand : nom de sous-commande gcn-cli (défaut "analyze"). Explicite,
+    jamais deviné, jamais listé en dur — le bridge reste langue-agnostique.
 
     Qualité approximative — root_morph toujours {}, donc Tense/Aspect/Mood
     et Polarity toujours _absent/False (14 dimensions de features à zéro).
@@ -404,16 +418,17 @@ class GCNBridgeParser:
     direct du Protocol pour éviter les dépendances circulaires).
     """
 
-    def __init__(self, gcn_bin: str = "gcn", taxonomy_dir=None):
+    def __init__(self, gcn_bin: str = "gcn", taxonomy_dir=None, subcommand: str = "analyze"):
         self.gcn_bin = gcn_bin
         self.taxonomy_dir = taxonomy_dir
+        self.subcommand = subcommand
 
     def parse(
         self,
         text: str,
     ) -> tuple[list, list]:
         """Implémente TextParser.parse — retourne (clause_reps, connector_reps)."""
-        cir = _call_gcn_analyze(text, self.gcn_bin, self.taxonomy_dir)
+        cir = _call_gcn_analyze(text, self.gcn_bin, self.taxonomy_dir, self.subcommand)
         return _cir_to_reps_and_connectors(cir)
 
 
@@ -421,9 +436,10 @@ def reps_from_text(
     text: str,
     gcn_bin: str = "gcn",
     taxonomy_dir: Path | None = None,
+    subcommand: str = "analyze",
 ) -> list[UDRepresentation]:
     """
-    Texte brut → list[UDRepresentation] via `gcn analyze` (subprocess).
+    Texte brut → list[UDRepresentation] via `gcn <subcommand>` (subprocess).
 
     QUALITÉ APPROXIMATIVE : voir module docstring pour les limitations.
 
@@ -431,9 +447,10 @@ def reps_from_text(
         text: texte brut à analyser.
         gcn_bin: chemin vers le binaire gcn-cli (défaut : "gcn" dans PATH).
         taxonomy_dir: répertoire des taxonomies causales (optionnel).
+        subcommand: sous-commande gcn-cli (défaut "analyze", ex. "analyze-en").
 
     Returns:
-        Liste de UDRepresentation, une par nœud CIR produit par gcn analyze.
+        Liste de UDRepresentation, une par nœud CIR produit par gcn-cli.
 
     Raises:
         GCNBridgeError: binaire absent, timeout, code non-zéro ou JSON invalide.
@@ -445,6 +462,6 @@ def reps_from_text(
         UserWarning,
         stacklevel=2,
     )
-    cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir)
+    cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir, subcommand)
     reps, _ = _cir_to_reps_and_connectors(cir)
     return reps

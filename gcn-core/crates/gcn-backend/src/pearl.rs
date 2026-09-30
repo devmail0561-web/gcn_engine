@@ -344,7 +344,8 @@ fn reachable_pairs_with_graph(
     count
 }
 
-const SPOF_MAX_NODES: usize = 500;
+/// Garde anti-DoS SPOF (source unique — query.rs la réutilise, pas de doublon).
+pub const SPOF_MAX_NODES: usize = 500;
 
 /// Compte le nombre de paires (s,d) avec s≠d qui ont un chemin orienté dans le graphe.
 ///

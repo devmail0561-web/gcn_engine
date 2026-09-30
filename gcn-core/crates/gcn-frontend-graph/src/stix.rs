@@ -37,6 +37,12 @@ impl GraphParseReport {
     }
 }
 
+/// P0-5 : alias aveugle — jette le `GraphParseReport` (ignorés non visibles).
+/// Préférer `parse_bundle_with_report`. Conservé pour compatibilité.
+#[deprecated(
+    since = "4.0.0",
+    note = " Aveugle aux ignorés : utilisez `parse_bundle_with_report` pour obtenir le `GraphParseReport`."
+)]
 pub fn parse_bundle(json_text: &str) -> Result<CausalIR, GraphParserError> {
     Ok(parse_bundle_with_report(json_text)?.0)
 }

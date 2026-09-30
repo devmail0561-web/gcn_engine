@@ -446,3 +446,34 @@ def test_pipeline_analyze_or_skip_no_double_warning():
     assert result is None
     user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
     assert len(user_warnings) == 0, f"Warning inattendu : {[str(x.message) for x in user_warnings]}"
+
+
+# ── P2-3 : subcommand libre, aucune langue en dur ────────────────────────────
+
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
+@patch("gcn_python.frontend.bridge.subprocess.run")
+def test_call_gcn_analyze_routes_subcommand(mock_run, _resolve):
+    """La sous-commande est routée telle quelle (défaut analyze, ex. analyze-en)."""
+    from gcn_python.frontend.bridge import _call_gcn_analyze
+    mock_run.return_value = _make_mock_result(_CIR_TWO_NODES)
+    _call_gcn_analyze("x", "gcn", None)
+    assert mock_run.call_args[0][0][1] == "analyze"
+    _call_gcn_analyze("x", "gcn", None, "analyze-en")
+    assert mock_run.call_args[0][0][1] == "analyze-en"
+
+
+def test_call_gcn_analyze_empty_subcommand_rejected():
+    """Sous-commande vide → GCNBridgeError (pas d'appel)."""
+    from gcn_python.frontend.bridge import _call_gcn_analyze
+    with pytest.raises(GCNBridgeError, match="subcommand"):
+        _call_gcn_analyze("x", "gcn", None, "  ")
+
+
+def test_bridge_parser_default_subcommand():
+    """Défaut analyze, pas de littéral de langue stocké."""
+    from gcn_python.frontend.bridge import GCNBridgeParser
+    assert GCNBridgeParser().subcommand == "analyze"
+    assert GCNBridgeParser(subcommand="analyze-en").subcommand == "analyze-en"
+
+
+# ── P0-10 : analyze_or_skip déjà couvert (test_pipeline_analyze_or_skip_none_without_binary) ──

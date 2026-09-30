@@ -110,13 +110,14 @@ fn relationship_table_covers_causal_types_only() {
 
 #[test]
 fn non_bundle_rejected_with_typed_error() {
-    let err = gcn_frontend_graph::parse_stix_bundle(r#"{"type": "indicator"}"#).unwrap_err();
+    // P0-5 : via with_report (l'alias aveugle parse_stix_bundle est déprécié).
+    let err = parse_stix_bundle_with_report(r#"{"type": "indicator"}"#).unwrap_err();
     assert!(err.to_string().contains("bundle"));
 }
 
 #[test]
 fn invalid_json_rejected() {
-    assert!(gcn_frontend_graph::parse_stix_bundle("{pas du json").is_err());
+    assert!(parse_stix_bundle_with_report("{pas du json").is_err());
 }
 
 #[test]

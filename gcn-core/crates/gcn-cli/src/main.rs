@@ -6,6 +6,8 @@ use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use gcn_backend::{Query, execute, to_dot, to_json};
+use gcn_frontend_code::{parse_js_with_report, parse_python_with_report, parse_rust_with_report};
+use gcn_frontend_en::EnglishParser;
 use gcn_frontend_fr::FrenchParser;
 use gcn_frontend_graph::parse_stix_bundle_with_report;
 use gcn_frontend_table::{TableSchema, parse_table};
@@ -21,7 +23,9 @@ mod extract;
     about = "Grammaire Causale Naturelle — Causal reasoning engine",
     long_about = "GCN-Core CLI\n\
                   \nBootstrap annotation (symbolic, builds gcn-datasets/):\n\
-                   gcn analyze  — French text → CausalIR via symbolic rules\n\
+                   gcn analyze  — French text → CausalIR via symbolic rules
+                   gcn analyze-en — English text → CausalIR via symbolic rules
+                   gcn analyze-code — source file (py/rs/js) → CausalIR via AST\n\
                    gcn analyze-graph — STIX 2.x bundle → CausalIR (typed graphs)\n\
                    gcn analyze-table — cause/effect CSV → CausalIR (schema via flags)\n\
                    gcn extract-text  — PDF/HTML/notebook/txt → sentences for analyze\n\
@@ -50,6 +54,37 @@ enum Commands {
         /// Emit middleend diagnostics
         #[arg(long)]
         diagnostics: bool,
+    },
+    /// [Bootstrap] Auto-annotate English text → CausalIR using symbolic rules
+    /// (P2-1 : EnglishParser enfin exposé — parité avec `analyze`).
+    AnalyzeEn {
+        /// Text to analyze
+        text: String,
+        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
+        #[arg(long, env = "GCN_TAXONOMY_DIR")]
+        data_dir: PathBuf,
+        /// Output format
+        #[arg(long, default_value = "json")]
+        format: ExportFormat,
+        /// Emit middleend diagnostics
+        #[arg(long)]
+        diagnostics: bool,
+    },
+    /// [Bootstrap] Source file → CausalIR via tree-sitter AST (P2-2 : la dép
+    /// `gcn-frontend-code` existait mais n'était jamais appelée — orpheline).
+    AnalyzeCode {
+        /// Input source file
+        #[arg(long)]
+        input: PathBuf,
+        /// Source language (auto-detected from extension by default)
+        #[arg(long, value_enum)]
+        lang: Option<CodeLangArg>,
+        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
+        #[arg(long, env = "GCN_TAXONOMY_DIR")]
+        data_dir: PathBuf,
+        /// Output format
+        #[arg(long, default_value = "json")]
+        format: ExportFormat,
     },
     /// [P2.1] Ingest a STIX 2.x bundle file → CausalIR (typed graphs, zero ML)
     AnalyzeGraph {
@@ -109,13 +144,18 @@ enum Commands {
         /// Path to a CausalIR JSON file
         #[arg(long)]
         ir: PathBuf,
+        /// Strict mode: CHAIN with no path returns an error (NoPath)
+        /// instead of `{found: false}`. P0-2 : expose chain_strict(),
+        /// jusque-là du code mort (0 appelant).
+        #[arg(long)]
+        strict: bool,
     },
     /// Export a CausalIR to a different format
     Export {
         /// Path to a CausalIR JSON file
         #[arg(long)]
         ir: PathBuf,
-        /// Output format
+        /// Output format (txt = surface via gcn-verbalize, needs gcn-verbalize in PATH)
         #[arg(long, default_value = "dot")]
         format: ExportFormat,
     },
@@ -127,10 +167,49 @@ enum Commands {
     },
 }
 
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum CodeLangArg {
+    Py,
+    Rs,
+    Js,
+}
+
+impl CodeLangArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            CodeLangArg::Py => "python",
+            CodeLangArg::Rs => "rust",
+            CodeLangArg::Js => "javascript",
+        }
+    }
+}
+
+/// Détecte le langage source par extension (P2-2). Erreur si inconnue :
+/// l'appelant doit passer `--lang` explicitement (pas de devinette).
+fn detect_code_lang(path: &Path) -> Result<CodeLangArg, String> {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .as_deref()
+    {
+        Some("py") => Ok(CodeLangArg::Py),
+        Some("rs") => Ok(CodeLangArg::Rs),
+        Some("js") | Some("mjs") | Some("cjs") => Ok(CodeLangArg::Js),
+        other => Err(format!(
+            "unsupported extension {other:?} (expected .py/.rs/.js/.mjs/.cjs, or pass --lang)"
+        )),
+    }
+}
+
 #[derive(ValueEnum, Clone, Debug)]
 enum ExportFormat {
     Json,
     Dot,
+    /// P2-5 : surface textuelle via le pont gcn-verbalizer (shell-out
+    /// `gcn-verbalize -`, erreur explicite si absent). Câble enfin la crate
+    /// gcn-verbalizer, jusque-là non référencée par aucun crate.
+    Txt,
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug)]
@@ -179,10 +258,65 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            let output = match format {
-                ExportFormat::Json => to_json(&result.ir)?,
-                ExportFormat::Dot => to_dot(&result.ir)?,
+            let output = render(&format, &result.ir)?;
+            println!("{output}");
+        }
+
+        Commands::AnalyzeEn {
+            text,
+            data_dir,
+            format,
+            diagnostics,
+        } => {
+            let parser = EnglishParser::new(&data_dir)?;
+            let ir = parser.parse_with_ref(&text, Some("cli:inline".to_string()))?;
+            let result = middleend_process(ir)?;
+
+            if diagnostics && !result.diagnostics.is_empty() {
+                for d in &result.diagnostics {
+                    eprintln!("[{:?}] {:?}", d.severity, d.kind);
+                }
+            }
+
+            let output = render(&format, &result.ir)?;
+            println!("{output}");
+        }
+
+        Commands::AnalyzeCode {
+            input,
+            lang,
+            data_dir,
+            format,
+        } => {
+            let lang = match lang {
+                Some(l) => l,
+                None => detect_code_lang(&input).map_err(|e| format!("analyze-code: {e}"))?,
             };
+            let source = std::fs::read_to_string(&input)
+                .map_err(|e| format!("cannot read {}: {e}", input.display()))?;
+            // with_report : les kinds AST non mappés sont comptés, pas silencieux (P0-3).
+            let (ir, report) = match lang {
+                CodeLangArg::Py => parse_python_with_report(&source, &data_dir),
+                CodeLangArg::Rs => parse_rust_with_report(&source, &data_dir),
+                CodeLangArg::Js => parse_js_with_report(&source, &data_dir),
+            }
+            .map_err(|e| {
+                format!(
+                    "invalid {} source in {}: {e}",
+                    lang.as_str(),
+                    input.display()
+                )
+            })?;
+            let result = middleend_process(ir)?;
+            eprintln!(
+                "{} nodes, {} edges ({} AST nodes skipped: {} unmapped kind, {} truncated label)",
+                result.ir.nodes.len(),
+                result.ir.edges.len(),
+                report.total_skipped(),
+                report.skipped_unmapped,
+                report.truncated_labels,
+            );
+            let output = render(&format, &result.ir)?;
             println!("{output}");
         }
 
@@ -201,10 +335,7 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 report.skipped_dangling,
                 report.skipped_objects,
             );
-            let output = match format {
-                ExportFormat::Json => to_json(&result.ir)?,
-                ExportFormat::Dot => to_dot(&result.ir)?,
-            };
+            let output = render(&format, &result.ir)?;
             println!("{output}");
         }
 
@@ -250,18 +381,16 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 .map_err(|e| format!("invalid CSV table in {}: {e}", input.display()))?;
             let result = middleend_process(ir)?;
             eprintln!(
-                "{} nodes, {} edges ({} rows skipped: {} empty, {} unknown relation, {} bad confidence)",
+                "{} nodes, {} edges ({} rows skipped: {} empty, {} unknown relation, {} bad confidence, {} bad field count)",
                 result.ir.nodes.len(),
                 result.ir.edges.len(),
                 report.total_skipped(),
                 report.skipped_empty,
                 report.skipped_unknown_relation,
                 report.skipped_bad_confidence,
+                report.skipped_field_count,
             );
-            let output = match format {
-                ExportFormat::Json => to_json(&result.ir)?,
-                ExportFormat::Dot => to_dot(&result.ir)?,
-            };
+            let output = render(&format, &result.ir)?;
             println!("{output}");
         }
 
@@ -291,7 +420,7 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
-        Commands::Query { query, ir } => {
+        Commands::Query { query, ir, strict } => {
             let raw = load_ir(&ir)?;
             // Validate + recompute cycles — même chemin qu'analyze, évite IDs dupliqués
             // silencieux et ir.cycles périmés (audit adversarial P0).
@@ -300,6 +429,16 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("[{:?}] {:?}", d.severity, d.kind);
             }
             let q = Query::parse(&query)?;
+            // P0-2 : --strict route CHAIN vers chain_strict() (Err NoPath
+            // si pas de chemin) au lieu de Path{found:false}.
+            if strict {
+                if let Query::Chain(from, to) = &q {
+                    let links = gcn_backend::chain_strict(&processed.ir, from, to)?;
+                    println!("{}", serde_json::to_string_pretty(&links)?);
+                    return Ok(());
+                }
+                eprintln!("warning: --strict ne s'applique qu'à CHAIN, ignoré ici");
+            }
             let result = execute(&q, &processed.ir)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
@@ -310,10 +449,7 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             for d in &processed.diagnostics {
                 eprintln!("[{:?}] {:?}", d.severity, d.kind);
             }
-            let output = match format {
-                ExportFormat::Json => to_json(&processed.ir)?,
-                ExportFormat::Dot => to_dot(&processed.ir)?,
-            };
+            let output = render(&format, &processed.ir)?;
             println!("{output}");
         }
 
@@ -330,6 +466,17 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+/// Rend un CIR selon le format demandé.
+/// P2-5 : `Txt` passe par le pont gcn-verbalizer (`gcn-verbalize -` via PATH,
+/// erreur explicite si absent) — câble enfin la crate gcn-verbalizer.
+fn render(format: &ExportFormat, ir: &CausalIR) -> Result<String, Box<dyn std::error::Error>> {
+    match format {
+        ExportFormat::Json => Ok(to_json(ir)?),
+        ExportFormat::Dot => Ok(to_dot(ir)?),
+        ExportFormat::Txt => Ok(gcn_verbalizer::decode(ir)?),
+    }
 }
 
 const MAX_IR_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
@@ -351,4 +498,31 @@ fn load_ir(path: &Path) -> Result<CausalIR, Box<dyn std::error::Error>> {
     let ir = serde_json::from_str(&content)
         .map_err(|e| format!("invalid CausalIR JSON in {}: {e}", path.display()))?;
     Ok(ir)
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // P2-2 : détection du langage par extension (explicite, pas de devinette).
+    #[test]
+    fn detect_code_lang_by_extension() {
+        assert!(matches!(
+            detect_code_lang(&PathBuf::from("a.py")),
+            Ok(CodeLangArg::Py)
+        ));
+        assert!(matches!(
+            detect_code_lang(&PathBuf::from("A.RS")),
+            Ok(CodeLangArg::Rs)
+        ));
+        for ext in ["x.js", "x.mjs", "x.cjs"] {
+            assert!(
+                matches!(detect_code_lang(&PathBuf::from(ext)), Ok(CodeLangArg::Js)),
+                "{ext}"
+            );
+        }
+        assert!(detect_code_lang(&PathBuf::from("x.html")).is_err());
+        assert!(detect_code_lang(&PathBuf::from("sans_extension")).is_err());
+    }
 }

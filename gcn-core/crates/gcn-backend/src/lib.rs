@@ -12,5 +12,5 @@ pub mod query;
 pub use error::BackendError;
 pub use export::{to_dot, to_json};
 pub use query::{
-    AbductionHypothesisDto, Query, QueryResult, SpofNodeDto, TemporalLinkDto, execute,
+    AbductionHypothesisDto, Query, QueryResult, SpofNodeDto, TemporalLinkDto, chain_strict, execute,
 };

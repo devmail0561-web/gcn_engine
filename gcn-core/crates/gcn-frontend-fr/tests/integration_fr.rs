@@ -405,3 +405,23 @@ fn fix_c1_concession_sentence_implicit_edge_src_not_hypothetical() {
         src_node.label
     );
 }
+
+// ─── P1-3 : le marqueur explicite bat le verbe causal (parité avec EN) ───────
+
+#[test]
+fn p13_marker_beats_causal_verb() {
+    use gcn_ir::RelationType;
+    // "si" (marqueur) + "provoque" (verbe causal) : l'ancienne priorité verbe
+    // produisait Cause, la nouvelle (marqueur d'abord, comme EN) donne Condition.
+    let parser = parser();
+    let ir = parser
+        .parse("Si la sécheresse provoque la famine, on intervient.")
+        .expect("parse");
+    assert_eq!(ir.edges.len(), 1, "une arête attendue, obtenu {ir:?}");
+    assert_eq!(
+        ir.edges[0].2.relation,
+        RelationType::Condition,
+        "le marqueur 'si' doit gagner sur le verbe 'provoque', obtenu {:?}",
+        ir.edges[0].2
+    );
+}
