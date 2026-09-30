@@ -79,8 +79,13 @@ class SessionStore:
                     params[f"encoder_{i}"] = np.asarray(p)
                 self._checkpoint_hash = checkpoint_hash(params)
                 self._d_eff = int(vecs.shape[1]) if getattr(vecs, "ndim", 1) == 2 else len(vecs[0])
-            except Exception:  # noqa: S110, BLE001  # hash du checkpoint best-effort, silencieux
-                pass
+            except Exception as exc:  # noqa: BLE001  # hash best-effort : warn unique, manifest sans hash
+                if not getattr(self, "_hash_warned", False):
+                    warnings.warn(
+                        f"session : hash du checkpoint indisponible ({exc}) — manifest sans hash.",
+                        UserWarning, stacklevel=2,
+                    )
+                    self._hash_warned = True
         self.history.append({
             "ts": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
             "event": "analyze",

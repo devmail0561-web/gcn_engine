@@ -1,7 +1,7 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_backend::{BackendError, Query, QueryResult, TemporalLinkDto, execute, to_dot, to_json};
+use gcn_backend::{BackendError, Query, QueryResult, execute, to_dot, to_json};
 use gcn_ir::temporal::GapNature;
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, NaturalLanguage, NodeAttributes, NodeId,
@@ -1439,4 +1439,66 @@ fn p15_third_node_label_resolved_in_why() {
     } else {
         panic!("expected Causes result");
     }
+}
+
+// ─── DTOs : relations/types en snake_case serde (pas Debug PascalCase) ───────
+
+#[test]
+fn dto_relations_and_kinds_are_snake_case() {
+    use gcn_ir::temporal::GapNature;
+    // GAPS : arête avec temporal_gap → GapDto.relation.
+    let (s, d, mut e) = edge(0, 1, RelationType::ConditionalCause);
+    e.temporal_gap = Some(gcn_ir::TemporalGap {
+        min: Some(1),
+        max: Some(2),
+        nature: GapNature::Deferred,
+    });
+    let ir = make_ir(
+        vec![
+            node(0, "pluie", NodeType::Processus),
+            node(1, "recolte", NodeType::Processus),
+        ],
+        vec![(s, d, e), edge(1, 0, RelationType::Cause)],
+    );
+    // GAPS
+    if let QueryResult::GapList { gap_edges, .. } =
+        execute(&Query::parse("GAPS?").unwrap(), &ir).unwrap()
+    {
+        assert!(!gap_edges.is_empty());
+        assert_eq!(gap_edges[0].relation, "conditional_cause", "{gap_edges:?}");
+    } else {
+        panic!("expected GapList");
+    }
+    // CYCLES (0→1→0) : kind snake_case.
+    if let QueryResult::CycleList { cycles, .. } =
+        execute(&Query::parse("CYCLES?").unwrap(), &ir).unwrap()
+    {
+        assert!(!cycles.is_empty());
+        for c in &cycles {
+            assert!(
+                ["feedback_positive", "feedback_negative", "oscillation"]
+                    .contains(&c.kind.as_str()),
+                "kind snake_case attendu, obtenu {:?}",
+                c.kind
+            );
+        }
+    } else {
+        panic!("expected CycleList");
+    }
+    // EXPLAIN : relation snake_case.
+    if let QueryResult::Abduction { hypotheses, .. } =
+        execute(&Query::parse("EXPLAIN recolte?").unwrap(), &ir).unwrap()
+    {
+        assert!(!hypotheses.is_empty());
+        for h in &hypotheses {
+            assert!(
+                h.relation.chars().all(|c| !c.is_uppercase()),
+                "relation snake_case attendue (pas de PascalCase), obtenu {:?}",
+                h.relation
+            );
+        }
+    } else {
+        panic!("expected Abduction");
+    }
+    // WHY chaîné : third/relations passent par link_to_dto (déjà couvert p15).
 }

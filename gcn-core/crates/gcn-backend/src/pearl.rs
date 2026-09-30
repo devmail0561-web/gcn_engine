@@ -347,35 +347,6 @@ fn reachable_pairs_with_graph(
 /// Garde anti-DoS SPOF (source unique — query.rs la réutilise, pas de doublon).
 pub const SPOF_MAX_NODES: usize = 500;
 
-/// Compte le nombre de paires (s,d) avec s≠d qui ont un chemin orienté dans le graphe.
-///
-/// Garde anti-DoS : au-delà de `SPOF_MAX_NODES`, retourne 0 SANS calculer
-/// (sémantique silencieuse historique — contrairement à `spof_all` qui
-/// retourne `Err`, car changer cette signature casserait l'API).
-pub fn count_reachable_pairs(ir: &CausalIR) -> usize {
-    if ir.nodes.len() > SPOF_MAX_NODES {
-        return 0;
-    }
-    let g = build(ir);
-    reachable_pairs_with_graph(&g, &ir.nodes, None)
-}
-
-/// Compte les paires atteignables après suppression virtuelle de `excluded`.
-///
-/// Même garde silencieuse que `count_reachable_pairs` (voir sa doc) :
-/// 0 au-delà de `SPOF_MAX_NODES`, sans erreur.
-pub fn count_reachable_pairs_without(ir: &CausalIR, excluded: NodeId) -> usize {
-    if ir.nodes.len() > SPOF_MAX_NODES {
-        return 0;
-    }
-    let g = build(ir);
-    let excluded_idx = match g.node_indices.get(&excluded) {
-        Some(&x) => x,
-        None => return reachable_pairs_with_graph(&g, &ir.nodes, None),
-    };
-    reachable_pairs_with_graph(&g, &ir.nodes, Some(excluded_idx))
-}
-
 /// Score SPOF étendu avec flag super_spof (Éq.12).
 #[derive(Debug, Clone)]
 pub struct SpofScore {

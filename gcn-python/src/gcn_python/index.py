@@ -140,8 +140,8 @@ def index_cmd(
                     )
                     if _disc is not None:
                         cir.setdefault("edges", []).append(_disc)
-                except Exception:  # noqa: S110, BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001  # discours best-effort : log + sans arête
+                    log.debug("index: relation discursive ignorée : %s", exc)
                 _prev_cir = cir
                 if cir.get("edges"):
                     block_idx += 1

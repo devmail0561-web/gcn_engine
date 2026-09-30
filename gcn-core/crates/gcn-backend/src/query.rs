@@ -511,7 +511,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .map(|(s, d, e)| GapDto {
                     from: pearl::node_label(ir, *s),
                     to: pearl::node_label(ir, *d),
-                    relation: format!("{:?}", e.relation),
+                    relation: serde_name(&e.relation),
                 })
                 .collect();
             Ok(QueryResult::GapList {
@@ -555,7 +555,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     .map(|m| AnalogyMatchDto {
                         from_label: m.from_label,
                         to_label: m.to_label,
-                        relation: format!("{:?}", m.relation),
+                        relation: serde_name(&m.relation),
                         confidence: m.confidence,
                         similarity_score: m.similarity_score,
                     })
@@ -572,7 +572,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .filter(|n| n.parent == Some(node.id))
                 .map(|n| NodeSummaryDto {
                     label: n.label.clone(),
-                    node_type: format!("{:?}", n.node_type),
+                    node_type: serde_name(&n.node_type),
                 })
                 .collect();
             Ok(QueryResult::HierarchyZoomIn {
@@ -613,10 +613,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .map(|(s, d, e)| LinkDto {
                     from: nm.get(s).map(|n| n.label.clone()).unwrap_or_default(),
                     to: nm.get(d).map(|n| n.label.clone()).unwrap_or_default(),
-                    relation: serde_json::to_value(e.relation)
-                        .ok()
-                        .and_then(|v| v.as_str().map(|s| s.to_string()))
-                        .unwrap_or_else(|| format!("{:?}", e.relation).to_lowercase()),
+                    relation: serde_name(&e.relation),
                     confidence: e.confidence,
                     negated: e.negated,
                     joint_group_id: e.joint_group_id.clone(),
@@ -862,7 +859,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     .into_iter()
                     .map(|h| AbductionHypothesisDto {
                         label: h.label,
-                        relation: format!("{:?}", h.relation),
+                        relation: serde_name(&h.relation),
                         edge_confidence: h.edge_confidence,
                         score: h.score,
                         depth: h.depth,
@@ -971,7 +968,7 @@ fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
     TemporalLinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),
-        relation: format!("{:?}", l.relation),
+        relation: serde_name(&l.relation),
         confidence: l.confidence,
         negated: l.negated,
         gap_min: l.gap_min,
@@ -980,12 +977,20 @@ fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
     }
 }
 
-fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
-    // C4 fix : sérialiser la relation en snake_case via serde (pas Debug)
-    let relation = serde_json::to_value(l.relation)
+/// Nom serde snake_case d'une valeur (relation, type de nœud, type de cycle),
+/// avec repli Debug minuscule. Évite les incohérences PascalCase/snake_case
+/// entre DTOs (constat d'audit : Gaps/Analogy/Explain/Zoom/Temporal en Debug,
+/// LinkDto en serde).
+fn serde_name<T: serde::Serialize + std::fmt::Debug>(v: &T) -> String {
+    serde_json::to_value(v)
         .ok()
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_else(|| format!("{:?}", l.relation).to_lowercase());
+        .and_then(|j| j.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| format!("{v:?}").to_lowercase())
+}
+
+fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
+    // C4 fix : sérialiser la relation en snake_case via serde (pas Debug).
+    let relation = serde_name(&l.relation);
     // P1-5 : résoudre le tiers ternaire (médiateur/condition) en label.
     // Était `None` systématique alors que `CausalLink.third_node` est peuplé
     // depuis `CausalEdge.third` (pearl.rs) — perte ternaire de bout en bout.
@@ -1009,7 +1014,7 @@ fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
 fn cycle_to_dto(ir: &CausalIR) -> impl Fn(&CausalCycle) -> CycleDto + '_ {
     move |c| CycleDto {
         id: c.id.0,
-        kind: format!("{:?}", c.cycle_type),
+        kind: serde_name(&c.cycle_type),
         nodes: c.path.iter().map(|&id| pearl::node_label(ir, id)).collect(),
     }
 }
