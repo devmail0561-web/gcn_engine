@@ -13,6 +13,11 @@ test:
 	cd gcn-core && cargo test --workspace
 	python3 -m pytest gcn-python/tests/ -q
 
+gates:
+	for f in gcn-datasets/DATA/supervision/v4/annotated/lot*.json; do \
+	  python3 scripts/check_v4.py --min-class-count 1 "$$f" || exit 1; \
+	done
+
 lint:
 	cd gcn-core && cargo clippy -- -D warnings
 	ruff check gcn-python/src/ gcn-python/tests/
