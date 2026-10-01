@@ -153,7 +153,8 @@ def run_eval(
                                         n_intent_types=_n_intent,
                                         n_sentence_types=_n_sentence,
                                         intent_conditioned=bool(
-                                            _arch.get("intent_conditioned", False)))
+                                            _arch.get("intent_conditioned", False)),
+                                        qual_heads=bool(_arch.get("qual_heads", False)))
     else:
         encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden,
                              n_node_types=len(_active_nodes),
@@ -161,7 +162,8 @@ def run_eval(
                              n_intent_types=_n_intent,
                              n_sentence_types=_n_sentence,
                              intent_conditioned=bool(
-                                 _arch.get("intent_conditioned", False)))
+                                 _arch.get("intent_conditioned", False)),
+                             qual_heads=bool(_arch.get("qual_heads", False)))
 
     if _gclass == "RGCNLayerGAT":
         try:

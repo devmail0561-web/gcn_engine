@@ -82,6 +82,17 @@ UD_POLARITY_VALUES = ["Neg"]                                       # 1 binaire
 UD_VOICE_VALUES    = ["Act", "Pass", "_absent"]                    # 3 — v3.0
 UD_PRONTYPE_VALUES = ["Int", "Rel", "Prs", "Dem", "Ind", "Art", "_absent"]  # 7 — ETUDE §7.2
 
+# P4 quals — qualifications d'arête comme cibles (têtes en dortoir N_min).
+# Valeurs alignées sur EdgeRecord (schema.py) : défauts positive/active/indicative.
+QUAL_POLARITY = ["positive", "negative"]
+QUAL_VOICE = ["active", "passive"]
+QUAL_MODALITY = ["indicative", "subjunctive", "conditional", "imperative"]
+QUALIFIERS: dict[str, list[str]] = {
+    "polarity": QUAL_POLARITY,
+    "voice": QUAL_VOICE,
+    "modality": QUAL_MODALITY,
+}
+
 # d_clause (v3.0) = 18(UPOS) + 38(dep_rel) + 5(subject_pos) + 5(tense) + 4(aspect)
 #                 + 5(mood) + 3(voice) + 7(prontype) + 1(polarity) + 3(flags)
 #                 + 12(positionnels Éq.9) + 5(ternaires) = 106

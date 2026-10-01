@@ -594,28 +594,29 @@ def test_sentence_learned_end_to_end_real():
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         (data_dir / "train.json").write_text(json.dumps(_mkexp_sentences()), encoding="utf-8")
-        out = tmp_path / "model.npz"
-        result = CliRunner().invoke(train_cmd, [
-            "--data-dir", str(data_dir), "--epochs", "60", "--embedding-dim", "8",
-            "--seed", "7", "--lr", "0.005", "--output", str(out),
-            "--n-sentence-types", "4",
-            # Données jouet : opt-out explicite du gate v5.
-            "--min-class-count", "1"])
-        assert result.exit_code == 0, f"train réel échoué :\n{result.output}\n{result.exception}"
+        for _mb in (4, 1):  # v5.9 : accumulate ET backward direct entraînent la tête
+            out = tmp_path / f"model_mb{_mb}.npz"
+            result = CliRunner().invoke(train_cmd, [
+                "--data-dir", str(data_dir), "--epochs", "60", "--embedding-dim", "8",
+                "--seed", "7", "--lr", "0.005", "--output", str(out),
+                "--n-sentence-types", "4", "--mini-batch-size", str(_mb),
+                # Données jouet : opt-out explicite du gate v5.
+                "--min-class-count", "1"])
+            assert result.exit_code == 0, f"train réel échoué :\n{result.output}\n{result.exception}"
 
-        from gcn_python import GCNEngine
-        eng = GCNEngine.from_pretrained(out, trusted=True)
-        ok = 0
-        from gcn_python.data.loader import GCNDataLoader, reps_from_sentence
-        for smp in GCNDataLoader(data_dir):
-            reps, _, conn = reps_from_sentence(smp.sentence)
-            eng._pipeline.forward(reps, smp.sentence.text, connector_reps=conn)
-            el = np.asarray(eng._pipeline._cached_sentence_logits)
-            pred = SENTENCE_TYPES[int(np.argmax(el[0]))]
-            gold = smp.sentence_type
-            assert pred == gold, f"{smp.sentence.id} : {pred} != {gold}"
-            ok += 1
-        assert ok == 4
+            from gcn_python import GCNEngine
+            eng = GCNEngine.from_pretrained(out, trusted=True)
+            ok = 0
+            from gcn_python.data.loader import GCNDataLoader, reps_from_sentence
+            for smp in GCNDataLoader(data_dir):
+                reps, _, conn = reps_from_sentence(smp.sentence)
+                eng._pipeline.forward(reps, smp.sentence.text, connector_reps=conn)
+                el = np.asarray(eng._pipeline._cached_sentence_logits)
+                pred = SENTENCE_TYPES[int(np.argmax(el[0]))]
+                gold = smp.sentence_type
+                assert pred == gold, f"[mb={_mb}] {smp.sentence.id} : {pred} != {gold}"
+                ok += 1
+            assert ok == 4
 
 
 def test_intent_conditioned_requires_sentence_head():

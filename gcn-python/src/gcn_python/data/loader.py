@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..constants import NODE_TYPE_ALIASES, NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPE_ALIASES, NODE_TYPES, QUALIFIERS, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
 from .json_reader import load_all_sentences
 from .schema import ClauseRecord, SentenceRecord, TokenRecord
@@ -34,6 +34,21 @@ def _relation_idx(relation: str, sentence_id: str) -> int:
     return RELATION_TYPES.index(relation)
 
 
+def _qual_idx(edge) -> dict[str, int]:
+    """Indices QUALIFIERS d'une arête (defaults EdgeRecord si absents/invalides).
+
+    Jamais d'erreur : valeur inconnue → idx 0 (défaut documenté). Le N_min
+    des têtes quals se joue sur les comptages, pas ici.
+    """
+    out = {}
+    for _qn, _classes in QUALIFIERS.items():
+        _v = str(getattr(edge, _qn, "") or "")
+        if not _v:
+            _v = _classes[0]
+        out[_qn] = _classes.index(_v) if _v in _classes else 0
+    return out
+
+
 @dataclass
 class TrainingSample:
     sentence: SentenceRecord
@@ -41,6 +56,9 @@ class TrainingSample:
     edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
     hyperedge_map: dict = field(default_factory=dict)  # {(frozenset(sources_str), tgt_idx): rel_idx} N-aires
     edge_conf_map: dict = field(default_factory=dict)  # {(src, tgt): float} — confidence par arête (S-5)
+    # P4 quals : {(src_idx, tgt_idx): {"polarity": pi, "voice": vi, "modality": mi}}
+    # indices dans QUALIFIERS. Defaults EdgeRecord (positive/active/indicative).
+    qual_map: dict = field(default_factory=dict)
     # Ternaire (§11.5) : {(src_idx, tgt_idx): (role, node_id_str)} depuis EdgeRecord.third.
     # Propagé jusqu'ici (pas encore supervisé — loss BCE quand N_min=20) pour que
     # le moteur voie le tiers dès que les données existent. Vide sur données actuelles.
@@ -148,6 +166,7 @@ class GCNDataLoader:
         edge_conf_map: dict[tuple[int, int], float] = {}
         hyperedge_map: dict[tuple[frozenset, int], int] = {}
         third_map: dict[tuple[int, int], tuple[str, str]] = {}
+        qual_map: dict[tuple[int, int], dict[str, int]] = {}
         n_backward = 0
         for e in rec.edges:
             src_list = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
@@ -206,6 +225,7 @@ class GCNDataLoader:
                     if isinstance(_third, dict) and _third.get("role") in ("condition", "mediator") \
                             and _third.get("node") is not None:
                         third_map[key] = (_third["role"], str(_third["node"]))
+                    qual_map[key] = _qual_idx(e)
             else:
                 key = (src_idx, tgt_idx)
                 edge_map[key] = rel_idx
@@ -216,6 +236,7 @@ class GCNDataLoader:
                 tnode = third.get("node") if isinstance(third, dict) else None
                 if role in ("condition", "mediator") and tnode is not None:
                     third_map[key] = (role, str(tnode))
+                qual_map[key] = _qual_idx(e)
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse (src > tgt). "
@@ -232,7 +253,7 @@ class GCNDataLoader:
         else:
             _st, _st_src = derive_sentence_type(rec.text), "rule"
         return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map,
-                              third_map, _st, _st_src)
+                              qual_map, third_map, _st, _st_src)
 
 
 def reps_from_sentence(

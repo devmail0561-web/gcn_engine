@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-from ..constants import SENTENCE_TYPES as _SENTENCE_TYPES
 from ..layer1.features import FeatureVocabulary
 from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
@@ -104,6 +103,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
         # P4b : couplage intent←sentence — absent = False (vieux checkpoints).
         "intent_conditioned": bool(getattr(pipeline.encoder, 'intent_conditioned', False)),
+        # P4 quals : têtes actives ou non — absent = False (vieux checkpoints).
+        "qual_heads": bool(getattr(pipeline.encoder, 'qual_heads', False)),
         # Phase C : MHA globale — n_gat_heads_mha distinct de n_gat_heads (GAT).
         "global_attention": bool(getattr(pipeline, 'global_attention',
                                         type(pipeline.encoder).__name__ == "TransformerMLPEncoder")),
@@ -195,9 +196,26 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             arrays[f"sentence_layer_{i}_W"] = layer.W
             arrays[f"sentence_layer_{i}_b"] = layer.b
         import json as _json_sent
+
+        from ..constants import SENTENCE_TYPES as _SENTENCE_TYPES
         arrays["_sentence_meta_json"] = np.array(
             [_json_sent.dumps({"n_sentence_types": pipeline.encoder.n_sentence_types,
                                "sentence_types": _SENTENCE_TYPES})],
+            dtype=object,
+        )
+
+    # P4 quals : sauvegarder les 3 têtes si actives (même pattern).
+    if (hasattr(pipeline.encoder, '_qual_layers')
+            and getattr(pipeline.encoder, 'qual_heads', False)):
+        for _qn, _layers in pipeline.encoder._qual_layers.items():
+            for i, layer in enumerate(_layers):
+                arrays[f"qual_layer_{_qn}_{i}_W"] = layer.W
+                arrays[f"qual_layer_{_qn}_{i}_b"] = layer.b
+        import json as _json_qual
+
+        from ..constants import QUALIFIERS as _QUALIFIERS
+        arrays["_qual_meta_json"] = np.array(
+            [_json_qual.dumps({"qualifiers": sorted(_QUALIFIERS)})],
             dtype=object,
         )
 
@@ -303,9 +321,9 @@ def load_checkpoint(
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
                        "link_pred_", "hyperedge_", "assembler_", "_mha_", "intent_layer_",
-                       "sentence_layer_")
+                       "sentence_layer_", "qual_layer_")
     _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E",
-                    "_intent_meta_json", "_sentence_meta_json",
+                    "_intent_meta_json", "_sentence_meta_json", "_qual_meta_json",
                     "_arch_json", "_link_pred_meta_json", "_assembler_meta_json",
                     "word_emb_pretrained_start", "word_emb_pretrained_end"}
     unexpected = set(data.files) - _VALID_EXACT
@@ -574,6 +592,17 @@ def load_checkpoint(
                 layer.W[:] = data[w_key]
             if b_key in data and data[b_key].shape == layer.b.shape:
                 layer.b[:] = data[b_key]
+
+    # P4 quals : restaurer les 3 têtes si présentes dans le checkpoint.
+    if ("_qual_meta_json" in data
+            and hasattr(pipeline.encoder, '_qual_layers')):
+        for _qn, _layers in pipeline.encoder._qual_layers.items():
+            for i, layer in enumerate(_layers):
+                w_key, b_key = f"qual_layer_{_qn}_{i}_W", f"qual_layer_{_qn}_{i}_b"
+                if w_key in data and data[w_key].shape == layer.W.shape:
+                    layer.W[:] = data[w_key]
+                if b_key in data and data[b_key].shape == layer.b.shape:
+                    layer.b[:] = data[b_key]
 
     # S9 : restaurer word_embedding si présent dans le checkpoint
     if "_word_emb_vocab_json" in data:

@@ -14,6 +14,7 @@ import numpy as np
 from ..constants import (
     INTENT_TYPES,
     NODE_TYPES,
+    QUALIFIERS,
     RELATION_TYPES,
     SENTENCE_TYPES,
     coarse_node,
@@ -277,6 +278,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="P4a : active la tête type de phrase (0=désactivé). "
                    "Doit correspondre à len(SENTENCE_TYPES)=4 si > 0. "
                    "Golds dérivés par règle (ponctuation) sauf annotation.")
+@click.option("--qual-heads/--no-qual-heads", default=False, show_default=True,
+              help="P4 quals : active les 3 têtes edge-qualifiers "
+                   "(polarity/2, voice/2, modality/4) sur vecteurs enrichis. "
+                   "Chaque (qual, classe) sous N_min est masquée.")
 @click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
               help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
                    "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
@@ -346,6 +351,7 @@ def train_cmd(
     ss_final_epoch: int,
     n_intent_types: int,
     n_sentence_types: int,
+    qual_heads: bool,
     coarse_phase: bool,
     coarse_n_min: int,
 ) -> None:
@@ -575,6 +581,7 @@ def train_cmd(
                 n_sentence_types=n_sentence_types,
                 n_intent_types=n_intent_types,
                 intent_conditioned=_intent_conditioned,
+                qual_heads=qual_heads,
                 n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
@@ -589,6 +596,7 @@ def train_cmd(
                              n_sentence_types=n_sentence_types,
                              n_intent_types=n_intent_types,
                              intent_conditioned=_intent_conditioned,
+                             qual_heads=qual_heads,
                              seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
@@ -841,6 +849,27 @@ def train_cmd(
                 _sentence_logit_mask[c] = True
         n_active_sent = int(_sentence_logit_mask.sum())
         click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
+    # P4 quals — comptage par (qual, classe) et masques N_min.
+    # Sans annotations variées, tout est masqué : dortoir, pas de loss.
+    qual_counts: dict[str, Counter] = {q: Counter() for q in QUALIFIERS}
+    if qual_heads:
+        for _smp in loader:
+            for _qm in _smp.qual_map.values():
+                for _qn, _qi in _qm.items():
+                    if _qn in qual_counts:
+                        qual_counts[_qn][int(_qi)] += 1
+    _qual_logit_masks: dict[str, np.ndarray] | None = None
+    if qual_heads:
+        _qual_logit_masks = {}
+        for _qn, _classes in QUALIFIERS.items():
+            _m = np.zeros(len(_classes), dtype=bool)
+            for c in range(len(_classes)):
+                if qual_counts[_qn].get(c, 0) >= min_class_count > 0 or (min_class_count <= 0 and qual_counts[_qn].get(c, 0) > 0):
+                    _m[c] = True
+            _qual_logit_masks[_qn] = _m
+        click.echo("  [P4 quals] actives : " + ", ".join(
+            f"{_qn}={int(_qual_logit_masks[_qn].sum())}/{len(_c)}"
+            for _qn, _c in QUALIFIERS.items()))
 
     # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
     # est dimensionné sur types actifs ; le masque suit en espace actif.
@@ -1095,6 +1124,8 @@ def train_cmd(
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
                 "edge_cut_train", "sentence_accuracy",
+                "qual_polarity_accuracy", "qual_voice_accuracy",
+                "qual_modality_accuracy",
             ]
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
@@ -1131,6 +1162,8 @@ def train_cmd(
             epoch_intent_preds: list[str] = []  # P4b (noms, "(none)" si sans gold)
             epoch_intent_gold: list[str] = []  # P4b
             epoch_sent_intent_gold: list[tuple[str, str]] = []  # P4b co-occurrences
+            epoch_qual_preds: dict[str, list[str]] = {}  # P4 quals (noms par tête)
+            epoch_qual_gold: dict[str, list[str]] = {}  # P4 quals
             epoch_sent_node_preds: list[list[str]] = []
             epoch_sent_node_gold: list[list[str]] = []
             epoch_sent_edge_preds: list[list[str]] = []
@@ -1179,6 +1212,7 @@ def train_cmd(
                 if node_logits is None or len(node_logits) == 0:
                     _n_skip_silent += 1
                     continue
+                _gold_quals = None  # P4 quals : défini dans la branche paires ci-dessous
 
                 if valid_clause_idxs:
                     gold_node = sample.gold_node_labels[
@@ -1222,14 +1256,27 @@ def train_cmd(
                         ]
                         _edge_sw = np.array(_edge_confs, dtype=np.float32) if any(
                             p in sample.edge_conf_map for p in pairs) else None
+                        # P4 quals — golds alignés sur les paires valides.
+                        _gold_quals = None
+                        if qual_heads and sample.qual_map:
+                            _gold_quals = {}
+                            for _qn in QUALIFIERS:
+                                _gq = np.array([
+                                    sample.qual_map.get(pairs[i], {}).get(_qn, 0)
+                                    for i in valid_edge_idxs
+                                ], dtype=np.int64)
+                                if len(_gq):
+                                    _gold_quals[_qn] = _gq
                     else:
                         gold_edge = None
                         edge_logits_arg = None
                         _edge_sw = None
+                        _gold_quals = None
                 else:
                     gold_edge = None
                     edge_logits_arg = None
                     _edge_sw = None
+                    _gold_quals = None
 
                 # D4 — remapping labels coarse si actif
                 if _node_remap is not None and gold_node is not None:
@@ -1275,8 +1322,23 @@ def train_cmd(
                     intent_logit_mask=_intent_logit_mask,
                     gold_sentence=_gold_sentence,
                     sentence_logit_mask=_sentence_logit_mask,
+                    gold_quals=_gold_quals if qual_heads else None,
+                    qual_logit_masks=_qual_logit_masks,
                 )
                 # P4a : exactitude type de phrase (tête supervisée si gold).
+                # P4 quals : exactitudes par tête (dortoir sans annotations variées).
+                _ql_cached = pipeline._cached_qual_logits or {}
+                for _qn, _classes in QUALIFIERS.items():
+                    _gq_all = (_gold_quals or {}).get(_qn)
+                    _ql_all = _ql_cached.get(_qn)
+                    if _gq_all is None or _ql_all is None or len(_gq_all) == 0:
+                        continue
+                    _nq = min(len(_gq_all), len(_ql_all))
+                    for _gi, _li in zip(_gq_all[:_nq], _ql_all[:_nq], strict=False):
+                        _gi, _li = int(_gi), int(np.argmax(_li))
+                        if 0 <= _gi < len(_classes) and 0 <= _li < len(_classes):
+                            epoch_qual_preds.setdefault(_qn, []).append(_classes[_li])
+                            epoch_qual_gold.setdefault(_qn, []).append(_classes[_gi])
                 _sent_logits = pipeline._cached_sentence_logits
                 if (_gold_sentence is not None and _sent_logits is not None
                         and len(_sent_logits) > 0):
@@ -1470,6 +1532,13 @@ def train_cmd(
                                                epoch_sent_type_gold, strict=False))
                     / max(len(epoch_sent_type_gold), 1)
                     if epoch_sent_type_gold else 0.0),
+                # P4 quals : une exactitude par tête (0.0 si inactive/sans gold).
+                **{f"qual_{_qn}_accuracy": (
+                    sum(p == g for p, g in zip(epoch_qual_preds.get(_qn, []),
+                                               epoch_qual_gold.get(_qn, []), strict=False))
+                    / max(len(epoch_qual_gold.get(_qn, [])), 1)
+                    if epoch_qual_gold.get(_qn) else 0.0)
+                   for _qn in QUALIFIERS},
             }
             if pipeline.decoder is not None:
                 metrics["decoder_loss"] = (  # L-3 : séparé, non mélangé dans loss

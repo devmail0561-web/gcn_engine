@@ -67,6 +67,7 @@ class MLPEncoder:
         n_intent_types: int = 0,
         n_sentence_types: int = 0,
         intent_conditioned: bool = False,
+        qual_heads: bool = False,
     ):
         # P4b : si conditionnée, la tête intent lit [vec_clause | probs_sentence].
         # Dims fixées à la construction (persistées en arch) — jamais devinées.
@@ -138,6 +139,19 @@ class MLPEncoder:
                 _LinearLayer(64, n_sentence_types, rng),
             ]
             self._sentence_cache: list = []
+        # P4 quals — 3 petites têtes sur vecteur edge enrichi (d_edge) :
+        # polarity/2, voice/2, modality/4. qual_heads=False = désactivé.
+        self.qual_heads = bool(qual_heads)
+        if qual_heads:
+            from ..constants import QUALIFIERS as _QUALIFIERS
+            self._qual_layers: dict[str, list] = {}
+            self._qual_cache: dict[str, list] = {}
+            for _qn, _qclasses in _QUALIFIERS.items():
+                self._qual_layers[_qn] = [
+                    _LinearLayer(d_edge, 32, rng),
+                    _LinearLayer(32, len(_qclasses), rng),
+                ]
+                self._qual_cache[_qn] = []
 
     def _forward_mlp(
         self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list,
@@ -182,6 +196,27 @@ class MLPEncoder:
             x, self._edge_layers, self._edge_cache,
             dropout=self.edge_dropout, dropout_masks=self._edge_dropout_masks,
         )
+
+    def forward_quals(self, x: np.ndarray) -> dict[str, np.ndarray]:
+        """P4 quals — dict {nom: logits} sur le même vecteur edge enrichi."""
+        out = {}
+        for _qn, _layers in self._qual_layers.items():
+            self._qual_cache[_qn] = []
+            out[_qn] = self._forward_mlp(x, _layers, self._qual_cache[_qn])
+        return out
+
+    def backward_quals(self, d_map: dict[str, np.ndarray]
+                       ) -> tuple[dict[str, list], dict[str, np.ndarray]]:
+        """Retourne (grads_par_tête, dx_par_tête) — dx couplé à d_enriched par l'appelant."""
+        grads, dxs = {}, {}
+        for _qn, _d in d_map.items():
+            _g, _dx = self._backward_mlp(_d, self._qual_layers[_qn], self._qual_cache[_qn])
+            grads[_qn], dxs[_qn] = _g, _dx
+        return grads, dxs
+
+    def update_quals(self, grads: dict[str, list], lr: float) -> None:
+        for _qn, _g in grads.items():
+            self._apply_grads(self._qual_layers[_qn], _g, lr)
 
     def _backward_mlp(
         self, d_logits: np.ndarray, layers: list[_LinearLayer], cache: list,

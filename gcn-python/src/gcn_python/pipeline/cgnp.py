@@ -289,6 +289,12 @@ class CGNPipeline:
         self._accum_rgcn_grads = None
         self._accum_dec_grads = None
         self._accum_dec_attn = None
+        # v5.9 : accumulateurs têtes auxiliaires (intent/sentence/quals) —
+        # sans eux, backward_accumulate (mini-batch par défaut) n'entraînait
+        # jamais ces têtes (silencieux). Même pattern somme + norme à l'apply.
+        self._accum_intent_grads = None
+        self._accum_sentence_grads = None
+        self._accum_qual_grads: dict[str, list] | None = None
 
     # ------------------------------------------------------------------
     # Two-pass validation : passage préliminaire de classification
@@ -407,6 +413,8 @@ class CGNPipeline:
         self._cached_reps = None
         self._cached_pool_routing = None
         self._cached_edge_pairs = None
+        self._cached_qual_logits: dict[str, np.ndarray] | None = None
+        self._cached_d_quals: dict[str, np.ndarray] | None = None
         self._cached_d_edge_base = None
         self._cached_d_eff = None
         _snap = hasattr(self.encoder, 'snapshot_node_cache')
@@ -608,6 +616,7 @@ class CGNPipeline:
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
         edge_pairs_cache: list[tuple[int, int]] = []
+        qual_logits_cache: dict[str, list[np.ndarray]] = {}
         if len(reps) >= 2:
             real_n = n_total_clauses if n_total_clauses is not None else len(reps)
             _edge_pairs = (
@@ -650,6 +659,11 @@ class CGNPipeline:
                 edge_vecs.append(enriched_edge)
                 edge_pairs_cache.append((src_i, dst_i))
                 edge_logit = self.encoder.forward_edge(enriched_edge)
+                # P4 quals — logits par tête sur le même vecteur enrichi.
+                if getattr(self.encoder, 'qual_heads', False):
+                    _qlogits = self.encoder.forward_quals(enriched_edge)
+                    for _qn, _ql in _qlogits.items():
+                        qual_logits_cache.setdefault(_qn, []).append(np.asarray(_ql))
                 # Masque v3.0 : les classes sans exemple d'entraînement sont exclues
                 # du cache, de l'argmax/softmax d'émission ET de la loss (qui le
                 # réapplique sans effet). Sans masque, l'inférence pouvait prédire
@@ -685,6 +699,10 @@ class CGNPipeline:
             self._cached_edge_vecs = np.stack(edge_vecs)
             self._cached_edge_logits = np.stack(all_edge_logits)
             self._cached_edge_pairs = edge_pairs_cache
+            # P4 quals — stacks par tête, alignés sur edge_pairs.
+            self._cached_qual_logits = {
+                _qn: np.stack(_ql) for _qn, _ql in qual_logits_cache.items()
+            } if qual_logits_cache else None
             if _snap:
                 self._cached_edge_snapshots = edge_snapshots
 
@@ -739,6 +757,11 @@ class CGNPipeline:
             self._cached_edge_snapshots = [self._cached_edge_snapshots[i] for i in valid_idxs]
         if self._cached_edge_pairs is not None:
             self._cached_edge_pairs = [self._cached_edge_pairs[i] for i in valid_idxs]
+        # P4 quals — filtrés avec les arêtes (alignés sur edge_pairs).
+        if self._cached_qual_logits is not None:
+            self._cached_qual_logits = {
+                _qn: _ql[valid_idxs] for _qn, _ql in self._cached_qual_logits.items()
+            }
 
     def get_enriched_vectors(self) -> np.ndarray | None:
         """
@@ -865,6 +888,9 @@ class CGNPipeline:
         intent_logit_mask: np.ndarray | None = None,     # Éq.6 : (N_INTENTS,) bool
         gold_sentence: np.ndarray | None = None,         # P4a : (1,) int — index dans SENTENCE_TYPES
         sentence_logit_mask: np.ndarray | None = None,   # P4a : (N_SENT,) bool
+        gold_quals: dict[str, np.ndarray] | None = None,  # P4 quals : {nom: (E,) int}
+        qual_logit_masks: dict[str, np.ndarray] | None = None,  # P4 : {nom: (K,) bool}
+        qual_loss_weight: float = 1.0,  # P4 : échelle des 3 têtes quals
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -947,6 +973,29 @@ class CGNPipeline:
             )
             total_loss += sentence_loss
             self._cached_d_sentence = d_sentence
+
+        # P4 quals — une loss par tête active avec gold (petites, pondérées).
+        self._cached_d_quals = None
+        if (gold_quals is not None
+                and getattr(self.encoder, 'qual_heads', False)
+                and self._cached_qual_logits is not None
+                and hasattr(self.encoder, 'forward_quals')):
+            _d_quals: dict[str, np.ndarray] = {}
+            for _qn, _gold in gold_quals.items():
+                _ql = (self._cached_qual_logits.get(_qn)
+                       if self._cached_qual_logits else None)
+                if _ql is None or _gold is None or len(_gold) == 0:
+                    continue
+                if len(_ql) != len(_gold):
+                    continue  # désaligné : ignoré, jamais tronqué silencieusement sans trace
+                _qm = (qual_logit_masks or {}).get(_qn)
+                _q_loss, _d = _cross_entropy(
+                    np.asarray(_ql[:len(_gold)]), np.asarray(_gold),
+                    logit_mask=_qm,
+                )
+                total_loss += qual_loss_weight * _q_loss
+                _d_quals[_qn] = qual_loss_weight * _d
+            self._cached_d_quals = _d_quals or None
 
         # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
@@ -1154,12 +1203,42 @@ class CGNPipeline:
                 and hasattr(self.encoder, 'backward_sentence')
                 and hasattr(self.encoder, 'update_sentence')):
             sentence_grads, d_pooled = self.encoder.backward_sentence(
-                self._cached_d_sentence)
+                np.asarray(self._cached_d_sentence)[0])
             self.encoder.update_sentence(sentence_grads, lr)
             self._cached_d_sentence = None
             _n_cl = d_enriched.shape[0] if d_enriched is not None else 0
             if _n_cl > 0 and d_pooled is not None and len(d_pooled):
                 d_enriched += d_pooled[0] / max(_n_cl, 1)
+
+        # --- P4 quals : backward + update + couplage d_enriched ---
+        # Recompute déterministe (pas de dropout) par vecteur caché, comme edge.
+        # dx couvre tout le vecteur enrichi ; seule la part R-GCN (src/dst)
+        # est routée — même limitation documentée que la tête edge.
+        if (self._cached_d_quals is not None
+                and hasattr(self.encoder, 'backward_quals')
+                and hasattr(self.encoder, 'update_quals')
+                and self._cached_edge_vecs is not None):
+            _qb, _qe = _d_base_edge, _d_eff_cached
+            if _qb is not None and _qe is not None:
+                for _i, _vec in enumerate(self._cached_edge_vecs):
+                    _ql = self.encoder.forward_quals(np.asarray(_vec))
+                    _dm = {k: self._cached_d_quals[k][_i]
+                           for k in self._cached_d_quals
+                           if len(self._cached_d_quals[k]) > _i}
+                    if not _dm:
+                        continue
+                    _gq, _dxq = self.encoder.backward_quals(_dm)
+                    self.encoder.update_quals(_gq, lr)
+                    if (self._cached_edge_pairs is not None
+                            and _i < len(self._cached_edge_pairs)
+                            and _dxq):
+                        _s, _d = self._cached_edge_pairs[_i]
+                        for _dxv in _dxq.values():
+                            _dxa = np.asarray(_dxv)
+                            if _dxa.shape[0] >= _qb + 2 * _qe:
+                                d_enriched[_s] += _dxa[_qb:_qb + _qe]
+                                d_enriched[_d] += _dxa[_qb + _qe:_qb + 2 * _qe]
+            self._cached_d_quals = None
 
         # --- Décodeur backward + update (sans couplage vers d_enriched — P3e) ---
         if (self.decoder is not None
@@ -1377,6 +1456,60 @@ class CGNPipeline:
         self._accum_node_grads = _acc(self._accum_node_grads, all_node_grads)
         self._accum_edge_grads = _acc(self._accum_edge_grads, all_edge_grads)
 
+        # v5.9 : têtes auxiliaires en accumulation (cf. backward()).
+        # intent : découplée (poids seuls) ; sentence/quals : dx couplé à
+        # d_enriched AVANT le backward R-GCN ci-dessous (miroir backward()).
+        if (self._cached_d_intent is not None
+                and hasattr(self.encoder, 'backward_intent')):
+            _ig = self.encoder.backward_intent(self._cached_d_intent)
+            self._accum_intent_grads = _acc(self._accum_intent_grads, _ig)
+            self._cached_d_intent = None
+        if (self._cached_d_sentence is not None
+                and hasattr(self.encoder, 'backward_sentence')):
+            _sg, _sdx = self.encoder.backward_sentence(
+                np.asarray(self._cached_d_sentence)[0])
+            self._accum_sentence_grads = _acc(self._accum_sentence_grads, _sg)
+            self._cached_d_sentence = None
+            _n_cl = d_enriched.shape[0] if d_enriched is not None else 0
+            if _n_cl > 0 and _sdx is not None and len(_sdx):
+                d_enriched += _sdx[0] / max(_n_cl, 1)
+        if (self._cached_d_quals is not None
+                and hasattr(self.encoder, 'backward_quals')
+                and self._cached_edge_vecs is not None):
+            _qb, _qe = _d_base_edge, _d_eff_cached
+            if _qb is not None and _qe is not None:
+                for _i, _vec in enumerate(self._cached_edge_vecs):
+                    _ql = self.encoder.forward_quals(np.asarray(_vec))
+                    _dm = {k: self._cached_d_quals[k][_i]
+                           for k in self._cached_d_quals
+                           if len(self._cached_d_quals[k]) > _i}
+                    if not _dm:
+                        continue
+                    _gq, _dxq = self.encoder.backward_quals(_dm)
+                    if self._accum_qual_grads is None:
+                        self._accum_qual_grads = {
+                            k: [(dW.copy(), db.copy()) for dW, db in v]
+                            for k, v in _gq.items()}
+                    else:
+                        for _k, _v in _gq.items():
+                            _old = self._accum_qual_grads.get(_k)
+                            if _old is None:
+                                self._accum_qual_grads[_k] = [
+                                    (dW.copy(), db.copy()) for dW, db in _v]
+                            else:
+                                self._accum_qual_grads[_k] = [
+                                    (e[0] + n[0], e[1] + n[1])
+                                    for e, n in zip(_old, _v, strict=False)]
+                    if (self._cached_edge_pairs is not None
+                            and _i < len(self._cached_edge_pairs)):
+                        _s, _d = self._cached_edge_pairs[_i]
+                        for _dxv in _dxq.values():
+                            _dxa = np.asarray(_dxv)
+                            if _dxa.shape[0] >= _qb + 2 * _qe:
+                                d_enriched[_s] += _dxa[_qb:_qb + _qe]
+                                d_enriched[_d] += _dxa[_qb + _qe:_qb + 2 * _qe]
+            self._cached_d_quals = None
+
         # --- Décodeur backward accumulation (B3) ---
         # Ordre décodeur AVANT RGCN — miroir de backward() :
         # d_enriched doit recevoir la contribution décodeur avant que d_curr = d_enriched
@@ -1464,6 +1597,25 @@ class CGNPipeline:
             norm_grads = [(dW / n_samples, db / n_samples) for dW, db in self._accum_dec_grads]
             norm_attn = self._accum_dec_attn / n_samples
             self.decoder.update(norm_grads, norm_attn, lr)
+        # v5.9 : têtes auxiliaires accumulées — norme + update + reset.
+        if (self._accum_intent_grads is not None
+                and hasattr(self.encoder, 'update_intent')):
+            self.encoder.update_intent(
+                [(dW / n_samples, db / n_samples)
+                 for dW, db in self._accum_intent_grads], lr)
+        if (self._accum_sentence_grads is not None
+                and hasattr(self.encoder, 'update_sentence')):
+            self.encoder.update_sentence(
+                [(dW / n_samples, db / n_samples)
+                 for dW, db in self._accum_sentence_grads], lr)
+        if (self._accum_qual_grads is not None
+                and hasattr(self.encoder, 'update_quals')):
+            self.encoder.update_quals(
+                {k: [(dW / n_samples, db / n_samples) for dW, db in v]
+                 for k, v in self._accum_qual_grads.items()}, lr)
+        self._accum_intent_grads = None
+        self._accum_sentence_grads = None
+        self._accum_qual_grads = None
         self._accum_node_grads = None
         self._accum_edge_grads = None
         self._accum_rgcn_grads = None
