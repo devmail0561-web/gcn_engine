@@ -108,6 +108,15 @@ def run_eval(
         if bool(_arch.get("freeze_embeddings", False)):
             _word_embedding.frozen = True
     _mlp_hidden = int(_arch.get("mlp_hidden", 128))
+    # Éq.6 : restaurer la tête intent depuis ses métas (cf. engine.py) —
+    # sinon les poids intent_layer_* ne sont jamais rechargés.
+    _n_intent = 0
+    if "_intent_meta_json" in _raw:
+        try:
+            _n_intent = int(json.loads(str(_raw["_intent_meta_json"][0])).get(
+                "n_intent_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_intent = 0
     _sob_eval = bool(_arch.get("subject_object_emb", False))
     _global_attention = bool(_arch.get("global_attention", False))
     _mha_heads = int(_arch.get("n_gat_heads_mha", 4))
@@ -115,9 +124,11 @@ def run_eval(
     if _global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         encoder = TransformerMLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val,
-                                        mlp_hidden=_mlp_hidden, n_heads=_mha_heads)
+                                        mlp_hidden=_mlp_hidden, n_heads=_mha_heads,
+                                        n_intent_types=_n_intent)
     else:
-        encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden)
+        encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden,
+                             n_intent_types=_n_intent)
     if _gclass == "RGCNLayerGAT":
         try:
             from ..layer3.gat import RGCNLayerGAT

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from gcn_python.constants import INTENT_TYPES, RELATION_TYPES, rgcn_n_relations
+from gcn_python.constants import INTENT_TYPES, NODE_TYPES, RELATION_TYPES, rgcn_n_relations
 from gcn_python.layer2.reference import MLPEncoder
 
 N_INTENT = len(INTENT_TYPES)   # 21
@@ -105,7 +105,8 @@ def test_checkpoint_roundtrip_intent_weights():
 
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4)
-    encoder = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=N_INTENT, seed=42)
+    encoder = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4), n_intent_types=N_INTENT, seed=42)
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
                       n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
     pipeline = CGNPipeline(
@@ -144,7 +145,8 @@ def test_checkpoint_without_intent_loads_cleanly():
     d_eff = vocab.d_clause_effective(4)
 
     # Sauvegarder SANS tête intent
-    enc_no_intent = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=0, seed=1)
+    enc_no_intent = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4), n_intent_types=0, seed=1)
     graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
                       n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
     pipeline_no = CGNPipeline(encoder=enc_no_intent, graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
@@ -156,7 +158,8 @@ def test_checkpoint_without_intent_loads_cleanly():
         save_checkpoint(pipeline_no, path)
 
         # Charger dans pipeline AVEC tête intent
-        enc_with = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=N_INTENT, seed=2)
+        enc_with = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4), n_intent_types=N_INTENT, seed=2)
         pipeline_with = CGNPipeline(
             encoder=enc_with, graph=RGCNLayer(d_in=d_eff, d_out=d_eff,
                                               n_relations=rgcn_n_relations(len(RELATION_TYPES), False)),
@@ -172,3 +175,37 @@ def test_checkpoint_without_intent_loads_cleanly():
         )
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_engine_from_pretrained_restores_intent_head(tmp_path):
+    """v5.6 : from_pretrained reconstruit la tête intent (poids restaurés).
+
+    Régression : l'encodeur était reconstruit à n_intent_types=0, les poids
+    intent_layer_* sauvegardés n'étaient jamais rechargés (silencieux).
+    """
+    from gcn_python.constants import NODE_TYPES
+    from gcn_python.engine import GCNEngine
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer3.reference import RGCNLayer
+    from gcn_python.pipeline.cgnp import CGNPipeline
+    from gcn_python.training.checkpoint import save_checkpoint
+    vocab = FeatureVocabulary()
+    d_eff = vocab.d_clause_effective(4)
+    enc = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 4),
+                     n_intent_types=N_INTENT, seed=42)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                      n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
+    pipeline = CGNPipeline(
+        encoder=enc, graph=graph, vocabulary=vocab,
+        n_intent_types=N_INTENT,
+        word_embedding=make_word_embedding())
+    W_before = enc._intent_layers[0].W.copy()
+    ckpt = tmp_path / "intent.npz"
+    save_checkpoint(pipeline, ckpt)
+
+    engine = GCNEngine.from_pretrained(ckpt, trusted=True)
+    pipe2 = engine._pipeline
+    assert getattr(pipe2.encoder, 'n_intent_types', 0) == N_INTENT
+    assert np.allclose(pipe2.encoder._intent_layers[0].W, W_before, atol=1e-6), (
+        "from_pretrained : poids intent non restaurés")

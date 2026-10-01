@@ -102,6 +102,15 @@ class WordEmbedding:
         (_subj_absent/_obj_absent et lemmes ajoutés après le chargement).
         """
         if self._grad_accum is not None:
+            if not np.isfinite(self._grad_accum).all():
+                import warnings as _w_nan
+                _w_nan.warn(
+                    "WordEmbedding.update : gradients non finis — mise à jour "
+                    "ignorée (vecteurs préservés).",
+                    UserWarning, stacklevel=2,
+                )
+                self._grad_accum = None
+                return
             if self.frozen and self._pretrained_start is not None:
                 grads = self._grad_accum.copy()
                 grads[self._pretrained_start:self._pretrained_end] = 0.0

@@ -64,6 +64,11 @@ class GCNDataLoader:
         # Compteur agrégé pour arêtes asymétriques en direction inverse
         self._total_backward_asymmetric = 0
         self._warned_backward_asymmetric = False
+        # Tripwire modifiers (plan v2) : le champ existe au schéma mais aucun
+        # consommateur moteur — si des modifiers apparaissent, le signaler au
+        # lieu de les ignorer silencieusement.
+        self._total_modifiers = 0
+        self._warned_modifiers = False
 
     def __len__(self) -> int:
         return len(self._records)
@@ -93,6 +98,18 @@ class GCNDataLoader:
                     stacklevel=2,
                 )
                 self._warned_backward_asymmetric = True
+            if (not self.repeat
+                    and hasattr(self, '_total_modifiers')
+                    and self._total_modifiers > 0
+                    and hasattr(self, '_warned_modifiers')
+                    and not self._warned_modifiers):
+                warnings.warn(
+                    f"Total : {self._total_modifiers} modifieur(s) annoté(s) sans "
+                    f"consommateur moteur — inventaire requis avant feature/tête.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self._warned_modifiers = True
             if not self.repeat:
                 break
 
@@ -101,6 +118,10 @@ class GCNDataLoader:
         # pour éviter de rejeter toute la phrase sur une arête non-supervisable
         # dont la relation serait inconnue.
         node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
+        # Tripwire modifiers : compteur robuste même si _to_sample est appelé
+        # hors __init__ (tests) — pas d'AttributeError.
+        self._total_modifiers = getattr(self, '_total_modifiers', 0) + sum(
+            1 for c in rec.clauses if getattr(c, 'modifiers', None))
         node_labels = np.array(
             [_node_type_idx(c.node_type, rec.id) for c in rec.clauses],
             dtype=np.int64,

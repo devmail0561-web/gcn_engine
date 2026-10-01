@@ -157,6 +157,16 @@ class GCNEngine:
         d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb,
                                           subject_object_emb)
 
+        # Éq.6 : restaurer la tête intent depuis ses métas — sans elle,
+        # les poids intent_layer_* sauvegardés ne seraient jamais rechargés
+        # (encodeur reconstruit à n_intent_types=0 par défaut).
+        _n_intent = 0
+        if "_intent_meta_json" in data:
+            try:
+                _n_intent = int(json.loads(str(data["_intent_meta_json"][0])).get(
+                    "n_intent_types", 0))
+            except (ValueError, TypeError, AttributeError):
+                _n_intent = 0
         # Phase C : substitution pour from_pretrained — TransformerMLPEncoder
         # si arch.get("global_attention", False). d_clause = D_effective (d_eff),
         # jamais vocabulary.d_clause brut.
@@ -166,9 +176,11 @@ class GCNEngine:
             from .layer2.reference import TransformerMLPEncoder
             encoder = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge,
                                             mlp_hidden=mlp_hidden,
-                                            n_heads=_mha_heads)
+                                            n_heads=_mha_heads,
+                                            n_intent_types=_n_intent)
         else:
-            encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden)
+            encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden,
+                                 n_intent_types=_n_intent)
 
         # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).
         _pairnorm = bool(arch.get("pairnorm", False))
@@ -253,7 +265,7 @@ class GCNEngine:
         pipeline.drop_edge = _drop_edge
         pipeline.use_compgcn = _use_compgcn
         pipeline.d_rel_emb = _d_rel_emb
-        pipeline.two_pass_val = bool(arch.get("two_pass_val", False))
+        pipeline.two_pass_val = bool(arch.get("two_pass_val", True))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : lattice gcn-cli si disponible (zéro dictionnaire).

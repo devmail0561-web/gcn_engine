@@ -131,8 +131,24 @@ class CGNPipeline:
             )
         self.word_embedding = word_embedding
         self.bidirectional = bidirectional
-        # v5.2 : le R-GCN doit porter le slot no-edge — échec bruyant ici
-        # plutôt que typage silencieusement faux au forward.
+        # v5.6b : l'encodeur doit matcher les dims effectives — même
+        # philosophie que le garde R-GCN v5.2 (échec bruyant à la construction).
+        _need_edge = vocabulary.d_edge_closed_loop(
+            _d_eff, len(self.node_types), _d_emb, self.subject_object_emb)
+        _got_clause = getattr(encoder, 'd_clause', None)
+        if _got_clause is not None and int(_got_clause) != _d_eff:
+            raise ValueError(
+                f"MLPEncoder.d_clause={_got_clause} ≠ d_effective={_d_eff} "
+                f"(construisez avec d_clause=d_effective)."
+            )
+        _edge_layers = getattr(encoder, '_edge_layers', None) or []
+        if _edge_layers and hasattr(_edge_layers[0], 'W'):
+            _got_edge = int(_edge_layers[0].W.shape[1])
+            if _got_edge != _need_edge:
+                raise ValueError(
+                    f"MLPEncoder.d_edge={_got_edge} ≠ d_edge_closed={_need_edge} "
+                    f"(construisez avec d_edge=vocab.d_edge_closed_loop(...))."
+                )
         _need_rel = rgcn_n_relations(len(self.relation_types), bool(bidirectional))
         for _layer in ([graph] if not isinstance(graph, (list, tuple)) else list(graph)):
             _got_rel = getattr(_layer, 'n_relations', None)
@@ -1041,6 +1057,14 @@ class CGNPipeline:
                         src_i, dst_i = self._cached_edge_pairs[i]
                         d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff_cached]
                         d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff_cached:_d_base_edge + 2 * _d_eff_cached]
+                    else:
+                        # v5.6b : gradient edge→enriched non routé — warn, jamais silencieux.
+                        import warnings as _w_dx
+                        _w_dx.warn(
+                            "backward() : gradient edge→enriched non routé "
+                            "(dims inattendues) — R-GCN non mis à jour sur cette arête.",
+                            UserWarning, stacklevel=2,
+                        )
                 else:
                     grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
@@ -1256,6 +1280,14 @@ class CGNPipeline:
                         src_i, dst_i = self._cached_edge_pairs[i]
                         d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff_cached]
                         d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff_cached:_d_base_edge + 2 * _d_eff_cached]
+                    else:
+                        # v5.6b : idem backward() — jamais silencieux.
+                        import warnings as _w_dxa
+                        _w_dxa.warn(
+                            "backward_accumulate() : gradient edge→enriched non routé "
+                            "(dims inattendues).",
+                            UserWarning, stacklevel=2,
+                        )
                 else:
                     grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
