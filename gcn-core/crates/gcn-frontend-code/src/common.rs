@@ -7,8 +7,7 @@ use gcn_ir::{
 };
 use smallvec::SmallVec;
 
-use crate::mapper::LabelStrategy;
-use crate::resources::CodeResources;
+use crate::kinds::LabelStrategy;
 
 /// Compteurs de ce qui n'a PAS produit de nœud/arête — transparence anti-silence
 /// (même patron que Graph/TableParseReport). P0-3 : les kinds AST non mappés
@@ -36,14 +35,14 @@ pub fn emit_node(
     node_type: NodeType,
     nodes: &mut Vec<CausalNode>,
     next_id: &mut u32,
-    res: &CodeResources,
+    strategy: LabelStrategy,
     report: &mut CodeParseReport,
 ) -> NodeId {
     let id = NodeId(*next_id);
     *next_id += 1;
     let start = node.start_position();
     let end = node.end_position();
-    let (label, truncated) = node_label(node, src, res);
+    let (label, truncated) = node_label(node, src, strategy);
     if truncated {
         report.truncated_labels += 1;
     }
@@ -86,12 +85,11 @@ fn defined_name(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
 
 /// Retourne `(label, truncated)`. `truncated` = le texte source dépassait
 /// `MAX_LABEL_CHARS` (P3 : compté dans le report au lieu d'être silencieux).
-pub fn node_label(node: tree_sitter::Node<'_>, src: &[u8], res: &CodeResources) -> (String, bool) {
-    let strategy = res
-        .kind_to_label_strategy
-        .get(node.kind())
-        .copied()
-        .unwrap_or_default();
+pub fn node_label(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    strategy: LabelStrategy,
+) -> (String, bool) {
     match strategy {
         LabelStrategy::ConditionField => node
             .child_by_field_name("condition")

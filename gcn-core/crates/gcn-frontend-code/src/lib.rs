@@ -4,60 +4,51 @@
 mod common;
 mod error;
 mod js;
-mod mapper;
+mod kinds;
 mod python;
-mod resources;
 mod rust;
 
 pub use common::{CodeParseReport, MAX_LABEL_CHARS};
 pub use error::CodeParserError;
 
 use gcn_ir::CausalIR;
-use std::path::Path;
-
-/// Bootstrap annotation tool: auto-annotates Python source → CausalIR.
-/// `taxonomies_root` points to `gcn-references/taxonomies/`.
+/// Source → CausalIR via tree-sitter (structure seule, zéro YAML).
 ///
 /// P0-3 : les kinds AST non mappés sont ignorés — utilisez
 /// `parse_python_with_report` pour les compter.
-pub fn parse_python(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
-    python::parse(source, taxonomies_root)
+pub fn parse_python(source: &str) -> Result<CausalIR, CodeParserError> {
+    python::parse(source)
 }
 
 /// P0-3 : variante avec `CodeParseReport`.
 pub fn parse_python_with_report(
     source: &str,
-    taxonomies_root: &Path,
 ) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
-    python::parse_with_report(source, taxonomies_root)
+    python::parse_with_report(source)
 }
 
 /// Bootstrap annotation tool: auto-annotates Rust source → CausalIR.
 /// P0-3 : voir `parse_rust_with_report` pour le rapport d'ignorés.
-pub fn parse_rust(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
-    rust::parse(source, taxonomies_root)
+pub fn parse_rust(source: &str) -> Result<CausalIR, CodeParserError> {
+    rust::parse(source)
 }
 
 /// P0-3 : variante avec `CodeParseReport`.
 pub fn parse_rust_with_report(
     source: &str,
-    taxonomies_root: &Path,
 ) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
-    rust::parse_with_report(source, taxonomies_root)
+    rust::parse_with_report(source)
 }
 
 /// Bootstrap annotation tool: auto-annotates JavaScript source → CausalIR.
 /// P0-3 : voir `parse_js_with_report` pour le rapport d'ignorés.
-pub fn parse_js(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
-    js::parse(source, taxonomies_root)
+pub fn parse_js(source: &str) -> Result<CausalIR, CodeParserError> {
+    js::parse(source)
 }
 
 /// P0-3 : variante avec `CodeParseReport`.
-pub fn parse_js_with_report(
-    source: &str,
-    taxonomies_root: &Path,
-) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
-    js::parse_with_report(source, taxonomies_root)
+pub fn parse_js_with_report(source: &str) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
+    js::parse_with_report(source)
 }
 
 #[cfg(test)]

@@ -7,8 +7,8 @@ use std::process;
 use clap::{Parser, Subcommand, ValueEnum};
 use gcn_backend::{Query, execute, to_dot, to_json};
 use gcn_frontend_code::{parse_js_with_report, parse_python_with_report, parse_rust_with_report};
-use gcn_frontend_en::EnglishParser;
-use gcn_frontend_fr::FrenchParser;
+use gcn_frontend_en::parse_lattice as parse_lattice_en;
+use gcn_frontend_fr::parse_lattice as parse_lattice_fr;
 use gcn_frontend_graph::parse_stix_bundle_with_report;
 use gcn_frontend_table::{TableSchema, parse_table};
 use gcn_ir::CausalIR;
@@ -22,9 +22,9 @@ mod extract;
     version,
     about = "Grammaire Causale Naturelle — Causal reasoning engine",
     long_about = "GCN-Core CLI\n\
-                  \nBootstrap annotation (symbolic, builds gcn-datasets/):\n\
-                   gcn analyze  — French text → CausalIR via symbolic rules
-                   gcn analyze-en — English text → CausalIR via symbolic rules
+                   \nBootstrap annotation (symbolic, builds gcn-datasets/):\n\
+                    gcn analyze  — French text → dictionary-free token lattice (JSON, no decisions)
+                    gcn analyze-en — English text → dictionary-free token lattice (JSON, no decisions)
                    gcn analyze-code — source file (py/rs/js) → CausalIR via AST\n\
                    gcn analyze-graph — STIX 2.x bundle → CausalIR (typed graphs)\n\
                    gcn analyze-table — cause/effect CSV → CausalIR (schema via flags)\n\
@@ -41,34 +41,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// [Bootstrap] Auto-annotate French text → CausalIR using symbolic rules (builds gcn-datasets/)
+    /// French text → dictionary-free token lattice (JSON, no decisions)
     Analyze {
         /// Text to analyze
         text: String,
-        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
-        #[arg(long, env = "GCN_TAXONOMY_DIR")]
-        data_dir: PathBuf,
-        /// Output format
-        #[arg(long, default_value = "json")]
-        format: ExportFormat,
-        /// Emit middleend diagnostics
-        #[arg(long)]
-        diagnostics: bool,
     },
-    /// [Bootstrap] Auto-annotate English text → CausalIR using symbolic rules
-    /// (P2-1 : EnglishParser enfin exposé — parité avec `analyze`).
+    /// English text → dictionary-free token lattice (JSON, no decisions)
     AnalyzeEn {
         /// Text to analyze
         text: String,
-        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
-        #[arg(long, env = "GCN_TAXONOMY_DIR")]
-        data_dir: PathBuf,
-        /// Output format
-        #[arg(long, default_value = "json")]
-        format: ExportFormat,
-        /// Emit middleend diagnostics
-        #[arg(long)]
-        diagnostics: bool,
     },
     /// [Bootstrap] Source file → CausalIR via tree-sitter AST (P2-2 : la dép
     /// `gcn-frontend-code` existait mais n'était jamais appelée — orpheline).
@@ -79,9 +60,6 @@ enum Commands {
         /// Source language (auto-detected from extension by default)
         #[arg(long, value_enum)]
         lang: Option<CodeLangArg>,
-        /// Path to gcn-references/taxonomies/ (or set GCN_TAXONOMY_DIR)
-        #[arg(long, env = "GCN_TAXONOMY_DIR")]
-        data_dir: PathBuf,
         /// Output format
         #[arg(long, default_value = "json")]
         format: ExportFormat,
@@ -242,50 +220,19 @@ fn main() {
 
 fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
     match cmd {
-        Commands::Analyze {
-            text,
-            data_dir,
-            format,
-            diagnostics,
-        } => {
-            let parser = FrenchParser::new(&data_dir)?;
-            let ir = parser.parse_with_ref(&text, Some("cli:inline".to_string()))?;
-            let result = middleend_process(ir)?;
-
-            if diagnostics && !result.diagnostics.is_empty() {
-                for d in &result.diagnostics {
-                    eprintln!("[{:?}] {:?}", d.severity, d.kind);
-                }
-            }
-
-            let output = render(&format, &result.ir)?;
-            println!("{output}");
+        Commands::Analyze { text } => {
+            let lat = parse_lattice_fr(&text);
+            println!("{}", serde_json::to_string_pretty(&lat)?);
         }
 
-        Commands::AnalyzeEn {
-            text,
-            data_dir,
-            format,
-            diagnostics,
-        } => {
-            let parser = EnglishParser::new(&data_dir)?;
-            let ir = parser.parse_with_ref(&text, Some("cli:inline".to_string()))?;
-            let result = middleend_process(ir)?;
-
-            if diagnostics && !result.diagnostics.is_empty() {
-                for d in &result.diagnostics {
-                    eprintln!("[{:?}] {:?}", d.severity, d.kind);
-                }
-            }
-
-            let output = render(&format, &result.ir)?;
-            println!("{output}");
+        Commands::AnalyzeEn { text } => {
+            let lat = parse_lattice_en(&text);
+            println!("{}", serde_json::to_string_pretty(&lat)?);
         }
 
         Commands::AnalyzeCode {
             input,
             lang,
-            data_dir,
             format,
         } => {
             let lang = match lang {
@@ -296,9 +243,9 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 .map_err(|e| format!("cannot read {}: {e}", input.display()))?;
             // with_report : les kinds AST non mappés sont comptés, pas silencieux (P0-3).
             let (ir, report) = match lang {
-                CodeLangArg::Py => parse_python_with_report(&source, &data_dir),
-                CodeLangArg::Rs => parse_rust_with_report(&source, &data_dir),
-                CodeLangArg::Js => parse_js_with_report(&source, &data_dir),
+                CodeLangArg::Py => parse_python_with_report(&source),
+                CodeLangArg::Rs => parse_rust_with_report(&source),
+                CodeLangArg::Js => parse_js_with_report(&source),
             }
             .map_err(|e| {
                 format!(

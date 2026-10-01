@@ -1,81 +1,20 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod annotator;
-pub mod emitter;
-pub mod error;
-pub mod resources;
-pub mod rules;
-pub mod tagger;
-pub mod tokenizer;
+//! Frontend français : lattice de tokens sans dictionnaire.
+//!
+//! Zéro YAML, zéro liste de lemmes. `parse_lattice` produit des tokens
+//! observés (forme, POS morphologique, pseudo-dep_rel positionnels) et
+//! des découpes de clauses. AUCUNE décision linguistique (ni type de
+//! nœud, ni relation) : le ML décide seul en aval.
 
-pub use error::FrParseError;
-pub use resources::LexicalResources;
+pub mod lattice;
 
-use gcn_ir::CausalIR;
-use gcn_knowledge::KnowledgeError;
-use std::path::Path;
+pub use gcn_ir::Lattice;
 
-#[derive(Debug)]
-pub enum ParserInitError {
-    Knowledge(KnowledgeError),
-}
-
-impl std::fmt::Display for ParserInitError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParserInitError::Knowledge(e) => write!(f, "taxonomy load error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for ParserInitError {}
-
-impl From<KnowledgeError> for ParserInitError {
-    fn from(e: KnowledgeError) -> Self {
-        ParserInitError::Knowledge(e)
-    }
-}
-
-pub struct FrenchParser {
-    resources: LexicalResources,
-}
-
-impl FrenchParser {
-    /// Bootstrap annotation tool: auto-annotates French text → CausalIR to help build gcn-datasets/.
-    /// Not the inference pipeline — replaced by trained ML layers once the model is trained.
-    /// Loads linguistic resources from `taxonomies_root/fr/` (gcn-references/taxonomies/).
-    pub fn new(taxonomies_root: &Path) -> Result<Self, ParserInitError> {
-        let resources = LexicalResources::load(&taxonomies_root.join("fr"))?;
-        Ok(FrenchParser { resources })
-    }
-
-    pub fn parse(&self, text: &str) -> Result<CausalIR, FrParseError> {
-        self.parse_with_ref(text, None)
-    }
-
-    pub fn parse_with_ref(
-        &self,
-        text: &str,
-        doc_ref: Option<String>,
-    ) -> Result<CausalIR, FrParseError> {
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return Err(FrParseError::EmptyInput);
-        }
-
-        let tokens = tokenizer::tokenize(trimmed);
-        if tokens.is_empty() {
-            return Err(FrParseError::NoParseable(trimmed.to_string()));
-        }
-
-        let tagged = tagger::tag(&tokens, &self.resources);
-        let annotation = annotator::annotate(&tagged, &self.resources);
-
-        if annotation.clauses.is_empty() {
-            return Err(FrParseError::NoParseable(trimmed.to_string()));
-        }
-
-        Ok(emitter::emit(annotation, trimmed.to_string(), doc_ref))
-    }
+/// Analyse un texte français → lattice (jamais d'erreur : vide → vide).
+/// La langue voyage par le choix de sous-commande CLI (analyze vs analyze-en),
+/// jamais dans les données (moteur langue-agnostique).
+pub fn parse_lattice(text: &str) -> Lattice {
+    lattice::parse_lattice(text)
 }

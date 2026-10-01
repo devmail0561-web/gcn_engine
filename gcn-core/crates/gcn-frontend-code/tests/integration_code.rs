@@ -2,17 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use gcn_frontend_code::{parse_js, parse_python, parse_rust};
-use gcn_frontend_fr::FrenchParser;
 use gcn_ir::{NodeType, RelationType};
-use std::path::PathBuf;
-
-fn taxonomies_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../gcn-references/taxonomies")
-}
-
-fn fr_parser() -> FrenchParser {
-    FrenchParser::new(&taxonomies_root()).expect("Failed to load French taxonomies")
-}
 
 // ---------------------------------------------------------------------------
 // Fonctionnalité de base du parseur Python
@@ -20,14 +10,14 @@ fn fr_parser() -> FrenchParser {
 
 #[test]
 fn test_python_parses_if_statement() {
-    let ir = parse_python("if x < y:\n    reduce(z)", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("if x < y:\n    reduce(z)").expect("parse failed");
     assert!(!ir.nodes.is_empty(), "should produce nodes");
     assert!(!ir.edges.is_empty(), "should produce edges");
 }
 
 #[test]
 fn test_python_if_produces_condition_node() {
-    let ir = parse_python("if x < y:\n    reduce(z)", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("if x < y:\n    reduce(z)").expect("parse failed");
     let has_condition = ir
         .nodes
         .iter()
@@ -40,7 +30,7 @@ fn test_python_if_produces_condition_node() {
 
 #[test]
 fn test_python_if_produces_condition_edge() {
-    let ir = parse_python("if x < y:\n    reduce(z)", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("if x < y:\n    reduce(z)").expect("parse failed");
     let has_cond_edge = ir
         .edges
         .iter()
@@ -53,8 +43,7 @@ fn test_python_if_produces_condition_edge() {
 
 #[test]
 fn test_python_for_produces_processus_node() {
-    let ir =
-        parse_python("for i in items:\n    process(i)", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("for i in items:\n    process(i)").expect("parse failed");
     let has_proc = ir
         .nodes
         .iter()
@@ -64,7 +53,7 @@ fn test_python_for_produces_processus_node() {
 
 #[test]
 fn test_python_assignment_produces_transition() {
-    let ir = parse_python("x = compute()", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("x = compute()").expect("parse failed");
     let has_trans = ir
         .nodes
         .iter()
@@ -74,7 +63,7 @@ fn test_python_assignment_produces_transition() {
 
 #[test]
 fn test_python_source_lang_is_python() {
-    let ir = parse_python("x = 1", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("x = 1").expect("parse failed");
     assert!(matches!(
         ir.source_lang,
         gcn_ir::SourceLanguage::Programming {
@@ -85,90 +74,16 @@ fn test_python_source_lang_is_python() {
 
 #[test]
 fn test_python_empty_produces_empty_ir() {
-    let ir = parse_python("", &taxonomies_root()).expect("parse failed");
+    let ir = parse_python("").expect("parse failed");
     assert!(ir.nodes.is_empty());
     assert!(ir.edges.is_empty());
 }
 
 // ---------------------------------------------------------------------------
 // Isomorphisme fr ↔ python : critère SAD Phase 6
-// "if x < y: reduce(z)" ≡ "Si x est inférieur à y, on réduit z"
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_isomorphism_if_vs_si() {
-    let ir_py =
-        parse_python("if x < y:\n    reduce(z)", &taxonomies_root()).expect("python parse failed");
-    let ir_fr = fr_parser()
-        .parse("Si x est inférieur à y, on réduit z.")
-        .expect("french parse failed");
-
-    // Both have at least one Condition edge
-    let py_cond_edges = ir_py
-        .edges
-        .iter()
-        .filter(|(_, _, e)| e.relation == RelationType::Condition)
-        .count();
-    let fr_cond_edges = ir_fr
-        .edges
-        .iter()
-        .filter(|(_, _, e)| e.relation == RelationType::Condition)
-        .count();
-    assert_eq!(
-        py_cond_edges, fr_cond_edges,
-        "Same number of Condition edges: python={py_cond_edges}, french={fr_cond_edges}"
-    );
-    assert!(
-        py_cond_edges > 0,
-        "both IRs should have at least one Condition edge"
-    );
-
-    // Both have exactly 2 nodes for a simple if/si (condition + effect)
-    assert_eq!(
-        ir_py.nodes.len(),
-        ir_fr.nodes.len(),
-        "Same node count: python={}, french={}",
-        ir_py.nodes.len(),
-        ir_fr.nodes.len()
-    );
-
-    // In both, every Condition edge connects two existing nodes (source → destination)
-    let all_node_ids = |ir: &gcn_ir::CausalIR| {
-        ir.nodes
-            .iter()
-            .map(|n| n.id)
-            .collect::<std::collections::HashSet<_>>()
-    };
-    for (src, dst, e) in &ir_py.edges {
-        if e.relation == RelationType::Condition {
-            let ids = all_node_ids(&ir_py);
-            assert!(
-                ids.contains(src) && ids.contains(dst),
-                "Python Condition edge endpoints must be valid node IDs"
-            );
-        }
-    }
-    for (src, dst, e) in &ir_fr.edges {
-        if e.relation == RelationType::Condition {
-            let ids = all_node_ids(&ir_fr);
-            assert!(
-                ids.contains(src) && ids.contains(dst),
-                "French Condition edge endpoints must be valid node IDs"
-            );
-        }
-    }
-
-    // Direction: condition edge goes from cause (lower temporal_index) to effect (higher)
-    // For Python: if_statement (id=0) → body_call (id=1), so src.id < dst.id
-    for (src_id, dst_id, e) in &ir_py.edges {
-        if e.relation == RelationType::Condition {
-            assert!(
-                src_id.0 < dst_id.0,
-                "Python Condition edge should go from cause (lower id) to effect (higher id): {src_id:?} → {dst_id:?}"
-            );
-        }
-    }
-}
+// Isomorphisme NL retiré : le frontend FR émet un lattice (zéro décision),
+// pas un CIR — aucune comparaison CIR py↔fr possible. Le cross-langage
+// code est couvert par test_isomorphism_python_rust_js_if_structure.
 
 // ---------------------------------------------------------------------------
 // Arêtes séquentielles : deux instructions consécutives → Sequence, pas Condition
@@ -176,8 +91,7 @@ fn test_isomorphism_if_vs_si() {
 
 #[test]
 fn test_sequential_statements_use_sequence_edge() {
-    let ir = parse_python("x = compute()\nif x < y:\n    act()", &taxonomies_root())
-        .expect("parse failed");
+    let ir = parse_python("x = compute()\nif x < y:\n    act()").expect("parse failed");
 
     let transition_ids: Vec<_> = ir
         .nodes
@@ -219,11 +133,8 @@ fn test_sequential_statements_use_sequence_edge() {
 
 #[test]
 fn test_try_except_body_in_ir() {
-    let ir = parse_python(
-        "try:\n    x = risky()\nexcept ValueError:\n    handle_error()",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir = parse_python("try:\n    x = risky()\nexcept ValueError:\n    handle_error()")
+        .expect("parse failed");
 
     // handle_error() should appear as a Processus node in the IR
     let has_handle = ir.nodes.iter().any(|n| n.label.contains("handle_error"));
@@ -239,11 +150,7 @@ fn test_try_except_body_in_ir() {
 
 #[test]
 fn test_function_label_uses_name_not_colon_truncation() {
-    let ir = parse_python(
-        "def compute(x: int) -> int:\n    return x * 2",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir = parse_python("def compute(x: int) -> int:\n    return x * 2").expect("parse failed");
 
     let fn_node = ir.nodes.iter().find(|n| n.node_type == NodeType::Processus);
     assert!(
@@ -269,32 +176,23 @@ fn test_function_label_uses_name_not_colon_truncation() {
 
 #[test]
 fn test_rust_parses_if_expression() {
-    let ir = parse_rust(
-        "fn main() {\n    if x < y {\n        reduce(z);\n    }\n}",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir = parse_rust("fn main() {\n    if x < y {\n        reduce(z);\n    }\n}")
+        .expect("parse failed");
     assert!(!ir.nodes.is_empty());
     assert!(!ir.edges.is_empty());
 }
 
 #[test]
 fn test_rust_if_produces_condition_node() {
-    let ir = parse_rust(
-        "fn main() {\n    if condition {\n        action();\n    }\n}",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir = parse_rust("fn main() {\n    if condition {\n        action();\n    }\n}")
+        .expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Condition));
 }
 
 #[test]
 fn test_rust_if_produces_condition_edge() {
-    let ir = parse_rust(
-        "fn main() {\n    if x {\n        do_it();\n    }\n}",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir =
+        parse_rust("fn main() {\n    if x {\n        do_it();\n    }\n}").expect("parse failed");
     assert!(
         ir.edges
             .iter()
@@ -304,21 +202,19 @@ fn test_rust_if_produces_condition_edge() {
 
 #[test]
 fn test_rust_fn_item_produces_action_node() {
-    let ir = parse_rust("fn compute(x: i32) -> i32 { x * 2 }", &taxonomies_root())
-        .expect("parse failed");
+    let ir = parse_rust("fn compute(x: i32) -> i32 { x * 2 }").expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_rust_let_produces_transition_node() {
-    let ir =
-        parse_rust("fn main() { let x = compute(); }", &taxonomies_root()).expect("parse failed");
+    let ir = parse_rust("fn main() { let x = compute(); }").expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_rust_source_lang_is_rust() {
-    let ir = parse_rust("fn main() {}", &taxonomies_root()).expect("parse failed");
+    let ir = parse_rust("fn main() {}").expect("parse failed");
     assert!(matches!(
         ir.source_lang,
         gcn_ir::SourceLanguage::Programming {
@@ -329,7 +225,7 @@ fn test_rust_source_lang_is_rust() {
 
 #[test]
 fn test_rust_empty_produces_empty_ir() {
-    let ir = parse_rust("", &taxonomies_root()).expect("parse failed");
+    let ir = parse_rust("").expect("parse failed");
     assert!(ir.nodes.is_empty());
     assert!(ir.edges.is_empty());
 }
@@ -340,21 +236,20 @@ fn test_rust_empty_produces_empty_ir() {
 
 #[test]
 fn test_js_parses_if_statement() {
-    let ir = parse_js("if (x < y) {\n    reduce(z);\n}", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("if (x < y) {\n    reduce(z);\n}").expect("parse failed");
     assert!(!ir.nodes.is_empty());
     assert!(!ir.edges.is_empty());
 }
 
 #[test]
 fn test_js_if_produces_condition_node() {
-    let ir =
-        parse_js("if (condition) {\n    action();\n}", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("if (condition) {\n    action();\n}").expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Condition));
 }
 
 #[test]
 fn test_js_if_produces_condition_edge() {
-    let ir = parse_js("if (x) {\n    doIt();\n}", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("if (x) {\n    doIt();\n}").expect("parse failed");
     assert!(
         ir.edges
             .iter()
@@ -364,20 +259,19 @@ fn test_js_if_produces_condition_edge() {
 
 #[test]
 fn test_js_function_produces_action_node() {
-    let ir = parse_js("function compute(x) { return x * 2; }", &taxonomies_root())
-        .expect("parse failed");
+    let ir = parse_js("function compute(x) { return x * 2; }").expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_js_variable_declaration_produces_transition() {
-    let ir = parse_js("const x = compute();", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("const x = compute();").expect("parse failed");
     assert!(ir.nodes.iter().any(|n| n.node_type == NodeType::Processus));
 }
 
 #[test]
 fn test_js_source_lang_is_javascript() {
-    let ir = parse_js("const x = 1;", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("const x = 1;").expect("parse failed");
     assert!(matches!(
         ir.source_lang,
         gcn_ir::SourceLanguage::Programming {
@@ -388,7 +282,7 @@ fn test_js_source_lang_is_javascript() {
 
 #[test]
 fn test_js_empty_produces_empty_ir() {
-    let ir = parse_js("", &taxonomies_root()).expect("parse failed");
+    let ir = parse_js("").expect("parse failed");
     assert!(ir.nodes.is_empty());
     assert!(ir.edges.is_empty());
 }
@@ -399,11 +293,7 @@ fn test_js_empty_produces_empty_ir() {
 
 #[test]
 fn test_rust_impl_methods_in_ir() {
-    let ir = parse_rust(
-        "impl Foo { fn bar(&self) {} fn baz(&self) {} }",
-        &taxonomies_root(),
-    )
-    .expect("parse failed");
+    let ir = parse_rust("impl Foo { fn bar(&self) {} fn baz(&self) {} }").expect("parse failed");
 
     let action_count = ir
         .nodes
@@ -422,15 +312,10 @@ fn test_rust_impl_methods_in_ir() {
 
 #[test]
 fn test_isomorphism_python_rust_js_if_structure() {
-    let ir_py = parse_python("if condition:\n    action()", &taxonomies_root())
-        .expect("python parse failed");
-    let ir_rs = parse_rust(
-        "fn main() {\n    if condition {\n        action();\n    }\n}",
-        &taxonomies_root(),
-    )
-    .expect("rust parse failed");
-    let ir_js = parse_js("if (condition) {\n    action();\n}", &taxonomies_root())
-        .expect("js parse failed");
+    let ir_py = parse_python("if condition:\n    action()").expect("python parse failed");
+    let ir_rs = parse_rust("fn main() {\n    if condition {\n        action();\n    }\n}")
+        .expect("rust parse failed");
+    let ir_js = parse_js("if (condition) {\n    action();\n}").expect("js parse failed");
 
     for (lang, ir) in [("python", &ir_py), ("rust", &ir_rs), ("js", &ir_js)] {
         let cond_edges = ir
@@ -456,27 +341,24 @@ fn test_isomorphism_python_rust_js_if_structure() {
 
 #[test]
 fn test_python_invalid_syntax_is_err() {
-    let root = taxonomies_root();
     assert!(
-        parse_python("def foo(", &root).is_err(),
+        parse_python("def foo(").is_err(),
         "syntaxe Python invalide (unclosed def) doit retourner Err"
     );
 }
 
 #[test]
 fn test_rust_invalid_syntax_is_err() {
-    let root = taxonomies_root();
     assert!(
-        parse_rust("fn foo(", &root).is_err(),
+        parse_rust("fn foo(").is_err(),
         "syntaxe Rust invalide (unclosed fn) doit retourner Err"
     );
 }
 
 #[test]
 fn test_js_invalid_syntax_is_err() {
-    let root = taxonomies_root();
     assert!(
-        parse_js("function foo(", &root).is_err(),
+        parse_js("function foo(").is_err(),
         "syntaxe JS invalide (unclosed function) doit retourner Err"
     );
 }
@@ -488,10 +370,10 @@ fn test_js_invalid_syntax_is_err() {
 #[test]
 fn p03_unmapped_kinds_counted_in_report() {
     use gcn_frontend_code::parse_python_with_report;
-    // `assert x` (expression_statement simple) : selon le mapping YAML, certains
+    // `assert x` (expression_statement simple) : selon kinds.rs, certains
     // kinds passent, d'autres non — l'essentiel : le rapport existe et est cohérent.
-    let (ir, report) = parse_python_with_report("if x < y:\n    reduce(z)\n", &taxonomies_root())
-        .expect("parse failed");
+    let (ir, report) =
+        parse_python_with_report("if x < y:\n    reduce(z)\n").expect("parse failed");
     assert!(!ir.nodes.is_empty());
     assert_eq!(
         report.total_skipped(),
@@ -499,8 +381,7 @@ fn p03_unmapped_kinds_counted_in_report() {
     );
     // Cas avec des kinds hors mapping (break/pass) : ils doivent être comptés,
     // pas silencieusement ignorés.
-    let (_, report2) = parse_python_with_report("while True:\n    break\n", &taxonomies_root())
-        .expect("parse failed");
+    let (_, report2) = parse_python_with_report("while True:\n    break\n").expect("parse failed");
     assert!(
         report2.skipped_unmapped > 0,
         "kinds non mappés (break) comptés, obtenu {report2:?}"
@@ -510,8 +391,7 @@ fn p03_unmapped_kinds_counted_in_report() {
 #[test]
 fn p03_function_name_populates_agent_attribute() {
     // P3 : attributes.agent = nom défini via le champ AST `name`.
-    let ir = parse_python("def compute(x):\n    return x * 2\n", &taxonomies_root())
-        .expect("parse failed");
+    let ir = parse_python("def compute(x):\n    return x * 2\n").expect("parse failed");
     let f = ir
         .nodes
         .iter()
@@ -531,8 +411,7 @@ fn p03_long_labels_truncated_at_256_and_counted() {
     assert_eq!(MAX_LABEL_CHARS, 256);
     // Une expression très longue en une ligne → label tronqué + compté.
     let long_call = format!("result = some_function_name({})", "x, ".repeat(200));
-    let (ir, report) =
-        parse_python_with_report(&long_call, &taxonomies_root()).expect("parse failed");
+    let (ir, report) = parse_python_with_report(&long_call).expect("parse failed");
     assert!(
         report.truncated_labels > 0,
         "troncature comptée, obtenu {report:?}"

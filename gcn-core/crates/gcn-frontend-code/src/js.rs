@@ -1,8 +1,6 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, NodeType, ProgrammingLanguage,
     RelationType, SourceLanguage,
@@ -11,19 +9,14 @@ use tree_sitter::Parser;
 
 use crate::common::{CodeParseReport, control_edge, emit_node};
 use crate::error::CodeParserError;
-use crate::resources::CodeResources;
+use crate::kinds::{Lang, is_transparent, kind_info};
 
-pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
-    Ok(parse_with_report(source, taxonomies_root)?.0)
+pub fn parse(source: &str) -> Result<CausalIR, CodeParserError> {
+    Ok(parse_with_report(source)?.0)
 }
 
 /// P0-3 : variante avec `CodeParseReport` (kinds ignorés + troncatures comptés).
-pub fn parse_with_report(
-    source: &str,
-    taxonomies_root: &Path,
-) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
-    let res = CodeResources::load_js(taxonomies_root)?;
-
+pub fn parse_with_report(source: &str) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_javascript::LANGUAGE.into())
@@ -46,7 +39,6 @@ pub fn parse_with_report(
     walk_block(
         root,
         src_bytes,
-        &res,
         &mut nodes,
         &mut edges,
         &mut next_id,
@@ -76,7 +68,6 @@ pub fn parse_with_report(
 fn walk_block(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
@@ -89,34 +80,40 @@ fn walk_block(
         if raw_child.is_extra() || !raw_child.is_named() {
             continue;
         }
-        let child = if res.transparent.contains(raw_child.kind()) {
+        let child = if is_transparent(Lang::Js, raw_child.kind()) {
             let mut c = raw_child.walk();
             raw_child.named_children(&mut c).next().unwrap_or(raw_child)
         } else {
             raw_child
         };
         let kind = child.kind();
-        let Some(&node_type) = res.kind_to_node_type.get(kind) else {
+        let Some(info) = kind_info(Lang::Js, kind) else {
             // P0-3 : kind non mappé → ignoré MAIS compté (était `continue` silencieux).
             report.skipped_unmapped += 1;
             continue;
         };
 
-        let id = emit_node(child, src, node_type, nodes, next_id, res, report);
-        let edge_rel = res
-            .kind_to_edge_type
-            .get(kind)
-            .copied()
+        let id = emit_node(
+            child,
+            src,
+            info.node_type,
+            nodes,
+            next_id,
+            info.label,
+            report,
+        );
+        let edge_rel = kind_info(Lang::Js, kind)
+            .map(|i| i.edge_type)
             .unwrap_or(RelationType::ControlDependency);
 
         let body_ids = match kind {
-            "if_statement" => walk_if(child, src, res, nodes, edges, next_id, report),
-            "try_statement" => walk_try(child, src, res, nodes, edges, next_id, report),
+            "if_statement" => walk_if(child, src, nodes, edges, next_id, report),
+            "try_statement" => walk_try(child, src, nodes, edges, next_id, report),
             "while_statement"
             | "for_statement"
             | "for_in_statement"
             | "function_declaration"
-            | "function" => walk_body_of(child, src, res, nodes, edges, next_id, report),
+            | "function" => walk_body_of(child, src, nodes, edges, next_id, report),
             _ => vec![],
         };
         for body_id in body_ids {
@@ -135,7 +132,6 @@ fn walk_block(
 fn walk_if(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
@@ -146,10 +142,10 @@ fn walk_if(
     for child in node.children(&mut cursor) {
         match child.kind() {
             "statement_block" => {
-                body_ids.extend(walk_block(child, src, res, nodes, edges, next_id, report))
+                body_ids.extend(walk_block(child, src, nodes, edges, next_id, report))
             }
             "else_clause" => {
-                body_ids.extend(walk_body_of(child, src, res, nodes, edges, next_id, report));
+                body_ids.extend(walk_body_of(child, src, nodes, edges, next_id, report));
             }
             _ => {}
         }
@@ -160,7 +156,6 @@ fn walk_if(
 fn walk_try(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
@@ -171,21 +166,27 @@ fn walk_try(
     for child in node.children(&mut cursor) {
         match child.kind() {
             "statement_block" => {
-                body_ids.extend(walk_block(child, src, res, nodes, edges, next_id, report))
+                body_ids.extend(walk_block(child, src, nodes, edges, next_id, report))
             }
             "catch_clause" => {
-                let node_type = res
-                    .kind_to_node_type
-                    .get("catch_clause")
-                    .copied()
+                let info = kind_info(Lang::Js, "catch_clause");
+                let node_type = info
+                    .as_ref()
+                    .map(|i| i.node_type)
                     .unwrap_or(NodeType::EtatLocal);
-                let catch_id = emit_node(child, src, node_type, nodes, next_id, res, report);
-                let edge_rel = res
-                    .kind_to_edge_type
-                    .get("catch_clause")
-                    .copied()
+                let catch_id = emit_node(
+                    child,
+                    src,
+                    node_type,
+                    nodes,
+                    next_id,
+                    info.map(|i| i.label).unwrap_or_default(),
+                    report,
+                );
+                let edge_rel = info
+                    .map(|i| i.edge_type)
                     .unwrap_or(RelationType::Concession);
-                for hid in walk_body_of(child, src, res, nodes, edges, next_id, report) {
+                for hid in walk_body_of(child, src, nodes, edges, next_id, report) {
                     edges.push((catch_id, hid, control_edge(edge_rel)));
                 }
                 body_ids.push(catch_id);
@@ -199,7 +200,6 @@ fn walk_try(
 fn walk_body_of(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
@@ -208,7 +208,7 @@ fn walk_body_of(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "statement_block" {
-            return walk_block(child, src, res, nodes, edges, next_id, report);
+            return walk_block(child, src, nodes, edges, next_id, report);
         }
     }
     vec![]

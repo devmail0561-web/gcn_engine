@@ -7,6 +7,7 @@ pub mod code;
 pub mod edge;
 pub mod error;
 pub mod ir;
+pub mod lattice;
 pub mod modifier;
 pub mod node;
 pub mod normalize;
@@ -23,6 +24,7 @@ pub use ir::{
     Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, GraphFormat,
     IrMetadata, NaturalLanguage, ProgrammingLanguage, SourceLanguage,
 };
+pub use lattice::{Lattice, LatticeDep, LatticePos, LatticeToken};
 pub use modifier::{FrequencyKind, LocationScope, Maturity, Modifier};
 pub use node::{
     AgentType, CausalDirection, CausalNode, NodeAttributes, NodeId, NodeOrigin, NodeType,
