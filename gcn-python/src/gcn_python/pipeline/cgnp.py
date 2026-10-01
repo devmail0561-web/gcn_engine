@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..constants import NODE_TYPES, RELATION_TYPES, THETA_AMBIGUITY_DEFAULT
+from ..constants import (
+    NODE_TYPES,
+    RELATION_TYPES,
+    THETA_AMBIGUITY_DEFAULT,
+    rgcn_n_relations,
+    rgcn_no_edge_idx,
+)
 from ..layer1.features import (
     CLAUSE_POOLING_MODES,
     FeatureVocabulary,
@@ -36,9 +42,6 @@ class CGNPipeline:
     decoder (optionnel) : TrainableDecoder ou tout objet implémentant
     forward_decode / loss_decode / backward_decode / update. Si None, le pipeline
     se comporte exactement comme avant (rétro-compatible).
-
-    taxonomies_dir (optionnel) : Path vers le répertoire des taxonomies pour
-    la nominalisation des labels de nœuds.
     """
 
     def __init__(
@@ -48,7 +51,6 @@ class CGNPipeline:
         vocabulary: FeatureVocabulary,
         *,
         decoder=None,
-        taxonomies_dir=None,
         temperature: float = 1.0,
         node_types: list[str] | None = None,
         relation_types: list[str] | None = None,
@@ -68,8 +70,11 @@ class CGNPipeline:
         theta_ambiguity: float = THETA_AMBIGUITY_DEFAULT,
         no_mood: bool = False,
         no_tense: bool = False,
+        no_positional: bool = False,
+        no_ternary: bool = False,
         n_intent_types: int = 0,
         seed: int = 42,
+        edge_logit_mask: np.ndarray | None = None,
     ):
         if clause_pooling not in CLAUSE_POOLING_MODES:
             raise ValueError(
@@ -96,7 +101,6 @@ class CGNPipeline:
         self.graph = graph
         self.vocabulary = vocabulary
         self.decoder = decoder
-        self.taxonomies_dir = taxonomies_dir
         if float(temperature) <= 0:
             raise ValueError(
                 f"temperature doit être > 0 (reçu {temperature!r}) — "
@@ -105,6 +109,20 @@ class CGNPipeline:
         self.temperature = float(temperature)
         self.node_types = list(node_types) if node_types is not None else list(NODE_TYPES)
         self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
+        # Masque classes d'arêtes vides (v3.0) : appliqué au forward (argmax/softmax
+        # d'émission) ET à la loss — une classe sans exemple ne peut ni être apprise
+        # ni être prédite. Sans masque (None) : comportement historique, 19 classes.
+        _m = None
+        if edge_logit_mask is not None:
+            _m = np.asarray(edge_logit_mask, dtype=bool)
+            if _m.shape != (len(self.relation_types),):
+                raise ValueError(
+                    f"edge_logit_mask shape {_m.shape} incompatible avec "
+                    f"{len(self.relation_types)} relations."
+                )
+            if not _m.any():
+                raise ValueError("edge_logit_mask : aucune classe active.")
+        self.edge_logit_mask = _m
         self.all_pairs = all_pairs
         if word_embedding is None:
             raise ValueError(
@@ -113,6 +131,17 @@ class CGNPipeline:
             )
         self.word_embedding = word_embedding
         self.bidirectional = bidirectional
+        # v5.2 : le R-GCN doit porter le slot no-edge — échec bruyant ici
+        # plutôt que typage silencieusement faux au forward.
+        _need_rel = rgcn_n_relations(len(self.relation_types), bool(bidirectional))
+        for _layer in ([graph] if not isinstance(graph, (list, tuple)) else list(graph)):
+            _got_rel = getattr(_layer, 'n_relations', None)
+            if _got_rel is not None and int(_got_rel) != _need_rel:
+                raise ValueError(
+                    f"R-GCN.n_relations={_got_rel} ≠ {_need_rel} requis "
+                    f"(rgcn_n_relations({len(self.relation_types)}, "
+                    f"bidirectional={bool(bidirectional)}), slot no-edge inclus)."
+                )
         # Tête de prédiction de liens (optionnelle, vérifiée via hasattr côté appelants).
         # None par défaut : comportement strictement identique à avant.
         self.link_predictor = link_predictor
@@ -126,6 +155,8 @@ class CGNPipeline:
         self.theta_ambiguity = float(theta_ambiguity)
         self.no_mood = bool(no_mood)
         self.no_tense = bool(no_tense)
+        self.no_positional = bool(no_positional)
+        self.no_ternary = bool(no_ternary)
         self.n_intent_types = int(n_intent_types)
         self._cached_intent_logits: np.ndarray | None = None
         self._cached_d_intent: np.ndarray | None = None
@@ -288,6 +319,10 @@ class CGNPipeline:
                     drop_morph=self.drop_morph,
                     clause_pooling=self.clause_pooling,
                     subject_object_emb=self.subject_object_emb,
+                    no_mood=self.no_mood,
+                    no_tense=self.no_tense,
+                    no_positional=self.no_positional,
+                    no_ternary=self.no_ternary,
                 )
                 enriched_edge = np.concatenate([
                     edge_vec_base,
@@ -367,6 +402,8 @@ class CGNPipeline:
                              drop_morph=self.drop_morph,
                              no_mood=self.no_mood,
                              no_tense=self.no_tense,
+                             no_positional=self.no_positional,
+                             no_ternary=self.no_ternary,
                              clause_pooling=self.clause_pooling,
                              subject_object_emb=self.subject_object_emb) for r in reps
         ])  # (N, D_effective)
@@ -423,44 +460,56 @@ class CGNPipeline:
                 dtype=np.int64,
             ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
             # Types d'arêtes : gold (teacher forcing) si disponible,
-            # sinon two-pass (prédiction préliminaire) ou fallback type 0.
+            # sinon two-pass (prédiction préliminaire) ou type no-edge.
+            # v5.2 : paires sans gold = no-edge explicite, jamais 0=cause.
+            _n_types = len(self.relation_types)
+            _no_edge = rgcn_no_edge_idx(_n_types)
+            _g0 = self._graph_layers[0] if self._graph_layers else None
+            _g_nrel = int(getattr(_g0, 'n_relations',
+                                 rgcn_n_relations(_n_types, self.bidirectional)))
+            _n_fwd = _g_nrel // 2 if self.bidirectional else _g_nrel
+            if _no_edge >= _n_fwd:
+                raise ValueError(
+                    f"R-GCN sans slot no-edge : n_relations={_g_nrel} < "
+                    f"no-edge idx {_no_edge} — construisez le graphe avec "
+                    f"rgcn_n_relations({ _n_types}, bidirectional={self.bidirectional})."
+                )
             if gold_edge_map:
                 edge_type_idxs_rgcn = np.array([
-                    gold_edge_map.get((i, j), gold_edge_map.get((j, i), 0))
+                    gold_edge_map.get((i, j), gold_edge_map.get((j, i), _no_edge))
                     for (i, j) in _edge_pairs_rgcn
                 ], dtype=np.int64)
-                n_rel = len(self.relation_types)
-                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, n_rel - 1)
+                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, _n_fwd - 1)
             elif self.two_pass_val and len(reps) >= 2 and self._graph_layers:
                 predicted_map = self._predict_edge_types_preliminary(
                     clause_vecs, node_logits, reps, clause_positions,
                     n_total_clauses, connector_reps,
                 )
-                _g0 = self._graph_layers[0]
-                _g_nrel = getattr(_g0, 'n_relations', len(self.relation_types))
-                _n_fwd = _g_nrel // 2 if self.bidirectional else _g_nrel
                 edge_type_idxs_rgcn = np.array([
-                    predicted_map.get((i, j), predicted_map.get((j, i), 0))
+                    predicted_map.get((i, j), predicted_map.get((j, i), _no_edge))
                     for (i, j) in _edge_pairs_rgcn
                 ], dtype=np.int64)
-                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, max(_n_fwd - 1, 0))
+                edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, _n_fwd - 1)
                 self._cached_d_edge_base = None
                 self._cached_d_eff = None
             else:
-                edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
+                edge_type_idxs_rgcn = np.full(len(_edge_pairs_rgcn), _no_edge,
+                                              dtype=np.int64)
 
             # Message passing bidirectionnel
             if self.bidirectional and edge_index_rgcn.shape[1] > 0:
                 rev_index = edge_index_rgcn[[1, 0], :]
-                # BUG-1 fix : arêtes inverses → types _inv (forward_idx + n_forward)
+                # Arêtes inverses → types _inv (forward_idx + n_forward).
                 # W_r[type_inv] apprend à agréger dans le sens inverse séparément.
-                n_forward = len(self.relation_types) // 2 if self.bidirectional else len(self.relation_types)
+                # v5.2 : n_forward en espace graphe (inclut no-edge), pas
+                # len(relation_types)//2 (19//2=9, faux).
+                n_forward = _n_fwd
                 rev_types = np.where(
                     edge_type_idxs_rgcn < n_forward,
                     edge_type_idxs_rgcn + n_forward,    # forward → _inv
-                    edge_type_idxs_rgcn - n_forward,    # _inv → forward (cas gold déjà _inv)
+                    edge_type_idxs_rgcn - n_forward,    # _inv → forward
                 )
-                rev_types = np.clip(rev_types, 0, len(self.relation_types) - 1)
+                rev_types = np.clip(rev_types, 0, _g_nrel - 1)
                 edge_index_mp = np.concatenate([edge_index_rgcn, rev_index], axis=1)
                 edge_types_mp = np.concatenate([edge_type_idxs_rgcn, rev_types])
             else:
@@ -526,6 +575,10 @@ class CGNPipeline:
                     drop_morph=self.drop_morph,
                     clause_pooling=self.clause_pooling,
                     subject_object_emb=self.subject_object_emb,
+                    no_mood=self.no_mood,
+                    no_tense=self.no_tense,
+                    no_positional=self.no_positional,
+                    no_ternary=self.no_ternary,
                 )
                 # Enrichir avec les representations R-GCN + node type predictions
                 enriched_edge = np.concatenate([
@@ -541,11 +594,19 @@ class CGNPipeline:
                 edge_vecs.append(enriched_edge)
                 edge_pairs_cache.append((src_i, dst_i))
                 edge_logit = self.encoder.forward_edge(enriched_edge)
+                # Masque v3.0 : les classes sans exemple d'entraînement sont exclues
+                # du cache, de l'argmax/softmax d'émission ET de la loss (qui le
+                # réapplique sans effet). Sans masque, l'inférence pouvait prédire
+                # des classes jamais vues au train (incohérence train/inférence).
+                if self.edge_logit_mask is not None:
+                    edge_logit = np.array(edge_logit, copy=True)
+                    edge_logit[..., ~self.edge_logit_mask] = -1e9
                 all_edge_logits.append(edge_logit)
                 if _snap:
                     edge_snapshots.append(self.encoder.snapshot_edge_cache())
-                rel_idx = int(np.argmax(edge_logit))
-                edge_probs = _softmax((edge_logit / self.temperature).reshape(1, -1))[0]
+                _emit_logit = edge_logit
+                rel_idx = int(np.argmax(_emit_logit))
+                edge_probs = _softmax((_emit_logit / self.temperature).reshape(1, -1))[0]
                 rel_conf = float(edge_probs[rel_idx])
                 rel_conf = (0.0 if not np.isfinite(rel_conf)
                             else min(1.0, max(0.0, rel_conf)))
@@ -576,7 +637,7 @@ class CGNPipeline:
             self._cached_node_snapshots = node_snapshots
 
         node_labels_attrs = [
-            build_label(r, nt, self.taxonomies_dir)
+            build_label(r, nt)
             for r, nt in zip(reps, node_types, strict=False)
         ]
         node_labels = [la[0] for la in node_labels_attrs]
@@ -663,32 +724,20 @@ class CGNPipeline:
         self,
         text: str,
         gcn_bin: str = "gcn",
-        taxonomy_dir=None,
         text_parser=None,
         subcommand: str = "analyze",
     ) -> dict:
         """
-        Texte brut → CausalIR dict (bridge + forward en une opération).
+        Texte brut → CausalIR dict (lattice + forward en une opération).
 
         text_parser (optionnel) : tout objet implémentant le Protocol TextParser
-          (layer0/interface.py). Si None, utilise GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand).
+          (layer0/interface.py). Si None, utilise GCNLatticeParser(gcn_bin, subcommand)
+          — tokens réels, zéro dictionnaire.
         subcommand : sous-commande gcn-cli en clair (défaut "analyze", ex. "analyze-en").
-        Qualité approximative si text_parser=None — voir frontend.bridge.
-
-        Raises:
-            GCNBridgeError: si gcn-cli est absent ou l'appel échoue (quand text_parser=None).
         """
-        import warnings
-
-        from ..frontend.bridge import GCNBridgeParser
+        from ..frontend.bridge import GCNLatticeParser
         if text_parser is None:
-            warnings.warn(
-                "CGNPipeline.analyze() produit des UDRepresentation approximatifs. "
-                "Voir frontend.bridge pour les limitations de qualité.",
-                UserWarning,
-                stacklevel=2,
-            )
-            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand)
+            text_parser = GCNLatticeParser(gcn_bin, subcommand)
         reps, connector_reps = text_parser.parse(text)
         # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
         _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
@@ -708,7 +757,6 @@ class CGNPipeline:
         self,
         text: str,
         gcn_bin: str = "gcn",
-        taxonomy_dir=None,
         subcommand: str = "analyze",
     ) -> dict | None:
         """
@@ -725,11 +773,7 @@ class CGNPipeline:
         """
         import shutil
 
-        from ..frontend.bridge import (
-            GCNBridgeError,
-            _call_gcn_analyze,
-            _cir_to_reps_and_connectors,
-        )
+        from ..frontend.bridge import GCNBridgeError, GCNLatticeParser
         if shutil.which(gcn_bin) is None:
             return None
         # BUG-6 : basculer encoder + TOUTES les couches graph + decoder
@@ -739,8 +783,7 @@ class CGNPipeline:
         for _obj, _ in _layers_tr:
             _obj.training = False
         try:
-            cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir, subcommand)
-            reps, connector_reps = _cir_to_reps_and_connectors(cir)
+            reps, connector_reps = GCNLatticeParser(gcn_bin, subcommand).parse(text)
             return self.forward(reps, text, connector_reps=connector_reps)
         except GCNBridgeError:
             return None
@@ -1380,7 +1423,12 @@ def _cross_entropy(
     probs = _softmax(logits)
 
     if label_smoothing > 0.0:
-        y_smooth = np.full((N, C), label_smoothing / max(C - 1, 1), dtype=np.float32)
+        # v5.4 : smoothing sur classes actives seules — la masse eps/(C-1)
+        # sur classes masquées créait un gradient parasite constant vers le haut.
+        _n_share = int(np.asarray(logit_mask, dtype=bool).sum()) if logit_mask is not None else C
+        y_smooth = np.full((N, C), label_smoothing / max(_n_share - 1, 1), dtype=np.float32)
+        if logit_mask is not None:
+            y_smooth[:, ~np.asarray(logit_mask, dtype=bool)] = 0.0
         y_smooth[np.arange(N), labels] = 1.0 - label_smoothing
         if class_weights is not None:
             w_n = class_weights[labels]
@@ -1419,59 +1467,33 @@ def _cross_entropy(
     return loss, d_logits
 
 
-_NEG_LEMMAS = frozenset({"pas", "plus", "jamais", "rien", "guère", "nullement", "point",
-                          "personne", "aucun", "aucune"})
-
-
 def _detect_negation(src_rep, dst_rep, connector_rep) -> tuple[bool, str | None]:
-    """Détecte la négation morphologique ET analytique (ne…pas).
+    """Détecte la négation MORPHOLOGIQUE uniquement (Polarity=Neg).
 
-    Retourne (negated, negation_site) où negation_site ∈ {"src", "dst", None}.
-    None = négation détectée sur le connecteur ou non localisée (R2/condition).
-
-    Couverture :
-    - Polarity=Neg sur le root (morphologique)
-    - Lemme négatif (pas, jamais, rien…) avec dep_rel advmod dans les tokens
+    Zéro liste de lemmes : sans parseur UD (couche B), la négation
+    analytique (ne…pas) n'est pas détectable sans word matching —
+    dégradation assumée et documentée. Retourne (negated, site).
     """
     for rep, site in ((src_rep, "src"), (dst_rep, "dst"), (connector_rep, None)):
         if rep is None:
             continue
         if getattr(rep, 'is_negative', False):
             return (True, site)
-        for tok in getattr(rep, 'tokens', []):
-            if (tok.get('lemma') in _NEG_LEMMAS
-                    and tok.get('dep_rel') == 'advmod'):
-                return (True, site)
     return (False, None)
 
 
-_SCOPE_UNIVERSAL = frozenset({
-    "tout", "tous", "toute", "toutes", "chaque", "toujours", "systématiquement",
-    "invariablement", "nécessairement", "every", "all", "always", "necessarily",
-})
-_SCOPE_EXISTENTIAL = frozenset({
-    "parfois", "souvent", "généralement", "habituellement", "quelquefois",
-    "occasionally", "fréquemment", "régulièrement", "sometimes", "often", "usually",
-})
-
-
 def _infer_scope(rep, scope_hints: dict) -> str:
-    """Dérive le scope depuis les tokens du span (L-5).
+    """Scope : hints externes explicites, sinon "specific" par défaut.
 
-    Priorité : scope_hints (externe) > universal/existential intégrés > "specific".
+    Zéro liste de lemmes : sans parseur UD (couche B), quantifieurs
+    (tout/chaque/...) ne sont pas lisibles sans word matching —
+    dégradation assumée et documentée.
     """
-    for tok in rep.tokens:
-        lemma = tok.get("lemma", "").lower()
-        dep_rel = tok.get("dep_rel", "")
-        _pos = tok.get("pos", "")
-        if scope_hints:
-            hint = scope_hints.get(lemma)
+    if scope_hints:
+        for tok in rep.tokens:
+            hint = scope_hints.get(tok.get("lemma", "").lower())
             if hint:
                 return hint
-        if lemma in _SCOPE_UNIVERSAL and dep_rel in {"det", "advmod", "nsubj", "dep"}:
-            return "universal"
-        if lemma in _SCOPE_EXISTENTIAL and dep_rel in {"advmod", "dep"}:
-            return "existential"
     return "specific"
 
 

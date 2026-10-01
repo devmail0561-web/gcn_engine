@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..constants import RELATION_TYPES
+from ..constants import RELATION_TYPES, rgcn_n_relations
 
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
@@ -66,7 +66,7 @@ class RGCNLayer:
                  use_layernorm: bool = False):
         self.d_in = d_in
         self.d_out = d_out
-        self.n_relations = n_relations or len(RELATION_TYPES)
+        self.n_relations = n_relations or rgcn_n_relations(len(RELATION_TYPES), False)
         self.dropout = dropout
         self.output_activation = output_activation
         self.use_layernorm = use_layernorm

@@ -12,12 +12,12 @@ import click
 import numpy as np
 
 from ..constants import (
-    ALL_RELATION_TYPES,
     INTENT_TYPES,
     NODE_TYPES,
     RELATION_TYPES,
     coarse_node,
     coarse_relation,
+    rgcn_n_relations,
 )
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..evaluation.metrics import (
@@ -25,6 +25,7 @@ from ..evaluation.metrics import (
     edge_macro_f1,
     node_accuracy,
     node_macro_f1,
+    per_class_report,
 )
 from ..evaluation.metrics import (
     graph_exact_match as _gem,
@@ -211,8 +212,16 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--edge-threshold", default=0.0, show_default=True, type=float,
               help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
 @click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
-               help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
-                    "pour simuler le bridge heuristique (parité train/inférence).")
+              help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
+                   "pour simuler le bridge heuristique (parité train/inférence).")
+@click.option("--no-positional", is_flag=True, default=False, show_default=True,
+              help="v5.5 : zéroter les 12 features positionnelles Éq.9 (ablation structure).")
+@click.option("--no-ternary", is_flag=True, default=False, show_default=True,
+              help="v5.5 : zéroter les 5 features ternaires (ablation).")
+@click.option("--no-mood", "no_mood_flag", is_flag=True, default=False, show_default=True,
+              help="v5.5 : masquer Mood sans changer la granularité (contrairement à --coarse-phase).")
+@click.option("--no-tense", "no_tense_flag", is_flag=True, default=False, show_default=True,
+              help="v5.5 : masquer Tense sans changer la granularité (contrairement à --coarse-phase).")
 @click.option("--global-attention/--no-global-attention", default=False, show_default=True,
                help="Phase C : MHA globale sur les nœuds UD avant le MLP nœuds "
                     "(TransformerMLPEncoder, poids fixes + résidu). Capte les arcs "
@@ -247,6 +256,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--max-class-weight", default=5.0, show_default=True, type=float,
               help="Plafond des class weights avec --weighted-loss. Évite qu'une classe "
                    "ultra-rare domine la loss. 0 = pas de plafond.")
+@click.option("--min-class-count", default=30, show_default=True, type=int,
+              help="N_min v5 : une classe d'arête avec 0 < N < N_min est coupée du "
+                   "softmax (ni apprise ni prédite) — le moteur ne prédit que ce "
+                   "qu'il peut apprendre. Annotez jusqu'à N_min pour réactiver.")
 @click.option("--scheduled-sampling/--no-scheduled-sampling", default=False, show_default=True,
               help="Scheduled sampling : réduit linéairement la probabilité d'injecter "
                    "gold_edge_map en entraînement (1.0 → 0.0 sur ss-final-epoch epochs). "
@@ -296,6 +309,10 @@ def train_cmd(
     n_rgcn_layers: int,
     edge_threshold: float,
     drop_morph: bool,
+    no_positional: bool,
+    no_ternary: bool,
+    no_mood_flag: bool,
+    no_tense_flag: bool,
     seed: int | None,
     clause_pooling: str,
     subject_object_emb: bool,
@@ -317,6 +334,7 @@ def train_cmd(
     rgcn_layernorm: bool,
     max_grad_norm: float,
     max_class_weight: float,
+    min_class_count: int,
     use_compgcn: bool,
     d_rel_emb: int,
     scheduled_sampling: bool,
@@ -441,7 +459,9 @@ def train_cmd(
         raise click.ClickException(f"--drop-edge doit être dans [0, 1[ (reçu {drop_edge}).")
     if d_rel_emb < 1:
         raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
-    n_rel = len(ALL_RELATION_TYPES) if bidirectional else len(RELATION_TYPES)  # L-6
+    # v5.2 : +1 type no-edge R-GCN (jamais prédit, message passing seul).
+    # Anciens checkpoints (38/19) refusés bruyamment au chargement (triplet).
+    n_rel = rgcn_n_relations(len(RELATION_TYPES), bidirectional)  # L-6
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
@@ -535,8 +555,11 @@ def train_cmd(
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
-                           gat_residual=gat_residual, assembler=assembler,
-                           no_mood=coarse_phase, no_tense=coarse_phase,
+                            gat_residual=gat_residual, assembler=assembler,
+                            no_mood=(coarse_phase or no_mood_flag),
+                            no_tense=(coarse_phase or no_tense_flag),
+                            no_positional=no_positional,
+                            no_ternary=no_ternary,
                            n_intent_types=n_intent_types, seed=_init_seed)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
@@ -619,7 +642,7 @@ def train_cmd(
             with contextlib.suppress(ValueError):
                 intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
         if word_embedding is not None:
-            reps_s, _, _ = reps_from_sentence(sample.sentence)
+            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
             # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
             # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
             if clause_pooling == "root" and not subject_object_emb:
@@ -633,6 +656,26 @@ def train_cmd(
                         all_lemmas.extend(_pool_lemmas(r, clause_pooling))
                     if subject_object_emb:
                         all_lemmas.extend(_find_subj_obj_lemmas(r))
+            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
+            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
+            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
+            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
+            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
+            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
+            _conn_lemmas = [
+                _c.root_lemma for _c in conn_s
+                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
+            ]
+            all_lemmas.extend(_conn_lemmas)
+            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
+            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
+            if _orphans:
+                import warnings as _w_orph
+                _w_orph.warn(
+                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
+                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
+                    UserWarning, stacklevel=2,
+                )
     if edge_counts:
         n_edge_classes = encoder.n_relation_types
         _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
@@ -646,6 +689,44 @@ def train_cmd(
                 f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
                 f"(N=0 dans le dataset) — masquées tant que N=0."
             )
+        # v5 : coupe aux prouvées — 0 < N < N_min ni apprise ni prédite.
+        # Le moteur ne prédit que ce qu'il peut apprendre ; annotez jusqu'à
+        # N_min pour réactiver (0 = désactive la coupe, comportement historique).
+        if min_class_count > 0:
+            _rare = [(RELATION_TYPES[c], edge_counts.get(c, 0))
+                     for c in range(n_edge_classes)
+                     if _edge_logit_mask[c] and edge_counts.get(c, 0) < min_class_count]
+            for _rel, _n in _rare:
+                _edge_logit_mask[RELATION_TYPES.index(_rel)] = False
+            if _rare:
+                _names = ", ".join(f"{r} (N={n})" for r, n in _rare)
+                click.echo(
+                    f"  [v5] {len(_rare)} classe(s) sous N_min={min_class_count} "
+                    f"coupée(s) du softmax : {_names}."
+                )
+            if not _edge_logit_mask.any():
+                raise click.ClickException(
+                    "Aucune classe d'arête ne survit (vides + sous N_min="
+                    f"{min_class_count}) : annotez au moins {min_class_count} "
+                    "exemples d'une relation, ou baissez --min-class-count "
+                    "(0 = désactive la coupe)."
+                )
+        # Couverture marqueurs (guide réannotation v5) : gold annotés vs
+        # connecteurs retrouvés vs gaps sans connecteur.
+        _n_gold = _n_found = _n_gaps = 0
+        for _s in loader:
+            _rs, _, _cs = reps_from_sentence(_s.sentence)
+            _n_gaps += max(0, len(_rs) - 1)
+            _n_gold += sum(1 for _e in _s.sentence.edges
+                           if getattr(_e, "marker_token", None) is not None)
+            _n_found += sum(1 for _c in _cs if _c is not None)
+        click.echo(
+            f"  [v5] marqueurs : {_n_gold} gold annotés, {_n_found}/{_n_gaps} "
+            f"gaps avec connecteur."
+        )
+        # Masque forward+loss : le pipeline émet et apprend uniquement sur les
+        # classes vues (persisté au checkpoint, appliqué à l'inférence).
+        pipeline.edge_logit_mask = _edge_logit_mask
     # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
     _intent_logit_mask: np.ndarray | None = None
     if n_intent_types > 0 and intent_counts:
@@ -797,6 +878,7 @@ def train_cmd(
         total_loss = 0.0
         n = 0
         n_skipped = 0
+        _n_cut_val = 0  # v5.1 : exemples val de classes coupées, hors mesure
         for sample in loader:
             if not sample.sentence.clauses:
                 n_skipped += 1
@@ -855,6 +937,13 @@ def train_cmd(
                     [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
                 )
                 valid_edge_mask = gold_edge_full >= 0
+                if _edge_logit_mask is not None and valid_edge_mask.any():
+                    # v5.1 : classes coupées hors supervision — ni apprises,
+                    # ni prédites, ni punies (le masque seul punissait via -log(~0)).
+                    _active = np.asarray(_edge_logit_mask, dtype=bool)
+                    _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
+                    _n_cut_val += int((valid_edge_mask & ~_keep).sum())
+                    valid_edge_mask = valid_edge_mask & _keep
                 if valid_edge_mask.any():
                     valid_edge_idxs = np.where(valid_edge_mask)[0]
                     gold_edge = gold_edge_full[valid_edge_idxs]
@@ -903,7 +992,7 @@ def train_cmd(
             _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
                       f"val_f1 calculée sur {n} phrase(s) seulement.",
                       UserWarning, stacklevel=3)
-        return total_loss / max(n, 1)
+        return total_loss / max(n, 1), _n_cut_val
 
     try:
         # B2 : ouverture du CSV ici (dans le try) pour garantir la fermeture
@@ -912,6 +1001,7 @@ def train_cmd(
             csv_fieldnames = [
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
+                "edge_cut_train",
             ]
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
@@ -922,6 +1012,7 @@ def train_cmd(
                 csv_fieldnames.extend([
                     "val_loss", "val_node_accuracy", "val_node_macro_f1",
                     "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
+                    "edge_cut_val",
                 ])
             csv_file = open(log_csv, "w", newline="", encoding="utf-8")  # noqa: SIM115  # handle référencé puis fermé dans le finally de train()
             # C1.5 : extrasaction='ignore' — un resume avec headers différents
@@ -951,6 +1042,7 @@ def train_cmd(
             # P0-6 : compteur de samples sautés SANS warn (clauses vides, reps
             # vides, logits vides) — une epoch à 0 sample ne doit pas être silencieuse.
             _n_skip_silent = 0
+            epoch_n_cut = 0  # v5.1 : exemples train de classes coupées, hors loss
 
             for sample in loader:
                 if not sample.sentence.clauses:
@@ -1014,6 +1106,12 @@ def train_cmd(
                         [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
                     )
                     valid_edge_mask = gold_edge_full >= 0
+                    if _edge_logit_mask is not None and valid_edge_mask.any():
+                        # v5.1 : voir passe éval — classes coupées hors loss.
+                        _active = np.asarray(_edge_logit_mask, dtype=bool)
+                        _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
+                        epoch_n_cut += int((valid_edge_mask & ~_keep).sum())
+                        valid_edge_mask = valid_edge_mask & _keep
                     if valid_edge_mask.any():
                         valid_edge_idxs = np.where(valid_edge_mask)[0]
                         gold_edge = gold_edge_full[valid_edge_idxs]
@@ -1234,6 +1332,7 @@ def train_cmd(
                     epoch_sent_node_preds, epoch_sent_node_gold,
                     epoch_sent_edge_preds, epoch_sent_edge_gold,
                 ),
+                "edge_cut_train": epoch_n_cut,  # v5.1 : hors loss, comptés pas punis
             }
             if pipeline.decoder is not None:
                 metrics["decoder_loss"] = (  # L-3 : séparé, non mélangé dans loss
@@ -1256,13 +1355,14 @@ def train_cmd(
                 val_edge_preds, val_edge_gold = [], []
                 val_sent_node_preds, val_sent_node_gold = [], []
                 val_sent_edge_preds, val_sent_edge_gold = [], []
-                val_loss = _run_eval_pass(
+                val_loss, _val_n_cut = _run_eval_pass(
                     pipeline, val_loader,
                     val_node_preds, val_node_gold,
                     val_edge_preds, val_edge_gold,
                     val_sent_node_preds, val_sent_node_gold,
                     val_sent_edge_preds, val_sent_edge_gold,
                 )
+                metrics["edge_cut_val"] = _val_n_cut
                 _set_training_mode(pipeline, True)
                 metrics["val_loss"] = val_loss
                 metrics["val_node_accuracy"] = node_accuracy(val_node_preds, val_node_gold)
@@ -1366,6 +1466,17 @@ def train_cmd(
             f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
             f"→ {best_edge_checkpoint_path}"
         )
+
+    # v5.6 : visibilité par classe — plus aucune classe en échec silencieux.
+    # Dernière epoch (pas best) : honnête sur l'état final, supports visibles.
+    if epoch_edge_gold:
+        click.echo("Rapport edge/train (dernière epoch) :\n"
+                   + per_class_report(epoch_edge_preds, epoch_edge_gold,
+                                      RELATION_TYPES))
+    if val_loader is not None and val_edge_gold:
+        click.echo("Rapport edge/val (dernière epoch) :\n"
+                   + per_class_report(val_edge_preds, val_edge_gold,
+                                      RELATION_TYPES))
 
     if log_csv:
         json_path = Path(log_csv).with_suffix(".json")

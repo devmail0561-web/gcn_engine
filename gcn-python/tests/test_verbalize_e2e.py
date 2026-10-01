@@ -114,10 +114,10 @@ def test_decode_idempotent():
 def test_engine_verbalize_neural():
     """engine.verbalize(use_neural=True) retourne {'cir': dict, 'text': str}."""
     from gcn_python.engine import GCNEngine
-    from gcn_python.frontend.bridge import GCNBridgeParser
+    from gcn_python.frontend.bridge import GCNLatticeParser
     from gcn_python.layer1.representation import UDRepresentation
 
-    class _MockBridgeParser(GCNBridgeParser):
+    class _MockBridgeParser(GCNLatticeParser):
         def __init__(self):
             pass
 

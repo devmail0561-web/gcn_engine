@@ -38,7 +38,7 @@ except ImportError as e:  # pragma: no cover
 
 import numpy as np
 
-from ..constants import RELATION_TYPES
+from ..constants import RELATION_TYPES, rgcn_n_relations
 
 
 class RGCNLayerPT(nn.Module):
@@ -72,7 +72,7 @@ class RGCNLayerPT(nn.Module):
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
-        self.n_relations = n_relations or len(RELATION_TYPES)
+        self.n_relations = n_relations or rgcn_n_relations(len(RELATION_TYPES), False)
         self.pairnorm = bool(pairnorm)
         self.drop_edge = float(drop_edge)
         if not (0.0 <= self.drop_edge < 1.0):

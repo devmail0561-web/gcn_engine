@@ -24,7 +24,7 @@ def make_test_pipeline(d_emb: int = 4, encoder=None, graph=None,
     fournis pour surcharger les objets construits par défaut (ils doivent
     alors être cohérents en dims avec d_emb).
     """
-    from gcn_python.constants import NODE_TYPES
+    from gcn_python.constants import NODE_TYPES, RELATION_TYPES, rgcn_n_relations
     from gcn_python.layer1.features import FeatureVocabulary
     from gcn_python.layer2.reference import MLPEncoder
     from gcn_python.layer3.reference import RGCNLayer
@@ -35,7 +35,13 @@ def make_test_pipeline(d_emb: int = 4, encoder=None, graph=None,
     d_eff = vocab.d_clause_effective(we.d_emb)
     d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), we.d_emb)
     enc = encoder if encoder is not None else MLPEncoder(d_clause=d_eff, d_edge=d_edge)
-    gr = graph if graph is not None else RGCNLayer(d_in=d_eff, d_out=d_eff)
+    # v5.2 : graphe dimensionné avec slot no-edge (bidi → 2×(19+1)).
+    _bidi = bool(kwargs.get("bidirectional", False))
+    if graph is None:
+        gr = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                       n_relations=rgcn_n_relations(len(RELATION_TYPES), _bidi))
+    else:
+        gr = graph
     return CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        word_embedding=we, **kwargs)
 

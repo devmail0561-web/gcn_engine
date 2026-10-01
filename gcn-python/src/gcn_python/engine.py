@@ -75,7 +75,6 @@ class GCNEngine:
         gcn_bin: str = "gcn",
         device: str = "cpu",
         trusted: bool = False,
-        taxonomy_dir=None,
         subcommand: str = "analyze",
     ) -> GCNEngine:
         """
@@ -222,6 +221,12 @@ class GCNEngine:
         # si le modèle a été entraîné avec d'autres valeurs.
         edge_threshold = float(arch.get("edge_threshold", 0.0))
         drop_morph     = bool(arch.get("drop_morph", False))
+        # v5.5 : flags d'ablation persistés — sans eux l'inférence réactiverait
+        # des features masquées au train (mismatch train/inférence silencieux).
+        no_positional  = bool(arch.get("no_positional", False))
+        no_ternary     = bool(arch.get("no_ternary", False))
+        no_mood        = bool(arch.get("no_mood", False))
+        no_tense       = bool(arch.get("no_tense", False))
         temperature    = float(arch.get("temperature", 1.0))
         bfs_depth      = arch.get("bfs_depth")
         if bfs_depth is not None:
@@ -234,6 +239,8 @@ class GCNEngine:
             all_pairs=all_pairs, n_rgcn_layers=n_rgcn_layers,
             edge_threshold=edge_threshold, drop_morph=drop_morph,
             temperature=temperature, bfs_depth=bfs_depth,
+            no_positional=no_positional, no_ternary=no_ternary,
+            no_mood=no_mood, no_tense=no_tense,
             clause_pooling=clause_pooling,
             subject_object_emb=subject_object_emb,
             gat_residual=gat_residual,
@@ -249,14 +256,14 @@ class GCNEngine:
         pipeline.two_pass_val = bool(arch.get("two_pass_val", False))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
-        # Text parser : gcn-cli si disponible, sinon bridge heuristique
+        # Text parser : lattice gcn-cli si disponible (zéro dictionnaire).
         # subcommand : sous-commande en clair (défaut "analyze") — aucune
         # langue nommée ici (moteur langue-agnostique).
         import shutil
         text_parser = None
         if shutil.which(gcn_bin):
-            from .frontend.bridge import GCNBridgeParser
-            text_parser = GCNBridgeParser(gcn_bin, taxonomy_dir, subcommand)
+            from .frontend.bridge import GCNLatticeParser
+            text_parser = GCNLatticeParser(gcn_bin, subcommand)
 
         return cls(pipeline, text_parser=text_parser)
 
@@ -298,14 +305,13 @@ class GCNEngine:
         sur corpus) — l'appelant loggue le skip avec le contexte fichier/ligne.
         Réutilise le parser déjà configuré (binaire + sous-commande).
         """
-        from .frontend.bridge import GCNBridgeParser
+        from .frontend.bridge import GCNLatticeParser
 
         parser = self._text_parser
-        if isinstance(parser, GCNBridgeParser):
+        if isinstance(parser, GCNLatticeParser):
             return self._pipeline.analyze_or_skip(
                 text,
                 gcn_bin=parser.gcn_bin,
-                taxonomy_dir=parser.taxonomy_dir,
                 subcommand=parser.subcommand,
             )
         try:

@@ -157,6 +157,10 @@ def run_eval(
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
                            temperature=_temperature, bfs_depth=_bfs_depth,
+                           no_positional=bool(_arch.get("no_positional", False)),
+                           no_ternary=bool(_arch.get("no_ternary", False)),
+                           no_mood=bool(_arch.get("no_mood", False)),
+                           no_tense=bool(_arch.get("no_tense", False)),
                            clause_pooling=str(_arch.get("clause_pooling", "root")),
                            subject_object_emb=bool(_arch.get("subject_object_emb", False)),
                            gat_residual=bool(_arch.get("gat_residual", False)))

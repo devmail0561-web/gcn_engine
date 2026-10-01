@@ -31,7 +31,7 @@ def make_rep() -> UDRepresentation:
 def make_pipeline(**kwargs) -> CGNPipeline:
     vocab = FeatureVocabulary()
     vocab.d_edge_closed_loop(vocab.d_clause, len(NODE_TYPES))
-    return make_test_pipeline()
+    return make_test_pipeline(**kwargs)
 
 
 def test_forward_returns_cir():
@@ -302,10 +302,9 @@ def test_attributes_entity_not_null():
 
 
 def test_label_nominalized():
-    """C8 : CGNPipeline accepte taxonomies_dir comme kwarg."""
-    FeatureVocabulary()
-    p = make_test_pipeline(taxonomies_dir=None)
-    assert p.taxonomies_dir is None
+    """C8 (doctrine) : CGNPipeline n'a plus de taxonomies_dir — zéro YAML au runtime."""
+    p = make_test_pipeline()
+    assert not hasattr(p, "taxonomies_dir"), "taxonomies_dir doit avoir disparu du moteur"
 
 
 def test_rep_nominal_clause_root_pos():
@@ -420,7 +419,9 @@ def test_clause_pooling_mean_forward_shape():
     we.build_vocab(["alpha", "beta"])
     d_eff = vocab.d_clause_effective(8, False)
     enc = MLPEncoder(d_clause=d_eff, d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 8), seed=0)
-    g = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=0)
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    g = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                    n_relations=rgcn_n_relations(len(RELATION_TYPES), False), seed=0)
     pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab,
                        word_embedding=we, clause_pooling="mean")
 
@@ -449,7 +450,9 @@ def test_subject_object_emb_forward_shape():
     assert d_eff == vocab.d_clause + 24
     enc = MLPEncoder(d_clause=d_eff,
                      d_edge=vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 8, True), seed=0)
-    g = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11, seed=0)
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    g = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                    n_relations=rgcn_n_relations(len(RELATION_TYPES), False), seed=0)
     pipe = CGNPipeline(encoder=enc, graph=g, vocabulary=vocab,
                        word_embedding=we, subject_object_emb=True)
 
@@ -499,7 +502,8 @@ def test_two_pass_val_edge_types_not_all_zero():
 
 
 def test_two_pass_val_disabled_falls_back_to_zeros():
-    """Avec two_pass_val=False et sans gold, on retombe sur le fallback type-0."""
+    """v5.2 : avec two_pass_val=False et sans gold, fallback no-edge (jamais 0=cause)."""
+    from gcn_python.constants import rgcn_no_edge_idx
     pipeline = make_pipeline()
     pipeline.two_pass_val = False
     reps = [make_rep(), make_rep()]
@@ -507,9 +511,10 @@ def test_two_pass_val_disabled_falls_back_to_zeros():
     edge_types = pipeline._cached_edge_type_idxs
     assert edge_types is not None
     # Sans bidi, edge_types_mp = edge_type_idxs_rgcn direct
-    # Avec bidi, on a aussi les types inversés, mais les forward sont tous 0
+    # Avec bidi, on a aussi les types inversés, mais les forward sont tous no-edge
     n_fwd = len(edge_types) // 2 if pipeline.bidirectional else len(edge_types)
-    assert np.all(edge_types[:n_fwd] == 0), "Fallback type-0 quand two_pass_val=False"
+    _no_edge = rgcn_no_edge_idx(len(pipeline.relation_types))
+    assert np.all(edge_types[:n_fwd] == _no_edge), "Fallback no-edge quand two_pass_val=False"
 
 
 def test_two_pass_val_predicted_types_in_range():

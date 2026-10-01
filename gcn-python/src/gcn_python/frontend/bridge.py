@@ -1,40 +1,26 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """
-P1 — Pont texte brut → UDRepresentation via gcn-cli subprocess.
+Pont texte brut → UDRepresentation via gcn-cli subprocess (lattice par défaut).
 
-Ce module permet au moteur ML Python de traiter du texte brut sans dépendance
-NLP externe (spaCy interdit, pas de PyO3). Le bridge appelle `gcn <subcommand>`
-(CLI Rust, défaut `analyze`) et construit des UDRepresentation heuristiques
-depuis le CIR produit. Aucune langue n'est nommée ici : le bridge route une
-chaîne de sous-commande, sans liste de langues en dur.
+Le bridge appelle `gcn <subcommand> -- <text>` (CLI Rust, défaut `analyze`) qui émet
+un lattice de tokens observés (forme, POS morphologique, pseudo-dep_rel
+positionnels — zéro dictionnaire, zéro décision). Ce module construit des
+UDRepresentation multi-tokens réelles depuis ce lattice. Aucune langue
+n'est nommée ici : le bridge route une chaîne de sous-commande, sans
+liste de langues en dur.
 
-QUALITÉ DE L'INFÉRENCE :
-  Les UDRepresentation produits sont APPROXIMATIFS — les champs UD (root_pos,
-  root_dep_rel, root_morph) sont dérivés du node_type CausalIR, pas d'une
-  analyse syntaxique réelle.
+Limites honnêtes (couche B : parseur UD) :
+  - morph partiel (flags de forme : Tense=Past si imparfait, VerbForm) ;
+  - pas de dep_rel authentiques (pseudo-dep_rel positionnels) ;
+  - négation analytique et scope non détectés (zéro word matching).
 
-  | Feature ML      | Source                                  | Qualité    |
-  |-----------------|------------------------------------------|------------|
-  | root_pos (UPOS) | NODE_TYPE_TO_POS[node_type]              | ~85%       |
-  | root_dep_rel    | NODE_TYPE_TO_DEP[node_type]              | ~80%       |
-  | root_morph      | toujours {} → _absent pour Tense/Mood    | dégradé    |
-  | is_negative     | toujours False (morph={})                | 0%         |
-  | has_object      | attributes.patient is not None           | ~90%       |
-  | has_advcl       | True si node_type == "condition"          | conservatif|
-  | has_temporal_obl| temporal_ref not in (None, "unresolved") | ~85%       |
-  | subject_pos     | attributes.agent présent → NOUN          | ~70%       |
-
-  Pour la qualité maximale : fournir des UDRepresentation annotées manuellement
-  ou via les datasets gcn-nl (GCNDataLoader).
+  Pour la qualité maximale : UDRepresentation annotées via GCNDataLoader.
 """
 from __future__ import annotations
 
 import json
-import re
 import subprocess
-import warnings
-from pathlib import Path
 
 from ..layer1.representation import UDRepresentation
 
@@ -43,226 +29,6 @@ class GCNBridgeError(RuntimeError):
     """Levée quand gcn-cli est indisponible, timeout, code non-zéro ou JSON invalide."""
 
 
-# Mappings heuristiques node_type CIR → UPOS / dep_rel UD
-# Publics pour tests directs.
-
-NODE_TYPE_TO_POS: dict[str, str] = {
-    "action":         "VERB",
-    "transition":     "VERB",
-    "processus":      "NOUN",
-    "etat":           "NOUN",
-    "etat_local":     "NOUN",   # v3.0
-    "etat_global":    "NOUN",   # v3.0
-    "etat_systemique": "NOUN",
-    "entite":         "NOUN",
-    "condition":      "SCONJ",
-    "concept":        "NOUN",   # v3.0
-    "evenement":      "NOUN",   # v3.0
-    "contrainte":     "NOUN",   # v3.0
-}
-_DEFAULT_POS = "NOUN"
-
-NODE_TYPE_TO_DEP: dict[str, str] = {
-    "action":         "root",
-    "transition":     "root",
-    "processus":      "root",
-    "etat":           "nsubj",
-    "etat_local":     "nsubj",  # v3.0
-    "etat_global":    "nsubj",  # v3.0
-    "etat_systemique": "nsubj",
-    "entite":         "nsubj",
-    "condition":      "advcl",
-    "concept":        "nsubj",  # v3.0
-    "evenement":      "root",   # v3.0
-    "contrainte":     "nsubj",  # v3.0
-}
-_DEFAULT_DEP = "root"
-
-_LABEL_RE = re.compile(r'^([^(?\s]+)')
-
-
-def _extract_lemma(label: str) -> str:
-    """
-    Extrait le lemme depuis un label CIR.
-
-    "décroissance(ventes)"  → "décroissance"
-    "cause_cachée(?)"       → "cause_cachée"
-    "hausse"                → "hausse"
-    ""  / whitespace        → "_unknown"
-    """
-    stripped = label.strip() if label else ""
-    if not stripped:
-        return "_unknown"
-    m = _LABEL_RE.match(stripped)
-    return m.group(1).strip() if m else stripped
-
-
-def _extract_span(node: dict) -> tuple[int, int]:
-    """
-    Extrait (start, end) depuis un nœud CIR.
-
-    Supporte :
-      - source_span.token_span.{start, end}  ← format Rust serde
-      - token_span: [start, end]             ← format flat legacy
-    Fallback : (0, 0).
-    """
-    src = node.get("source_span")
-    if isinstance(src, dict):
-        ts = src.get("token_span", {})
-        if isinstance(ts, dict):
-            s = ts.get("start")
-            e = ts.get("end")
-            return (0 if s is None else int(s), 0 if e is None else int(e))
-    flat = node.get("token_span")
-    if isinstance(flat, (list, tuple)) and len(flat) >= 2:
-        return (int(flat[0]), int(flat[1]))
-    return (0, 0)
-
-
-def _parse_edges(edges: list) -> list[tuple[int, int, dict]]:
-    """
-    Normalise les edges CIR vers (src_id: int, dst_id: int, edge_obj: dict).
-
-    Supporte :
-      - format tuple [src, dst, obj]  ← sortie ir_emitter.py et gcn analyze Rust
-      - format dict {"source": ..., "target": ..., ...}
-    Les entrées invalides sont ignorées avec un compteur (warning agrégé).
-    """
-    result: list[tuple[int, int, dict]] = []
-    n_invalid = 0
-    for e in edges:
-        if isinstance(e, (list, tuple)) and len(e) == 3:
-            src_id, dst_id, edge_obj = e
-            if isinstance(edge_obj, dict):
-                try:
-                    result.append((int(src_id), int(dst_id), edge_obj))
-                    continue
-                except (TypeError, ValueError):
-                    pass
-            n_invalid += 1
-        elif isinstance(e, dict):
-            src = e.get("source")
-            dst = e.get("target")
-            if src is not None and dst is not None:
-                try:
-                    result.append((int(src), int(dst), e))
-                    continue
-                except (TypeError, ValueError):
-                    pass
-            n_invalid += 1
-        else:
-            n_invalid += 1
-    if n_invalid:
-        warnings.warn(
-            f"gcn bridge : {n_invalid} arête(s) CIR invalide(s) ignorée(s).",
-            UserWarning,
-            stacklevel=2,
-        )
-    return result
-
-
-def _rep_from_cir_node(node: dict) -> UDRepresentation:
-    """
-    Construit une UDRepresentation heuristique depuis un nœud CIR.
-
-    root_pos et root_dep_rel sont dérivés de node_type via les mappings
-    NODE_TYPE_TO_POS / NODE_TYPE_TO_DEP. root_morph est toujours {}.
-    """
-    node_type = (node.get("node_type") or "action").lower()  # défaut par nom, pas par index
-    label = node.get("label") or ""
-    root_lemma = _extract_lemma(label)
-    root_pos = NODE_TYPE_TO_POS.get(node_type, _DEFAULT_POS)
-    root_dep_rel = NODE_TYPE_TO_DEP.get(node_type, _DEFAULT_DEP)
-
-    if node_type not in NODE_TYPE_TO_POS:
-        warnings.warn(
-            f"gcn bridge : node_type inconnu {node_type!r} — fallback NOUN/root.",
-            UserWarning,
-            stacklevel=3,
-        )
-
-    attrs = node.get("attributes") or {}
-    subject_pos = "NOUN" if attrs.get("agent") else None
-    has_object = attrs.get("patient") is not None
-    temporal_ref = node.get("temporal_ref")
-    has_temporal_obl = temporal_ref not in (None, "unresolved")
-    _nid = node.get("id", -1)
-    try:
-        _tok_id = int(_nid)
-    except (TypeError, ValueError):
-        _tok_id = -1
-
-    return UDRepresentation(
-        tokens=[{"lemma": root_lemma, "pos": root_pos, "dep_rel": root_dep_rel, "morph": {},
-                 "id": _tok_id, "dep_head": -1, "form": root_lemma}],
-        root_lemma=root_lemma,
-        root_pos=root_pos,
-        root_dep_rel=root_dep_rel,
-        root_morph={},  # → Tense/Aspect/Mood = _absent, is_negative = False
-        subject_pos=subject_pos,
-        has_object=has_object,
-        has_advcl=(node.get("node_type", "") == "condition"),
-        has_temporal_obl=has_temporal_obl,
-        token_span=_extract_span(node),
-    )
-
-
-def _build_connector_rep(marker_token_id: int) -> UDRepresentation:
-    """UDRepresentation synthétique pour un token connecteur entre deux clauses."""
-    return UDRepresentation(
-        tokens=[{"lemma": "_connector", "pos": "SCONJ", "dep_rel": "mark", "morph": {},
-                 "id": int(marker_token_id), "dep_head": -1, "form": "_connector"}],
-        root_lemma="_connector",
-        root_pos="SCONJ",
-        root_dep_rel="mark",
-        root_morph={},
-        subject_pos=None,
-        has_object=False,
-        has_advcl=False,
-        has_temporal_obl=False,
-        token_span=(marker_token_id, marker_token_id),
-    )
-
-
-def _cir_to_reps_and_connectors(
-    cir: dict,
-) -> tuple[list[UDRepresentation], list[UDRepresentation | None]]:
-    """
-    CIR dict → (clause_reps, connector_reps).
-
-    connector_reps a len(clause_reps) - 1 éléments. Chaque élément est une
-    UDRepresentation synthétique SCONJ si marker_token présent dans l'arête
-    entre nodes[i] et nodes[i+1], sinon None.
-    """
-    nodes = cir.get("nodes", [])
-    if not nodes:
-        return [], []
-
-    parsed_edges = _parse_edges(cir.get("edges", []))
-
-    # Construire index (src_node_id, dst_node_id) → marker_token
-    # Ignorer marker_token <= 0 (token fictif ou absent)
-    pair_to_marker: dict[tuple[int, int], int] = {}
-    for src_id, dst_id, edge_obj in parsed_edges:
-        marker = edge_obj.get("marker_token")
-        if marker is not None:
-            try:
-                m = int(marker)
-                if m > 0:
-                    pair_to_marker[(src_id, dst_id)] = m
-            except (TypeError, ValueError):
-                pass
-
-    clause_reps = [_rep_from_cir_node(n) for n in nodes]
-
-    connector_reps: list[UDRepresentation | None] = []
-    for i in range(len(nodes) - 1):
-        src_node_id = nodes[i].get("id", i)
-        dst_node_id = nodes[i + 1].get("id", i + 1)
-        marker = pair_to_marker.get((src_node_id, dst_node_id))
-        connector_reps.append(_build_connector_rep(marker) if marker else None)
-
-    return clause_reps, connector_reps
 
 
 def _resolve_gcn_bin(gcn_bin: str) -> str:
@@ -314,154 +80,284 @@ def _validate_gcn_bin(gcn_bin: str) -> None:
         )
 
 
-def _resolve_taxonomy_dir(taxonomy_dir: Path | None) -> Path:
-    """Répertoire des taxonomies passé à `gcn analyze --data-dir`.
+def _call_gcn_lattice(text: str, gcn_bin: str, subcommand: str = "analyze") -> dict:
+    """Appelle `gcn <subcommand> -- <text>` (lattice par défaut, sans --data-dir).
 
-    --data-dir est obligatoire côté CLI (clap) : l'omettre fait échouer l'appel
-    avec « required arguments were not provided ». Ordre de résolution :
-    argument explicite → variable GCN_TAXONOMY_DIR → dépôt source
-    gcn-references/taxonomies (doit contenir fr/).
-
-    Raises:
-        GCNBridgeError: aucun répertoire de taxonomies trouvable.
-    """
-    import os as _os
-    if taxonomy_dir is not None:
-        return Path(taxonomy_dir)
-    env = _os.environ.get("GCN_TAXONOMY_DIR")
-    if env:
-        return Path(env)
-    repo = Path(__file__).resolve().parents[4] / "gcn-references" / "taxonomies"
-    if (repo / "fr").is_dir():
-        return repo
-    raise GCNBridgeError(
-        "`gcn analyze` exige --data-dir et aucun répertoire de taxonomies n'est "
-        "trouvable : passez taxonomy_dir=<répertoire> ou export "
-        "GCN_TAXONOMY_DIR=…."
-    )
-
-
-def _call_gcn_analyze(
-    text: str,
-    gcn_bin: str,
-    taxonomy_dir: Path | None,
-    subcommand: str = "analyze",
-) -> dict:
-    """
-    Appelle `gcn <subcommand> ... <text>` et retourne le CIR parsé.
-
-    subcommand : nom de sous-commande gcn-cli en clair (défaut "analyze").
-    Exemples : "analyze" (français), "analyze-en" (anglais). Libre par design :
-    le bridge ne connaît AUCUNE langue — il route une chaîne vers le binaire,
-    sans liste de langues en dur (moteur langue-agnostique, règle D1).
-    Chaîne vide refusée.
-
-    Raises:
-        GCNBridgeError: binaire absent, timeout, code non-zéro, JSON invalide.
+    Retourne le lattice JSON {source_text, tokens[], clauses[]} : tokens
+    observés (forme, POS morphologique, pseudo-dep_rel positionnels),
+    zéro décision linguistique, zéro dictionnaire.
     """
     if not subcommand or not subcommand.strip():
         raise GCNBridgeError("subcommand vide — nom de sous-commande invalide.")
-    gcn_bin = _resolve_gcn_bin(gcn_bin)  # résout + vérifie existence; lève GCNBridgeError
-    # --data-dir est toujours transmis : sans lui, clap rejette la commande.
-    cmd = [gcn_bin, subcommand, "--data-dir", str(_resolve_taxonomy_dir(taxonomy_dir))]
-    # -- sépare explicitement les options du texte (évite "--option" passé comme texte)
-    cmd += ["--", text]
-
+    gcn_bin = _resolve_gcn_bin(gcn_bin)
+    # analyze/analyze-en émettent le lattice par défaut (zéro dictionnaire).
+    cmd = [gcn_bin, subcommand, "--", text]
     try:
         proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=30,
-            check=False,
+            cmd, capture_output=True, text=True, encoding="utf-8",
+            timeout=30, check=False,
         )
     except FileNotFoundError:
         raise GCNBridgeError(
-            f"Binaire gcn introuvable : {gcn_bin!r}. "
-            "Vérifiez que gcn-cli est installé dans PATH "
-            "ou spécifiez gcn_bin=<chemin absolu>."
+            f"Binaire gcn introuvable : {gcn_bin!r}."
         ) from None
     except subprocess.TimeoutExpired:
         raise GCNBridgeError(
-            f"Timeout (30s) lors de `{gcn_bin} {subcommand}`. "
-            f"Texte (80 premiers chars) : {text[:80]!r}"
+            f"Timeout (30s) lors de `{gcn_bin} {subcommand} -- <text>`."
         ) from None
-
     if proc.returncode != 0:
         raise GCNBridgeError(
-            f"`{gcn_bin} {subcommand}` a échoué (code {proc.returncode}) :\n"
-            f"{proc.stderr.strip()[:300]}"
+            f"`{gcn_bin} {subcommand} -- <text>` a échoué "
+            f"(code {proc.returncode}) :\n{proc.stderr.strip()[:300]}"
         )
-
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise GCNBridgeError(
-            f"Sortie JSON invalide de `{gcn_bin} {subcommand}` : {exc}. "
-            f"Début de la sortie : {proc.stdout[:100]!r}"
+            f"Sortie lattice JSON invalide : {exc}. "
+            f"Début : {proc.stdout[:100]!r}"
         ) from exc
 
 
-class GCNBridgeParser:
+_LATTICE_POS_TO_UPOS = {
+    "verb": "VERB", "noun": "NOUN", "adv": "ADV",
+    "punct": "PUNCT", "other": "X",
+}
+
+_LATTICE_DEP_TO_UD = {
+    "root": "root", "nsubj": "nsubj", "obj": "obj", "mark": "mark",
+    "advcl": "advcl", "det": "det", "advmod": "advmod",
+    "punct": "punct", "other": "dep",
+}
+
+
+def _lattice_token_to_ud(tok: dict) -> dict:
+    """Token lattice Rust → token UD Python.
+
+    POS : mapping direct sauf fonction structurelle (mark→SCONJ,
+    det→DET, advmod→ADV) — la fonction vient de la POSITION, pas du lemme.
+    Morph : dérivé des flags de forme (imparfait→Tense=Past,
+    infinitive→VerbForm=Inf, participle→VerbForm=Part). Le reste est absent
+    (pas de parseur UD sur ce chemin — couche B).
     """
-    Implémentation de layer0.interface.TextParser via le subprocess gcn-cli.
+    dep = str(tok.get("dep_rel", "other"))
+    pos_raw = str(tok.get("pos", "other"))
+    if dep == "mark":
+        upos = "SCONJ"
+    elif dep == "det":
+        upos = "DET"
+    elif dep == "advmod":
+        upos = "ADV"
+    else:
+        upos = _LATTICE_POS_TO_UPOS.get(pos_raw, "X")
+    morph: dict = {}
+    for flag in tok.get("flags") or []:
+        if flag == "imparfait":
+            morph["Tense"] = "Past"
+        elif flag == "infinitive":
+            morph["VerbForm"] = "Inf"
+        elif flag == "participle":
+            morph["VerbForm"] = "Part"
+    try:
+        tid = int(tok.get("index", -1))
+    except (TypeError, ValueError):
+        tid = -1
+    try:
+        dhead = int(tok.get("dep_head", -1))
+    except (TypeError, ValueError):
+        dhead = -1
+    return {
+        "lemma": str(tok.get("lemma", "")),
+        "pos": upos,
+        "dep_rel": _LATTICE_DEP_TO_UD.get(dep, "dep"),
+        "morph": morph,
+        "id": tid,
+        "dep_head": dhead,
+        "form": str(tok.get("form", "")),
+    }
 
-    subcommand : nom de sous-commande gcn-cli (défaut "analyze"). Explicite,
-    jamais deviné, jamais listé en dur — le bridge reste langue-agnostique.
 
-    Qualité approximative — root_morph toujours {}, donc Tense/Aspect/Mood
-    et Polarity toujours _absent/False (14 dimensions de features à zéro).
-    Voir module docstring pour la table de qualité complète.
+def _rep_from_ud_tokens(ud_tokens: list, has_advcl_sentence: bool) -> UDRepresentation:
+    """Groupe de tokens UD réels → UDRepresentation (une clause)."""
+    root = None
+    for t in ud_tokens:
+        if t.get("dep_rel") == "root":
+            root = t
+            break
+    if root is None:
+        for t in ud_tokens:
+            if t.get("dep_rel") == "advcl":
+                root = t
+                break
+    if root is None:
+        for t in ud_tokens:
+            if t.get("pos") == "VERB":
+                root = t
+                break
+    if root is None:
+        for t in ud_tokens:
+            if t.get("dep_rel") in ("nsubj", "obj") and t.get("pos") == "NOUN":
+                root = t
+                break
+    if root is None:
+        for t in ud_tokens:
+            if t.get("pos") not in ("PUNCT", "X"):
+                root = t
+                break
+    if root is None and ud_tokens:
+        root = ud_tokens[0]
+    subj_pos = None
+    for t in ud_tokens:
+        if t.get("dep_rel") == "nsubj":
+            subj_pos = t.get("pos")
+            break
+    ids = [t.get("id", 0) for t in ud_tokens if isinstance(t.get("id"), int)]
+    span = (min(ids), max(ids)) if ids else (0, 0)
+    return UDRepresentation(
+        tokens=ud_tokens,
+        root_lemma=(root or {}).get("lemma", ""),
+        root_pos=(root or {}).get("pos", "X"),
+        root_dep_rel=(root or {}).get("dep_rel", "dep"),
+        root_morph=dict((root or {}).get("morph", {}) or {}),
+        subject_pos=subj_pos,
+        has_object=any(t.get("dep_rel") == "obj" for t in ud_tokens),
+        has_advcl=has_advcl_sentence,
+        has_temporal_obl=False,
+        token_span=span,
+    )
 
-    Implémente TextParser (layer0/interface.py) par duck typing (pas d'import
-    direct du Protocol pour éviter les dépendances circulaires).
+
+def _reps_from_lattice(lattice: dict) -> tuple[list, list]:
+    """Lattice Rust → (clause_reps, connector_reps), tokens réels.
+
+    Une rep par clause. Connecteur = token mark réel (lemme/POS/span
+    observés) entre clauses adjacentes, sinon None.
+    Clause unique transitive (nsubj + obj) : scindée au verbe principal
+    en (groupe sujet | groupe prédicat) pour que la tête d'arêtes ait
+    une paire à classifier — découpe structurelle, pas lexicale.
+    """
+    raw_tokens = lattice.get("tokens") or []
+    ud = [_lattice_token_to_ud(t) for t in raw_tokens if isinstance(t, dict)]
+    if not ud:
+        return [], []
+    clauses = lattice.get("clauses") or []
+    has_advcl_sentence = any(t.get("dep_rel") == "advcl" for t in ud)
+
+    # Regrouper par clause (champ clause du lattice, 0-based).
+    # ud est aligné avec les entrées dict de raw_tokens (même ordre, même filtre).
+    by_clause: dict[int, list] = {}
+    for t in raw_tokens:
+        if not isinstance(t, dict):
+            continue
+        r = _lattice_token_to_ud(t)
+        try:
+            cid = int(r.get("clause", t.get("clause", 0)))
+        except (TypeError, ValueError):
+            cid = 0
+        by_clause.setdefault(cid, []).append(r)
+    _ = clauses  # spans informatifs (le découpage vient du champ clause)
+    ordered = [by_clause[k] for k in sorted(by_clause)]
+
+    if len(ordered) == 1:
+        toks = ordered[0]
+        verb_idx = next(
+            (i for i, t in enumerate(toks)
+             if t.get("dep_rel") in ("root", "advcl") and t.get("pos") == "VERB"),
+            None,
+        )
+        has_subj = any(t.get("dep_rel") == "nsubj" for t in toks)
+        has_obj = any(t.get("dep_rel") == "obj" for t in toks)
+        if verb_idx is not None and has_subj and has_obj:
+            src, dst = toks[:verb_idx], toks[verb_idx:]
+            if src and dst:
+                return (
+                    [_rep_from_ud_tokens(src, has_advcl_sentence),
+                     _rep_from_ud_tokens(dst, has_advcl_sentence)],
+                    [None],
+                )
+        # Subordonnée sans transitivité : scinder au marqueur (ou à l'advcl)
+        # en (principale | subordonnée) avec connecteur réel.
+        cut = next(
+            (i for i, t in enumerate(toks) if t.get("dep_rel") == "mark"),
+            next(
+                (i for i, t in enumerate(toks) if t.get("dep_rel") == "advcl"),
+                None,
+            ),
+        )
+        if cut is not None and cut > 0 and cut < len(toks):
+            mark_tok = next(
+                (t for t in toks if t.get("dep_rel") == "mark"), None
+            )
+            src, dst = toks[:cut], toks[cut:]
+            conn = None
+            if mark_tok is not None:
+                mid = mark_tok.get("id", 0)
+                conn = UDRepresentation(
+                    tokens=[mark_tok], root_lemma=mark_tok.get("lemma", ""),
+                    root_pos="SCONJ", root_dep_rel="mark", root_morph={},
+                    subject_pos=None, has_object=False, has_advcl=False,
+                    has_temporal_obl=False, token_span=(mid, mid),
+                )
+            return (
+                [_rep_from_ud_tokens(src, has_advcl_sentence),
+                 _rep_from_ud_tokens(dst, has_advcl_sentence)],
+                [conn],
+            )
+        return [_rep_from_ud_tokens(toks, has_advcl_sentence)], []
+
+    reps = [_rep_from_ud_tokens(toks, has_advcl_sentence) for toks in ordered]
+    connectors: list = []
+    for i in range(len(ordered) - 1):
+        mark = next(
+            (t for t in ordered[i] + ordered[i + 1] if t.get("dep_rel") == "mark"),
+            None,
+        )
+        if mark is None:
+            connectors.append(None)
+            continue
+        mid = mark.get("id", 0)
+        connectors.append(UDRepresentation(
+            tokens=[mark],
+            root_lemma=mark.get("lemma", ""),
+            root_pos="SCONJ",
+            root_dep_rel="mark",
+            root_morph={},
+            subject_pos=None,
+            has_object=False,
+            has_advcl=False,
+            has_temporal_obl=False,
+            token_span=(mid, mid),
+        ))
+    return reps, connectors
+
+
+class GCNLatticeParser:
+    """TextParser via `gcn <subcommand> -- <text>` (lattice par défaut) : tokens réels, zéro dico.
+
+    Contraste avec GCNBridgeParser (reps synthétiques à 1 token depuis le
+    CIR) : ici les reps portent les vrais tokens, vraies positions, vrais
+    spans et pseudo-dep_rel positionnels. morph reste partiel (flags de
+    forme uniquement — pas de dep_rel authentiques avant la couche B).
     """
 
-    def __init__(self, gcn_bin: str = "gcn", taxonomy_dir=None, subcommand: str = "analyze"):
+    def __init__(self, gcn_bin: str = "gcn", subcommand: str = "analyze"):
         self.gcn_bin = gcn_bin
-        self.taxonomy_dir = taxonomy_dir
         self.subcommand = subcommand
 
-    def parse(
-        self,
-        text: str,
-    ) -> tuple[list, list]:
+    def parse(self, text: str) -> tuple[list, list]:
         """Implémente TextParser.parse — retourne (clause_reps, connector_reps)."""
-        cir = _call_gcn_analyze(text, self.gcn_bin, self.taxonomy_dir, self.subcommand)
-        return _cir_to_reps_and_connectors(cir)
+        lattice = _call_gcn_lattice(text, self.gcn_bin, self.subcommand)
+        return _reps_from_lattice(lattice)
 
 
-def reps_from_text(
+def reps_from_lattice_text(
     text: str,
     gcn_bin: str = "gcn",
-    taxonomy_dir: Path | None = None,
     subcommand: str = "analyze",
 ) -> list[UDRepresentation]:
-    """
-    Texte brut → list[UDRepresentation] via `gcn <subcommand>` (subprocess).
-
-    QUALITÉ APPROXIMATIVE : voir module docstring pour les limitations.
-
-    Args:
-        text: texte brut à analyser.
-        gcn_bin: chemin vers le binaire gcn-cli (défaut : "gcn" dans PATH).
-        taxonomy_dir: répertoire des taxonomies causales (optionnel).
-        subcommand: sous-commande gcn-cli (défaut "analyze", ex. "analyze-en").
-
-    Returns:
-        Liste de UDRepresentation, une par nœud CIR produit par gcn-cli.
-
-    Raises:
-        GCNBridgeError: binaire absent, timeout, code non-zéro ou JSON invalide.
-    """
-    warnings.warn(
-        "reps_from_text() produit des UDRepresentation APPROXIMATIFS depuis le CIR "
-        "(root_pos/dep_rel heuristiques, root_morph={}, is_negative=False). "
-        "Pour la qualité maximale, utiliser des données annotées via GCNDataLoader.",
-        UserWarning,
-        stacklevel=2,
-    )
-    cir = _call_gcn_analyze(text, gcn_bin, taxonomy_dir, subcommand)
-    reps, _ = _cir_to_reps_and_connectors(cir)
+    """Texte brut → list[UDRepresentation] multi-tokens via lattice (défaut CLI)."""
+    lattice = _call_gcn_lattice(text, gcn_bin, subcommand)
+    reps, _ = _reps_from_lattice(lattice)
     return reps
+
+

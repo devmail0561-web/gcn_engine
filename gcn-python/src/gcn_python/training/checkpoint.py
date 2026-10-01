@@ -80,6 +80,11 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "graph_class":  type(graph0).__name__,
         "edge_threshold": float(getattr(pipeline, 'edge_threshold', 0.0)),
         "drop_morph":   bool(getattr(pipeline, 'drop_morph', False)),
+        # v5.5 : flags d'ablation — absents = False (vieux checkpoints lisibles).
+        "no_positional": bool(getattr(pipeline, 'no_positional', False)),
+        "no_ternary":   bool(getattr(pipeline, 'no_ternary', False)),
+        "no_mood":      bool(getattr(pipeline, 'no_mood', False)),
+        "no_tense":     bool(getattr(pipeline, 'no_tense', False)),
         "temperature":  float(getattr(pipeline, 'temperature', 1.0)),
         "bfs_depth":    (None if getattr(pipeline, 'bfs_depth', None) is None
                          else int(pipeline.bfs_depth)),
@@ -115,6 +120,10 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
                                 getattr(graph0, 'd_rel_emb', 32))),
         "two_pass_val": bool(getattr(pipeline, 'two_pass_val', True)),
         "rgcn_layernorm": bool(getattr(graph0, 'use_layernorm', False)),
+        # Masque classes d'arêtes vides (v3.0) : appliqué au forward ET à la loss.
+        # Sans lui, l'inférence peut prédire des classes jamais vues au train.
+        "edge_logit_mask": (None if getattr(pipeline, 'edge_logit_mask', None) is None
+                            else [bool(x) for x in pipeline.edge_logit_mask]),
         # Provenance — traçabilité du run (audit data §4)
         "training_seed": getattr(pipeline, 'training_seed', None),
         "training_data_hash": getattr(pipeline, 'training_data_hash', None),
@@ -467,6 +476,20 @@ def load_checkpoint(
         _tpv = _arch.get("two_pass_val")
         if _tpv is not None:
             pipeline.two_pass_val = bool(_tpv)
+        _elm = _arch.get("edge_logit_mask")
+        if _elm is not None:
+            import numpy as _np
+            _mask = _np.asarray(_elm, dtype=bool)
+            if _mask.shape == (len(pipeline.relation_types),) and _mask.any():
+                pipeline.edge_logit_mask = _mask
+            else:
+                import warnings as _w_elm
+                _w_elm.warn(
+                    f"Checkpoint {Path(path).name} : edge_logit_mask ignoré "
+                    f"(shape {tuple(_mask.shape)}, {int(_mask.sum())} actives) — "
+                    "inférence sans masque.",
+                    UserWarning, stacklevel=2,
+                )
         _mh = _arch.get("mlp_hidden")
         if _mh is not None and hasattr(pipeline.encoder, 'mlp_hidden'):
             _mh_int = int(_mh)

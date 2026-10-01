@@ -208,7 +208,6 @@ def run_discuss(
     gcn_bin: str = "gcn",
     log_path: Path | None = None,
     session_dir: Path | None = None,
-    taxonomy_dir: Path | None = None,
     vecs_index: Path | None = None,
 ) -> None:
     """Lance la session de discussion."""
@@ -232,7 +231,7 @@ def run_discuss(
     if checkpoint and checkpoint.exists():
         try:
             engine = GCNEngine.from_pretrained(
-                checkpoint, gcn_bin=gcn_bin, trusted=True, taxonomy_dir=taxonomy_dir
+                checkpoint, gcn_bin=gcn_bin, trusted=True
             )
             engine._pipeline.encoder.training = False
         except Exception as e:  # noqa: BLE001  # checkpoint illisible : message d'erreur CLI, sans moteur
@@ -481,9 +480,6 @@ def run_discuss(
 @click.option("--session-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire de session persistante (graphe + vecs + historique). "
                    "Restauré au démarrage, sauvegardé à chaque analyse/question et à la sortie.")
-@click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
-              help="Répertoire des taxonomies causales (transmis à gcn-cli --data-dir). "
-                   "Parité avec gcn-bootstrap et gcn-index.")
 @click.option("--vecs-index", "vecs_index", default=None, type=click.Path(path_type=Path),
               help="Fichier graph_vecs.npz produit par gcn-index --vecs-out. "
                    "Active la résolution sémantique des requêtes : le concept de la question "
@@ -494,10 +490,9 @@ def discuss_cmd(
     gcn_bin: str,
     log_path: Path | None,
     session_dir: Path | None,
-    taxonomy_dir: Path | None,
     vecs_index: Path | None,
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
     run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,
-               log_path=log_path, session_dir=session_dir, taxonomy_dir=taxonomy_dir,
+               log_path=log_path, session_dir=session_dir,
                vecs_index=vecs_index)

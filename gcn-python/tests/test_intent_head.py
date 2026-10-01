@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from gcn_python.constants import INTENT_TYPES
+from gcn_python.constants import INTENT_TYPES, RELATION_TYPES, rgcn_n_relations
 from gcn_python.layer2.reference import MLPEncoder
 
 N_INTENT = len(INTENT_TYPES)   # 21
@@ -106,7 +106,8 @@ def test_checkpoint_roundtrip_intent_weights():
     vocab = FeatureVocabulary()
     d_eff = vocab.d_clause_effective(4)
     encoder = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=N_INTENT, seed=42)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                      n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
     pipeline = CGNPipeline(
         encoder=encoder, graph=graph, vocabulary=vocab,
         n_intent_types=N_INTENT,
@@ -144,7 +145,8 @@ def test_checkpoint_without_intent_loads_cleanly():
 
     # Sauvegarder SANS tête intent
     enc_no_intent = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=0, seed=1)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff,
+                      n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
     pipeline_no = CGNPipeline(encoder=enc_no_intent, graph=graph, vocabulary=vocab, word_embedding=make_word_embedding())
 
     with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
@@ -156,7 +158,8 @@ def test_checkpoint_without_intent_loads_cleanly():
         # Charger dans pipeline AVEC tête intent
         enc_with = MLPEncoder(d_clause=d_eff, d_edge=50, n_intent_types=N_INTENT, seed=2)
         pipeline_with = CGNPipeline(
-            encoder=enc_with, graph=RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=1),
+            encoder=enc_with, graph=RGCNLayer(d_in=d_eff, d_out=d_eff,
+                                              n_relations=rgcn_n_relations(len(RELATION_TYPES), False)),
             vocabulary=vocab, n_intent_types=N_INTENT,
         word_embedding=make_word_embedding())
         W_init = enc_with._intent_layers[0].W.copy()

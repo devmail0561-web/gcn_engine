@@ -1,6 +1,6 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
-"""Frontend bridge : texte brut → UDRepresentation via gcn-cli subprocess."""
-from .bridge import GCNBridgeError, reps_from_text
+"""Frontend : texte brut → UDRepresentation via lattice gcn-cli (zéro dictionnaire)."""
+from .bridge import GCNBridgeError, GCNLatticeParser, reps_from_lattice_text
 
-__all__ = ["GCNBridgeError", "reps_from_text"]
+__all__ = ["GCNBridgeError", "GCNLatticeParser", "reps_from_lattice_text"]

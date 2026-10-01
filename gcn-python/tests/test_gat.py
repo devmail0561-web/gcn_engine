@@ -343,7 +343,10 @@ def test_residual_gradient_nonzero_even_if_layer_dead():
     class _DeadGraph:
         d_in = D
         d_out = D
-        n_relations = 3
+        # v5.2 : stub conforme au contrat (slot no-edge inclus).
+        from gcn_python.constants import RELATION_TYPES as _RT
+        from gcn_python.constants import rgcn_n_relations as _rgcn_n
+        n_relations = _rgcn_n(len(_RT), False)
 
         def message_pass(self, H, edge_index, edge_types):
             return np.zeros_like(H)

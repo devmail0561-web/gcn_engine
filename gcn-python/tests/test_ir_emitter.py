@@ -178,23 +178,25 @@ def test_s7_no_cycle_in_cycle_false():
 # ── L-5 scope heuristique ───────────────────────────────────────────────────
 
 def test_l5_scope_universal_token():
-    """L-5 : lemme 'tout' avec dep_rel=det → scope='universal'."""
+    """Doctrine : sans hints, lemme 'tout' → 'specific' (zéro word matching)."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
         tokens: ClassVar[list] = [{"lemma": "tout", "dep_rel": "det", "pos": "DET"}]
 
-    assert _infer_scope(MockRep(), {}) == "universal"
+    assert _infer_scope(MockRep(), {}) == "specific"
+    assert _infer_scope(MockRep(), {"tout": "universal"}) == "universal"
 
 
 def test_l5_scope_existential_token():
-    """L-5 : lemme 'parfois' avec dep_rel=advmod → scope='existential'."""
+    """Doctrine : sans hints, 'parfois' → 'specific'; hints explicites honorés."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
         tokens: ClassVar[list] = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
 
-    assert _infer_scope(MockRep(), {}) == "existential"
+    assert _infer_scope(MockRep(), {}) == "specific"
+    assert _infer_scope(MockRep(), {"parfois": "existential"}) == "existential"
 
 
 def test_l5_scope_specific_default():
@@ -208,7 +210,7 @@ def test_l5_scope_specific_default():
 
 
 def test_l5_scope_hints_override():
-    """L-5 : scope_hints externe prioritaire sur détection intégrée."""
+    """Hints externes : seule source de scope non-default (zéro liste interne)."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:

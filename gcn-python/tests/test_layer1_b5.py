@@ -60,9 +60,9 @@ def test_prontype_int_encoded():
 
 
 def test_has_advcl_condition_node_true():
-    from gcn_python.frontend.bridge import NODE_TYPE_TO_DEP, NODE_TYPE_TO_POS
-    assert NODE_TYPE_TO_POS.get("condition") == "SCONJ"
-    assert NODE_TYPE_TO_DEP.get("condition") == "advcl"
+    from gcn_python.frontend.bridge import _lattice_token_to_ud
+    assert _lattice_token_to_ud({"pos": "other", "dep_rel": "mark"})["pos"] == "SCONJ"
+    assert _lattice_token_to_ud({"pos": "other", "dep_rel": "mark"})["dep_rel"] == "mark"
 
 
 def test_lemma_emb_shape_uses_d_emb():

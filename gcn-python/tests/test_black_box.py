@@ -5,8 +5,9 @@ from gcn_python.constants import NODE_TYPES
 # SPDX-License-Identifier: Apache-2.0
 """Tests de régression pour les 5 findings du red-team 12ᵉ audit (F1–F5)."""
 import json
-import warnings
 from pathlib import Path
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -200,21 +201,18 @@ def test_index_node_id_zero_is_prefixed():
 # F5 — --taxonomy-dir propagé à GCNEngine.from_pretrained
 # ---------------------------------------------------------------------------
 
-def test_from_pretrained_accepts_taxonomy_dir(tmp_path: Path):
-    """F5 : GCNEngine.from_pretrained() accepte taxonomy_dir sans TypeError."""
+def test_from_pretrained_rejects_taxonomy_dir(tmp_path: Path):
+    """Doctrine : GCNEngine.from_pretrained() refuse taxonomy_dir (zéro YAML au runtime)."""
     from gcn_python.engine import GCNEngine
 
     ckpt = _make_minimal_checkpoint(tmp_path)
     taxo = tmp_path / "taxo"
     taxo.mkdir()
 
-    # Ne doit pas lever TypeError — taxonomy_dir était absent de la signature
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        engine = GCNEngine.from_pretrained(
+    with pytest.raises(TypeError):
+        GCNEngine.from_pretrained(  # type: ignore[call-arg]
             ckpt, trusted=True, taxonomy_dir=taxo
         )
-    assert engine is not None
 
 
 # ---------------------------------------------------------------------------

@@ -239,7 +239,9 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), n_relations=22)
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4),
+                   n_relations=rgcn_n_relations(len(RELATION_TYPES), True))
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        all_pairs=True, bidirectional=True, word_embedding=make_word_embedding())
     ckpt = tmp_path / "arch.npz"

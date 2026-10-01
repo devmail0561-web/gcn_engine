@@ -30,7 +30,7 @@ except ImportError as e:  # pragma: no cover
 
 import numpy as np
 
-from ..constants import RELATION_TYPES
+from ..constants import RELATION_TYPES, rgcn_n_relations
 
 
 def _softmax_per_dst(
@@ -83,7 +83,7 @@ class RGCNLayerGAT(nn.Module):
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
-        self.n_relations = n_relations or len(RELATION_TYPES)
+        self.n_relations = n_relations or rgcn_n_relations(len(RELATION_TYPES), False)
         self.dropout_rate = dropout
         self.n_heads = n_heads
         self.output_activation = output_activation

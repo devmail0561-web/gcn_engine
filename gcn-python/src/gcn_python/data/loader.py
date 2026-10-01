@@ -41,6 +41,10 @@ class TrainingSample:
     edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
     hyperedge_map: dict = field(default_factory=dict)  # {(frozenset(sources_str), tgt_idx): rel_idx} N-aires
     edge_conf_map: dict = field(default_factory=dict)  # {(src, tgt): float} — confidence par arête (S-5)
+    # Ternaire (§11.5) : {(src_idx, tgt_idx): (role, node_id_str)} depuis EdgeRecord.third.
+    # Propagé jusqu'ici (pas encore supervisé — loss BCE quand N_min=20) pour que
+    # le moteur voie le tiers dès que les données existent. Vide sur données actuelles.
+    third_map: dict = field(default_factory=dict)
 
 
 class GCNDataLoader:
@@ -104,6 +108,7 @@ class GCNDataLoader:
         edge_map: dict[tuple[int, int], int] = {}
         edge_conf_map: dict[tuple[int, int], float] = {}
         hyperedge_map: dict[tuple[frozenset, int], int] = {}
+        third_map: dict[tuple[int, int], tuple[str, str]] = {}
         n_backward = 0
         for e in rec.edges:
             src_list = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
@@ -158,11 +163,20 @@ class GCNDataLoader:
                     edge_map[key] = rel_idx
                     if e.confidence is not None:
                         edge_conf_map[key] = float(e.confidence)
+                    _third = getattr(e, "third", None) or {}
+                    if isinstance(_third, dict) and _third.get("role") in ("condition", "mediator") \
+                            and _third.get("node") is not None:
+                        third_map[key] = (_third["role"], str(_third["node"]))
             else:
                 key = (src_idx, tgt_idx)
                 edge_map[key] = rel_idx
                 if e.confidence is not None:
                     edge_conf_map[key] = float(e.confidence)
+                third = getattr(e, "third", None) or {}
+                role = third.get("role") if isinstance(third, dict) else None
+                tnode = third.get("node") if isinstance(third, dict) else None
+                if role in ("condition", "mediator") and tnode is not None:
+                    third_map[key] = (role, str(tnode))
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse (src > tgt). "
@@ -172,7 +186,8 @@ class GCNDataLoader:
                 UserWarning,
                 stacklevel=2,
             )
-        return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map)
+        return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map,
+                              third_map)
 
 
 def reps_from_sentence(
@@ -198,31 +213,39 @@ def reps_from_sentence(
         if rep is not None:
             result.append(rep)
             valid_indices.append(i)
-    connector_reps: list[UDRepresentation | None] = [
-        _connector_between(
-            rec.clauses[valid_indices[k]],
-            rec.clauses[valid_indices[k + 1]],
-            rec.tokens,
+    connector_reps: list[UDRepresentation | None] = []
+    # Marqueurs gold : index (src_clause_idx, tgt_clause_idx) -> marker_token.
+    # Le marker annoté prime sur la redécouverte syntaxique (moteur apprend
+    # depuis l'annotation ; fallback _connector_between sinon).
+    node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
+    gold_markers: dict[tuple[int, int], int] = {}
+    for e in rec.edges:
+        srcs = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
+        if len(srcs) != 1 or e.marker_token is None:
+            continue
+        a = node_id_to_idx.get(srcs[0])
+        b = node_id_to_idx.get(getattr(e, "target", ""))
+        if a is not None and b is not None:
+            try:
+                gold_markers[(a, b)] = int(e.marker_token)
+            except (TypeError, ValueError):
+                warnings.warn(
+                    f"[{rec.id}] marker_token invalide {e.marker_token!r} — redécouverte syntaxique.",
+                    UserWarning, stacklevel=2,
+                )
+    for k in range(len(result) - 1):
+        a, b = valid_indices[k], valid_indices[k + 1]
+        connector_reps.append(
+            _connector_between(
+                rec.clauses[a], rec.clauses[b], rec.tokens,
+                marker_token=gold_markers.get((a, b)),
+            )
         )
-        for k in range(len(result) - 1)
-    ]
     return result, valid_indices, connector_reps
 
 
-def _connector_between(
-    clause_a: ClauseRecord,
-    clause_b: ClauseRecord,
-    all_tokens: list[TokenRecord],
-) -> UDRepresentation | None:
-    """Retourne une UDRepresentation pour le token connecteur entre deux spans consécutives."""
-    end_a = clause_a.token_span[1]
-    start_b = clause_b.token_span[0]
-    gap_toks = [t for t in all_tokens if end_a < t.id < start_b]
-    if not gap_toks:
-        return None
-    tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
-    if tok is None:
-        return None
+def _rep_from_token(tok) -> UDRepresentation:
+    """UDRepresentation ponctuelle depuis un token (connecteur gold ou redécouvert)."""
     return UDRepresentation(
         tokens=[{"lemma": tok.lemma, "pos": tok.pos, "dep_rel": tok.dep_rel, "morph": tok.morph,
                  "id": tok.id, "dep_head": tok.dep_head, "form": tok.form}],
@@ -236,6 +259,37 @@ def _connector_between(
         has_temporal_obl=False,
         token_span=(tok.id, tok.id),
     )
+
+
+def _connector_between(
+    clause_a: ClauseRecord,
+    clause_b: ClauseRecord,
+    all_tokens: list[TokenRecord],
+    marker_token: int | None = None,
+) -> UDRepresentation | None:
+    """Token connecteur entre deux spans consécutives.
+
+    marker_token (annotation gold) prime : le token désigné est pris tel quel,
+    sans filtre POS — l'annotateur sait. Sinon redécouverte syntaxique
+    (SCONJ/CCONJ/ADP du gap). None si rien dans les deux cas.
+    """
+    if marker_token is not None:
+        tok = next((t for t in all_tokens if t.id == marker_token), None)
+        if tok is not None:
+            return _rep_from_token(tok)
+        warnings.warn(
+            f"marker_token={marker_token} sans token correspondant — redécouverte syntaxique.",
+            UserWarning, stacklevel=3,
+        )
+    end_a = clause_a.token_span[1]
+    start_b = clause_b.token_span[0]
+    gap_toks = [t for t in all_tokens if end_a < t.id < start_b]
+    if not gap_toks:
+        return None
+    tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
+    if tok is None:
+        return None
+    return _rep_from_token(tok)
 
 
 def _rep_from_clause(

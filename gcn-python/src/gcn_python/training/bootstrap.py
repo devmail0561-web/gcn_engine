@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
-import subprocess
 from pathlib import Path
 
 import click
@@ -56,86 +54,28 @@ def _synthetic_tokens(nodes: list) -> list:
               help="Fichier texte (.txt) — une phrase par ligne")
 @click.option("--out-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire de sortie pour les fichiers JSON générés")
-@click.option("--taxonomy-dir", default=None, type=click.Path(path_type=Path),
-              envvar="GCN_TAXONOMY_DIR",
-              help="Répertoire des taxonomies (ou env GCN_TAXONOMY_DIR)")
 @click.option("--gcn-bin", default="gcn", show_default=True,
               help="Chemin vers le binaire gcn-cli Rust")
 def bootstrap_cmd(
     input_file: Path, out_dir: Path,
-    taxonomy_dir: Path | None, gcn_bin: str,
+    gcn_bin: str,
 ) -> None:
     """Génère des données d'entraînement JSON depuis des phrases brutes via gcn-cli Rust.
 
-    Appelle `gcn analyze` (texte via stdin) pour chaque ligne, convertit le CausalIR JSON
-    produit au format gcn-nl (document.sentences), et écrit les fichiers dans out-dir.
+    `gcn analyze` émet désormais un lattice de tokens (zéro dictionnaire),
+    pas un CausalIR : le bootstrap symbolique texte→CIR est retiré.
+    Annotez via le pipeline ML (GCNEngine) puis réinjectez les CIR.
     """
-    if taxonomy_dir is None:
-        raise click.ClickException(
-            "--taxonomy-dir requis (ou env GCN_TAXONOMY_DIR). "
-            "gcn analyze exige --data-dir pour charger les taxonomies."
-        )
+    raise click.ClickException(
+        "gcn-bootstrap texte→CIR est retiré : `gcn analyze` émet un lattice "
+        "(tokens observés, zéro décision), pas un CausalIR. "
+        "Produisez les CIR via GCNEngine (modèle entraîné) ou les frontends "
+        "code/graph/table, puis annotez les phrases manuellement."
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
-    texts = [line.strip() for line in input_file.read_text("utf-8").splitlines() if line.strip()]
-
-    if not texts:
-        raise click.ClickException(f"Aucune phrase dans {input_file}")
-
-    click.echo(f"Génération de {len(texts)} exemples vers {out_dir} ...")
-    success = 0
-    errors = 0
-
-    # Résoudre gcn_bin une seule fois (évite la résolution PATH répétée + cohérence)
-    from ..frontend.bridge import GCNBridgeError as _GCNBridgeError
-    from ..frontend.bridge import _resolve_gcn_bin
-    try:
-        gcn_bin_resolved = _resolve_gcn_bin(gcn_bin)
-    except _GCNBridgeError as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    for i, text in enumerate(texts):
-        try:
-            cmd_args = [gcn_bin_resolved, "analyze"]
-            if taxonomy_dir:
-                cmd_args += ["--data-dir", str(taxonomy_dir)]
-            # -- sépare explicitement les options du texte (évite "--option" parsé comme flag)
-            cmd_args += ["--", text]
-            # Issue #2 CRITICAL : encodage UTF-8 explicite
-            result = subprocess.run(
-                cmd_args,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                timeout=30,
-                check=False,
-            )
-            if result.returncode != 0:
-                click.echo(f"  [{i+1}] Erreur gcn-cli : {result.stderr.strip()}", err=True)
-                errors += 1
-                continue
-
-            cir = json.loads(result.stdout)
-            doc = _cir_to_doc(text, cir)
-            out_path = out_dir / f"generated_{i+1:04d}.json"
-            out_path.write_text(
-                json.dumps(doc, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            success += 1
-        except subprocess.TimeoutExpired:
-            click.echo(f"  [{i+1}] Timeout", err=True)
-            errors += 1
-        except (json.JSONDecodeError, KeyError) as exc:
-            click.echo(f"  [{i+1}] Parse error: {exc}", err=True)
-            errors += 1
-
-    click.echo(f"Terminé : {success} succès, {errors} erreurs.")
-    if success == 0 and errors > 0:
-        click.echo(
-            f"ATTENTION : 0 document généré sur {errors} tentative(s) — "
-            "répertoire de sortie probablement vide. Vérifiez gcn-cli et le format d'entrée.",
-            err=True,
-        )
+    # Corps symbolique texte→CIR supprimé : `gcn analyze` émet un lattice,
+    # pas un CausalIR (plus de frontend symbolique FR/EN). `_cir_to_doc` et
+    # `_extract_token_span` restent pour les sources CIR (code/graph/table).
 
 
 def _extract_token_span(node: dict) -> list[int]:

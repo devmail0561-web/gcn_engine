@@ -504,14 +504,22 @@ def vectorize_edge(
     drop_morph: bool = False,
     clause_pooling: str = "root",
     subject_object_emb: bool = False,
+    no_mood: bool = False,
+    no_tense: bool = False,
+    no_positional: bool = False,
+    no_ternary: bool = False,
 ) -> np.ndarray:
     """Two clauses + connector + interaction features → np.ndarray[d_edge (+ 2*d_emb)]"""
     interaction = _interaction_features(src, dst, src_idx, dst_idx, n_clauses)
     return np.concatenate([
         vectorize_clause(src, vocab, word_embedding, drop_morph=drop_morph,
-                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
+                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb,
+                         no_mood=no_mood, no_tense=no_tense,
+                         no_positional=no_positional, no_ternary=no_ternary),
         vectorize_clause(dst, vocab, word_embedding, drop_morph=drop_morph,
-                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb),
+                         clause_pooling=clause_pooling, subject_object_emb=subject_object_emb,
+                         no_mood=no_mood, no_tense=no_tense,
+                         no_positional=no_positional, no_ternary=no_ternary),
         vectorize_connector(connector, src_idx, dst_idx, n_clauses, vocab, word_embedding),
         interaction,
     ])

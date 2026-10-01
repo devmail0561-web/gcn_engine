@@ -41,6 +41,22 @@ RELATION_TYPES_V2: list[str] = [
 # Indices 0-18 = forward, indices 19-37 = backward (r_inv = r + 19)
 RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
 ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 38 types
+
+
+def rgcn_n_relations(n_types: int, bidirectional: bool) -> int:
+    """Dimension relationnelle du R-GCN : +1 type no-edge explicite.
+
+    Le type no-edge (indice n_types en forward) sert au message passing
+    des paires sans gold — jamais prédit par la tête edge (19 sorties).
+    Remplace le typage fantôme 0=cause.
+    """
+    _fwd = n_types + 1
+    return 2 * _fwd if bidirectional else _fwd
+
+
+def rgcn_no_edge_idx(n_types: int) -> int:
+    """Indice forward du type no-edge R-GCN (jamais une classe prédite)."""
+    return n_types
 SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unknown"]
 
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]

@@ -198,7 +198,8 @@ def test_engine_reconstructs_transformer_encoder(tmp_path):
     d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), 2, False)
     enc = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge, n_heads=4)
     assert enc.d_clause == d_eff  # D_effective, pas vocabulary.d_clause brut
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=3)
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=rgcn_n_relations(len(RELATION_TYPES), False))
     pipe = CGNPipeline(encoder=enc, graph=graph, vocabulary=vocab,
                        word_embedding=we)
     pipe.global_attention = True
