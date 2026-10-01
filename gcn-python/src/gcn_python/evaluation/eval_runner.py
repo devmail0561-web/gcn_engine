@@ -120,14 +120,25 @@ def run_eval(
     _sob_eval = bool(_arch.get("subject_object_emb", False))
     _global_attention = bool(_arch.get("global_attention", False))
     _mha_heads = int(_arch.get("n_gat_heads_mha", 4))
-    _d_edge_val = vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb, _sob_eval)
+    # v5.8 (P3) : types actifs coarse — absents = fin (8/19 historiques).
+    _active_nodes = list(_arch.get("active_node_types") or list(NODE_TYPES))
+    _active_rels = list(_arch.get("active_relation_types") or list(RELATION_TYPES))
+    _nremap = _arch.get("node_remap") or None
+    _eremap = _arch.get("edge_remap") or None
+    _node_remap = ({int(k): int(v) for k, v in _nremap.items()} if _nremap else None)
+    _edge_remap = ({int(k): int(v) for k, v in _eremap.items()} if _eremap else None)
+    _d_edge_val = vocab.d_edge_closed_loop(_d_eff, len(_active_nodes), _d_emb, _sob_eval)
     if _global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         encoder = TransformerMLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val,
                                         mlp_hidden=_mlp_hidden, n_heads=_mha_heads,
+                                        n_node_types=len(_active_nodes),
+                                        n_relation_types=len(_active_rels),
                                         n_intent_types=_n_intent)
     else:
         encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden,
+                             n_node_types=len(_active_nodes),
+                             n_relation_types=len(_active_rels),
                              n_intent_types=_n_intent)
     if _gclass == "RGCNLayerGAT":
         try:
@@ -168,6 +179,8 @@ def run_eval(
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
                            temperature=_temperature, bfs_depth=_bfs_depth,
+                           node_types=list(_active_nodes),
+                           relation_types=list(_active_rels),
                            no_positional=bool(_arch.get("no_positional", False)),
                            no_ternary=bool(_arch.get("no_ternary", False)),
                            no_mood=bool(_arch.get("no_mood", False)),
@@ -228,10 +241,14 @@ def run_eval(
             gold_node = sample.gold_node_labels[np.array(valid_clause_idxs, dtype=np.int64)]
         else:
             gold_node = sample.gold_node_labels
+        # v5.8 (P3) : remap coarse — mêmes tables que le train.
+        if _node_remap is not None and gold_node is not None:
+            gold_node = np.array([_node_remap.get(int(i), int(i)) for i in gold_node],
+                                 dtype=np.int64)
 
         node_pred_idxs = np.argmax(node_logits, axis=1)
-        all_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-        all_node_gold.extend(NODE_TYPES[i] for i in gold_node)
+        all_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+        all_node_gold.extend(pipeline.node_types[i] for i in gold_node)
 
         if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                 and sample.edge_map and edge_logits is not None and len(edge_logits) > 0):
@@ -253,20 +270,32 @@ def run_eval(
             if valid_mask.any():
                 valid_idxs = np.where(valid_mask)[0]
                 gold_edge = gold_edge_full[valid_idxs]
+                if _edge_remap is not None:
+                    gold_edge = np.array(
+                        [_edge_remap.get(int(i), int(i)) for i in gold_edge],
+                        dtype=np.int64)
                 # NB: argmax sur tous les logits — ne filtre pas par edge_threshold.
                 # Mesure la qualité intrinsèque du classifieur, pas le comportement prod.
                 edge_pred_idxs = np.argmax(edge_logits[valid_idxs], axis=1)
-                all_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                all_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
+                all_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+                all_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
 
-        # causal_graph_similarity: compare pred_cir vs gold CIR reconstructed from sample
+        # causal_graph_similarity: compare pred_cir vs gold CIR reconstructed from sample.
+        # v5.8 (P3) : noms en espace actif (remap) pour comparer au CIR prédit.
         if pred_cir is not None:
-            gold_nodes = [
-                {"node_type": NODE_TYPES[int(lbl)] if int(lbl) < len(NODE_TYPES) else "action"}
-                for lbl in sample.gold_node_labels
-            ]
+            def _an(lbl):
+                _i = int(lbl)
+                if _node_remap is not None:
+                    _i = _node_remap.get(_i, _i)
+                return pipeline.node_types[_i] if 0 <= _i < len(pipeline.node_types) else "action"
+            def _ar(rel):
+                _i = int(rel)
+                if _edge_remap is not None:
+                    _i = _edge_remap.get(_i, _i)
+                return pipeline.relation_types[_i] if 0 <= _i < len(pipeline.relation_types) else pipeline.relation_types[0]
+            gold_nodes = [{"node_type": _an(lbl)} for lbl in sample.gold_node_labels]
             gold_edges = [
-                [src, tgt, {"relation": RELATION_TYPES[int(rel)]}]
+                [src, tgt, {"relation": _ar(rel)}]
                 for (src, tgt), rel in sample.edge_map.items()
                 if 0 <= int(rel) < len(RELATION_TYPES)
             ]

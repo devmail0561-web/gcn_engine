@@ -119,6 +119,16 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "d_rel_emb": int(getattr(pipeline, 'd_rel_emb',
                                 getattr(graph0, 'd_rel_emb', 32))),
         "two_pass_val": bool(getattr(pipeline, 'two_pass_val', True)),
+        # v5.8 (P3) : coarse persisté — types actifs + remaps. Absents = fin
+        # (vieux checkpoints) : comportement historique.
+        "coarse_phase": bool(getattr(pipeline, '_coarse_phase', False)),
+        "coarse_n_min": int(getattr(pipeline, '_coarse_n_min', 400)),
+        "active_node_types": list(getattr(pipeline, 'node_types', [])) or None,
+        "active_relation_types": list(getattr(pipeline, 'relation_types', [])) or None,
+        "node_remap": ({str(k): int(v) for k, v in pipeline._coarse_node_remap.items()}
+                       if getattr(pipeline, '_coarse_node_remap', None) else None),
+        "edge_remap": ({str(k): int(v) for k, v in pipeline._coarse_edge_remap.items()}
+                       if getattr(pipeline, '_coarse_edge_remap', None) else None),
         "rgcn_layernorm": bool(getattr(graph0, 'use_layernorm', False)),
         # Masque classes d'arêtes vides (v3.0) : appliqué au forward ET à la loss.
         # Sans lui, l'inférence peut prédire des classes jamais vues au train.

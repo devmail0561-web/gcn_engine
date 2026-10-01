@@ -424,10 +424,116 @@ def train_cmd(
                 word_embedding.frozen = True
                 click.echo("Embeddings pré-entraînés gelés (--freeze-embeddings)")
 
+    # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
+    # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
+                           silver_weight=silver_weight, seed=_init_seed)
+    if len(loader) == 0:
+        raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    val_loader = None
+    if val_dir is not None:
+        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
+                                   silver_weight=silver_weight)
+        if len(val_loader) == 0:
+            raise click.ClickException(f"Aucune sentence dans {val_dir}")
+        click.echo(f"Val : {len(val_loader)} sentences")
+
+    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
+    node_class_weights = None
+    edge_class_weights = None
+    _edge_logit_mask: np.ndarray | None = None
+    from collections import Counter
+    node_counts: Counter = Counter()
+    edge_counts: Counter = Counter()
+    intent_counts: Counter = Counter()
+    all_lemmas: list[str] = []
+    for sample in loader:
+        for rel in sample.edge_map.values():
+            edge_counts[int(rel)] += 1
+        # v5.8 (P3) : node_counts toujours rempli — le gate weighted_loss
+        # laissait _promoted_node vide et basculait tout en coarse.
+        for label in sample.gold_node_labels:
+            node_counts[int(label)] += 1
+        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
+        if n_intent_types > 0 and sample.sentence.intent:
+            with contextlib.suppress(ValueError):
+                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
+        if word_embedding is not None:
+            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
+            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
+            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
+            if clause_pooling == "root" and not subject_object_emb:
+                all_lemmas.extend(r.root_lemma for r in reps_s)
+            else:
+                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
+                for r in reps_s:
+                    if clause_pooling == "root":
+                        all_lemmas.append(r.root_lemma)
+                    else:
+                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
+                    if subject_object_emb:
+                        all_lemmas.extend(_find_subj_obj_lemmas(r))
+            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
+            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
+            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
+            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
+            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
+            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
+            _conn_lemmas = [
+                _c.root_lemma for _c in conn_s
+                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
+            ]
+            all_lemmas.extend(_conn_lemmas)
+            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
+            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
+            if _orphans:
+                import warnings as _w_orph
+                _w_orph.warn(
+                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
+                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
+                    UserWarning, stacklevel=2,
+                )
+
+    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min.
+    # v5.8 (P3) : calculé ici (comptes connus) pour dimensionner encodeur/graphe.
+    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
+    _active_node_types = NODE_TYPES
+    _active_relation_types = RELATION_TYPES
+    _node_remap: dict[int, int] | None = None
+    _edge_remap: dict[int, int] | None = None
+    if coarse_phase:
+        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
+        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
+        # Types actifs = promoted (fine) + groupes coarse des non-promoted
+        _fine_to_active_rel: dict[str, str] = {}
+        _fine_to_active_node: dict[str, str] = {}
+        for r in RELATION_TYPES:
+            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
+        for n in NODE_TYPES:
+            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
+        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
+                                        key=lambda x: (x not in RELATION_TYPES, x))
+        _active_node_types = sorted(set(_fine_to_active_node.values()),
+                                    key=lambda x: (x not in NODE_TYPES, x))
+        # Tables de remapping (index fin → index actif)
+        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
+        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
+        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
+                       for i, r in enumerate(RELATION_TYPES)}
+        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
+                       for i, n in enumerate(NODE_TYPES)}
+        click.echo(
+            f"  [coarse] {len(_active_relation_types)} relations actives, "
+            f"{len(_active_node_types)} nœuds actifs. "
+            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
+        )
+
     # B : point unique de vérité pour la dimension effective
     d_effective = vocab.d_clause_effective(d_emb, subject_object_emb)
-    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
-    n_node_types = len(NODE_TYPES)
+    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs.
+    # v5.8 (P3) : dims sur types ACTIFS (post-remap), pas sur 19/8.
+    n_node_types = len(_active_node_types)
+    n_relation_types = len(_active_relation_types)
     d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
                                                  subject_object_emb)
     # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
@@ -438,6 +544,8 @@ def train_cmd(
             encoder = TransformerMLPEncoder(
                 d_clause=d_effective, d_edge=d_edge_closed,
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                n_node_types=n_node_types,
+                n_relation_types=n_relation_types,
                 n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
@@ -447,6 +555,8 @@ def train_cmd(
             raise click.ClickException("--mha-heads requiert --global-attention.")
         encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
                              weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             n_node_types=n_node_types,
+                             n_relation_types=n_relation_types,
                              seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
@@ -460,8 +570,9 @@ def train_cmd(
     if d_rel_emb < 1:
         raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
     # v5.2 : +1 type no-edge R-GCN (jamais prédit, message passing seul).
+    # v5.8 (P3) : sur types actifs (coarse) — pas 19/8 figés.
     # Anciens checkpoints (38/19) refusés bruyamment au chargement (triplet).
-    n_rel = rgcn_n_relations(len(RELATION_TYPES), bidirectional)  # L-6
+    n_rel = rgcn_n_relations(n_relation_types, bidirectional)  # L-6
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
@@ -555,6 +666,8 @@ def train_cmd(
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
+                           node_types=_active_node_types,
+                           relation_types=_active_relation_types,
                             gat_residual=gat_residual, assembler=assembler,
                             no_mood=(coarse_phase or no_mood_flag),
                             no_tense=(coarse_phase or no_tense_flag),
@@ -587,10 +700,8 @@ def train_cmd(
         load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
-                           silver_weight=silver_weight, seed=_init_seed)
-    if len(loader) == 0:
-        raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    # (Chargeur déjà construit avant l'encodeur — v5.8 P3 : le remap coarse
+    # doit précéder le dimensionnement.)
     # Provenance — enregistrée dans _arch_json pour traçabilité complète.
     import datetime as _dt
     import hashlib as _hl
@@ -614,73 +725,24 @@ def train_cmd(
             UserWarning, stacklevel=2,
         )
 
-    val_loader = None
-    if val_dir is not None:
-        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
-                                   silver_weight=silver_weight)
-        if len(val_loader) == 0:
-            raise click.ClickException(f"Aucune sentence dans {val_dir}")
-        click.echo(f"Val : {len(val_loader)} sentences")
-
-    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
-    node_class_weights = None
-    edge_class_weights = None
-    _edge_logit_mask: np.ndarray | None = None
-    from collections import Counter
-    node_counts: Counter = Counter()
-    edge_counts: Counter = Counter()
-    intent_counts: Counter = Counter()
-    all_lemmas: list[str] = []
-    for sample in loader:
-        for rel in sample.edge_map.values():
-            edge_counts[int(rel)] += 1
-        if weighted_loss:
-            for label in sample.gold_node_labels:
-                node_counts[int(label)] += 1
-        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
-        if n_intent_types > 0 and sample.sentence.intent:
-            with contextlib.suppress(ValueError):
-                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
-        if word_embedding is not None:
-            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
-            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
-            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
-            if clause_pooling == "root" and not subject_object_emb:
-                all_lemmas.extend(r.root_lemma for r in reps_s)
-            else:
-                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
-                for r in reps_s:
-                    if clause_pooling == "root":
-                        all_lemmas.append(r.root_lemma)
-                    else:
-                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
-                    if subject_object_emb:
-                        all_lemmas.extend(_find_subj_obj_lemmas(r))
-            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
-            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
-            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
-            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
-            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
-            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
-            _conn_lemmas = [
-                _c.root_lemma for _c in conn_s
-                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
-            ]
-            all_lemmas.extend(_conn_lemmas)
-            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
-            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
-            if _orphans:
-                import warnings as _w_orph
-                _w_orph.warn(
-                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
-                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
-                    UserWarning, stacklevel=2,
-                )
+    # (Chargeurs déjà construits avant l'encodeur — v5.8 P3.)
+    # (Comptes déjà calculés avant construction — v5.8 P3. Le masque suit.)
     if edge_counts:
+        # v5.8 (P3) : comptes en espace ACTIF (fines remappées si coarse).
+        _active_edge_counts: dict[int, int] = {}
+        if _edge_remap is not None:
+            for _fc, _n in edge_counts.items():
+                _ac = _edge_remap.get(int(_fc), int(_fc))
+                _active_edge_counts[_ac] = _active_edge_counts.get(_ac, 0) + _n
+        else:
+            _active_edge_counts = {int(c): int(n) for c, n in edge_counts.items()}
         n_edge_classes = encoder.n_relation_types
+        assert n_edge_classes == len(_active_relation_types), (
+            f"encodeur {n_edge_classes} ≠ {len(_active_relation_types)} types actifs — "
+            "construction incohérente (P3).")
         _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
         for c in range(n_edge_classes):
-            if edge_counts.get(c, 0) > 0:
+            if _active_edge_counts.get(c, 0) > 0:
                 _edge_logit_mask[c] = True
         n_active = int(_edge_logit_mask.sum())
         n_inactive = n_edge_classes - n_active
@@ -693,11 +755,11 @@ def train_cmd(
         # Le moteur ne prédit que ce qu'il peut apprendre ; annotez jusqu'à
         # N_min pour réactiver (0 = désactive la coupe, comportement historique).
         if min_class_count > 0:
-            _rare = [(RELATION_TYPES[c], edge_counts.get(c, 0))
+            _rare = [(_active_relation_types[c], _active_edge_counts.get(c, 0))
                      for c in range(n_edge_classes)
-                     if _edge_logit_mask[c] and edge_counts.get(c, 0) < min_class_count]
+                     if _edge_logit_mask[c] and _active_edge_counts.get(c, 0) < min_class_count]
             for _rel, _n in _rare:
-                _edge_logit_mask[RELATION_TYPES.index(_rel)] = False
+                _edge_logit_mask[_active_relation_types.index(_rel)] = False
             if _rare:
                 _names = ", ".join(f"{r} (N={n})" for r, n in _rare)
                 click.echo(
@@ -737,65 +799,43 @@ def train_cmd(
         n_active_intent = int(_intent_logit_mask.sum())
         click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
 
-    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min
-    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
-    _active_node_types = NODE_TYPES
-    _active_relation_types = RELATION_TYPES
-    _node_remap: dict[int, int] | None = None
-    _edge_remap: dict[int, int] | None = None
-    if coarse_phase:
-        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
-        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
-        # Types actifs = promoted (fine) + groupes coarse des non-promoted
-        _fine_to_active_rel: dict[str, str] = {}
-        _fine_to_active_node: dict[str, str] = {}
-        for r in RELATION_TYPES:
-            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
-        for n in NODE_TYPES:
-            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
-        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
-                                        key=lambda x: (x not in RELATION_TYPES, x))
-        _active_node_types = sorted(set(_fine_to_active_node.values()),
-                                    key=lambda x: (x not in NODE_TYPES, x))
-        # Tables de remapping (index fin → index actif)
-        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
-        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
-        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
-                       for i, r in enumerate(RELATION_TYPES)}
-        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
-                       for i, n in enumerate(NODE_TYPES)}
-        # Recompute pipeline types
-        pipeline.relation_types = _active_relation_types
-        pipeline.node_types = _active_node_types
-        # Reset edge logit mask for active types
-        _edge_logit_mask = np.ones(len(_active_relation_types), dtype=bool)
-        click.echo(
-            f"  [coarse] {len(_active_relation_types)} relations actives, "
-            f"{len(_active_node_types)} nœuds actifs. "
-            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
-        )
+    # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
+    # est dimensionné sur types actifs ; le masque suit en espace actif.
+    # Remaps exposés sur le pipeline pour la passe éval.)
+    pipeline._coarse_node_remap = _node_remap
+    pipeline._coarse_edge_remap = _edge_remap
+    pipeline._coarse_phase = bool(coarse_phase)
+    pipeline._coarse_n_min = int(coarse_n_min)
 
     if weighted_loss:
-        if node_counts:
-            total_nodes = sum(node_counts.values())
-            n_node_classes = len(NODE_TYPES)
+        # v5.8 (P3) : poids en espace ACTIF (coarse remappé), noms actifs.
+        _active_node_counts: dict[int, int] = {}
+        if _node_remap is not None:
+            for _fc, _n in node_counts.items():
+                _ac = _node_remap.get(int(_fc), int(_fc))
+                _active_node_counts[_ac] = _active_node_counts.get(_ac, 0) + _n
+        else:
+            _active_node_counts = {int(c): int(n) for c, n in node_counts.items()}
+        if _active_node_counts:
+            total_nodes = sum(_active_node_counts.values())
+            n_node_classes = len(_active_node_types)
             node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
             for c in range(n_node_classes):
-                count = node_counts.get(c, 1)
+                count = _active_node_counts.get(c, 1)
                 node_class_weights[c] = total_nodes / (n_node_classes * count)
             if max_class_weight > 0:
                 node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
-            click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3), strict=False))}")
+            click.echo(f"Node class weights : {dict(zip(_active_node_types, node_class_weights.round(3), strict=False))}")
         if edge_counts:
-            total_edges = sum(edge_counts.values())
+            total_edges = sum(_active_edge_counts.values())
             edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
             for c in range(n_edge_classes):
-                count = edge_counts.get(c, 0)
+                count = _active_edge_counts.get(c, 0)
                 if count > 0:
                     edge_class_weights[c] = total_edges / (n_edge_classes * count)
             if max_class_weight > 0:
                 edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-            click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES[:n_active], edge_class_weights[:n_active].round(3), strict=False))}")
+            click.echo(f"Edge class weights : {dict(zip(_active_relation_types, edge_class_weights.round(3), strict=False))}")
     if word_embedding is not None and all_lemmas:
         word_embedding.build_vocab(all_lemmas)
         click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
@@ -916,6 +956,11 @@ def train_cmd(
                 ]
             else:
                 gold_node = sample.gold_node_labels
+            # v5.8 (P3) : remap coarse éval — mêmes tables que le train.
+            _ev_nremap = getattr(pipeline, '_coarse_node_remap', None)
+            if _ev_nremap is not None and gold_node is not None:
+                gold_node = np.array([_ev_nremap.get(int(i), int(i)) for i in gold_node],
+                                     dtype=np.int64)
 
             gold_edge = None
             edge_logits_arg = None
@@ -947,6 +992,11 @@ def train_cmd(
                 if valid_edge_mask.any():
                     valid_edge_idxs = np.where(valid_edge_mask)[0]
                     gold_edge = gold_edge_full[valid_edge_idxs]
+                    _ev_eremap = getattr(pipeline, '_coarse_edge_remap', None)
+                    if _ev_eremap is not None:
+                        gold_edge = np.array(
+                            [_ev_eremap.get(int(i), int(i)) for i in gold_edge],
+                            dtype=np.int64)
                     edge_logits_arg = edge_logits[valid_edge_idxs]
                     _val_edge_sw = (
                         np.array([sample.edge_conf_map.get(pairs[i], 1.0)
@@ -969,20 +1019,20 @@ def train_cmd(
             n += 1
 
             node_pred_idxs = np.argmax(node_logits, axis=1)
-            epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-            epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node)
+            epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+            epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node)
 
-            sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
-            sent_node_gold = [NODE_TYPES[i] for i in gold_node]
+            sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
+            sent_node_gold = [pipeline.node_types[i] for i in gold_node]
             epoch_sent_node_preds.append(sent_node_pred)
             epoch_sent_node_gold.append(sent_node_gold)
 
             if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
                 edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
-                epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
-                epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
-                epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
+                epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+                epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
+                epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
+                epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
             else:
                 epoch_sent_edge_preds.append([])
                 epoch_sent_edge_gold.append([])
@@ -1231,20 +1281,20 @@ def train_cmd(
                     ]
                 else:
                     gold_node_aligned = sample.gold_node_labels
-                epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-                epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
+                epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+                epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node_aligned)
 
-                sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
-                sent_node_gold = [NODE_TYPES[i] for i in gold_node_aligned]
+                sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
+                sent_node_gold = [pipeline.node_types[i] for i in gold_node_aligned]
                 epoch_sent_node_preds.append(sent_node_pred)
                 epoch_sent_node_gold.append(sent_node_gold)
 
                 if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
                     edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
-                    epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                    epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
-                    epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
-                    epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
+                    epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+                    epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
+                    epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
+                    epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
                 else:
                     epoch_sent_edge_preds.append([])
                     epoch_sent_edge_gold.append([])
@@ -1472,11 +1522,11 @@ def train_cmd(
     if epoch_edge_gold:
         click.echo("Rapport edge/train (dernière epoch) :\n"
                    + per_class_report(epoch_edge_preds, epoch_edge_gold,
-                                      RELATION_TYPES))
+                                      pipeline.relation_types))
     if val_loader is not None and val_edge_gold:
         click.echo("Rapport edge/val (dernière epoch) :\n"
                    + per_class_report(val_edge_preds, val_edge_gold,
-                                      RELATION_TYPES))
+                                      pipeline.relation_types))
 
     if log_csv:
         json_path = Path(log_csv).with_suffix(".json")

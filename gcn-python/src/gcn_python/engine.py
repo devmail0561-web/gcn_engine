@@ -154,7 +154,10 @@ class GCNEngine:
         if "_vocab_json" in data:
             vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
 
-        d_edge = vocab.d_edge_closed_loop(d_eff, len(NODE_TYPES), d_emb,
+        # v5.8 (P3) : types actifs coarse — absents = fin (19/8 historiques).
+        _active_nodes = list(arch.get("active_node_types") or list(NODE_TYPES))
+        _active_rels = list(arch.get("active_relation_types") or list(RELATION_TYPES))
+        d_edge = vocab.d_edge_closed_loop(d_eff, len(_active_nodes), d_emb,
                                           subject_object_emb)
 
         # Éq.6 : restaurer la tête intent depuis ses métas — sans elle,
@@ -177,9 +180,13 @@ class GCNEngine:
             encoder = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge,
                                             mlp_hidden=mlp_hidden,
                                             n_heads=_mha_heads,
+                                            n_node_types=len(_active_nodes),
+                                            n_relation_types=len(_active_rels),
                                             n_intent_types=_n_intent)
         else:
             encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden,
+                                 n_node_types=len(_active_nodes),
+                                 n_relation_types=len(_active_rels),
                                  n_intent_types=_n_intent)
 
         # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).
@@ -253,6 +260,8 @@ class GCNEngine:
             temperature=temperature, bfs_depth=bfs_depth,
             no_positional=no_positional, no_ternary=no_ternary,
             no_mood=no_mood, no_tense=no_tense,
+            node_types=list(_active_nodes),
+            relation_types=list(_active_rels),
             clause_pooling=clause_pooling,
             subject_object_emb=subject_object_emb,
             gat_residual=gat_residual,
@@ -266,6 +275,14 @@ class GCNEngine:
         pipeline.use_compgcn = _use_compgcn
         pipeline.d_rel_emb = _d_rel_emb
         pipeline.two_pass_val = bool(arch.get("two_pass_val", True))
+        # v5.8 (P3) : remaps coarse — absents = fin.
+        _nremap = arch.get("node_remap") or None
+        _eremap = arch.get("edge_remap") or None
+        pipeline._coarse_node_remap = (
+            {int(k): int(v) for k, v in _nremap.items()} if _nremap else None)
+        pipeline._coarse_edge_remap = (
+            {int(k): int(v) for k, v in _eremap.items()} if _eremap else None)
+        pipeline._coarse_phase = bool(arch.get("coarse_phase", False))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
         # Text parser : lattice gcn-cli si disponible (zéro dictionnaire).
