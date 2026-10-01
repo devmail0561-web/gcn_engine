@@ -8,7 +8,22 @@ from pathlib import Path
 from typing import Any
 
 from ..constants import NODE_TYPE_ALIASES, RELATION_TYPES
+from .edge_norm import normalize_node_id, sanitize_text
 from .schema import ClauseRecord, EdgeRecord, SentenceRecord, TokenRecord
+
+
+def _norm_lemma(s: str) -> str:
+    """Normalise un lemme (v5.7) : NFKD sans diacritiques + casefold.
+
+    `Baisser/baisser`, `économie/economie` = même entrée vocab — fini les
+    OOV silencieux par casse/accents. `form` reste brute (affichage).
+    """
+    import unicodedata as _ud
+    if not isinstance(s, str):
+        return s
+    return "".join(
+        c for c in _ud.normalize("NFKD", s) if not _ud.combining(c)
+    ).casefold()
 
 
 def load_sentences(path: Path, silver_weight: float = 1.0) -> list[SentenceRecord]:
@@ -128,7 +143,7 @@ def _parse_token(t: dict) -> TokenRecord:
     return TokenRecord(
         id=_safe_int(t.get("id"), 0),
         form=t.get("form", ""),
-        lemma=t.get("lemma", ""),
+        lemma=_norm_lemma(t.get("lemma", "")),
         pos=t.get("pos", ""),
         dep_rel=t.get("dep_rel", ""),
         dep_head=_safe_int(t.get("dep_head"), 0),
@@ -139,12 +154,11 @@ def _parse_token(t: dict) -> TokenRecord:
 
 
 def _parse_clause_node(n: dict) -> ClauseRecord:
-    span = n.get("token_span", [0, 0])
     attrs = dict(n.get("attributes", {}) or {})
     for f in ("entity", "quality", "agent", "patient", "agent_type", "temporal_index", "scope"):
         if f in n and f not in attrs:
             attrs[f] = n[f]
-    node_type = n.get("type") or ""
+    node_type = (n.get("type") or "").strip().lower() or ""
     if not node_type:
         warnings.warn(
             f"Nœud {n.get('id', '?')} sans champ 'type' — défaut 'processus' appliqué.",
@@ -154,11 +168,16 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
     # Migration transparente v2→D5
     node_type = NODE_TYPE_ALIASES.get(node_type, node_type)
     morph_raw = n.get("morph") or {}
+    _span_raw = n.get("token_span", [0, 0]) or [0, 0]
+    _span = [_safe_int(v, 0) for v in list(_span_raw)[:2]]
+    _span = [max(0, v) for v in _span]  # v5.7 : bornes négatives clampées
+    _nid_raw = n.get("id", "")
+    _nid = normalize_node_id(_nid_raw) if str(_nid_raw).strip() else ""
     return ClauseRecord(
-        node_id=n.get("id", ""),
+        node_id=_nid,
         node_type=node_type,
         label=n.get("label", ""),
-        token_span=(span[0], span[1]) if len(span) >= 2 else (0, 0),
+        token_span=(_span[0], _span[1]) if len(_span) >= 2 else (0, 0),
         scope=n.get("scope", attrs.get("scope", "specific")),
         temporal_index=_safe_int(n.get("temporal_index") or attrs.get("temporal_index"), 0),
         origin=n.get("origin", "explicit"),
@@ -171,7 +190,9 @@ def _parse_clause_node(n: dict) -> ClauseRecord:
 
 def _parse_edge(e: dict) -> EdgeRecord:
     attrs = e.get("attributes") or {}
-    relation = e.get("relation") or e.get("relation_type") or attrs.get("relation") or ""
+    relation = sanitize_text(
+        e.get("relation") or e.get("relation_type") or attrs.get("relation") or ""
+    ).lower() or ""
     if not relation:
         raise ValueError(
             f"Arête {e.get('source', e.get('sources', '?'))}→{e.get('target', '?')} "
@@ -189,13 +210,24 @@ def _parse_edge(e: dict) -> EdgeRecord:
         )
     if sources is None:
         sources = [legacy_source] if legacy_source else []
-    sources = [str(s) for s in sources]
-    target = str(e.get("target", ""))
+    sources = [normalize_node_id(s) for s in sources if str(s).strip()]
+    _tgt_raw = e.get("target", "")
+    target = normalize_node_id(_tgt_raw) if str(_tgt_raw).strip() else ""
     # confidence absente -> None + warn (jamais 0.0 / 1.0 silencieux)
     if "confidence" in attrs or "confidence" in e:
         conf_raw = attrs.get("confidence", e.get("confidence"))
         try:
             confidence = float(conf_raw) if conf_raw is not None else None
+            # v5.7 : clip [0,1], NaN/Inf -> None + warn (jamais de poids aberrant).
+            import math as _math
+            if confidence is not None and (
+                    not _math.isfinite(confidence) or not 0.0 <= confidence <= 1.0):
+                warnings.warn(
+                    f"confidence {conf_raw!r} hors [0,1] — None appliqué.",
+                    UserWarning, stacklevel=3)
+                confidence = None
+            elif confidence is not None:
+                confidence = min(1.0, max(0.0, confidence))
         except (TypeError, ValueError):
             warnings.warn("confidence invalide — None appliqué.", UserWarning, stacklevel=3)
             confidence = None
@@ -213,7 +245,7 @@ def _parse_edge(e: dict) -> EdgeRecord:
     third = None
     if third_raw and isinstance(third_raw, dict) and third_raw.get("role"):
         third = {
-            "role": str(third_raw["role"]),
+            "role": str(third_raw["role"]).strip().lower(),
             "node": str(third_raw.get("node", "")),
             "polarity": third_raw.get("polarity"),
         }
