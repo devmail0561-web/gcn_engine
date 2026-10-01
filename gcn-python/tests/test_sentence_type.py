@@ -616,3 +616,46 @@ def test_sentence_learned_end_to_end_real():
             assert pred == gold, f"{smp.sentence.id} : {pred} != {gold}"
             ok += 1
         assert ok == 4
+
+
+def test_intent_conditioned_requires_sentence_head():
+    """P4b : couplage sans tête sentence = ValueError (jamais silencieux)."""
+    import pytest
+
+    from gcn_python.layer2.reference import MLPEncoder
+    with pytest.raises(ValueError, match="n_sentence_types"):
+        MLPEncoder(d_clause=110, d_edge=50, n_intent_types=3,
+                   n_sentence_types=0, intent_conditioned=True)
+
+
+def test_intent_conditioned_forward_shape():
+    """P4b : entrée intent = [vec | probs] quand couplée."""
+
+    from conftest import make_word_embedding
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+    from gcn_python.pipeline.cgnp import CGNPipeline
+
+    vocab = FeatureVocabulary()
+    we = make_word_embedding()
+    d_eff = vocab.d_clause_effective(we.d_emb)
+    enc = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, 8, we.d_emb),
+                     n_intent_types=3, n_sentence_types=4,
+                     intent_conditioned=True, seed=7)
+    pipe = CGNPipeline(encoder=enc, graph=__import__(
+        "gcn_python.layer3.reference", fromlist=["RGCNLayer"]).RGCNLayer(
+            d_in=d_eff, d_out=d_eff,
+            n_relations=__import__("gcn_python.constants", fromlist=["rgcn_n_relations"]).rgcn_n_relations(19, False)),
+        vocabulary=vocab, word_embedding=we,
+        n_intent_types=3, n_sentence_types=4)
+    from gcn_python.layer1.representation import UDRepresentation
+    rep = UDRepresentation(
+        tokens=[{"lemma": "x", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+        root_lemma="x", root_pos="VERB", root_dep_rel="root",
+        root_morph={}, subject_pos=None, has_object=False,
+        has_advcl=False, has_temporal_obl=False, token_span=(1, 1))
+    pipe.forward([rep], "x.")
+    assert pipe._cached_sentence_logits is not None
+    assert pipe._cached_intent_logits is not None
+    assert pipe._cached_intent_logits.shape[1] == 3

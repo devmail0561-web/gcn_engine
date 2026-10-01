@@ -557,6 +557,11 @@ def train_cmd(
     n_relation_types = len(_active_relation_types)
     d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
                                                  subject_object_emb)
+    # P4b : couplage intent←sentence automatique quand les deux têtes sont
+    # actives (distribution détachée en entrée intent). Persisté en arch.
+    _intent_conditioned = bool(n_intent_types > 0 and n_sentence_types > 0)
+    if _intent_conditioned:
+        click.echo("  [P4b] intent conditionnée par sentence_type (concat distribution).")
     # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
     # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
     if global_attention:
@@ -568,6 +573,8 @@ def train_cmd(
                 n_node_types=n_node_types,
                 n_relation_types=n_relation_types,
                 n_sentence_types=n_sentence_types,
+                n_intent_types=n_intent_types,
+                intent_conditioned=_intent_conditioned,
                 n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
@@ -580,6 +587,8 @@ def train_cmd(
                              n_node_types=n_node_types,
                              n_relation_types=n_relation_types,
                              n_sentence_types=n_sentence_types,
+                             n_intent_types=n_intent_types,
+                             intent_conditioned=_intent_conditioned,
                              seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
@@ -1119,6 +1128,9 @@ def train_cmd(
             epoch_edge_gold: list[str] = []
             epoch_sent_type_preds: list[str] = []  # P4a
             epoch_sent_type_gold: list[str] = []  # P4a
+            epoch_intent_preds: list[str] = []  # P4b (noms, "(none)" si sans gold)
+            epoch_intent_gold: list[str] = []  # P4b
+            epoch_sent_intent_gold: list[tuple[str, str]] = []  # P4b co-occurrences
             epoch_sent_node_preds: list[list[str]] = []
             epoch_sent_node_gold: list[list[str]] = []
             epoch_sent_edge_preds: list[list[str]] = []
@@ -1273,6 +1285,20 @@ def train_cmd(
                     if 0 <= _sp < len(SENTENCE_TYPES) and 0 <= _sg < len(SENTENCE_TYPES):
                         epoch_sent_type_preds.append(SENTENCE_TYPES[_sp])
                         epoch_sent_type_gold.append(SENTENCE_TYPES[_sg])
+                # P4b : prédictions intent + co-occurrence gold (sentence × intent).
+                _intent_logits = pipeline._cached_intent_logits
+                if (_gold_intent is not None and _intent_logits is not None
+                        and len(_intent_logits) > 0):
+                    _ip = int(np.argmax(_intent_logits[0]))
+                    _ig = int(_gold_intent[0])
+                    if 0 <= _ip < len(INTENT_TYPES) and 0 <= _ig < len(INTENT_TYPES):
+                        epoch_intent_preds.append(INTENT_TYPES[_ip])
+                        epoch_intent_gold.append(INTENT_TYPES[_ig])
+                        if _gold_sentence is not None:
+                            _sg = int(_gold_sentence[0])
+                            if 0 <= _sg < len(SENTENCE_TYPES):
+                                epoch_sent_intent_gold.append(
+                                    (SENTENCE_TYPES[_sg], INTENT_TYPES[_ig]))
                 # P0-7 : loss non finie → STOP avec contexte (pas de training
                 # continué sur gradients corrompus ; loss() ne fait que warner).
                 if not np.isfinite(loss_val):
@@ -1588,6 +1614,19 @@ def train_cmd(
         click.echo("Rapport edge/val (dernière epoch) :\n"
                    + per_class_report(val_edge_preds, val_edge_gold,
                                       pipeline.relation_types))
+    # P4a/b : confusion type de phrase + co-occurrences gold (sentence × intent).
+    # Dernière epoch : matrice des relations supposées, pas des preuves.
+    if epoch_sent_type_gold:
+        click.echo("Confusion sentence/train (dernière epoch) :\n"
+                   + per_class_report(epoch_sent_type_preds, epoch_sent_type_gold,
+                                      SENTENCE_TYPES))
+    if epoch_sent_intent_gold:
+        from collections import Counter as _Counter
+        _co = _Counter(epoch_sent_intent_gold)
+        _rows = ["sentence × intent (gold, dernière epoch) :"]
+        for (_s, _i) in sorted(_co):
+            _rows.append(f"  {_s:<14s} × {_i:<14s} : {_co[(_s, _i)]}")
+        click.echo("\n".join(_rows))
 
     if log_csv:
         json_path = Path(log_csv).with_suffix(".json")

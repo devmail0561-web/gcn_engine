@@ -191,13 +191,15 @@ class GCNEngine:
                                             n_node_types=len(_active_nodes),
                                             n_relation_types=len(_active_rels),
                                             n_intent_types=_n_intent,
-                                            n_sentence_types=_n_sentence)
+                                            n_sentence_types=_n_sentence,
+                                            intent_conditioned=bool(arch.get("intent_conditioned", False)))
         else:
             encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden,
                                  n_node_types=len(_active_nodes),
                                  n_relation_types=len(_active_rels),
                                  n_intent_types=_n_intent,
-                                 n_sentence_types=_n_sentence)
+                                 n_sentence_types=_n_sentence,
+                                 intent_conditioned=bool(arch.get("intent_conditioned", False)))
 
 
         # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).

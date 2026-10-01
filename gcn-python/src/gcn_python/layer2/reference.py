@@ -66,7 +66,14 @@ class MLPEncoder:
         mlp_hidden: int = 128,
         n_intent_types: int = 0,
         n_sentence_types: int = 0,
+        intent_conditioned: bool = False,
     ):
+        # P4b : si conditionnée, la tête intent lit [vec_clause | probs_sentence].
+        # Dims fixées à la construction (persistées en arch) — jamais devinées.
+        if intent_conditioned and n_sentence_types <= 0:
+            raise ValueError(
+                "intent_conditioned=True requiert n_sentence_types > 0 "
+                "(distribution conditionnante).")
         if not (0.0 <= edge_dropout < 1.0):
             raise ValueError(
                 f"edge_dropout doit être dans [0, 1[ (reçu {edge_dropout!r})."
@@ -112,9 +119,11 @@ class MLPEncoder:
         # Intent MLP (Éq.6) : d_clause → mlp_hidden → 64 → n_intent_types
         # n_intent_types=0 = désactivé (non-breaking)
         self.n_intent_types = n_intent_types
+        self.intent_conditioned = bool(intent_conditioned)
+        _intent_in_dim = d_clause + (n_sentence_types if intent_conditioned else 0)
         if n_intent_types > 0:
             self._intent_layers = [
-                _LinearLayer(d_clause, mlp_hidden, rng),
+                _LinearLayer(_intent_in_dim, mlp_hidden, rng),
                 _LinearLayer(mlp_hidden, 64, rng),
                 _LinearLayer(64, n_intent_types, rng),
             ]

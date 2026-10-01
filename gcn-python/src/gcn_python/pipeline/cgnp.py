@@ -429,18 +429,12 @@ class CGNPipeline:
         ])  # (N, D_effective)
         self._cached_clause_vecs = clause_vecs
 
-        # Éq.6 — tête d'intention (non-breaking : désactivée si n_intent_types=0)
-        if self.n_intent_types > 0 and hasattr(self.encoder, 'forward_intent'):
-            self._cached_intent_logits = np.stack(
-                [self.encoder.forward_intent(v) for v in clause_vecs]
-            )
-        else:
-            self._cached_intent_logits = None
         # P4a — tête type de phrase : moyenne de vecteurs COMPLETS (d_effective)
         # vectorisés en pooling "mean" (contenu + marques "?" / "!"), quel que
         # soit le mode clause du pipeline — sous "root" (défaut), "?" serait
         # invisible. Même espace d'entrée que la tête intent : le gradient
-        # remonte via d_enriched (cf. backward).
+        # remonte via d_enriched (cf. backward). Calculée AVANT l'intent
+        # (P4b : distribution conditionnante).
         if (self.n_sentence_types > 0 and hasattr(self.encoder, 'forward_sentence')
                 and len(reps) > 0):
             _sent_vec = np.stack([
@@ -458,6 +452,26 @@ class CGNPipeline:
                 _sent_vec).reshape(1, -1)
         else:
             self._cached_sentence_logits = None
+        # Éq.6 — tête d'intention (non-breaking : désactivée si n_intent_types=0).
+        # P4b : si couplée (intent_conditioned), entrée = [vec_clause | probs_sentence]
+        # (distribution détachée : signal conditionnant, pas de bout-en-bout).
+        if self.n_intent_types > 0 and hasattr(self.encoder, 'forward_intent'):
+            if bool(getattr(self.encoder, 'intent_conditioned', False)):
+                if self._cached_sentence_logits is None:
+                    raise ValueError(
+                        "intent_conditioned=True mais logits sentence absents — "
+                        "n_sentence_types > 0 requis avec forward_sentence.")
+                _sent_probs = _softmax(self._cached_sentence_logits.reshape(1, -1))[0]
+                self._cached_intent_logits = np.stack(
+                    [self.encoder.forward_intent(
+                        np.concatenate([v, _sent_probs])) for v in clause_vecs]
+                )
+            else:
+                self._cached_intent_logits = np.stack(
+                    [self.encoder.forward_intent(v) for v in clause_vecs]
+                )
+        else:
+            self._cached_intent_logits = None
         # Routage des gradients d'embeddings (A+B) — miroir exact du forward
         if self.word_embedding is not None:
             self._cached_pool_routing = [

@@ -102,6 +102,8 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
         "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
+        # P4b : couplage intent←sentence — absent = False (vieux checkpoints).
+        "intent_conditioned": bool(getattr(pipeline.encoder, 'intent_conditioned', False)),
         # Phase C : MHA globale — n_gat_heads_mha distinct de n_gat_heads (GAT).
         "global_attention": bool(getattr(pipeline, 'global_attention',
                                         type(pipeline.encoder).__name__ == "TransformerMLPEncoder")),
