@@ -73,6 +73,9 @@ RELATION_TYPE_ALIASES: dict[str, str] = {
 }
 
 
+VALID_SENTENCE_TYPES = {"declarative", "interrogative", "imperative", "exclamative"}
+
+
 def normalize_node_type(raw: str) -> str | None:
     s = raw.strip().lower().replace("-", "_").replace(" ", "_")
     if s in NODE_TYPES:
@@ -111,20 +114,34 @@ def _normalize_third(third_raw) -> dict | None:
     }
 
 
-def normalize_annotation(raw: dict) -> dict:
-    """Normalise une annotation LLM brute vers le schéma v4 (ETUDE §11).
+def normalize_annotation(raw: dict, span_base: str = "1") -> dict:
+    """Normalise une annotation brute vers le schéma v4 (ETUDE §11).
 
     - NODE_TYPES 8 / RELATION_TYPES 19
     - source → sources (liste)
+    - marker_token hissé de attributes → niveau arête (v4 plat)
+    - token_span uniformisés en 1-based inclusifs (span_base="0" si source 0-based,
+      ex. sortie LLM — sinon "+1" corromprait des spans déjà 1-based)
     - third normalisé pour les ternaires
     - polarity, voice, modality validés
-    - intent transmis tel quel
+    - intent transmis tel quel ; sentence_type validé (ignoré sinon, jamais deviné)
     """
+    if span_base not in ("0", "1"):
+        raise ValueError(f"span_base doit être '0' ou '1' (reçu {span_base!r}).")
     doc = raw.get("document", raw)
     sentences = doc.get("sentences", [])
 
     for sent in sentences:
         cir = sent.get("cir", {})
+        # sentence_type : validé, jamais deviné (dérivation = rôle du loader).
+        _st = str(sent.get("sentence_type", "") or "").strip().lower()
+        if _st and _st not in VALID_SENTENCE_TYPES:
+            warnings.warn(
+                f"Phrase '{sent.get('id', '?')}' sentence_type invalide '{_st}' — ignoré.",
+                UserWarning, stacklevel=2,
+            )
+            _st = ""
+        sent["sentence_type"] = _st
 
         # Nœuds
         valid_nodes = []
@@ -140,6 +157,15 @@ def normalize_annotation(raw: dict) -> dict:
             node["type"] = norm_type
             nid = str(node.get("id", ""))
             node_ids.add(nid)
+            # token_span → 1-based inclusifs [start, end]
+            _span = node.get("token_span", [0, 0]) or [0, 0]
+            try:
+                _s0, _s1 = int(_span[0]), int(_span[1])
+            except (TypeError, ValueError, IndexError):
+                _s0, _s1 = 0, 0
+            if span_base == "0" and (_s0 > 0 or _s1 > 0):
+                _s0, _s1 = _s0 + 1, _s1 + 1
+            node["token_span"] = [max(0, _s0), max(0, _s1)]
             valid_nodes.append(node)
 
         # Arêtes
@@ -162,6 +188,18 @@ def normalize_annotation(raw: dict) -> dict:
             else:
                 edge["sources"] = [str(s) for s in edge["sources"]]
             edge.pop("source", None)
+
+            # marker_token hissé de attributes → niveau arête (v4 plat).
+            # balanced_auto/smart le nichent sous attributes ; le loader lit le plat.
+            _attrs = edge.get("attributes") or {}
+            if edge.get("marker_token") is None and _attrs.get("marker_token") is not None:
+                try:
+                    edge["marker_token"] = int(_attrs.get("marker_token"))
+                except (TypeError, ValueError):
+                    warnings.warn(
+                        f"marker_token invalide {_attrs.get('marker_token')!r} — ignoré.",
+                        UserWarning, stacklevel=2,
+                    )
 
             # third — ternaires
             if norm_rel in TERNARY_RELATIONS:
