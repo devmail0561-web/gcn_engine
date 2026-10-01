@@ -170,6 +170,14 @@ class GCNEngine:
                     "n_intent_types", 0))
             except (ValueError, TypeError, AttributeError):
                 _n_intent = 0
+        # P4a : idem tête type de phrase — reconstruite depuis ses métas.
+        _n_sentence = 0
+        if "_sentence_meta_json" in data:
+            try:
+                _n_sentence = int(json.loads(str(data["_sentence_meta_json"][0])).get(
+                    "n_sentence_types", 0))
+            except (ValueError, TypeError, AttributeError):
+                _n_sentence = 0
         # Phase C : substitution pour from_pretrained — TransformerMLPEncoder
         # si arch.get("global_attention", False). d_clause = D_effective (d_eff),
         # jamais vocabulary.d_clause brut.
@@ -182,12 +190,15 @@ class GCNEngine:
                                             n_heads=_mha_heads,
                                             n_node_types=len(_active_nodes),
                                             n_relation_types=len(_active_rels),
-                                            n_intent_types=_n_intent)
+                                            n_intent_types=_n_intent,
+                                            n_sentence_types=_n_sentence)
         else:
             encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden,
                                  n_node_types=len(_active_nodes),
                                  n_relation_types=len(_active_rels),
-                                 n_intent_types=_n_intent)
+                                 n_intent_types=_n_intent,
+                                 n_sentence_types=_n_sentence)
+
 
         # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).
         _pairnorm = bool(arch.get("pairnorm", False))
@@ -265,6 +276,8 @@ class GCNEngine:
             clause_pooling=clause_pooling,
             subject_object_emb=subject_object_emb,
             gat_residual=gat_residual,
+            n_intent_types=_n_intent,
+            n_sentence_types=_n_sentence,
         )
         # Phases B/C/D : attrs d'arch lus par load_checkpoint (validation
         # global_attention/use_compgcn) — posés avant load_checkpoint.

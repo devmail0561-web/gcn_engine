@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..constants import SENTENCE_TYPES as _SENTENCE_TYPES
 from ..layer1.features import FeatureVocabulary
 from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
@@ -185,6 +186,19 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
             dtype=object,
         )
 
+    # P4a : sauvegarder la tête type de phrase si active (même pattern intent).
+    if (hasattr(pipeline.encoder, '_sentence_layers')
+            and getattr(pipeline.encoder, 'n_sentence_types', 0) > 0):
+        for i, layer in enumerate(pipeline.encoder._sentence_layers):
+            arrays[f"sentence_layer_{i}_W"] = layer.W
+            arrays[f"sentence_layer_{i}_b"] = layer.b
+        import json as _json_sent
+        arrays["_sentence_meta_json"] = np.array(
+            [_json_sent.dumps({"n_sentence_types": pipeline.encoder.n_sentence_types,
+                               "sentence_types": _SENTENCE_TYPES})],
+            dtype=object,
+        )
+
     # D10 ETUDE : word_embedding obligatoire — sauvegarde inconditionnelle
     we = pipeline.word_embedding
     if we is None:
@@ -286,9 +300,10 @@ def load_checkpoint(
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
-                       "link_pred_", "hyperedge_", "assembler_", "_mha_", "intent_layer_")
+                       "link_pred_", "hyperedge_", "assembler_", "_mha_", "intent_layer_",
+                       "sentence_layer_")
     _VALID_EXACT = {"_vocab_json", "_decoder_meta_json", "_word_emb_vocab_json", "word_emb_E",
-                    "_intent_meta_json",
+                    "_intent_meta_json", "_sentence_meta_json",
                     "_arch_json", "_link_pred_meta_json", "_assembler_meta_json",
                     "word_emb_pretrained_start", "word_emb_pretrained_end"}
     unexpected = set(data.files) - _VALID_EXACT
@@ -543,6 +558,16 @@ def load_checkpoint(
             and hasattr(pipeline.encoder, '_intent_layers')):
         for i, layer in enumerate(pipeline.encoder._intent_layers):
             w_key, b_key = f"intent_layer_{i}_W", f"intent_layer_{i}_b"
+            if w_key in data and data[w_key].shape == layer.W.shape:
+                layer.W[:] = data[w_key]
+            if b_key in data and data[b_key].shape == layer.b.shape:
+                layer.b[:] = data[b_key]
+
+    # P4a : restaurer la tête type de phrase si présente dans le checkpoint.
+    if ("_sentence_meta_json" in data
+            and hasattr(pipeline.encoder, '_sentence_layers')):
+        for i, layer in enumerate(pipeline.encoder._sentence_layers):
+            w_key, b_key = f"sentence_layer_{i}_W", f"sentence_layer_{i}_b"
             if w_key in data and data[w_key].shape == layer.W.shape:
                 layer.W[:] = data[w_key]
             if b_key in data and data[b_key].shape == layer.b.shape:

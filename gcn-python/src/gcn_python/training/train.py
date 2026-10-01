@@ -15,6 +15,7 @@ from ..constants import (
     INTENT_TYPES,
     NODE_TYPES,
     RELATION_TYPES,
+    SENTENCE_TYPES,
     coarse_node,
     coarse_relation,
     rgcn_n_relations,
@@ -272,6 +273,10 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Éq.6 : active la tête d'intention (0=désactivé). "
                    "Doit correspondre à len(INTENT_TYPES) si > 0. "
                    "Requiert des phrases annotées avec SentenceRecord.intent.")
+@click.option("--n-sentence-types", default=0, show_default=True, type=int,
+              help="P4a : active la tête type de phrase (0=désactivé). "
+                   "Doit correspondre à len(SENTENCE_TYPES)=4 si > 0. "
+                   "Golds dérivés par règle (ponctuation) sauf annotation.")
 @click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
               help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
                    "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
@@ -340,6 +345,7 @@ def train_cmd(
     scheduled_sampling: bool,
     ss_final_epoch: int,
     n_intent_types: int,
+    n_sentence_types: int,
     coarse_phase: bool,
     coarse_n_min: int,
 ) -> None:
@@ -446,6 +452,7 @@ def train_cmd(
     node_counts: Counter = Counter()
     edge_counts: Counter = Counter()
     intent_counts: Counter = Counter()
+    sentence_counts: Counter = Counter()
     all_lemmas: list[str] = []
     for sample in loader:
         for rel in sample.edge_map.values():
@@ -458,6 +465,10 @@ def train_cmd(
         if n_intent_types > 0 and sample.sentence.intent:
             with contextlib.suppress(ValueError):
                 intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
+        # P4a : comptage des types de phrases (annotés ou règle bootstrap).
+        if n_sentence_types > 0 and sample.sentence_type:
+            with contextlib.suppress(ValueError):
+                sentence_counts[SENTENCE_TYPES.index(sample.sentence_type)] += 1
         if word_embedding is not None:
             reps_s, _, conn_s = reps_from_sentence(sample.sentence)
             # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
@@ -473,6 +484,16 @@ def train_cmd(
                         all_lemmas.extend(_pool_lemmas(r, clause_pooling))
                     if subject_object_emb:
                         all_lemmas.extend(_find_subj_obj_lemmas(r))
+            # P4a : marques illocutoires "?" / "!" au vocabulaire — sinon
+            # le pooling mean de la tête phrase les résout en zéros OOV et
+            # l'interrogative reste invisible (vecteurs figés à l'init si le
+            # routage embeddings est en mode root : séparables mais non appris —
+            # même statut assumé que les connecteurs orphelins, cf. garde).
+            from ..layer1.features import SENTENCE_MARK_FORMS as _SENT_MARKS
+            all_lemmas.extend(
+                t.get("lemma", "") for r in reps_s for t in r.tokens
+                if t.get("form") in _SENT_MARKS and t.get("lemma")
+            )
             # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
             # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
             # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
@@ -546,6 +567,7 @@ def train_cmd(
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
                 n_node_types=n_node_types,
                 n_relation_types=n_relation_types,
+                n_sentence_types=n_sentence_types,
                 n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
@@ -557,6 +579,7 @@ def train_cmd(
                              weight_decay=weight_decay, mlp_hidden=mlp_hidden,
                              n_node_types=n_node_types,
                              n_relation_types=n_relation_types,
+                             n_sentence_types=n_sentence_types,
                              seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
@@ -673,7 +696,8 @@ def train_cmd(
                             no_tense=(coarse_phase or no_tense_flag),
                             no_positional=no_positional,
                             no_ternary=no_ternary,
-                           n_intent_types=n_intent_types, seed=_init_seed)
+                           n_intent_types=n_intent_types,
+                           n_sentence_types=n_sentence_types, seed=_init_seed)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
@@ -798,6 +822,16 @@ def train_cmd(
                 _intent_logit_mask[c] = True
         n_active_intent = int(_intent_logit_mask.sum())
         click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
+    # P4a — masque types de phrases (même logique que _intent_logit_mask ;
+    # N_min v5 s'applique aussi : pas d'apprentissage sous le seuil).
+    _sentence_logit_mask: np.ndarray | None = None
+    if n_sentence_types > 0 and sentence_counts:
+        _sentence_logit_mask = np.zeros(n_sentence_types, dtype=bool)
+        for c in range(n_sentence_types):
+            if sentence_counts.get(c, 0) > 0:
+                _sentence_logit_mask[c] = True
+        n_active_sent = int(_sentence_logit_mask.sum())
+        click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
 
     # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
     # est dimensionné sur types actifs ; le masque suit en espace actif.
@@ -1051,7 +1085,7 @@ def train_cmd(
             csv_fieldnames = [
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
-                "edge_cut_train",
+                "edge_cut_train", "sentence_accuracy",
             ]
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
@@ -1083,6 +1117,8 @@ def train_cmd(
             epoch_node_gold: list[str] = []
             epoch_edge_preds: list[str] = []
             epoch_edge_gold: list[str] = []
+            epoch_sent_type_preds: list[str] = []  # P4a
+            epoch_sent_type_gold: list[str] = []  # P4a
             epoch_sent_node_preds: list[list[str]] = []
             epoch_sent_node_gold: list[list[str]] = []
             epoch_sent_edge_preds: list[list[str]] = []
@@ -1205,6 +1241,14 @@ def train_cmd(
                             [INTENT_TYPES.index(sample.sentence.intent)], dtype=np.int64
                         )
 
+                # P4a — label type de phrase (annoté > règle bootstrap, cf. loader).
+                _gold_sentence = None
+                if n_sentence_types > 0 and sample.sentence_type:
+                    with contextlib.suppress(ValueError):
+                        _gold_sentence = np.array(
+                            [SENTENCE_TYPES.index(sample.sentence_type)], dtype=np.int64
+                        )
+
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
                     edge_loss_weight=edge_loss_weight,
@@ -1217,7 +1261,18 @@ def train_cmd(
                     edge_sample_weights=_edge_sw,  # S-5 : confidence par arête
                     gold_intent=_gold_intent,
                     intent_logit_mask=_intent_logit_mask,
+                    gold_sentence=_gold_sentence,
+                    sentence_logit_mask=_sentence_logit_mask,
                 )
+                # P4a : exactitude type de phrase (tête supervisée si gold).
+                _sent_logits = pipeline._cached_sentence_logits
+                if (_gold_sentence is not None and _sent_logits is not None
+                        and len(_sent_logits) > 0):
+                    _sp = int(np.argmax(_sent_logits[0]))
+                    _sg = int(_gold_sentence[0])
+                    if 0 <= _sp < len(SENTENCE_TYPES) and 0 <= _sg < len(SENTENCE_TYPES):
+                        epoch_sent_type_preds.append(SENTENCE_TYPES[_sp])
+                        epoch_sent_type_gold.append(SENTENCE_TYPES[_sg])
                 # P0-7 : loss non finie → STOP avec contexte (pas de training
                 # continué sur gradients corrompus ; loss() ne fait que warner).
                 if not np.isfinite(loss_val):
@@ -1383,6 +1438,12 @@ def train_cmd(
                     epoch_sent_edge_preds, epoch_sent_edge_gold,
                 ),
                 "edge_cut_train": epoch_n_cut,  # v5.1 : hors loss, comptés pas punis
+                # P4a : exactitude type de phrase (vide si tête inactive).
+                "sentence_accuracy": (
+                    sum(p == g for p, g in zip(epoch_sent_type_preds,
+                                               epoch_sent_type_gold, strict=False))
+                    / max(len(epoch_sent_type_gold), 1)
+                    if epoch_sent_type_gold else 0.0),
             }
             if pipeline.decoder is not None:
                 metrics["decoder_loss"] = (  # L-3 : séparé, non mélangé dans loss

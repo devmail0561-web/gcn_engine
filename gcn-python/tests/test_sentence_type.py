@@ -456,3 +456,163 @@ def test_no_estce_que_constant():
 def test_no_negative_lemmas_constant():
     source = SOURCE_PATH.read_text(encoding="utf-8")
     assert "_NEGATIVE_LEMMAS" not in source
+
+
+# ---------------------------------------------------------------------------
+# P4a — tête type de phrase apprise (miroir Éq.6 intent)
+# ---------------------------------------------------------------------------
+
+import numpy as np
+
+from gcn_python.constants import SENTENCE_TYPES
+
+
+def test_sentence_types_values():
+    assert SENTENCE_TYPES == ["declarative", "interrogative", "imperative", "exclamative"]
+
+
+def test_derive_sentence_type_rules():
+    """Bootstrap par ponctuation : ? → interrogative, ! → exclamative."""
+    from gcn_python.data.loader import derive_sentence_type
+    assert derive_sentence_type("Ça va ?") == "interrogative"
+    assert derive_sentence_type("Quel bruit !") == "exclamative"
+    assert derive_sentence_type("Les ventes baissent.") == "declarative"
+    # L'impératif exige l'annotation — la règle ne devine pas.
+    assert derive_sentence_type("Réduis les coûts.") == "declarative"
+
+
+def test_loader_annotated_beats_rule():
+    """SentenceRecord.sentence_type annoté prime sur la règle."""
+    import tempfile
+    from pathlib import Path
+
+    from gcn_python.data.loader import GCNDataLoader
+    from gcn_python.data.schema import ClauseRecord, SentenceRecord, TokenRecord
+
+    def tk(i, lemma, pos, dep, head):
+        return TokenRecord(id=i, form=lemma, lemma=lemma, pos=pos,
+                           dep_rel=dep, dep_head=head, morph={})
+    rec = SentenceRecord(
+        id="s", text="Ça va ?",
+        tokens=[tk(1, "aller", "VERB", "root", 0)],
+        clauses=[ClauseRecord(node_id="n1", node_type="processus", label="x",
+                              token_span=(1, 1), scope="specific",
+                              temporal_index=0, origin="explicit")],
+        edges=[], sentence_type="imperative")
+    with tempfile.TemporaryDirectory() as d:
+        sample = GCNDataLoader(Path(d))._to_sample(rec)
+    assert sample.sentence_type == "imperative"
+    assert sample.sentence_type_source == "annotated"
+    rec2 = SentenceRecord(
+        id="s2", text="Ça va ?",
+        tokens=[tk(1, "aller", "VERB", "root", 0)],
+        clauses=[ClauseRecord(node_id="n1", node_type="processus", label="x",
+                              token_span=(1, 1), scope="specific",
+                              temporal_index=0, origin="explicit")],
+        edges=[])
+    with tempfile.TemporaryDirectory() as d:
+        sample2 = GCNDataLoader(Path(d))._to_sample(rec2)
+    assert sample2.sentence_type == "interrogative"
+    assert sample2.sentence_type_source == "rule"
+
+
+def test_sentence_marks_pooled():
+    """"?" / "!" atteignent le pooling (sinon l'interrogative est invisible)."""
+    from gcn_python.layer1.features import _pool_lemmas
+    from gcn_python.layer1.representation import UDRepresentation
+
+    def rep(form):
+        return UDRepresentation(
+            tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}},
+                    {"lemma": form, "pos": "PUNCT", "dep_rel": "punct", "morph": {},
+                     "form": form}],
+            root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
+            root_morph={}, subject_pos=None, has_object=False,
+            has_advcl=False, has_temporal_obl=False, token_span=(1, 2))
+    assert "?" in _pool_lemmas(rep("?"), "mean")
+    assert "!" in _pool_lemmas(rep("!"), "mean")
+    assert "?" not in _pool_lemmas(rep("."), "mean")
+
+
+def test_sentence_head_shapes_and_update():
+    """Tête sentence : forward/backward/update cohérents (miroir intent)."""
+    from conftest import make_word_embedding
+    from gcn_python.layer1.features import FeatureVocabulary
+    from gcn_python.layer2.reference import MLPEncoder
+
+    vocab = FeatureVocabulary()
+    we = make_word_embedding()
+    d_eff = vocab.d_clause_effective(we.d_emb)
+    enc = MLPEncoder(d_clause=d_eff,
+                     d_edge=vocab.d_edge_closed_loop(d_eff, 8, we.d_emb),
+                     n_sentence_types=len(SENTENCE_TYPES), seed=7)
+    x = np.random.RandomState(7).randn(d_eff).astype(np.float32)
+    logits = enc.forward_sentence(x)
+    assert logits.shape == (len(SENTENCE_TYPES),)
+    before = [p.copy() for p in [_l.W for _l in enc._sentence_layers]]
+    grads, dx = enc.backward_sentence(np.ones_like(logits))
+    assert dx.shape == (d_eff,)
+    enc.update_sentence(grads, lr=0.01)
+    assert any(not np.allclose(a, b) for a, b in
+               zip(before, [_l.W for _l in enc._sentence_layers], strict=False))
+
+
+def _mkexp_sentences():
+    """Paires minimales : mêmes clauses, seul le final change (. vs ?)."""
+
+    def sent(i, final, typ):
+        toks = [
+            {"id": 1, "form": "ventes", "lemma": "vente", "pos": "NOUN",
+             "dep_rel": "nsubj", "dep_head": 2, "morph": {}},
+            {"id": 2, "form": "baissent", "lemma": "baisser", "pos": "VERB",
+             "dep_rel": "root", "dep_head": 0, "morph": {}},
+            {"id": 3, "form": final, "lemma": final, "pos": "PUNCT",
+             "dep_rel": "punct", "dep_head": 0, "morph": {}},
+        ]
+        return {"id": f"s{i}", "text": f"ventes baissent{final}", "tokens": toks,
+                "cir": {"nodes": [
+                    {"id": "n1", "type": "processus", "label": "baisse ventes",
+                     "token_span": [1, 2]}],
+                    "edges": []}}
+    return {"document": {"sentences": [
+        sent(1, ".", "declarative"), sent(2, ".", "declarative"),
+        sent(3, "?", "interrogative"), sent(4, "?", "interrogative")]}}
+
+
+def test_sentence_learned_end_to_end_real():
+    """ÉTAT RÉEL : vrai train puis prédictions — le "?" seul fait la différence."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from click.testing import CliRunner
+
+    from gcn_python.training.train import train_cmd
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "train.json").write_text(json.dumps(_mkexp_sentences()), encoding="utf-8")
+        out = tmp_path / "model.npz"
+        result = CliRunner().invoke(train_cmd, [
+            "--data-dir", str(data_dir), "--epochs", "60", "--embedding-dim", "8",
+            "--seed", "7", "--lr", "0.005", "--output", str(out),
+            "--n-sentence-types", "4",
+            # Données jouet : opt-out explicite du gate v5.
+            "--min-class-count", "1"])
+        assert result.exit_code == 0, f"train réel échoué :\n{result.output}\n{result.exception}"
+
+        from gcn_python import GCNEngine
+        eng = GCNEngine.from_pretrained(out, trusted=True)
+        ok = 0
+        from gcn_python.data.loader import GCNDataLoader, reps_from_sentence
+        for smp in GCNDataLoader(data_dir):
+            reps, _, conn = reps_from_sentence(smp.sentence)
+            eng._pipeline.forward(reps, smp.sentence.text, connector_reps=conn)
+            el = np.asarray(eng._pipeline._cached_sentence_logits)
+            pred = SENTENCE_TYPES[int(np.argmax(el[0]))]
+            gold = smp.sentence_type
+            assert pred == gold, f"{smp.sentence.id} : {pred} != {gold}"
+            ok += 1
+        assert ok == 4

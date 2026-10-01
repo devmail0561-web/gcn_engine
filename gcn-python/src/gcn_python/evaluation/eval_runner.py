@@ -117,6 +117,22 @@ def run_eval(
                 "n_intent_types", 0))
         except (ValueError, TypeError, AttributeError):
             _n_intent = 0
+    # P4a : idem tête type de phrase.
+    _n_sentence = 0
+    if "_sentence_meta_json" in _raw:
+        try:
+            _n_sentence = int(json.loads(str(_raw["_sentence_meta_json"][0])).get(
+                "n_sentence_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_sentence = 0
+    # P4a : idem tête type de phrase.
+    _n_sentence = 0
+    if "_sentence_meta_json" in _raw:
+        try:
+            _n_sentence = int(json.loads(str(_raw["_sentence_meta_json"][0])).get(
+                "n_sentence_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_sentence = 0
     _sob_eval = bool(_arch.get("subject_object_emb", False))
     _global_attention = bool(_arch.get("global_attention", False))
     _mha_heads = int(_arch.get("n_gat_heads_mha", 4))
@@ -134,12 +150,15 @@ def run_eval(
                                         mlp_hidden=_mlp_hidden, n_heads=_mha_heads,
                                         n_node_types=len(_active_nodes),
                                         n_relation_types=len(_active_rels),
-                                        n_intent_types=_n_intent)
+                                        n_intent_types=_n_intent,
+                                        n_sentence_types=_n_sentence)
     else:
         encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden,
                              n_node_types=len(_active_nodes),
                              n_relation_types=len(_active_rels),
-                             n_intent_types=_n_intent)
+                             n_intent_types=_n_intent,
+                             n_sentence_types=_n_sentence)
+
     if _gclass == "RGCNLayerGAT":
         try:
             from ..layer3.gat import RGCNLayerGAT
@@ -187,7 +206,9 @@ def run_eval(
                            no_tense=bool(_arch.get("no_tense", False)),
                            clause_pooling=str(_arch.get("clause_pooling", "root")),
                            subject_object_emb=bool(_arch.get("subject_object_emb", False)),
-                           gat_residual=bool(_arch.get("gat_residual", False)))
+                           gat_residual=bool(_arch.get("gat_residual", False)),
+                           n_intent_types=_n_intent,
+                           n_sentence_types=_n_sentence)
     # Trust acquis plus haut : audit pickle (guarded_np_load) + _arch_json
     # présent et parseable. load_checkpoint refait de son côté le même audit.
     load_checkpoint(pipeline, model_path, trusted=True)

@@ -160,3 +160,14 @@ INTENT_TYPES: list[str] = [
     # Extraction (déclaratif → CIR)
     "none",
 ]
+
+# P4a — types de phrases (tête MLP apprise, n_sentence_types=0 = désactivé).
+# Détecter l'intention exige de voir la structure : interrogative→explain/chain,
+# impérative→modalité, exclamative→saillance. Les mêmes règles vivent en
+# sentence_type.classify (symbolique) ; la tête les apprend depuis les vecteurs.
+SENTENCE_TYPES: list[str] = [
+    "declarative",
+    "interrogative",
+    "imperative",
+    "exclamative",
+]

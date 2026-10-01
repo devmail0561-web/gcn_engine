@@ -73,6 +73,7 @@ class CGNPipeline:
         no_positional: bool = False,
         no_ternary: bool = False,
         n_intent_types: int = 0,
+        n_sentence_types: int = 0,
         seed: int = 42,
         edge_logit_mask: np.ndarray | None = None,
     ):
@@ -176,6 +177,9 @@ class CGNPipeline:
         self.n_intent_types = int(n_intent_types)
         self._cached_intent_logits: np.ndarray | None = None
         self._cached_d_intent: np.ndarray | None = None
+        self.n_sentence_types = int(n_sentence_types)
+        self._cached_sentence_logits: np.ndarray | None = None
+        self._cached_d_sentence: np.ndarray | None = None
         if bfs_depth is not None:
             bfs_depth = int(bfs_depth)
             if bfs_depth < 1:
@@ -432,6 +436,28 @@ class CGNPipeline:
             )
         else:
             self._cached_intent_logits = None
+        # P4a — tête type de phrase : moyenne de vecteurs COMPLETS (d_effective)
+        # vectorisés en pooling "mean" (contenu + marques "?" / "!"), quel que
+        # soit le mode clause du pipeline — sous "root" (défaut), "?" serait
+        # invisible. Même espace d'entrée que la tête intent : le gradient
+        # remonte via d_enriched (cf. backward).
+        if (self.n_sentence_types > 0 and hasattr(self.encoder, 'forward_sentence')
+                and len(reps) > 0):
+            _sent_vec = np.stack([
+                vectorize_clause(r, self.vocabulary, self.word_embedding,
+                                 drop_morph=self.drop_morph,
+                                 no_mood=self.no_mood,
+                                 no_tense=self.no_tense,
+                                 no_positional=self.no_positional,
+                                 no_ternary=self.no_ternary,
+                                 clause_pooling="mean",
+                                 subject_object_emb=self.subject_object_emb)
+                for r in reps
+            ]).mean(axis=0)
+            self._cached_sentence_logits = self.encoder.forward_sentence(
+                _sent_vec).reshape(1, -1)
+        else:
+            self._cached_sentence_logits = None
         # Routage des gradients d'embeddings (A+B) — miroir exact du forward
         if self.word_embedding is not None:
             self._cached_pool_routing = [
@@ -823,6 +849,8 @@ class CGNPipeline:
         edge_sample_weights: np.ndarray | None = None,  # S-5 : (E,) poids par arête (confidence)
         gold_intent: np.ndarray | None = None,           # Éq.6 : (1,) int — index dans INTENT_TYPES
         intent_logit_mask: np.ndarray | None = None,     # Éq.6 : (N_INTENTS,) bool
+        gold_sentence: np.ndarray | None = None,         # P4a : (1,) int — index dans SENTENCE_TYPES
+        sentence_logit_mask: np.ndarray | None = None,   # P4a : (N_SENT,) bool
     ) -> tuple[float, np.ndarray, np.ndarray]:
         """
         Cross-entropie NumPy sur nœuds + arêtes + décodeur (optionnel).
@@ -890,6 +918,21 @@ class CGNPipeline:
             )
             total_loss += intent_loss
             self._cached_d_intent = d_intent
+
+        # P4a — Sentence loss (optionnel — supervisé si gold_sentence fourni).
+        # Tête phrase-level sur pooling moyen : la structure phrastique devient
+        # un signal appris (nourrit P4b : détection d'intention).
+        self._cached_d_sentence = None
+        if (gold_sentence is not None
+                and self.n_sentence_types > 0
+                and self._cached_sentence_logits is not None
+                and hasattr(self.encoder, 'forward_sentence')):
+            _sent_logits = self._cached_sentence_logits[:len(gold_sentence)]
+            sentence_loss, d_sentence = _cross_entropy(
+                _sent_logits, gold_sentence, logit_mask=sentence_logit_mask
+            )
+            total_loss += sentence_loss
+            self._cached_d_sentence = d_sentence
 
         # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
@@ -1090,6 +1133,19 @@ class CGNPipeline:
             intent_grads = self.encoder.backward_intent(self._cached_d_intent)
             self.encoder.update_intent(intent_grads, lr)
             self._cached_d_intent = None
+
+        # --- P4a : sentence backward + update + couplage espace partagé ---
+        # backward de la moyenne = dx/N vers chaque clause (d_enriched).
+        if (self._cached_d_sentence is not None
+                and hasattr(self.encoder, 'backward_sentence')
+                and hasattr(self.encoder, 'update_sentence')):
+            sentence_grads, d_pooled = self.encoder.backward_sentence(
+                self._cached_d_sentence)
+            self.encoder.update_sentence(sentence_grads, lr)
+            self._cached_d_sentence = None
+            _n_cl = d_enriched.shape[0] if d_enriched is not None else 0
+            if _n_cl > 0 and d_pooled is not None and len(d_pooled):
+                d_enriched += d_pooled[0] / max(_n_cl, 1)
 
         # --- Décodeur backward + update (sans couplage vers d_enriched — P3e) ---
         if (self.decoder is not None

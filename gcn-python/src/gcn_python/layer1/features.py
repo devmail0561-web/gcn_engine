@@ -293,11 +293,19 @@ def _compute_ternary_features(tokens: list[dict]) -> np.ndarray:
     return feat
 
 
+# P4a : ponctuation illocutoire — "?" / "!" portent le type de phrase et
+# doivent atteindre les embeddings (sinon l'interrogative est invisible :
+# CONTENT_POS les exclut). Restreint à ces deux formes, jamais le reste.
+SENTENCE_MARK_FORMS = frozenset({"?", "!"})
+
+
 def _pool_lemmas(rep, mode: str = "root") -> list[str]:
     """Lemmes poolés selon le mode (A). Fallback tous tokens si aucun contenu."""
     if mode == "root":
         return [rep.root_lemma]
     content = [t['lemma'] for t in rep.tokens if t.get('pos') in CONTENT_POS]
+    content += [t['lemma'] for t in rep.tokens
+                if t.get('form') in SENTENCE_MARK_FORMS and t.get('lemma')]
     if content:
         return content
     return [t['lemma'] for t in rep.tokens]

@@ -45,6 +45,24 @@ class TrainingSample:
     # Propagé jusqu'ici (pas encore supervisé — loss BCE quand N_min=20) pour que
     # le moteur voie le tiers dès que les données existent. Vide sur données actuelles.
     third_map: dict = field(default_factory=dict)
+    # P4a : type de phrase résolu (annoté > règle bootstrap). "" = indéterminé.
+    sentence_type: str = ""
+    sentence_type_source: str = ""  # "annotated" | "rule" | ""
+
+
+def derive_sentence_type(text: str) -> str:
+    """Type de phrase par règle de ponctuation (bootstrap P4a).
+
+    "?" → interrogative, "!" → exclamative, sinon declarative. L'impératif
+    (verbe initial sans sujet) exige l'annotation — la règle ne devine pas.
+    Remplacé par SentenceRecord.sentence_type dès qu'annoté.
+    """
+    t = (text or "").rstrip()
+    if t.endswith("?"):
+        return "interrogative"
+    if t.endswith("!"):
+        return "exclamative"
+    return "declarative"
 
 
 class GCNDataLoader:
@@ -207,8 +225,14 @@ class GCNDataLoader:
                 UserWarning,
                 stacklevel=2,
             )
+        # P4a : type de phrase — annoté prime, règle bootstrap sinon.
+        _st_annot = (getattr(rec, 'sentence_type', '') or '').strip().lower()
+        if _st_annot:
+            _st, _st_src = _st_annot, "annotated"
+        else:
+            _st, _st_src = derive_sentence_type(rec.text), "rule"
         return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map,
-                              third_map)
+                              third_map, _st, _st_src)
 
 
 def reps_from_sentence(
@@ -262,6 +286,25 @@ def reps_from_sentence(
                 marker_token=gold_markers.get((a, b)),
             )
         )
+    # P4a : orphelins de bord (ex. "?" final hors span) rattachés à la clause
+    # adjacente pour le pooling lexical — sinon la ponctuation illocutoire
+    # n'atteint aucune rep et le type de phrase est inobservable. Orphelins
+    # médians inchangés (candidats connecteurs, cf. _connector_between).
+    # token_span/root intacts : seul tokens (pooling) est étendu.
+    if result:
+        _covered = {t["id"] for r in result for t in r.tokens}
+        _first_start = min(r.token_span[0] for r in result)
+        _last_end = max(r.token_span[1] for r in result)
+        for t in rec.tokens:
+            if t.id in _covered:
+                continue
+            _tok = {"lemma": t.lemma, "pos": t.pos, "dep_rel": t.dep_rel,
+                    "morph": t.morph, "id": t.id, "dep_head": t.dep_head,
+                    "form": t.form}
+            if t.id < _first_start:
+                result[0].tokens.insert(0, _tok)
+            elif t.id > _last_end:
+                result[-1].tokens.append(_tok)
     return result, valid_indices, connector_reps
 
 

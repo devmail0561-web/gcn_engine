@@ -122,6 +122,9 @@ def _parse_dataset_sentence(s: dict, lang: str = "", silver_weight: float = 1.0)
         causal_pattern=s.get("causal_pattern", ""),
         weight=weight,
         intent=s.get("intent", ""),
+        sentence_type=str(s.get("sentence_type", "") or "").strip().lower(),
+        sentence_type_source=(
+            "annotated" if str(s.get("sentence_type", "") or "").strip() else ""),
         sentence_profile=s.get("sentence_profile") or s.get("cir", {}).get("sentence_profile"),
         salience=s.get("salience") or s.get("cir", {}).get("salience"),
     )
