@@ -567,3 +567,68 @@ def test_two_pass_val_default_is_true():
     """L'attribut two_pass_val par défaut est True sur un nouveau pipeline."""
     pipeline = make_pipeline()
     assert pipeline.two_pass_val is True
+
+
+# ─── P1 : routage lexical edge → word_embedding ───────────────────────────────
+
+def _make_connector_rep(lemma: str = "car") -> "UDRepresentation":
+    from gcn_python.layer1.representation import UDRepresentation
+    return UDRepresentation(
+        tokens=[{"lemma": lemma, "pos": "SCONJ", "dep_rel": "mark", "morph": {}}],
+        root_lemma=lemma, root_pos="SCONJ", root_dep_rel="mark",
+        root_morph={}, subject_pos=None,
+        has_object=False, has_advcl=False, has_temporal_obl=False,
+        token_span=(3, 3),
+    )
+
+
+def test_p1_edge_routing_layout():
+    """P1 : le routing couvre clauses src/dst + connecteur, offsets dans la base."""
+    pipeline = make_test_pipeline()
+    pipeline.word_embedding.build_vocab(["baisser", "car"])
+    pipeline.forward([make_rep(), make_rep()], "X car Y.",
+                     connector_reps=[_make_connector_rep("car")])
+    routing = pipeline._cached_edge_routing
+    assert routing is not None and len(routing) == 1
+    lemmas = [lemma for (lemma, _off, _w) in routing[0]]
+    assert "car" in lemmas, f"connecteur absent du routing : {lemmas}"
+    assert "baisser" in lemmas
+    d_base = pipeline._cached_d_edge_base
+    d_emb = pipeline.word_embedding.d_emb
+    for (_lemma, _off, _w) in routing[0]:
+        assert _off >= 0 and _off + d_emb <= d_base, \
+            f"offset hors base : {_lemma}@{_off} (base={d_base})"
+
+
+def test_p1_edge_gradient_reaches_connector():
+    """P1 : backward avec d_edge non nul modifie l'embedding du connecteur.
+
+    'car' n'apparaît dans aucun chemin node (ni root poolé, ni R-GCN) :
+    tout mouvement prouve le routage lexical edge (avant P1 : jeté).
+    """
+    pipeline = make_test_pipeline()
+    pipeline.word_embedding.build_vocab(["baisser", "car"])
+    before = pipeline.word_embedding.lookup("car").copy()
+    pipeline.forward([make_rep(), make_rep()], "X car Y.",
+                     connector_reps=[_make_connector_rep("car")])
+    n_pairs = len(pipeline._cached_edge_logits)
+    d_node = np.zeros((2, len(NODE_TYPES)), dtype=np.float32)
+    d_edge = np.ones((n_pairs, len(RELATION_TYPES)), dtype=np.float32)
+    pipeline.backward(d_node, d_edge, lr=0.01)
+    after = pipeline.word_embedding.lookup("car")
+    assert not np.array_equal(before, after), \
+        "embedding connecteur inchangé — gradient lexical edge non routé"
+
+
+def test_p1_edge_routing_filtered_with_cache():
+    """P1 : filter_edge_cache filtre le routing avec les paires (alignement)."""
+    pipeline = make_test_pipeline()
+    pipeline.word_embedding.build_vocab(["baisser", "car"])
+    reps = [make_rep(), make_rep(), make_rep()]
+    pipeline.forward(reps, "X car Y puis Z.",
+                     connector_reps=[_make_connector_rep("car"),
+                                     _make_connector_rep("car")])
+    assert len(pipeline._cached_edge_pairs) == 3
+    pipeline.filter_edge_cache(np.array([0, 2]))
+    assert len(pipeline._cached_edge_pairs) == 2
+    assert len(pipeline._cached_edge_routing) == 2

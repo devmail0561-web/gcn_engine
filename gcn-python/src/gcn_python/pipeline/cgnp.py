@@ -279,6 +279,10 @@ class CGNPipeline:
         self._cached_pool_routing: list | None = None
         # Cache paires d'arêtes (src_i, dst_i) — pour router dx edge → d_enriched
         self._cached_edge_pairs: list[tuple[int, int]] | None = None
+        # P1 : routage lexical edge — [(lemma, offset, poids)] par arête,
+        # miroir du forward (clauses src/dst + connecteur) pour router dx
+        # de edge_vec_base vers word_embedding (avant : jeté au backward)
+        self._cached_edge_routing: list | None = None
         # Offsets mesurés à la construction du vecteur enriched_edge (forward)
         # évite de re-dériver la structure du vecteur dans backward
         self._cached_d_edge_base: int | None = None
@@ -413,6 +417,7 @@ class CGNPipeline:
         self._cached_reps = None
         self._cached_pool_routing = None
         self._cached_edge_pairs = None
+        self._cached_edge_routing = None
         self._cached_qual_logits: dict[str, np.ndarray] | None = None
         self._cached_d_quals: dict[str, np.ndarray] | None = None
         self._cached_d_edge_base = None
@@ -616,6 +621,7 @@ class CGNPipeline:
         all_edge_logits: list[np.ndarray] = []
         edge_snapshots: list = []
         edge_pairs_cache: list[tuple[int, int]] = []
+        edge_routing_cache: list = []
         qual_logits_cache: dict[str, list[np.ndarray]] = {}
         if len(reps) >= 2:
             real_n = n_total_clauses if n_total_clauses is not None else len(reps)
@@ -658,6 +664,31 @@ class CGNPipeline:
                     self._cached_d_eff = len(enriched[src_i])
                 edge_vecs.append(enriched_edge)
                 edge_pairs_cache.append((src_i, dst_i))
+                # P1 : routage lexical edge — offsets des blocs embeddings dans
+                # edge_vec_base = [clause(src) | clause(dst) | conn | inter].
+                # Clause : section emb à d_struct (+ L_ce pour dst) ; connecteur :
+                # lemme à 2*L_ce + (d_conn - 2). Miroir exact du forward ci-dessus.
+                _routes_i: list[tuple[str, int, np.ndarray]] = []
+                if self.word_embedding is not None:
+                    _d_emb_r = self.word_embedding.d_emb
+                    _d_struct = self.vocabulary.d_clause
+                    _L_ce = self.vocabulary.d_clause_effective(
+                        _d_emb_r, self.subject_object_emb)
+                    for (_lemma, _off, _w) in embedding_routing(
+                            reps[src_i], self.word_embedding,
+                            self.clause_pooling, self.subject_object_emb):
+                        _routes_i.append((_lemma, _d_struct + _off, _w))
+                    for (_lemma, _off, _w) in embedding_routing(
+                            reps[dst_i], self.word_embedding,
+                            self.clause_pooling, self.subject_object_emb):
+                        _routes_i.append((_lemma, _L_ce + _d_struct + _off, _w))
+                    if connector is not None:
+                        _routes_i.append((
+                            connector.root_lemma,
+                            2 * _L_ce + self.vocabulary.d_conn - 2,
+                            np.ones(_d_emb_r, dtype=np.float32),
+                        ))
+                edge_routing_cache.append(_routes_i)
                 edge_logit = self.encoder.forward_edge(enriched_edge)
                 # P4 quals — logits par tête sur le même vecteur enrichi.
                 if getattr(self.encoder, 'qual_heads', False):
@@ -699,6 +730,7 @@ class CGNPipeline:
             self._cached_edge_vecs = np.stack(edge_vecs)
             self._cached_edge_logits = np.stack(all_edge_logits)
             self._cached_edge_pairs = edge_pairs_cache
+            self._cached_edge_routing = edge_routing_cache
             # P4 quals — stacks par tête, alignés sur edge_pairs.
             self._cached_qual_logits = {
                 _qn: np.stack(_ql) for _qn, _ql in qual_logits_cache.items()
@@ -757,6 +789,9 @@ class CGNPipeline:
             self._cached_edge_snapshots = [self._cached_edge_snapshots[i] for i in valid_idxs]
         if self._cached_edge_pairs is not None:
             self._cached_edge_pairs = [self._cached_edge_pairs[i] for i in valid_idxs]
+        # P1 : routing lexical filtré avec les arêtes (aligné sur edge_pairs).
+        if self._cached_edge_routing is not None:
+            self._cached_edge_routing = [self._cached_edge_routing[i] for i in valid_idxs]
         # P4 quals — filtrés avec les arêtes (alignés sur edge_pairs).
         if self._cached_qual_logits is not None:
             self._cached_qual_logits = {
@@ -1171,6 +1206,8 @@ class CGNPipeline:
                             "(dims inattendues) — R-GCN non mis à jour sur cette arête.",
                             UserWarning, stacklevel=2,
                         )
+                    # P1 : gradient lexical edge → word_embedding (connecteur + poolés).
+                    self._backward_edge_base(i, dx_i)
                 else:
                     grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
@@ -1330,6 +1367,41 @@ class CGNPipeline:
                     _g = _pad
                 self.word_embedding.backward(_g * w, lemma)
 
+    def _backward_edge_base(self, i: int, dx_i: np.ndarray, caller: str = "backward") -> None:
+        """Route le gradient lexical (edge_vec_base) vers word_embedding (P1).
+
+        Chaque entrée (lemma, offset, poids) de _cached_edge_routing[i] reçoit
+        dx_i[offset : offset+d_emb] * poids — lemmes poolés des 2 clauses et
+        lemme du connecteur. Avant P1 cette tranche de dx était jetée : seul
+        le chemin R-GCN (d_enriched) apprenait, le signal le plus discriminant
+        (connecteur) n'avait aucun gradient edge.
+        N'appelle PAS update() — l'appelant décide (SGD immédiat vs accumulé).
+        Warn (jamais silencieuse, jamais crash) si caches désalignés.
+        """
+        if self.word_embedding is None:
+            return
+        _routing = self._cached_edge_routing
+        _d_base = self._cached_d_edge_base
+        if (_routing is None or i >= len(_routing) or _d_base is None
+                or dx_i.shape[0] < _d_base):
+            import warnings as _w_eb
+            _w_eb.warn(
+                f"{caller}() : gradient lexical edge non routé "
+                "(cache routing/base désaligné) — connecteur non mis à jour "
+                "sur cette arête.",
+                UserWarning, stacklevel=2,
+            )
+            return
+        _d_emb = self.word_embedding.d_emb
+        _dx_base = dx_i[:_d_base]
+        for (_lemma, _off, _w) in _routing[i]:
+            _g = _dx_base[_off:_off + _d_emb]
+            if len(_g) < _d_emb:  # garde : cache/forward désalignés
+                _pad = np.zeros(_d_emb, dtype=np.float32)
+                _pad[:len(_g)] = _g
+                _g = _pad
+            self.word_embedding.backward(_g * _w, _lemma)
+
     def backward_accumulate(
         self,
         d_node_logits: np.ndarray,
@@ -1437,6 +1509,8 @@ class CGNPipeline:
                             "(dims inattendues).",
                             UserWarning, stacklevel=2,
                         )
+                    # P1 : idem backward() — accumulation, update à l'apply.
+                    self._backward_edge_base(i, dx_i, caller="backward_accumulate")
                 else:
                     grads_i = self.encoder.backward_edge(d_edge_logits[i])
                 if all_edge_grads is None:
