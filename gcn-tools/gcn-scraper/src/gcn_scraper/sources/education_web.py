@@ -24,6 +24,36 @@ class EducationScraper:
         "https://fr.wikipedia.org/wiki/Astronomie",
         "https://fr.wikipedia.org/wiki/Ecologie",
         "https://fr.wikipedia.org/wiki/Medecine",
+        # Vikidia (encyclopédie junior) — causalité simple
+        "https://fr.vikidia.org/wiki/Cause",
+        "https://fr.vikidia.org/wiki/Expérience_scientifique",
+        "https://fr.vikidia.org/wiki/Gravité",
+        "https://fr.vikidia.org/wiki/Photosynthèse",
+        "https://fr.vikidia.org/wiki/Électricité",
+        "https://fr.vikidia.org/wiki/Maladie",
+        "https://fr.vikidia.org/wiki/Climat",
+        "https://fr.vikidia.org/wiki/Volcan",
+        # Wikiversité — cours
+        "https://fr.wikiversity.org/wiki/Introduction_à_la_logique",
+        "https://fr.wikiversity.org/wiki/Cause_et_conséquence",
+        "https://fr.wikiversity.org/wiki/Biologie_cellulaire",
+        "https://fr.wikiversity.org/wiki/Thermodynamique",
+        # Sésamath (manuels maths)
+        "https://www.sesamath.net/",
+        # EN — Khan Academy / éducatif
+        "https://en.wikipedia.org/wiki/Causality",
+        "https://en.wikipedia.org/wiki/Causal_reasoning",
+        "https://en.wikipedia.org/wiki/Scientific_method",
+        "https://en.wikipedia.org/wiki/Photosynthesis",
+        "https://en.wikipedia.org/wiki/Gravity",
+        "https://en.wikipedia.org/wiki/Electricity",
+        "https://en.wikipedia.org/wiki/Disease",
+        "https://en.wikipedia.org/wiki/Climate_change",
+        "https://simple.wikipedia.org/wiki/Cause_and_effect",
+        "https://simple.wikipedia.org/wiki/Science",
+        "https://simple.wikipedia.org/wiki/Biology",
+        "https://simple.wikipedia.org/wiki/Physics",
+        "https://simple.wikipedia.org/wiki/Chemistry",
     ]
 
     def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)"):
