@@ -158,7 +158,8 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--val-dir", default=None, type=click.Path(path_type=Path),
               help="Répertoire val JSON (optionnel). Métriques val calculées à chaque epoch.")
 @click.option("--patience", default=0, show_default=True, type=int,
-              help="Epochs sans amélioration de val_node_macro_f1 avant arrêt. "
+              help="Epochs sans amélioration de val_edge_macro_f1 avant arrêt "
+                   "(protocole gelé : best unique = val_edge). "
                    "0 = désactivé (défaut). Requiert --val-dir.")
 @click.option("--weight-decay", default=1e-4, show_default=True, type=float,
               help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
@@ -965,13 +966,10 @@ def train_cmd(
     csv_writer = None
     csv_file = None
 
-    best_val_f1 = -1.0
-    best_epoch_num = 0
-    best_checkpoint_path = str(output) + ".best.npz"
-    _patience_counter = 0
     best_val_edge_f1 = -1.0
     best_edge_epoch = 0
     best_edge_checkpoint_path = str(output) + ".best_edge.npz"
+    _patience_counter = 0
 
     def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
         """Bascule TOUS les composants avec dropout en mode eval ou train."""
@@ -1044,6 +1042,7 @@ def train_cmd(
 
             gold_edge = None
             edge_logits_arg = None
+            _val_edge_sw = None  # défaut si phrase sans paire supervisée (cf. boucle train)
             if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                     and sample.edge_map
                     and edge_logits is not None and len(edge_logits) > 0):
@@ -1608,43 +1607,37 @@ def train_cmd(
                     )
                 click.echo(msg)
 
-            # Sauver le meilleur checkpoint val_edge_macro_f1 (indépendant de l'early stopping)
+            # Protocole gelé : best UNIQUE = val_edge_macro_f1 — sauvegarde
+            # du meilleur ET compteur patience sur le même critère (pas de
+            # double standard node/edge). Actif même avec patience=0.
             if val_loader is not None:
                 _cur_edge_f1 = metrics.get("val_edge_macro_f1", 0.0)
                 if _cur_edge_f1 > best_val_edge_f1:
                     best_val_edge_f1 = _cur_edge_f1
                     best_edge_epoch = epoch
                     save_checkpoint(pipeline, Path(best_edge_checkpoint_path))
-
-            # Early stopping (surveille val_node_macro_f1 pour la patience)
-            if patience > 0 and val_loader is not None:
-                val_f1 = metrics.get("val_node_macro_f1", 0.0)
-                if val_f1 > best_val_f1:
-                    best_val_f1 = val_f1
-                    best_epoch_num = epoch
                     _patience_counter = 0
-                    save_checkpoint(pipeline, Path(best_checkpoint_path))
-                else:
+                elif patience > 0:
                     _patience_counter += 1
                     if _patience_counter >= patience:
                         click.echo(
                             f"Early stopping : {patience} epochs sans amélioration "
-                            f"(best val_node_macro_f1={best_val_f1:.4f} à epoch {best_epoch_num})"
+                            f"(best val_edge_macro_f1={best_val_edge_f1:.4f} à epoch {best_edge_epoch})"
                         )
                         break
     finally:
         if csv_file:
             csv_file.close()
 
-    # Early stopping : restaurer le meilleur checkpoint
+    # Protocole gelé : restore aligné sur val_edge_macro_f1 (même critère
+    # que best et patience — le checkpoint final EST le meilleur edge).
     if patience > 0 and val_loader is not None:
         import shutil
-        if best_epoch_num > 0:
+        if best_edge_epoch > 0:
             _tmp = Path(str(output) + ".tmp.restore")
-            shutil.copy2(best_checkpoint_path, str(_tmp))
+            shutil.copy2(best_edge_checkpoint_path, str(_tmp))
             Path(_tmp).replace(output)  # atomique POSIX
-            Path(best_checkpoint_path).unlink(missing_ok=True)
-            click.echo(f"Best checkpoint restauré (epoch {best_epoch_num}, val_f1={best_val_f1:.4f})")
+            click.echo(f"Best checkpoint restauré (epoch {best_edge_epoch}, val_edge_macro_f1={best_val_edge_f1:.4f})")
         else:
             save_checkpoint(pipeline, output)
             click.echo("Aucune amélioration val — checkpoint final sauvegardé")
@@ -1675,6 +1668,13 @@ def train_cmd(
             click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
 
     click.echo(f"Checkpoint sauvegardé : {output}")
+    # B (dérive orphelins) : compteur module rendu visible — chaque token
+    # rattaché recalcule feat[11] (relative_depth) et le pooling lexical.
+    from ..data.loader import _ORPHAN_STATS as _ORPHAN_STATS_RUN
+    click.echo(
+        f"Orphelins rattachés : {_ORPHAN_STATS_RUN['attached']} tokens "
+        f"sur {_ORPHAN_STATS_RUN['sentences']} phrases (train+val)"
+    )
     if val_loader is not None and best_edge_epoch > 0:
         click.echo(
             f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
