@@ -30,17 +30,19 @@ V4 = ROOT / "gcn-datasets" / "DATA" / "supervision" / "v4"
 
 def load_pool():
     pool = {}
-    for rel in ("candidates/candidates.json", "candidates/candidates_fresh.json"):
+    for rel, reg in (("candidates/candidates.json", "encyclo"),
+                     ("candidates/candidates_fresh.json", "science"),
+                     ("candidates/candidates_divers.json", None)):
         p = V4 / rel
         if p.exists():
             for s in json.load(open(p))["document"]["sentences"]:
-                pool.setdefault(s["id"], s["text"])
+                pool.setdefault(s["id"], (s["text"], s.get("registre", reg)))
     return pool
 
 
-def lattice(text):
-    r = subprocess.run([GCN, "analyze", "--", text],
-                       capture_output=True, text=True, timeout=120)
+def lattice(text, lang="fr"):
+    cmd = [GCN, "analyze-en" if lang == "en" else "analyze", "--", text]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
         raise RuntimeError(r.stderr[-300:])
     toks = json.loads(r.stdout)["tokens"]
@@ -78,13 +80,14 @@ def to_lattice_span(Pspans, Lspans, a, b):
 
 def main() -> None:
     sel_path, tag = sys.argv[1], sys.argv[2]
+    strict_auto = len(sys.argv) > 3 and sys.argv[3] == "--strict-auto"
     cand = load_pool()
     sel = json.load(open(sel_path))
     lot, quar, litig = [], [], []
     for sid, _rel_exp, lang in sel:
-        text = cand[sid]
+        text, registre = cand[sid]
         try:
-            toks = lattice(text)
+            toks = lattice(text, lang)
         except Exception as e:  # noqa: BLE001
             quar.append({"id": sid, "text": text,
                          "motif": f"lattice indisponible: {e}", "tombstone": True})
@@ -127,6 +130,12 @@ def main() -> None:
             quar.append({"id": sid, "text": text, "motif": "; ".join(flags),
                          "tombstone": True})
             continue
+        if strict_auto and any(
+                n["token_span"][1] - n["token_span"][0] + 1 <= 1 for n in nrecs):
+            quar.append({"id": sid, "text": text,
+                         "motif": "auto-quarantaine vague (noeud dégénéré)",
+                         "tombstone": True})
+            continue
         mid = pe.get("attributes", {}).get("marker_token")
         if mid:
             mid += _prefix
@@ -141,6 +150,11 @@ def main() -> None:
         else:
             marker, explicit, conf = None, False, 0.6
             flags.append("marqueur non mappé → explicit:false")
+        if strict_auto and (conf < 0.8 or not explicit):
+            quar.append({"id": sid, "text": text,
+                         "motif": f"auto-quarantaine vague (conf={conf} explicit={explicit})",
+                         "tombstone": True})
+            continue
         e0 = {"sources": [pe["source"].replace("n001", "n1").replace("n002", "n2")],
               "target": pe["target"].replace("n001", "n1").replace("n002", "n2"),
               "relation": pe["relation"], "explicit": explicit,
@@ -154,6 +168,7 @@ def main() -> None:
         elif text.rstrip().endswith("!"):
             st = "exclamative"
         rec = {"id": sid, "text": text, "tokens": toks, "sentence_type": st,
+               "registre": registre or "encyclo",
                "cir": {"nodes": nrecs, "edges": [e0]}}
         if intent:
             rec["intent"] = intent
