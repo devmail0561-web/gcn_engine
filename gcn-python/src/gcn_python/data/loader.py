@@ -256,6 +256,10 @@ class GCNDataLoader:
                               qual_map, third_map, _st, _st_src)
 
 
+# B : compteur d'orphelins rattachés (dérive pooling/feat[11] tracée).
+_ORPHAN_STATS: dict[str, int] = {"attached": 0, "sentences": 0}
+
+
 def reps_from_sentence(
     rec: SentenceRecord,
 ) -> tuple[list[UDRepresentation], list[int], list[UDRepresentation | None]]:
@@ -316,6 +320,7 @@ def reps_from_sentence(
         _covered = {t["id"] for r in result for t in r.tokens}
         _first_start = min(r.token_span[0] for r in result)
         _last_end = max(r.token_span[1] for r in result)
+        _n_orph = 0
         for t in rec.tokens:
             if t.id in _covered:
                 continue
@@ -324,8 +329,14 @@ def reps_from_sentence(
                     "form": t.form}
             if t.id < _first_start:
                 result[0].tokens.insert(0, _tok)
+                _n_orph += 1
             elif t.id > _last_end:
                 result[-1].tokens.append(_tok)
+                _n_orph += 1
+        # B (dérive orphelins) : compté au niveau module, pas silencieux —
+        # recalcule feat[11] (relative_depth) et le pooling ; effet faible mais réel.
+        _ORPHAN_STATS["attached"] += _n_orph
+        _ORPHAN_STATS["sentences"] += 1 if _n_orph else 0
     return result, valid_indices, connector_reps
 
 
