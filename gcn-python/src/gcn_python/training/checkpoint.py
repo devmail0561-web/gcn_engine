@@ -101,6 +101,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
         "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
+        "edge_dropout": float(getattr(pipeline.encoder, 'edge_dropout', 0.3)),
         # P4b : couplage intent←sentence — absent = False (vieux checkpoints).
         "intent_conditioned": bool(getattr(pipeline.encoder, 'intent_conditioned', False)),
         # P4 quals : têtes actives ou non — absent = False (vieux checkpoints).
@@ -551,6 +552,10 @@ def load_checkpoint(
                 )
             else:
                 pipeline.encoder.mlp_hidden = _mh_int
+        _ed = _arch.get("edge_dropout")
+        if _ed is not None and hasattr(pipeline.encoder, 'edge_dropout'):
+            # Dropout : valeur scalaire sans impact sur les shapes — reprise sûre.
+            pipeline.encoder.edge_dropout = float(_ed)
 
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"

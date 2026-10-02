@@ -164,6 +164,9 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
 @click.option("--rgcn-dropout", default=0.1, show_default=True, type=float,
               help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
+@click.option("--edge-dropout", default=0.3, show_default=True, type=float,
+              help="Dropout des couches cachées de la tête edge (MLPEncoder). "
+                   "0 = désactivé (recommandé en few-shot : variance >> signal).")
 @click.option("--label-smoothing", default=0.05, show_default=True, type=float,
               help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
 @click.option("--link-pred/--no-link-pred", default=False, show_default=True,
@@ -311,6 +314,7 @@ def train_cmd(
     patience: int,
     weight_decay: float,
     rgcn_dropout: float,
+    edge_dropout: float,
     label_smoothing: float,
     link_pred: bool,
     neg_ratio: float,
@@ -570,12 +574,15 @@ def train_cmd(
         click.echo("  [P4b] intent conditionnée par sentence_type (concat distribution).")
     # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
     # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
+    if not (0.0 <= edge_dropout < 1.0):
+        raise click.ClickException(f"--edge-dropout doit être dans [0, 1[ (reçu {edge_dropout}).")
     if global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         try:
             encoder = TransformerMLPEncoder(
                 d_clause=d_effective, d_edge=d_edge_closed,
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                edge_dropout=edge_dropout,
                 n_node_types=n_node_types,
                 n_relation_types=n_relation_types,
                 n_sentence_types=n_sentence_types,
@@ -591,6 +598,7 @@ def train_cmd(
             raise click.ClickException("--mha-heads requiert --global-attention.")
         encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
                              weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             edge_dropout=edge_dropout,
                              n_node_types=n_node_types,
                              n_relation_types=n_relation_types,
                              n_sentence_types=n_sentence_types,
