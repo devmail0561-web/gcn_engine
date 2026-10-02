@@ -70,6 +70,10 @@ pub fn emit_node(
             ..Default::default()
         },
         parent: None,
+        // C0 : le kind grammatical (ensemble fini, cf. kinds.rs) est conservé
+        // comme lemme d'entraînement — sans lui, chaque label source est
+        // unique et le moteur ne généralise pas.
+        kind: Some(node.kind().to_string()),
     });
     id
 }

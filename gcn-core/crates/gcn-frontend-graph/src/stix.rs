@@ -99,6 +99,7 @@ pub fn parse_bundle_with_report(
             origin: NodeOrigin::Explicit,
             attributes: Default::default(),
             parent: None,
+            kind: None,
         });
         // Premier objet gagne en cas d'id dupliqué (bundle malformé).
         id_to_node.entry(id.to_string()).or_insert(node_id);

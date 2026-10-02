@@ -46,6 +46,7 @@ fn node(id: u32, label: &str, node_type: NodeType) -> CausalNode {
         temporal_index: Some(id as i32),
         origin: NodeOrigin::Explicit,
         attributes: NodeAttributes::default(),
+        kind: None,
     }
 }
 

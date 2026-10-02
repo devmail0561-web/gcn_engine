@@ -136,6 +136,7 @@ pub fn parse_table(
             origin: NodeOrigin::Explicit,
             attributes: Default::default(),
             parent: None,
+            kind: None,
         });
         id_by_label.insert(label.to_string(), id);
         id

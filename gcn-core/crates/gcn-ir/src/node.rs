@@ -134,4 +134,9 @@ pub struct CausalNode {
     /// None = nœud de premier niveau. Optionnel en lecture pour compat CIR v1.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub parent: Option<NodeId>,
+    /// Symbole grammatical source (tree-sitter `kind`, ex. "if_statement").
+    /// Peuplé par gcn-frontend-code uniquement ; None ailleurs et en lecture
+    /// des CIR antérieurs. Vocabulaire fini et stable (cf. kinds.rs).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub kind: Option<String>,
 }

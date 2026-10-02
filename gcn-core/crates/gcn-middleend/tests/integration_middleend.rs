@@ -21,6 +21,7 @@ fn node(id: u32, node_type: NodeType) -> CausalNode {
         origin: NodeOrigin::Explicit,
         attributes: NodeAttributes::default(),
         parent: None,
+        kind: None,
     }
 }
 
