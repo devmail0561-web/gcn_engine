@@ -54,6 +54,37 @@ class EducationScraper:
         "https://simple.wikipedia.org/wiki/Biology",
         "https://simple.wikipedia.org/wiki/Physics",
         "https://simple.wikipedia.org/wiki/Chemistry",
+        # Vague 2 (2026-10-02) : simple + avancé
+        # Simple FR (Vikidia)
+        "https://fr.vikidia.org/wiki/Eau",
+        "https://fr.vikidia.org/wiki/Air",
+        "https://fr.vikidia.org/wiki/Soleil",
+        "https://fr.vikidia.org/wiki/Terre",
+        "https://fr.vikidia.org/wiki/Corps_humain",
+        "https://fr.vikidia.org/wiki/Animaux",
+        "https://fr.vikidia.org/wiki/Plantes",
+        "https://fr.vikidia.org/wiki/Énergie",
+        # Simple EN
+        "https://simple.wikipedia.org/wiki/Water",
+        "https://simple.wikipedia.org/wiki/Air",
+        "https://simple.wikipedia.org/wiki/Fire",
+        "https://simple.wikipedia.org/wiki/Earth",
+        "https://simple.wikipedia.org/wiki/Animals",
+        "https://simple.wikipedia.org/wiki/Plants",
+        "https://simple.wikipedia.org/wiki/Human_body",
+        "https://simple.wikipedia.org/wiki/Energy",
+        # Avancé FR
+        "https://fr.wikipedia.org/wiki/Antibiotique",
+        "https://fr.wikipedia.org/wiki/Vaccin",
+        "https://fr.wikipedia.org/wiki/Ordinateur_quantique",
+        "https://fr.wikipedia.org/wiki/Relativité_restreinte",
+        "https://fr.wikipedia.org/wiki/Évolution_(biologie)",
+        # Avancé EN
+        "https://en.wikipedia.org/wiki/Antibiotic",
+        "https://en.wikipedia.org/wiki/Vaccine",
+        "https://en.wikipedia.org/wiki/Quantum_computing",
+        "https://en.wikipedia.org/wiki/Theory_of_relativity",
+        "https://en.wikipedia.org/wiki/Evolution",
     ]
 
     def __init__(self, user_agent: str = "GCN-Dataset/1.0 (research)"):
