@@ -7,7 +7,7 @@ use gcn_ir::{
 };
 use tree_sitter::Parser;
 
-use crate::common::{CodeParseReport, control_edge, emit_node, walk_dataflow};
+use crate::common::{CodeParseReport, control_edge, emit_node};
 use crate::error::CodeParserError;
 use crate::kinds::{Lang, is_transparent, kind_info};
 
@@ -116,14 +116,6 @@ fn walk_block(
             // impl_item body is declaration_list, not block
             "impl_item" | "trait_item" => {
                 walk_body_of_decl(child, src, nodes, edges, next_id, report)
-            }
-            // C2a : récursion data-flow (voir python.rs).            "assignment_expression"
-            "compound_assignment_expr"
-            | "call_expression"
-            | "let_declaration"
-            | "return_expression" => {
-                walk_dataflow(Lang::Rust, id, child, src, nodes, edges, next_id, report);
-                vec![]
             }
             _ => vec![],
         };

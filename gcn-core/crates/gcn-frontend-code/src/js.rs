@@ -7,7 +7,7 @@ use gcn_ir::{
 };
 use tree_sitter::Parser;
 
-use crate::common::{CodeParseReport, control_edge, emit_node, walk_dataflow};
+use crate::common::{CodeParseReport, control_edge, emit_node};
 use crate::error::CodeParserError;
 use crate::kinds::{Lang, is_transparent, kind_info};
 
@@ -114,12 +114,6 @@ fn walk_block(
             | "for_in_statement"
             | "function_declaration"
             | "function" => walk_body_of(child, src, nodes, edges, next_id, report),
-            // C2a : récursion data-flow (voir python.rs). variable_declaration
-            // exclu : ses déclarateurs ne sont pas mappés (documenté).
-            "assignment_expression" | "call_expression" | "return_statement" => {
-                walk_dataflow(Lang::Js, id, child, src, nodes, edges, next_id, report);
-                vec![]
-            }
             _ => vec![],
         };
         for body_id in body_ids {

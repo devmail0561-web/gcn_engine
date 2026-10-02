@@ -93,7 +93,8 @@ def main() -> None:
             s, t, a = new_id.get(e[0]), new_id.get(e[1]), e[2] or {}
             if not s or not t or s not in kept or t not in kept:
                 continue
-            if s > t:
+            # Comparaison sur indices entiers (pas lexicographique : 'n100' < 'n99').
+            if int(s[1:]) > int(t[1:]):
                 # Vers l'arrière : transmis tel quel — le loader décide
                 # (ignore cause/enable/prevent, remappe les autres, loader.py:206-230).
                 backward += 1

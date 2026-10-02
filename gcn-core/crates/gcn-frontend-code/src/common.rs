@@ -7,7 +7,7 @@ use gcn_ir::{
 };
 use smallvec::SmallVec;
 
-use crate::kinds::{LabelStrategy, Lang, kind_info};
+use crate::kinds::LabelStrategy;
 
 /// Compteurs de ce qui n'a PAS produit de nœud/arête — transparence anti-silence
 /// (même patron que Graph/TableParseReport). P0-3 : les kinds AST non mappés
@@ -119,86 +119,6 @@ pub fn full_text_label(node: tree_sitter::Node<'_>, src: &[u8]) -> (String, bool
         Ok(t) => truncate(t.trim()),
         Err(_) => ("?".to_string(), false),
     }
-}
-
-/// Enfants grammaticaux qui enveloppent des arguments sans sémantique propre
-/// (un niveau) — traversés pour atteindre les vrais nœuds de données.
-fn is_arg_wrapper(kind: &str) -> bool {
-    matches!(kind, "arguments" | "argument_list")
-}
-
-/// Récursion data-flow (C2a) : pour un nœud de données (assignation, appel,
-/// retour), émet les enfants de données et les relie par DataDependency.
-///
-/// Direction : parent → enfant, lecture « dépend de » (convention texte
-/// vérifiée : lot07 d1, « X dépend de Y » = arête X→Y). Le parent ayant
-/// l'id le plus petit (émis en premier), l'arête est vers l'avant :
-/// le loader la supervise telle quelle (les inverses seraient remappées
-/// en loader.py:206-230, ce qu'on évite).
-///
-/// Ne retourne RIEN : les arêtes sont poussées ici (l'appelant `walk_block`
-/// ajouterait sinon un doublon). Un seul niveau d'enveloppe d'arguments
-/// est traversé ; les chaînes (`f(g(x))`) passent par récursion sur les
-/// enfants mappés émis. Cibles non mappées (identifiants, littéraux) :
-/// ignorées et comptées, jamais devinées.
-#[allow(clippy::too_many_arguments)] // signature walkers : même patron que walk_block/walk_if
-pub fn walk_dataflow(
-    lang: Lang,
-    parent_id: NodeId,
-    node: tree_sitter::Node<'_>,
-    src: &[u8],
-    nodes: &mut Vec<CausalNode>,
-    edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
-    next_id: &mut u32,
-    report: &mut CodeParseReport,
-) {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.is_extra() || !child.is_named() {
-            continue;
-        }
-        if is_arg_wrapper(child.kind()) {
-            let mut inner = child.walk();
-            for sub in child.children(&mut inner) {
-                if sub.is_extra() || !sub.is_named() {
-                    continue;
-                }
-                emit_data_child(lang, parent_id, sub, src, nodes, edges, next_id, report);
-            }
-        } else {
-            emit_data_child(lang, parent_id, child, src, nodes, edges, next_id, report);
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)] // même patron que walk_dataflow ci-dessus
-fn emit_data_child(
-    #[allow(clippy::too_many_arguments)] // idem walk_dataflow ci-dessus
-    lang: Lang,
-    parent_id: NodeId,
-    child: tree_sitter::Node<'_>,
-    src: &[u8],
-    nodes: &mut Vec<CausalNode>,
-    edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
-    next_id: &mut u32,
-    report: &mut CodeParseReport,
-) {
-    let Some(info) = kind_info(lang, child.kind()) else {
-        report.skipped_unmapped += 1;
-        return;
-    };
-    let id = emit_node(
-        child,
-        src,
-        info.node_type,
-        nodes,
-        next_id,
-        info.label,
-        report,
-    );
-    edges.push((parent_id, id, control_edge(RelationType::DataDependency)));
-    // Récursion : les données des données (ex. `g` dans `f(g(x))`).
-    walk_dataflow(lang, id, child, src, nodes, edges, next_id, report);
 }
 
 pub fn control_edge(relation: RelationType) -> CausalEdge {
