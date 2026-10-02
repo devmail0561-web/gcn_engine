@@ -32,6 +32,7 @@ def load_pool():
     pool = {}
     for rel, reg in (("candidates/candidates.json", "encyclo"),
                      ("candidates/candidates_fresh.json", "science"),
+                     ("candidates/candidates_rares.json", None),
                      ("candidates/candidates_divers.json", None)):
         p = V4 / rel
         if p.exists():
