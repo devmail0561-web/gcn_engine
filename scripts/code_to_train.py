@@ -94,8 +94,9 @@ def main() -> None:
             if not s or not t or s not in kept or t not in kept:
                 continue
             if s > t:
-                backward += 1  # strict_directions les ignorera (compté, pas silencieux)
-                continue
+                # Vers l'arrière : transmis tel quel — le loader décide
+                # (ignore cause/enable/prevent, remappe les autres, loader.py:206-230).
+                backward += 1
             rels[a.get("relation", "?")] += 1
             edges.append({
                 "sources": [s], "target": t,
@@ -117,7 +118,7 @@ def main() -> None:
     qpath = str(Path(dst).with_name(Path(dst).stem + "_quar.json"))
     json.dump(quar, open(qpath, "w"), ensure_ascii=False)
     print(f"phrases: {len(sentences)} | quarantaines: {len(quar)} "
-          f"| sans-kind ignorés: {skipped_kind} | inverses ignorées: {backward}")
+          f"| sans-kind ignorés: {skipped_kind} | inverses transmises: {backward} (loader décide)")
     print("REL:", dict(rels))
 
 
