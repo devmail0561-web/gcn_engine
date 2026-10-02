@@ -194,6 +194,16 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
 @click.option("--mlp-hidden", default=128, show_default=True, type=int,
               help="Première couche cachée du MLP nœuds. Recommandé : 256 avec "
                    "--subject-object-emb (d_effective=226).")
+@click.option("--mlp-hidden2", default=64, show_default=True, type=int,
+              help="Deuxième couche cachée (nœuds/intent/sentence). 64 = défaut historique.")
+@click.option("--edge-hidden", default="256,128,64", show_default=True, type=str,
+              help="Couches cachées du MLP arêtes, séparées par des virgules. "
+                   "Défaut historique 256,128,64 (~320k params) ; few-shot : 128,64.")
+@click.option("--qual-hidden", default=32, show_default=True, type=int,
+              help="Couche cachée des têtes polarity/voice/modality. 32 = défaut historique.")
+@click.option("--decoupled-wd/--no-decoupled-wd", default=False, show_default=True,
+              help="Weight-decay découplé style AdamW (non scalé par lr). "
+                   "Défaut : couplé historique (W -= lr*dW + lr*wd*W).")
 @click.option("--freeze-embeddings/--no-freeze-embeddings", default=False, show_default=True,
               help="Geler les embeddings pré-entraînés (C). Requiert --embedding-file. "
                    "Les spéciaux _subj_absent/_obj_absent restent entraînables.")
@@ -217,6 +227,12 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Dataset source des paires verbalize (G1, défaut : --data-dir).")
 @click.option("--edge-threshold", default=0.0, show_default=True, type=float,
               help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
+@click.option("--theta-ambiguity", default=0.65, show_default=True, type=float,
+              help="Seuil Éq.11 : sous ce niveau de confiance, top-2 candidats "
+                   "marqués ambigus. 0.65 = défaut historique calibré.")
+@click.option("--temperature", default=1.0, show_default=True, type=float,
+              help="Température softmax initiale de la confiance d'émission. "
+                   "T5-min l'optimise ensuite sur val si disponible.")
 @click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
               help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
                    "pour simuler le bridge heuristique (parité train/inférence).")
@@ -266,6 +282,9 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="N_min v5 : une classe d'arête avec 0 < N < N_min est coupée du "
                    "softmax (ni apprise ni prédite) — le moteur ne prédit que ce "
                    "qu'il peut apprendre. Annotez jusqu'à N_min pour réactiver.")
+@click.option("--strict-directions/--no-strict-directions", default=False, show_default=True,
+              help="Fail-closed sur arêtes gold en direction inverse (src > tgt) : "
+                   "ValueError au lieu du drop/swap historique. Défaut : warn.")
 @click.option("--scheduled-sampling/--no-scheduled-sampling", default=False, show_default=True,
               help="Scheduled sampling : réduit linéairement la probabilité d'injecter "
                    "gold_edge_map en entraînement (1.0 → 0.0 sur ss-final-epoch epochs). "
@@ -323,6 +342,8 @@ def train_cmd(
     bfs_depth: int | None,
     n_rgcn_layers: int,
     edge_threshold: float,
+    theta_ambiguity: float,
+    temperature: float,
     drop_morph: bool,
     no_positional: bool,
     no_ternary: bool,
@@ -332,6 +353,10 @@ def train_cmd(
     clause_pooling: str,
     subject_object_emb: bool,
     mlp_hidden: int,
+    mlp_hidden2: int,
+    edge_hidden: str,
+    qual_hidden: int,
+    decoupled_wd: bool,
     freeze_embeddings: bool,
     silver_weight: float,
     n_gat_heads: int,
@@ -350,6 +375,7 @@ def train_cmd(
     max_grad_norm: float,
     max_class_weight: float,
     min_class_count: int,
+    strict_directions: bool,
     use_compgcn: bool,
     d_rel_emb: int,
     scheduled_sampling: bool,
@@ -402,6 +428,16 @@ def train_cmd(
         raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
     if mlp_hidden < 1:
         raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
+    if mlp_hidden2 < 1:
+        raise click.ClickException(f"--mlp-hidden2 doit être ≥ 1 (reçu {mlp_hidden2}).")
+    if qual_hidden < 1:
+        raise click.ClickException(f"--qual-hidden doit être ≥ 1 (reçu {qual_hidden}).")
+    _edge_parts = [h.strip() for h in edge_hidden.split(",")]
+    if (not _edge_parts or any(not h.isdigit() or int(h) < 1 for h in _edge_parts)):
+        raise click.ClickException(
+            f"--edge-hidden doit être une liste d'entiers ≥ 1 séparés par des virgules "
+            f"(reçu {edge_hidden!r}).")
+    _edge_hidden = tuple(int(h) for h in _edge_parts)
     if not _has_emb:
         raise click.ClickException(
             "word_embedding obligatoire (D10 ETUDE). "
@@ -444,13 +480,15 @@ def train_cmd(
     # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
     # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
     loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
-                           silver_weight=silver_weight, seed=_init_seed)
+                           silver_weight=silver_weight, seed=_init_seed,
+                           strict_directions=strict_directions)
     if len(loader) == 0:
         raise click.ClickException(f"Aucune sentence dans {data_dir}")
     val_loader = None
     if val_dir is not None:
         val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
-                                   silver_weight=silver_weight)
+                                   silver_weight=silver_weight,
+                                   strict_directions=strict_directions)
         if len(val_loader) == 0:
             raise click.ClickException(f"Aucune sentence dans {val_dir}")
         click.echo(f"Val : {len(val_loader)} sentences")
@@ -577,12 +615,18 @@ def train_cmd(
     # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
     if not (0.0 <= edge_dropout < 1.0):
         raise click.ClickException(f"--edge-dropout doit être dans [0, 1[ (reçu {edge_dropout}).")
+    if not (0.0 <= theta_ambiguity <= 1.0):
+        raise click.ClickException(f"--theta-ambiguity doit être dans [0, 1] (reçu {theta_ambiguity}).")
+    if not (temperature > 0):
+        raise click.ClickException(f"--temperature doit être > 0 (reçu {temperature}).")
     if global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         try:
             encoder = TransformerMLPEncoder(
                 d_clause=d_effective, d_edge=d_edge_closed,
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
                 edge_dropout=edge_dropout,
                 n_node_types=n_node_types,
                 n_relation_types=n_relation_types,
@@ -599,6 +643,8 @@ def train_cmd(
             raise click.ClickException("--mha-heads requiert --global-attention.")
         encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
                              weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                             qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
                              edge_dropout=edge_dropout,
                              n_node_types=n_node_types,
                              n_relation_types=n_relation_types,
@@ -713,6 +759,8 @@ def train_cmd(
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
+                           theta_ambiguity=theta_ambiguity,
+                           temperature=temperature,
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
                            node_types=_active_node_types,

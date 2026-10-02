@@ -167,12 +167,14 @@ def _norm_single(src_raw: Any, dst_raw: Any, attrs: dict, outer: dict,
     return result
 
 
-def normalize_edge(e: Any) -> dict | list[dict] | None:
+def normalize_edge(e: Any, strict_joint: bool = False) -> dict | list[dict] | None:
     """Normalise une arête tuple [src,dst,attrs] ou dict -> dict canonique.
 
     Retourne None si relation absente (warn) ou format invalide.
     Pour JOINT_CAUSE/JointPrevent avec 2 sources : retourne list[dict] (2 arêtes).
     confidence absente -> None + warn. negated absent -> None.
+    strict_joint=True : relation non-jointe sur 2 sources → ValueError
+    au lieu du forçage 'joint_cause' (fail-closed).
     """
     import hashlib
 
@@ -223,6 +225,10 @@ def normalize_edge(e: Any) -> dict | list[dict] | None:
         jgid = hashlib.sha256(key.encode()).hexdigest()[:16]
         relation = _get_relation(attrs, outer)
         if relation and sanitize_text(str(relation)) not in ("joint_cause", "joint_prevent"):
+            if strict_joint:
+                raise ValueError(
+                    f"edge_norm : relation '{relation}' sur 2 sources "
+                    "(strict_joint : annoter joint_cause/joint_prevent).")
             import warnings as _w
             _w.warn(
                 f"edge_norm: relation '{relation}' sur 2 sources remplacée par 'joint_cause'. "

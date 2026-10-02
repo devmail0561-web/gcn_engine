@@ -88,13 +88,16 @@ class GCNDataLoader:
 
     def __init__(self, data_dir: Path, repeat: bool = False,
                   all_pairs: bool = True, shuffle: bool = False, seed: int = 42,
-                  silver_weight: float = 1.0):
+                  silver_weight: float = 1.0, strict_directions: bool = False):
         self.data_dir = data_dir
         self.repeat = repeat
         self.all_pairs = all_pairs  # True par défaut — toutes les paires supervisées
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
         self.silver_weight = silver_weight  # Amélioration F (1.0 = aucun effet)
+        # Remaps directionnels : False = warn + drop/swap historique ;
+        # True = fail-closed (ValueError propagée, sample non silencié).
+        self._strict_directions = bool(strict_directions)
         self._records = load_all_sentences(data_dir, silver_weight)
         self._warned_total = False
         # Compteur agrégé pour arêtes asymétriques en direction inverse
@@ -119,6 +122,8 @@ class GCNDataLoader:
                 try:
                     yield self._to_sample(rec)
                 except ValueError as exc:
+                    if getattr(self, "_strict_directions", False):
+                        raise
                     warnings.warn(f"[{rec.id}] sample ignoré : {exc}", UserWarning, stacklevel=2)
             if (not self.repeat
                     and hasattr(self, '_total_backward_asymmetric')
@@ -200,6 +205,11 @@ class GCNDataLoader:
             rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
                 n_backward += 1
+                if getattr(self, "_strict_directions", False):
+                    raise ValueError(
+                        f"[{rec.id}] arête {e.relation} en direction inverse "
+                        f"({src_id}→{tgt}) src={src_idx} > tgt={tgt_idx} "
+                        "(--strict-directions : corriger l'annotation au lieu du remap).")
                 if e.relation in {"cause", "enable", "prevent"}:
                     warnings.warn(
                         f"[{rec.id}] arête asymétrique ignorée : {e.relation} "

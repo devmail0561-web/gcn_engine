@@ -45,7 +45,8 @@ class _LinearLayer:
 class MLPEncoder:
     """
     Implémentation de référence de la Couche 2 en NumPy pur.
-    Architecture : fc(D_in→mlp_hidden)+ReLU → fc(mlp_hidden→64)+ReLU → fc(64→out)
+    Architecture (dims configurables, défauts historiques) :
+    fc(D_in→mlp_hidden)+ReLU → fc(mlp_hidden→mlp_hidden2)+ReLU → fc(mlp_hidden2→out) ;
 
     Le data scientist substitue par son propre CausalEncoder
     (PyTorch, JAX, etc.) sans modifier le pipeline.
@@ -64,6 +65,10 @@ class MLPEncoder:
         weight_decay: float = 0.0,
         grad_clip: float | None = None,
         mlp_hidden: int = 128,
+        mlp_hidden2: int = 64,
+        edge_hidden: tuple[int, ...] = (256, 128, 64),
+        qual_hidden: int = 32,
+        decoupled_wd: bool = False,
         n_intent_types: int = 0,
         n_sentence_types: int = 0,
         intent_conditioned: bool = False,
@@ -87,6 +92,16 @@ class MLPEncoder:
             raise ValueError(
                 f"grad_clip doit être > 0 ou None (reçu {grad_clip!r})."
             )
+        if mlp_hidden < 1 or mlp_hidden2 < 1 or qual_hidden < 1:
+            raise ValueError(
+                "mlp_hidden/mlp_hidden2/qual_hidden doivent être ≥ 1 "
+                f"(reçus {mlp_hidden!r}, {mlp_hidden2!r}, {qual_hidden!r})."
+            )
+        _edge_hidden = tuple(int(h) for h in edge_hidden)
+        if not _edge_hidden or any(h < 1 for h in _edge_hidden):
+            raise ValueError(
+                f"edge_hidden doit être un tuple non vide d'entiers ≥ 1 (reçu {edge_hidden!r})."
+            )
         self.grad_clip = grad_clip
         rng = np.random.default_rng(seed)
         self._rng = np.random.default_rng(seed)
@@ -97,27 +112,31 @@ class MLPEncoder:
         self.weight_decay = weight_decay
         self.training = True
         self.mlp_hidden = mlp_hidden  # Amélioration B : 256 recommandé avec subj/obj
+        self.mlp_hidden2 = mlp_hidden2
+        self.edge_hidden = _edge_hidden
+        self.qual_hidden = qual_hidden
+        self.decoupled_wd = bool(decoupled_wd)
 
-        # Node MLP : d_clause → mlp_hidden → 64 → n_node_types
+        # Node MLP : d_clause → mlp_hidden → mlp_hidden2 → n_node_types
         self._node_layers = [
             _LinearLayer(d_clause, mlp_hidden, rng),
-            _LinearLayer(mlp_hidden, 64, rng),
-            _LinearLayer(64, n_node_types, rng),
+            _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+            _LinearLayer(mlp_hidden2, n_node_types, rng),
         ]
 
-        # Edge MLP : d_edge → 256 → 128 → 64 → n_relation_types (3 couches cachées pour closed-loop)
-        self._edge_layers = [
-            _LinearLayer(d_edge, 256, rng),
-            _LinearLayer(256, 128, rng),
-            _LinearLayer(128, 64, rng),
-            _LinearLayer(64, n_relation_types, rng),
-        ]
+        # Edge MLP : d_edge → edge_hidden → n_relation_types (closed-loop)
+        _prev = d_edge
+        self._edge_layers = []
+        for _h in _edge_hidden:
+            self._edge_layers.append(_LinearLayer(_prev, _h, rng))
+            _prev = _h
+        self._edge_layers.append(_LinearLayer(_prev, n_relation_types, rng))
 
         self._node_cache: list = []
         self._edge_cache: list = []
         self._edge_dropout_masks: list = []
 
-        # Intent MLP (Éq.6) : d_clause → mlp_hidden → 64 → n_intent_types
+        # Intent MLP (Éq.6) : d_clause → mlp_hidden → mlp_hidden2 → n_intent_types
         # n_intent_types=0 = désactivé (non-breaking)
         self.n_intent_types = n_intent_types
         self.intent_conditioned = bool(intent_conditioned)
@@ -125,18 +144,18 @@ class MLPEncoder:
         if n_intent_types > 0:
             self._intent_layers = [
                 _LinearLayer(_intent_in_dim, mlp_hidden, rng),
-                _LinearLayer(mlp_hidden, 64, rng),
-                _LinearLayer(64, n_intent_types, rng),
+                _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+                _LinearLayer(mlp_hidden2, n_intent_types, rng),
             ]
             self._intent_cache: list = []
-        # P4a — tête type de phrase : d_clause → mlp_hidden → 64 → n_sentence_types
+        # P4a — tête type de phrase : d_clause → mlp_hidden → mlp_hidden2 → n_sentence_types
         # n_sentence_types=0 = désactivé (non-breaking, même pattern Éq.6)
         self.n_sentence_types = n_sentence_types
         if n_sentence_types > 0:
             self._sentence_layers = [
                 _LinearLayer(d_clause, mlp_hidden, rng),
-                _LinearLayer(mlp_hidden, 64, rng),
-                _LinearLayer(64, n_sentence_types, rng),
+                _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+                _LinearLayer(mlp_hidden2, n_sentence_types, rng),
             ]
             self._sentence_cache: list = []
         # P4 quals — 3 petites têtes sur vecteur edge enrichi (d_edge) :
@@ -148,8 +167,8 @@ class MLPEncoder:
             self._qual_cache: dict[str, list] = {}
             for _qn, _qclasses in _QUALIFIERS.items():
                 self._qual_layers[_qn] = [
-                    _LinearLayer(d_edge, 32, rng),
-                    _LinearLayer(32, len(_qclasses), rng),
+                    _LinearLayer(d_edge, qual_hidden, rng),
+                    _LinearLayer(qual_hidden, len(_qclasses), rng),
                 ]
                 self._qual_cache[_qn] = []
 
@@ -330,7 +349,12 @@ class MLPEncoder:
                 nb = float(np.linalg.norm(db))
                 if nb > self.grad_clip:
                     db = db * (self.grad_clip / nb)
-            layer.W -= lr * dW + lr * self.weight_decay * layer.W
+            if self.decoupled_wd:
+                # AdamW-style : decay non scalé par lr (défaut False = couplé historique).
+                layer.W -= lr * dW
+                layer.W -= self.weight_decay * layer.W
+            else:
+                layer.W -= lr * dW + lr * self.weight_decay * layer.W
             layer.b -= lr * db
 
     def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:

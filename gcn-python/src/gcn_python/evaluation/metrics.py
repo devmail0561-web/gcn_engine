@@ -29,7 +29,7 @@ GoldLabels = list[str]
 def node_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des NodeType."""
     if not gold:
-        return 0.0
+        return float("nan")  # vide ≠ 0 : 0.0 masquerait "aucun exemple"
     if len(pred) != len(gold):
         raise ValueError(
             f"node_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
@@ -55,7 +55,7 @@ def node_macro_f1(pred: Predictions, gold: GoldLabels) -> float:
     """F1 macro-moyenné sur tous les NodeType présents dans gold."""
     per_class = node_f1_per_class(pred, gold)
     scores = [v["f1"] for v in per_class.values() if v["support"] > 0]
-    return float(np.mean(scores)) if scores else 0.0
+    return float(np.mean(scores)) if scores else float("nan")
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ def node_macro_f1(pred: Predictions, gold: GoldLabels) -> float:
 def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des RelationType."""
     if not gold:
-        return 0.0
+        return float("nan")  # vide ≠ 0 : 0.0 masquerait "aucun exemple"
     if len(pred) != len(gold):
         raise ValueError(
             f"edge_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
@@ -97,7 +97,7 @@ def edge_macro_f1(
     """
     per_class = edge_f1_per_class(pred, gold, class_subset=class_subset)
     scores = [v["f1"] for v in per_class.values() if v["support"] > 0]
-    return float(np.mean(scores)) if scores else 0.0
+    return float(np.mean(scores)) if scores else float("nan")
 
 
 # ---------------------------------------------------------------------------
@@ -320,10 +320,12 @@ def graph_exact_match(
     3. Le nombre d'arêtes prédites == le nombre d'arêtes gold
     4. Chaque relation d'arête est correcte (alignée par paire)
 
-    Retourne float [0.0, 1.0]. Retourne 0.0 si la liste est vide.
+    Retourne float [0.0, 1.0]. Retourne NaN si la liste est vide.
     """
     if not sentences_node_gold:
-        return 0.0
+        return float("nan")
+    if not sentences_node_gold:
+        return float("nan")
     if not (len(sentences_node_pred) == len(sentences_node_gold)
             == len(sentences_edge_pred) == len(sentences_edge_gold)):
         raise ValueError(

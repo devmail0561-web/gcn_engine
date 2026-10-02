@@ -86,6 +86,7 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "no_mood":      bool(getattr(pipeline, 'no_mood', False)),
         "no_tense":     bool(getattr(pipeline, 'no_tense', False)),
         "temperature":  float(getattr(pipeline, 'temperature', 1.0)),
+        "theta_ambiguity": float(getattr(pipeline, 'theta_ambiguity', 0.65)),
         "bfs_depth":    (None if getattr(pipeline, 'bfs_depth', None) is None
                          else int(pipeline.bfs_depth)),
         # §1 (amelioration_v3) — clés absentes = défauts (vieux checkpoints lisibles)
@@ -101,6 +102,11 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "silver_weight": float(getattr(pipeline, 'silver_weight', 1.0)),
         "verbalize_mode": str(getattr(pipeline, 'verbalize_mode', 'legacy')),
         "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
+        "mlp_hidden2": int(getattr(pipeline.encoder, 'mlp_hidden2', 64)),
+        "edge_hidden": ",".join(str(h) for h in getattr(
+            pipeline.encoder, 'edge_hidden', (256, 128, 64))),
+        "qual_hidden": int(getattr(pipeline.encoder, 'qual_hidden', 32)),
+        "decoupled_wd": bool(getattr(pipeline.encoder, 'decoupled_wd', False)),
         "edge_dropout": float(getattr(pipeline.encoder, 'edge_dropout', 0.3)),
         # P4b : couplage intent←sentence — absent = False (vieux checkpoints).
         "intent_conditioned": bool(getattr(pipeline.encoder, 'intent_conditioned', False)),
@@ -499,6 +505,9 @@ def load_checkpoint(
             pipeline.drop_morph = bool(_dm)
         if _tp is not None:
             pipeline.temperature = float(_tp)
+        _ta = _arch.get("theta_ambiguity")
+        if _ta is not None:
+            pipeline.theta_ambiguity = float(_ta)
         _bd = _arch.get("bfs_depth")
         if _bd is not None:
             pipeline.bfs_depth = int(_bd)
@@ -552,6 +561,40 @@ def load_checkpoint(
                 )
             else:
                 pipeline.encoder.mlp_hidden = _mh_int
+        for _key, _attr, _dflt in (
+            ("mlp_hidden2", "mlp_hidden2", 64),
+            ("qual_hidden", "qual_hidden", 32),
+        ):
+            _v = _arch.get(_key)
+            if _v is not None and hasattr(pipeline.encoder, _attr):
+                _vi = int(_v)
+                if _vi != getattr(pipeline.encoder, _attr):
+                    import warnings as _w_hd
+                    _w_hd.warn(
+                        f"{_key} archivé={_vi} != pipeline={getattr(pipeline.encoder, _attr)} "
+                        "— attribut non mis à jour (matrices incompatibles). "
+                        f"Reconstruire avec {_key}={_vi}.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                else:
+                    setattr(pipeline.encoder, _attr, _vi)
+        _eh = _arch.get("edge_hidden")
+        if _eh is not None and hasattr(pipeline.encoder, 'edge_hidden'):
+            _eht = tuple(int(h) for h in str(_eh).split(",") if h.strip())
+            if _eht != tuple(pipeline.encoder.edge_hidden):
+                import warnings as _w_eh
+                _w_eh.warn(
+                    f"edge_hidden archivé={_eh} != pipeline={','.join(map(str, pipeline.encoder.edge_hidden))} "
+                    "— attribut non mis à jour (matrices incompatibles). "
+                    f"Reconstruire avec edge_hidden={_eh}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+        _dw = _arch.get("decoupled_wd")
+        if _dw is not None and hasattr(pipeline.encoder, 'decoupled_wd'):
+            # Règle d'update scalaire sans impact shapes — reprise sûre.
+            pipeline.encoder.decoupled_wd = bool(_dw)
         _ed = _arch.get("edge_dropout")
         if _ed is not None and hasattr(pipeline.encoder, 'edge_dropout'):
             # Dropout : valeur scalaire sans impact sur les shapes — reprise sûre.
