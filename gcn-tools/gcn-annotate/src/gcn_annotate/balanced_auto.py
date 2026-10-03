@@ -176,14 +176,15 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
  ],
 }
 
-# Confiance par marqueur fort (1.0) vs standard (0.9) vs discours faible (0.8)
+# Confiance par marqueur fort (1.0) vs standard (0.9) vs discours faible (0.8).
+# Formes SANS espaces (comparaison via conn.strip(), cf. PAT normalisé).
 CONF1 = {"parce que", "because", "weil", "porque", "c'est pourquoi", "par conséquent",
          "therefore", "deshalb", "por lo tanto", "bien que", "although", "obwohl", "aunque",
-         "si ", " if ", "wenn ", "malgré", "despite", "trotz", "empêche", "prevents",
+         "si", "if", "wenn", "malgré", "despite", "trotz", "empêche", "prevents",
          "verhindert", "impide", "entraîne", "causes", "provoca", "verursacht"}
-CONF08 = {"donc", "ainsi", "car ", "puis ", "then ", "ensuite", "luego", "dann ",
+CONF08 = {"donc", "ainsi", "car", "puis", "then", "ensuite", "luego", "dann",
           "cependant", "however", "jedoch", "enfin", "finalement", "finally",
-          "mais ", "but ", "aber ", "alors que", "tandis que", "si ", " if "}
+          "mais", "but", "aber", "alors que", "tandis que", "si", "if"}
 
 # Lexiques de typage (minuscules, lemmes approximatifs)
 STATE_V = {"fr": {"être", "avoir", "rester", "demeurer", "sembler", "paraître", "devenir", "souffrir"},
@@ -231,7 +232,11 @@ STOP = {"fr": {"le", "la", "les", "de", "du", "des", "une", "un", "et", "est", "
 
 COMP = {l: sorted([(c, r, d) for c, r, d in lst], key=lambda x: -len(x[0]))
         for l, lst in CONN.items()}
-PAT = {l: [(c, r, d, re.compile(r"(?<!\w)" + re.escape(c) + r"(?!\w)", re.IGNORECASE))
+# Déclencheurs normalisés (espaces de bordure retirées) + frontières de mots :
+# "mais "/" si "/"quand " avec espace suffixe ne matchaient JAMAIS en milieu
+# de texte (lettre suivant l'espace), ni en tête après _strip_lead. Gate 219 :
+# 36/55 ratées = RIEN, la plupart avec déclencheur présent mais inmatchable.
+PAT = {l: [(c, r, d, re.compile(r"(?<!\w)" + re.escape(c.strip()) + r"(?!\w)", re.IGNORECASE))
            for c, r, d in lst] for l, lst in COMP.items()}
 
 
@@ -312,7 +317,11 @@ P2 = {"cependant", "pourtant", "néanmoins", "toutefois", "donc", "ainsi",
       "appelle", "llama"}
 LEAD_DISCOURSE = {"donc", "ainsi", "cependant", "pourtant", "néanmoins",
                   "toutefois", "however", "nevertheless", "also", "dennoch",
-                  "sin", "embargo", "en", "revanche", "par", "ailleurs"}
+                  "sin", "embargo", "ailleurs"}
+# NOTE : "en", "par", "revanche" RETIRÉS (gate 219) — ils décapitaient les
+# déclencheurs multi-mots "En raison de", "Par conséquent", "En revanche".
+# Limite connue : marqueur de tête + proposition unique sans virgule
+# ("Pourtant, nous continuons...") reste hors de portée (pas de split fiable).
 STOP_EXTRA = {"notamment", "toutefois", "cependant", "néanmoins", "pourtant",
               "généralement", "également", "souvent", "toujours", "jamais",
               "however", "also", "often", "always", "never", "generally",
