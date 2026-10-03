@@ -130,7 +130,8 @@ def main() -> None:
         if marker:
             e0["marker_token"] = marker
         rec = {"id": sid, "text": text, "tokens": toks, "sentence_type": "declarative",
-               "registre": registre, "cir": {"nodes": nrecs, "edges": [e0]}}
+               "registre": registre, "cir": {"nodes": nrecs, "edges": [e0]},
+               "_methode": "silver-auto"}
         if not explicit or conf < 0.9:
             flags.append(f"conf={conf} explicit={explicit}")
         for n in nrecs:
