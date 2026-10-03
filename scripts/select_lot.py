@@ -50,6 +50,9 @@ def load_excluded():
     for f in glob.glob(str(V4 / "annotated" / "quarantaine*.json")):
         for q in json.load(open(f)):
             quar.add(q.get("id"))
+    for f in glob.glob(str(V4 / "annotated" / "topup_*.json")) + glob.glob(str(V4 / "annotated" / "*_pending.json")):
+        for s in json.load(open(f))["document"]["sentences"]:
+            done.add(s["id"])
     return done, quar
 
 
