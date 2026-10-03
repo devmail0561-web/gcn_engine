@@ -31,7 +31,7 @@ EN_PAT = re.compile(
     r"their|there|been|more|than|also|often|used|when|what|does)\b", re.I)
 
 
-def load_pool(extra=("candidates/candidates.json", "candidates/candidates_fresh.json", "candidates/candidates_divers.json")):
+def load_pool(extra=("candidates/candidates.json", "candidates/candidates_fresh.json", "candidates/candidates_divers.json", "candidates/candidates_rares.json", "candidates/candidates_rares2.json")):
     pool = {}
     for rel in extra:
         p = V4 / rel
