@@ -91,3 +91,21 @@ N_min lot : concession 1 (gate niveau merge, cf. P0c).
 Fichiers : `scripts/arbitrage_lot23.py` (rejouable) ·
 `v4/annotated/lot23_82.json` · `quarantaine_lot23.json` ·
 `ARBITRAGE_lot23.md`. Gold fichiers : 1679 (1597+82).
+
+## Volume v5 entamé 2026-10-04 (gate 808 OK, batch arxiv2 +27)
+- **Gate 808 science-web TENU (structurel)** : `validate_cir.py` corrigeait
+  le schéma v1 (`source`) alors que v5 est en v2 (`sources`) → 0 % valide
+  bidon. Fix : accepte `sources` + repli `source`
+  (`gcn-tools/gcn-scraper/.../validate_cir.py`). Après fix :
+  **4661/4661 valides (100 %)**, dont 808 science-web.
+- **Batch `science-arxiv2`** : scrape arXiv EN seed 42 (hors HAL) → 97
+  phrases → build_v5 → **27 propose** (70 quar "sans proposition" =
+  abstracts descriptifs non-causaux, rendement 28 %).
+  `v5/science/science-arxiv2_{propose,quar,litig}.json`, 27/27 valides.
+  Brut + checkpoint reprise dans `gcn-datasets/DATA/raw/`
+  (reprise wiki : `gcn-scrape ... --resume` avec cet output-dir).
+- **Leçons volume** : scrape lent (~15 s/phrase : délais 3 s arXiv,
+  pagination wiki) ; runs >25 min tués avec les outputs (écrire petit :
+  `--max-per-query 10`, cibles ≤150/run) ; arXiv ML peu causal →
+  privilégier wikipedia/presse/éduc pour le volume (~45k restants :
+  science ~24k, presse ~9,2k, éduc ~8,1k, divers ~4k).
