@@ -153,3 +153,21 @@ Limites connues : `contrôle` nominal (s065/s112 — gold lui-même met
 control sur mentions définitionnelles s114/s115 : **conflit doctrine à
 trancher au veto lot23**, 5 quarantaines `contrôle`/`active` à revoir),
 `contributes to`→enable, `para que`→motivation, `llama`, mono-arête.
+
+## Merge1 gold+silver quota140 + 3 seeds MESURES 2026-10-04
+Merge rejouable `scripts/merge_goldsilver.py` (`--quota 140 --seed 42`,
+`_none` non plafonné, `_methode` conservé, split stratifié 80/20) :
+**gold livré 1764** (tombstones exclus 159) + **silver garder 4621**
+(aveugle-quar exclus 67) → **train 1284 / val 321**.
+Dataset figé hors git : `v4/merge1/{train,val,manifest}.json`
+(SHA manifest train `04263584eebeed30`, val `14083013813e86ce`).
+Runs config gelée (150 ep, lr 0.0005, edge-loss 3.0, GAT bidir dim 32) :
+**s7 0.175 @ep12 · s42 0.292 @ep18 · s123 0.220 @ep9 · moy 0.229**,
+train ~1.0 (surapprentissage massif, best 9-18/150).
+Checkpoints/CSV hors git : `checkpoints/merge1_s{7,42,123}.npz`,
+`v4/mesures/M1_s{7,42,123}.csv`, `MESURES.md` § merge1 archivé en place.
+Lecture : moy 0.229 < gold-only 542 (0.278) et 357 (0.313) → silver
+quenché dilue le signal gold. Piste : quota silver différencié
+(`--silver-weight`) ou filtre confiance. Wrapper CLI :
+`PYTHONPATH=gcn-python/src /tmp/opencode/gcntrain.sh` (pip 2.5.0 sans
+`--min-class-count`, src 4.0.0).
