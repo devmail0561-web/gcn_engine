@@ -25,6 +25,7 @@ Usage :
 """
 import argparse
 import glob
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -39,6 +40,10 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--quota", type=int, default=0,
                     help="plafond uniforme par relation (0 = aucun). Ex. 20.")
+    ap.add_argument("--exclude-none", action="store_true",
+                    help="exclure la strate edgeless `_none` du livré "
+                         "(décision v4 finale 2026-10-04 : 65 `_none` lots "
+                         "01-05 exclus, fichiers intacts).")
     args = ap.parse_args()
     if args.quota < 0:
         raise SystemExit("--quota doit être ≥ 0.")
@@ -95,7 +100,12 @@ def main() -> None:
     groups: dict[str, list] = {}
     for s in ss:
         es = s.get("cir", {}).get("edges", [])
-        groups.setdefault(es[0].get("relation", "_none") if es else "_none", []).append(s)
+        rel = es[0].get("relation", "_none") if es else "_none"
+        if rel == "_none" and args.exclude_none:
+            continue
+        groups.setdefault(rel, []).append(s)
+    if args.exclude_none:
+        print("strate `_none` exclue du livré (v4 finale : fichiers intacts).")
     tr, va = [], []
     for rel, g in sorted(groups.items()):
         rng.shuffle(g)
@@ -107,11 +117,32 @@ def main() -> None:
     out = Path(args.out)
     (out / "train").mkdir(parents=True, exist_ok=True)
     (out / "val").mkdir(parents=True, exist_ok=True)
-    json.dump({"schema_version": "4.0", "document": {"id": "train", "sentences": tr}},
-              open(out / "train" / "train.json", "w"), ensure_ascii=False)
-    json.dump({"schema_version": "4.0", "document": {"id": "val", "sentences": va}},
-              open(out / "val" / "val.json", "w"), ensure_ascii=False)
+    tr_doc = {"schema_version": "4.0", "document": {"id": "train", "sentences": tr}}
+    va_doc = {"schema_version": "4.0", "document": {"id": "val", "sentences": va}}
+    json.dump(tr_doc, open(out / "train" / "train.json", "w"), ensure_ascii=False)
+    json.dump(va_doc, open(out / "val" / "val.json", "w"), ensure_ascii=False)
     print(f"train: {len(tr)} val: {len(va)} -> {out}")
+    from collections import Counter
+    manifest = {
+        "seed": args.seed,
+        "quota": args.quota,
+        "exclude_none": args.exclude_none,
+        "train": len(tr),
+        "val": len(va),
+        "train_rel": dict(sorted(Counter(
+            ((s.get("cir", {}).get("edges") or [{}])[0].get("relation", "_none"))
+            for s in tr).items())),
+        "val_rel": dict(sorted(Counter(
+            ((s.get("cir", {}).get("edges") or [{}])[0].get("relation", "_none"))
+            for s in va).items())),
+        "train_sha256": hashlib.sha256(
+            json.dumps(tr_doc, sort_keys=True).encode()).hexdigest()[:16],
+        "val_sha256": hashlib.sha256(
+            json.dumps(va_doc, sort_keys=True).encode()).hexdigest()[:16],
+    }
+    (out / "manifest.json").write_text(
+        json.dumps(manifest, indent=1), encoding="utf-8")
+    print("manifest:", manifest)
 
 
 if __name__ == "__main__":
