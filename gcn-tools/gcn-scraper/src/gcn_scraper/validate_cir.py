@@ -45,11 +45,15 @@ def validate_cir(annotated_path: str) -> dict:
         if len(spans) != len(set(spans)):
             sent_errors.append("deux nodes ont le même token_span")
 
-        # 3. Vérifier les edges
+        # 3. Vérifier les edges (schéma v2 : `sources` liste, repli v1 `source`)
         node_ids = {n["id"] for n in nodes}
         for e in edges:
-            if e.get("source") not in node_ids:
-                sent_errors.append(f"edge source '{e.get('source')}' inexistant")
+            srcs = e.get("sources")
+            if srcs is None and e.get("source") is not None:
+                srcs = [e["source"]]
+            for src in srcs or []:
+                if src not in node_ids:
+                    sent_errors.append(f"edge source '{src}' inexistant")
             if e.get("target") not in node_ids:
                 sent_errors.append(f"edge target '{e.get('target')}' inexistant")
             rel = e.get("relation", "")
