@@ -26,7 +26,10 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
  "fr": [
   ("parce que", "cause", "bwd"), ("parce qu", "cause", "bwd"), ("puisque", "cause", "bwd"),
   ("c'est pourquoi", "cause", "fwd"), ("par conséquent", "cause", "fwd"),
-  ("en raison de", "cause", "bwd"), ("à cause de", "cause", "bwd"), ("grâce à", "enable", "bwd"),
+   ("en raison de", "cause", "bwd"), ("en raison du", "cause", "bwd"),
+   ("en raison des", "cause", "bwd"), ("à cause de", "cause", "bwd"),
+   ("à cause du", "cause", "bwd"), ("à cause des", "cause", "bwd"),
+   ("grâce à", "enable", "bwd"),
   ("du fait que", "cause", "bwd"), ("étant donné", "cause", "bwd"), ("vu que", "cause", "bwd"),
   ("entraîne", "cause", "fwd"), ("provoque", "cause", "fwd"), ("engendre", "cause", "fwd"),
   ("conduit à", "cause", "fwd"), ("mène à", "cause", "fwd"), ("résulte", "cause", "fwd"),
@@ -36,25 +39,30 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
   ("favorise", "enable", "fwd"), ("contribue à", "enable", "fwd"), ("autorise", "control_dependency", "fwd"),
   ("empêche", "prevent", "fwd"), ("prévient", "prevent", "fwd"), ("évite", "prevent", "fwd"),
   ("bloque", "prevent", "fwd"), ("interdit", "prevent", "fwd"), ("inhibe", "prevent", "fwd"),
-  ("protège", "prevent", "fwd"), ("lutte contre", "prevent", "fwd"), ("sans ", "prevent", "fwd"),
-  ("contre ", "prevent", "fwd"),
+   ("protège", "prevent", "fwd"), ("lutte contre", "prevent", "fwd"), ("sans ", "prevent", "fwd"),
+   ("contre ", "prevent", "fwd"), ("pas accès", "prevent", "fwd"),
   (" à condition que", "condition", "bwd"), (" en cas de", "condition", "bwd"),
-  ("lorsque", "condition", "bwd"), ("quand ", "condition", "bwd"), (" si ", "condition", "bwd"),
+   ("lorsque", "condition", "bwd"), ("lorsqu", "condition", "bwd"),
+   ("quand ", "condition", "bwd"), (" si ", "condition", "bwd"),
   ("dès que", "condition", "bwd"), ("devant ", "condition", "bwd"), ("dans le cas où", "condition", "bwd"),
-  ("bien que", "concession", "bwd"), ("même si", "concession", "bwd"), ("quoique", "concession", "bwd"),
+   ("bien que", "concession", "bwd"), ("même si", "concession", "bwd"), ("quoique", "concession", "bwd"),
+   ("certes", "concession", "fwd"),
   ("malgré", "concession", "bwd"), ("en dépit de", "concession", "bwd"),
   ("pourtant", "concession", "bwd"), ("cependant", "concession", "bwd"),
   ("néanmoins", "concession", "bwd"), ("toutefois", "concession", "bwd"),
-  ("d'abord", "sequence", "fwd"), ("finit par", "sequence", "fwd"), ("finissent par", "sequence", "fwd"), ("puis ", "sequence", "fwd"), ("ensuite", "sequence", "fwd"),
+   ("d'abord", "sequence", "fwd"), ("une fois", "sequence", "fwd"), ("finit par", "sequence", "fwd"), ("finissent par", "sequence", "fwd"), ("puis ", "sequence", "fwd"), ("ensuite", "sequence", "fwd"),
   ("enfin", "sequence", "fwd"), ("après ", "sequence", "fwd"), ("avant ", "sequence", "bwd"),
   ("préalablement", "sequence", "bwd"), ("tout d'abord", "sequence", "fwd"),
-  ("afin de", "motivation", "fwd"), ("pour que", "motivation", "bwd"),
+   ("afin de", "motivation", "fwd"), ("pour que", "motivation", "bwd"),
+   ("pour", "motivation", "fwd"),
   ("dans le but de", "motivation", "fwd"), ("en vue de", "motivation", "fwd"),
   ("vise à", "motivation", "fwd"), ("a pour objectif", "motivation", "fwd"),
   ("sauf", "filter", "fwd"), ("excepté", "filter", "fwd"), ("hormis", "filter", "fwd"),
   ("à l'exception", "filter", "fwd"), ("uniquement", "filter", "fwd"), ("seuls", "filter", "fwd"),
   ("seules", "filter", "fwd"), ("réservé", "filter", "fwd"),
-  ("mais ", "opposition", "bwd"), ("en revanche", "opposition", "bwd"),
+   ("mais ", "opposition", "bwd"), ("en revanche", "opposition", "bwd"),
+   ("oppose", "opposition", "bwd"), ("opposent", "opposition", "bwd"),
+   ("opposé", "opposition", "bwd"), ("opposée", "opposition", "bwd"),
   ("au contraire", "opposition", "bwd"), ("tandis que", "opposition", "bwd"),
   ("alors que", "opposition", "bwd"), ("au lieu de", "opposition", "bwd"),
   ("contrairement à", "opposition", "bwd"),
@@ -73,7 +81,7 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
   ("because", "cause", "bwd"), ("since ", "cause", "bwd"), ("therefore", "cause", "fwd"),
   ("thus", "cause", "fwd"), ("hence", "cause", "fwd"), ("consequently", "cause", "fwd"),
   ("as a result", "cause", "fwd"), ("due to", "cause", "bwd"), ("thanks to", "enable", "bwd"),
-  ("caused by", "cause", "bwd"), ("causes", "cause", "fwd"), ("leads to", "cause", "fwd"),
+   ("caused by", "cause", "bwd"), ("driven by", "cause", "bwd"), ("causes", "cause", "fwd"), ("leads to", "cause", "fwd"),
   ("results in", "cause", "fwd"), ("triggers", "cause", "fwd"), ("produces", "cause", "fwd"),
   ("enables", "enable", "fwd"), ("allows", "enable", "fwd"), ("facilitates", "enable", "fwd"),
   ("makes possible", "enable", "fwd"), ("contributes to", "enable", "fwd"),
@@ -121,7 +129,7 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
   (" en caso de", "condition", "bwd"), ("cuando ", "condition", "bwd"),
   (" si ", "condition", "bwd"), ("siempre que", "condition", "bwd"),
   ("menos que", "condition", "bwd"), ("ante ", "condition", "bwd"),
-  ("para que", "motivation", "bwd"), ("aunque", "concession", "bwd"),
+   ("para que", "motivation", "bwd"), ("para", "motivation", "fwd"), ("aunque", "concession", "bwd"),
   ("pesar de", "concession", "bwd"), ("sin embargo", "concession", "bwd"),
   ("no obstante", "concession", "bwd"), ("aun cuando", "concession", "bwd"),
   ("primero", "sequence", "fwd"), ("luego", "sequence", "fwd"), ("después", "sequence", "fwd"),
@@ -245,9 +253,10 @@ def tokenize(text: str) -> list[str]:
 
 
 def content_words(clause: str, lang: str) -> list[str]:
+    # Seuil len>=3 (gate 219 : "win"/"one"/"tgf" sont du contenu — s022/s052/s094).
     stop = STOP.get(lang, set())
     return [w for w in re.findall(r"[A-Za-zÀ-ÿ]+", clause.lower())
-            if len(w) >= 4 and w not in stop]
+            if len(w) >= 3 and w not in stop]
 
 
 AUX = {
@@ -307,7 +316,8 @@ def classify(clause: str, lang: str) -> str:
 # P2 discours (adverbes). On essaie tous les marqueurs présents, par priorité.
 P0 = {" si ", " à condition que", " en cas de", "lorsque", "quand ", "dès que",
       " if ", "provided that", "as long as", "unless", "when ", "whenever",
-      " si ", "cuando ", "siempre que", "wenn ", "falls ", "sofern "}
+      " si ", "cuando ", "siempre que", "wenn ", "falls ", "sofern ",
+      "alors que", "tandis que", "subsequently", "thereafter"}
 P2 = {"cependant", "pourtant", "néanmoins", "toutefois", "donc", "ainsi",
       "car ", "puis ", "ensuite", "enfin", "mais ", "alors que", "tandis que",
       "however", "nevertheless", "nonetheless", "therefore", "thus", "hence",
@@ -316,8 +326,8 @@ P2 = {"cependant", "pourtant", "néanmoins", "toutefois", "donc", "ainsi",
       "no obstante", "luego", "entonces", "después", "pero ", "en cambio",
       "appelle", "llama"}
 LEAD_DISCOURSE = {"donc", "ainsi", "cependant", "pourtant", "néanmoins",
-                  "toutefois", "however", "nevertheless", "also", "dennoch",
-                  "sin", "embargo", "ailleurs"}
+                   "toutefois", "however", "nevertheless", "also", "dennoch",
+                   "sin", "embargo", "ailleurs", "but", "mais"}
 # NOTE : "en", "par", "revanche" RETIRÉS (gate 219) — ils décapitaient les
 # déclencheurs multi-mots "En raison de", "Par conséquent", "En revanche".
 # Limite connue : marqueur de tête + proposition unique sans virgule
@@ -332,13 +342,14 @@ for _s in STOP_EXTRA:
 
 # Verbes de transformation "A -> B" (règle séquence mono-proposition)
 TRANS_SPLIT = [
- ("fr", re.compile(r"(.*?)\best (?:transformé|converti)\s+en\b\s*(.*)", re.I)),
- ("fr", re.compile(r"(.*?)\bdevient\b\s*(.*)", re.I)),
- ("en", re.compile(r"(.*?)\bis (?:transformed|converted)\s+into\b\s*(.*)", re.I)),
- ("en", re.compile(r"(.*?)\bbecomes?\b\s*(.*)", re.I)),
- ("es", re.compile(r"(.*?)\bse (?:convierte|transforma)\s+en\b\s*(.*)", re.I)),
- ("de", re.compile(r"(.*?)\bwird\s+zu\b\s*(.*)", re.I)),
+  ("fr", re.compile(r"(.*?)\best (?:transformé|converti)\s+en\b\s*(.*)", re.I)),
+  ("en", re.compile(r"(.*?)\bis (?:transformed|converted)\s+into\b\s*(.*)", re.I)),
+  ("es", re.compile(r"(.*?)\bse (?:convierte|transforma)\s+en\b\s*(.*)", re.I)),
+  ("de", re.compile(r"(.*?)\bwird\s+zu\b\s*(.*)", re.I)),
 ]
+# NOTE (gate 219) : les formes NUES "becomes?"/"devient" ont été retirées —
+# quasi toujours statives ("has become popular", "devient un problème").
+# Seules les transformations explicites (X transformé en Y) restent.
 
 
 def _prio(conn: str) -> int:
@@ -350,12 +361,98 @@ def _prio(conn: str) -> int:
     return 1
 
 
+# Garde ordinal (gate 219 + aveugle_200 ~20 cas) : "first"/"primero" n'est
+# séquentiel que hors emploi ordinal/déterminé ("the first", "world's first",
+# "was first introduced", "first half", "First Amendment"). Formes gardées :
+# "First," initial, "at first", verbe + "first" ("examining first").
+_ORD_DET = {"the", "a", "an", "one", "this", "that", "these", "those",
+            "its", "his", "her", "their", "our", "your", "my",
+            "el", "la", "los", "las", "un", "una", "su", "este", "esta"}
+_ORD_BE = {"was", "were", "be", "been", "is", "are",
+           "fue", "fueron", "es", "son", "era", "eran"}
+_ORD_PART = ("ed", "ing", "ado", "ido", "endo")
+_ORD_NEXT = {"half", "quarter", "mitad", "trimestre"}
+
+
+def _first_ordinal(text: str, m) -> bool:
+    prev = re.findall(r"[A-Za-zÀ-ÿ']+", text[:m.start()])
+    pw = prev[-1].lower() if prev else ""
+    nxt = re.findall(r"[A-Za-zÀ-ÿ]+", text[m.end():])
+    nw = nxt[0].lower() if nxt else ""
+    if pw in _ORD_DET or pw.endswith(("'s", "’s", "s'")):
+        return True
+    if text[m.end():m.end() + 1] == "-":
+        return True
+    if pw in _ORD_BE and nw.endswith(_ORD_PART):
+        return True
+    if nw in _ORD_NEXT:
+        return True
+    return False
+
+
+# Déclencheurs regex (verbe + adverbe intercalé), essayés comme les literaux.
+# "finissent parfois par" : PAT littéral ne matche pas (contiguïté exigée).
+EXTRA_PATTERNS = [
+ ("fr", re.compile(r"finissent?\s+(?:\w+\s+)?par\b", re.I), "sequence", "fwd"),
+]
+
+# "Si..., c'est parce que..." : le vrai marqueur est la clivée, pas "si".
+_CLEFT_RE = re.compile(r"c['’]est\s+(parce que|car\b|donc\b|pour (?:ça|cela)\b)", re.I)
+
+
+# "fusionner avec X pour dégrader" : le marqueur temporel (ensuite, puis,
+# après...) prime sur l'adjonction de but "pour" (gate 219 s022/s083).
+_SEQ_TEMP_RE = re.compile(r"(?<!\w)(ensuite|puis|après |avant |préalablement)(?!\w)",
+                          re.IGNORECASE)
+
+# "pour effet"/"pour les hommes" : "pour" n'est un marqueur de but que devant
+# infinitif (clitiques élidés tolérés : "pour s'adapter", "pour y parvenir").
+_POUR_CLIT = {"s'", "s’", "y", "en", "m'", "m’", "t'", "t’", "l'", "l’"}
+_PARA_CLIT = {"se", "me", "te", "lo", "la", "los", "las", "le", "les"}
+
+
+def _pour_infinitif(text: str, m) -> bool:
+    toks = re.findall(r"[A-Za-zÀ-ÿ']+", text[m.end():m.end() + 30].lower())
+    toks = [t for t in toks if t not in _POUR_CLIT]
+    return bool(toks) and toks[0].endswith(("er", "ir", "re", "oir"))
+
+
+def _para_infinitif(text: str, m) -> bool:
+    toks = re.findall(r"[A-Za-zÀ-ÿ]+", text[m.end():m.end() + 30].lower())
+    toks = [t for t in toks if t not in _PARA_CLIT]
+    return bool(toks) and toks[0].endswith(("ar", "er", "ir"))
+
+
 def find_markers(text: str, lang: str):
     out = []
+    seq_temp = bool(_SEQ_TEMP_RE.search(text))
     for conn, rel, direction, pat in PAT.get(lang, []):
         m = pat.search(text)
         if m:
+            if conn in ("first", "primero") and _first_ordinal(text, m):
+                continue
+            if conn.strip().lower() == "si" and _CLEFT_RE.search(text):
+                continue
+            if conn.strip().lower() in ("if", "si") and re.search(
+                    r",\s*if not\b", text, re.I):
+                continue
+            if conn == "pour" and seq_temp:
+                continue
+            if conn == "pour" and not _pour_infinitif(text, m):
+                continue
+            if conn == "para" and not _para_infinitif(text, m):
+                continue
+            # "Certes, X, mais Y" : concessive de tête seulement ("certes"
+            # médian comme s110 reste inerte).
+            if conn == "certes" and m.start() != 0:
+                continue
             out.append((conn, rel, direction, m))
+    for lg, pat, rel, direction in EXTRA_PATTERNS:
+        if lg != lang:
+            continue
+        m = pat.search(text)
+        if m:
+            out.append((m.group(0), rel, direction, m))
     out.sort(key=lambda x: (_prio(x[0]), -len(x[0])))
     return out
 
@@ -366,20 +463,32 @@ def find_marker(text: str, lang: str):
 
 
 def _strip_lead(text: str) -> str:
-    parts = text.split(None, 2)
-    if len(parts) >= 2 and parts[0].strip(",;:").lower() in LEAD_DISCOURSE:
-        rest = text.split(None, 1)[1] if len(text.split(None, 1)) > 1 else text
-        rest = rest.lstrip(",;: ")
-        if rest != text:
-            return _strip_lead(rest)
+    prev = None
+    while prev != text:
+        prev = text
+        # débris de tête (titres numérotés, puces, guillemets/crochets) : "84: ",
+        # "- ↑ ", "» ", "[modifier]" — sinon "» Dès que..." reste hors de portée.
+        text = re.sub(r"^(?:[\s»«\"'‘’“”(\[]+|\d+\s*:\s*|-\s*(?:↑\s*)?|•\s*)+",
+                      "", text)
+        parts = text.split(None, 2)
+        if len(parts) >= 2 and parts[0].strip(",;:").lower() in LEAD_DISCOURSE:
+            rest = text.split(None, 1)[1] if len(text.split(None, 1)) > 1 else text
+            rest = rest.lstrip(",;: ")
+            if rest != text:
+                text = rest
     return text
 
 
 def _try_split(text: str, lang: str, conn: str, rel: str, direction: str, m) -> dict | None:
     before, after = text[:m.start()].strip(" ,;:"), text[m.end():].strip(" ,;:")
     # PP causale en tête ("En raison de X, Y") : split à la première virgule
+    # hors nombre décimal ("1,6 million" : la virgule décimale n'est pas une
+    # frontière — gate 219 s073).
     if not before and "," in after:
-        head, tail = after.split(",", 1)
+        parts = re.split(r",(?!\d)", after, 1)
+        if len(parts) < 2:
+            return None
+        head, tail = parts[0].strip(), parts[1].strip()
         before, after = head.strip(), tail.strip()
         if direction == "bwd":
             direction = "fwd"  # "En raison de X, Y" : X -> Y
@@ -388,7 +497,8 @@ def _try_split(text: str, lang: str, conn: str, rel: str, direction: str, m) -> 
     cb, ca = content_words(before, lang), content_words(after, lang)
     if len(cb) < 1 or len(ca) < 1:
         return None
-    if len(cb) + len(ca) < 4:
+    # Seuil total 3 (gate 219 : "salty enough because we have the AMOC" — s001).
+    if len(cb) + len(ca) < 3:
         return None
     toks = tokenize(text)
     T = len(toks)
@@ -442,7 +552,7 @@ def _trans_split(text: str, lang: str) -> dict | None:
             continue
         before, after = m.group(1).strip(" ,;:"), m.group(2).strip(" ,;:")
         cb, ca = content_words(before, lang), content_words(after, lang)
-        if len(cb) < 1 or len(ca) < 1 or len(cb) + len(ca) < 4:
+        if len(cb) < 1 or len(ca) < 1 or len(cb) + len(ca) < 3:
             continue
         toks = tokenize(text)
         T = len(toks)
@@ -475,6 +585,16 @@ def annotate(text: str, lang: str) -> dict | None:
     for conn, rel, direction, m in find_markers(text, lang):
         r = _try_split(text, lang, conn, rel, direction, m)
         if r:
+            # "Si..., néanmoins..." : concessive avérée, pas conditionnelle
+            # (gate 219 s019 ; s085/s013 sans "si" inchangés).
+            if rel == "condition" and conn.strip().lower() == "si":
+                low = text.lower()
+                if any(a in low for a in ("néanmoins", "pourtant", "cependant",
+                                          "toutefois", "however", "nevertheless",
+                                          "nonetheless")):
+                    r["edges"][0]["relation"] = "concession"
+                    r["causal_pattern"] = "concession"
+                    r["_silver"]["concession_override"] = True
             return r
     return _trans_split(text, lang)
 
