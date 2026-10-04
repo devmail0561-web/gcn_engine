@@ -211,3 +211,41 @@ Répondre oui/non par point (fichiers `ARBITRAGE_lot{20..24}.md`) :
    `ainsi`→explicit:false ×14, `s2310 pour commencer` en quar ?
 5. Doublons : antériorité gardée (g0101 lot12 > r2-00275, s1133 lot10 >
    s1182) ?
+
+## Résumé problèmes + reste pour demain (2026-10-04 soir)
+**22 problèmes audités** (comptés/cités, rien d'estimé). Le seul qui
+compte vraiment : **le modèle n'apprend pas la régularité que les
+données contiennent** — lookup marqueur→relation (10 lignes, 0 run) :
+macro-F1 **test 0.42 / val 0.40** (≥ cible prod 0.40) ; GAT après heures
+de runs : test 0.11-0.23 ≈ majorité (0.17). Le GAT doit segmenter +
+classifier depuis des one-hots UD où le marqueur est invisible ; avec
+46 ex/classe il mémorise (train 0.99). Lookup fitté train 0.62 → labels
+cohérents, le reste (38 %) = marqueurs ambigus exigeant le contexte :
+c'est LA tâche, et le modèle la rate entièrement.
+Autres bloquants déjà **réparés** : lanceur versionné
+`scripts/train_v4.sh` (pin src 4.0.0), CSV avec hash/commit/seed/config,
+restore best toujours + calibration sur fichier séparé, métriques train
+figées (passe eval), split 70/15/15 `v4/final2/` (506/99/99, manifest
+complet), N_min 20 partout, seeds 7/123/999, `gcn-eval --test-dir`.
+Chiffres honnêtes (patience 30, test) : A 0.152 · B (dropout 0.3/WD
+1e-3) 0.189 · C (emb16) interrompu — **grids abandonnés sur ordre :
+aucun run aveugle tant que le problème n'est pas traité**.
+Bloquants **non réparés** : accord inter-annotateurs jamais mesuré
+(kappa à faire sur 100 phrases) ; gate silver §3 contournée (sequence
+0.12, control 0/3 à l'aveugle, merge1 n'a rien rejeté) ; CSV historiques
+sans hash + ensembles actifs différents → lignes MESURES 357/542/285/
+merge1/V4F **non comparables entre elles** ; intent vide 99.4 % mais
+têtes `qual_*` reportées ; pas de champ langue (82 % encyclo FR subi) ;
+1 005 phrases jetées par quota sans traçage fin ; modèle sans classe
+négative (edgeless non mesuré) ; seed 42 partout ; pip 2.5.0 divergent
+(contourné, pas résolu).
+**Pour demain, dans l'ordre** :
+1. Feature `is_marker_candidate` (lexique proposeur, pas de fuite) — le
+   chaînon manquant entre lookup (oracle position) et GAT (aveugle).
+2. UN run 3-seeds patience-30 avec (1) → décision sur test : si ≥0.35
+   on tient la piste, si ~0.15 c'est l'optimisation (revoir
+   loss/gradients, pas les features).
+3. Si (2) échoue : deux étages (proposeur + classifieur marqueur+contexte).
+4. Kappa 100 phrases + §3 silver avant tout nouveau merge ; MESURES :
+   marquer les anciennes lignes non comparables.
+Ne PAS faire : grids d'hyperparams, campagne de volume, runs sans (1).

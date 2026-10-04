@@ -810,6 +810,30 @@ def train_cmd(
     pipeline.training_data_hash = _h.hexdigest()[:16]
     pipeline.training_n_epochs = epochs
     pipeline.training_timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    # Provenance CSV (protocole §1+§3) : constantes du run, une valeur par ligne.
+    try:
+        from gcn_python import __version__ as _gcn_ver
+    except Exception:
+        _gcn_ver = "?"
+    try:
+        import subprocess as _sp
+        _git_sha = _sp.run(["git", "rev-parse", "--short", "HEAD"],
+                           capture_output=True, text=True, timeout=10).stdout.strip() or "?"
+    except Exception:
+        _git_sha = "?"
+    _prov = {
+        "run_seed": _init_seed,
+        "gcn_version": _gcn_ver,
+        "git_sha": _git_sha,
+        "training_data_hash": pipeline.training_data_hash,
+        "cfg_epochs": epochs,
+        "cfg_lr": lr,
+        "cfg_patience": patience,
+        "cfg_min_class_count": min_class_count,
+        "cfg_edge_loss_weight": edge_loss_weight,
+        "cfg_weighted_loss": int(bool(weighted_loss)),
+        "cfg_embedding_dim": embedding_dim,
+    }
     if silver_weight < 1.0:
         click.echo(f"Silver-weight : {silver_weight} (F — loss arêtes pondérée)")
     # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
@@ -1181,7 +1205,7 @@ def train_cmd(
                 "edge_cut_train", "sentence_accuracy",
                 "qual_polarity_accuracy", "qual_voice_accuracy",
                 "qual_modality_accuracy",
-            ]
+            ] + list(_prov.keys())
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
             if assembler is not None:
@@ -1571,14 +1595,30 @@ def train_cmd(
                     "arrêt : données vides ou 100% filtrées. Vérifiez --data-dir."
                 )
             avg_loss = epoch_loss / max(n_samples, 1)
+            # Métriques train HONNÊTES : passe eval à modèle figé sur le train
+            # (sans oracle, comme le val). L'accumulation online (dropout actif,
+            # poids mouvants) est conservée pour sentence/qual uniquement.
+            _set_training_mode(pipeline, False)
+            _fz_node_preds, _fz_node_gold = [], []
+            _fz_edge_preds, _fz_edge_gold = [], []
+            _fz_sent_node_preds, _fz_sent_node_gold = [], []
+            _fz_sent_edge_preds, _fz_sent_edge_gold = [], []
+            _run_eval_pass(
+                pipeline, loader,
+                _fz_node_preds, _fz_node_gold,
+                _fz_edge_preds, _fz_edge_gold,
+                _fz_sent_node_preds, _fz_sent_node_gold,
+                _fz_sent_edge_preds, _fz_sent_edge_gold,
+            )
+            _set_training_mode(pipeline, True)
             metrics = {
-                "node_accuracy": node_accuracy(epoch_node_preds, epoch_node_gold),
-                "node_macro_f1": node_macro_f1(epoch_node_preds, epoch_node_gold),
-                "edge_accuracy": edge_accuracy(epoch_edge_preds, epoch_edge_gold),
-                "edge_macro_f1": edge_macro_f1(epoch_edge_preds, epoch_edge_gold),
+                "node_accuracy": node_accuracy(_fz_node_preds, _fz_node_gold),
+                "node_macro_f1": node_macro_f1(_fz_node_preds, _fz_node_gold),
+                "edge_accuracy": edge_accuracy(_fz_edge_preds, _fz_edge_gold),
+                "edge_macro_f1": edge_macro_f1(_fz_edge_preds, _fz_edge_gold),
                 "graph_exact_match": _gem(
-                    epoch_sent_node_preds, epoch_sent_node_gold,
-                    epoch_sent_edge_preds, epoch_sent_edge_gold,
+                    _fz_sent_node_preds, _fz_sent_node_gold,
+                    _fz_sent_edge_preds, _fz_sent_edge_gold,
                 ),
                 "edge_cut_train": epoch_n_cut,  # v5.1 : hors loss, comptés pas punis
                 # P4a : exactitude type de phrase (vide si tête inactive).
@@ -1639,7 +1679,7 @@ def train_cmd(
             history.append({"epoch": epoch, "loss": avg_loss, **metrics})
 
             if csv_writer:
-                csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics})
+                csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics, **_prov})
 
             if epoch % max(1, epochs // 10) == 0 or epoch == 1:
                 msg = (
@@ -1679,7 +1719,9 @@ def train_cmd(
 
     # Protocole gelé : restore aligné sur val_edge_macro_f1 (même critère
     # que best et patience — le checkpoint final EST le meilleur edge).
-    if patience > 0 and val_loader is not None:
+    # Restauré dès qu'un val existe (même patience=0) : sinon le fichier
+    # final serait la dernière epoch, pas le best.
+    if val_loader is not None:
         import shutil
         if best_edge_epoch > 0:
             _tmp = Path(str(output) + ".tmp.restore")
@@ -1707,11 +1749,13 @@ def train_cmd(
             if _val_logits and len(_val_labels) >= 10:
                 import numpy as _np
                 _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
-                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=_np.int64)
+                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=np.int64)
                 best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
                 pipeline.temperature = best_t
                 click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
-                save_checkpoint(pipeline, output)
+                # Fichier SÉPARÉ : `output` reste le best restauré, jamais réécrit.
+                save_checkpoint(pipeline, Path(str(output) + ".calibrated.npz"))
+                click.echo(f"Checkpoint calibré : {output}.calibrated.npz")
         except Exception as _t5_err:  # noqa: BLE001
             click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
 

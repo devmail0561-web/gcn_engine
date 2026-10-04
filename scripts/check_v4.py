@@ -19,7 +19,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-N_MIN_DEFAULT = 30
+N_MIN_DEFAULT = 20
 FINE_SPAN_WARN_TOKENS = 15  # span > 15 tokens = suspecte pleine-phrase
 
 
