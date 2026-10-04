@@ -77,3 +77,17 @@ Précédents : `b580b7f` pools rares2 · `3cddf44` fix proposeur (gate219 0,749)
    Dette MESURES : runs merge ~2330 introuvables → tracés NON ARCHIVÉS
    dans `mesures/MESURES.md` (à rejouer si besoin). Manifest v4 complété
    (`candidates_rares2.json`, 2698 phrases).
+
+## Lot23 arbitré 2026-10-04 (93 seed 42, caps rares-first)
+Caps : filter/control_dependency/data_dependency/condition/sequence/
+opposition:12, cause:11, prevent:10. Build : 93 LOT, 0 QUAR, 78 LITIG.
+**Gold 82** (15 strict-auto, 13 labels re-ancrés, 4 spans imposés,
+2 retypes : s1196 condition→cause, s2306 cause→concession,
+3 explicit:false `ainsi`, 2 nœuds [1,1] réparés) + **11 quar**
+(5 `contrôle`/`active` mentionnels, `contre` ennemi, catalogue,
+2 fragments, `si` intensif). Vérif : 0 span>15, 0 chevauchement,
+0 doublon, 0 label hors span (mieux que 20/21/22 : 1/6/4).
+N_min lot : concession 1 (gate niveau merge, cf. P0c).
+Fichiers : `scripts/arbitrage_lot23.py` (rejouable) ·
+`v4/annotated/lot23_82.json` · `quarantaine_lot23.json` ·
+`ARBITRAGE_lot23.md`. Gold fichiers : 1679 (1597+82).
