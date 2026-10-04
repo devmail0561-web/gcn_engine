@@ -14,6 +14,11 @@ uniformes ±10 %, §2.4 : au niveau atteignable). `_none` non plafonné
 livré (tirage seedé). Sans --quota : comportement historique (non
 équilibré, déprécié pour l'entraînement).
 
+Tombstones : les ids en `annotated/quarantaine*.json` et
+`annotated/*_pending.json` sont exclus du livré (jamais supprimés du
+disque — ex. doublon inter-lots r2-00275/g0101, topup lot11 hors splits).
+Dédupe inter-lots sur texte normalisé (garde le plus ancien).
+
 Usage :
     python3 scripts/make_split.py --out /tmp/opencode/v4xx [--seed 42]
     python3 scripts/make_split.py --out /tmp/opencode/bal --quota 20
@@ -41,6 +46,35 @@ def main() -> None:
     ss = []
     for f in sorted(glob.glob(str(V4 / "annotated" / "lot*.json"))):
         ss.extend(json.load(open(f))["document"]["sentences"])
+    # Tombstones exclus du livré (disque intact) + dédupe inter-lots.
+    excluded: set[str] = set()
+    for f in sorted(glob.glob(str(V4 / "annotated" / "quarantaine*.json"))):
+        try:
+            for q in json.load(open(f)):
+                if isinstance(q, dict) and q.get("id"):
+                    excluded.add(q["id"])
+        except Exception:
+            pass
+    for f in sorted(glob.glob(str(V4 / "annotated" / "*_pending.json"))):
+        try:
+            for s in json.load(open(f))["document"]["sentences"]:
+                excluded.add(s.get("id"))
+        except Exception:
+            pass
+    if excluded:
+        before = len(ss)
+        ss = [s for s in ss if s.get("id") not in excluded]
+        print(f"tombstones exclus: {before - len(ss)} (quarantaines+pending)")
+    seen: set[str] = set()
+    deduped = []
+    for s in ss:
+        key = (s.get("text") or "").strip().lower()
+        if key in seen:
+            print(f"doublon inter-lots exclu: {s.get('id')}")
+            continue
+        seen.add(key)
+        deduped.append(s)
+    ss = deduped
     if args.quota > 0:
         # Plafond uniforme seedé : mélange global puis premiers N par relation.
         # `_none` (edgeless) non plafonné. Gold intact (sélection au livré).
