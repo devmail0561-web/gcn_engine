@@ -196,6 +196,8 @@ quenché dilue le signal gold. Piste : quota silver différencié
   à volume constant).
 
 ## Veto humain en attente (lots 20-24, choix actuels conservés par défaut)
+**VETO TRANCHÉ 2026-10-04 : oui — tous les choix assistant conservés**
+(5 points ci-dessous validés sans modification).
 Répondre oui/non par point (fichiers `ARBITRAGE_lot{20..24}.md`) :
 1. Doctrine `contrôle` nominal : garder les ~10 quarantaines (lots 23-24 :
    r2-01382/02149/02495/02366/02389, r2-01394/01579/02160/02124/02466)
