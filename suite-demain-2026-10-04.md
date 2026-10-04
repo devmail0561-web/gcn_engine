@@ -92,6 +92,22 @@ Fichiers : `scripts/arbitrage_lot23.py` (rejouable) ·
 `v4/annotated/lot23_82.json` · `quarantaine_lot23.json` ·
 `ARBITRAGE_lot23.md`. Gold fichiers : 1679 (1597+82).
 
+## Lot24 arbitré 2026-10-04 (103 seed 42, proposeur 0.854)
+Nouveau cache propositions (ancien cache pré-0.854 jeté). Caps lot23 +
+enable:2 (pool=2 !) + motivation:8 (pool=65 — `pour`+infinitif marche).
+Build : 103 LOT, 0 QUAR, 91 LITIG.
+**Gold 87** (9 strict, 14 labels re-ancrés, 3 spans imposés,
+3 retypes : r2-00393/r2-00909 filter→condition (`if and only if`),
+r2-01039 control→prevent (activation niée), s1591 →cause,
+6 explicit:false `ainsi`, 3 nœuds [1,1] réparés) + **16 quar**
+(4 `contrôle` mentionnels — conflit veto, `calls`/`needs` nominaux,
+4 `sans` circonstanciels, `si oui`/`si` intensif, `pour commencer`,
+titre+marqueur erroné). Vérif : 0 span>15, 0 chevauchement, 0 doublon,
+0 label hors span. Concession 0 (pool vide).
+Fichiers : `scripts/arbitrage_lot24.py` ·
+`v4/annotated/lot24_87.json` · `quarantaine_lot24.json` ·
+`ARBITRAGE_lot24.md`. Gold fichiers : 1766 (1679+87).
+
 ## Volume v5 entamé 2026-10-04 (gate 808 OK, batch arxiv2 +27)
 - **Gate 808 science-web TENU (structurel)** : `validate_cir.py` corrigeait
   le schéma v1 (`source`) alors que v5 est en v2 (`sources`) → 0 % valide
