@@ -120,3 +120,20 @@ ordinal/nominal/propre → sequence (~20), `become` statif → sequence
 (~10), `nécessaire` adjectival → data (3), titres/sections accolés,
 doublon inter-registres divers-en-news-001703 = presse-en-002171.
 Prochaine étape : les merges silver doivent exclure verdict=quarantaine.
+
+## Proposeur 0,749 → 0,854 (gate219 tenu, +23 nets) 2026-10-04
+`gcn_annotate/balanced_auto.py` (tests package OK : 26 pass, 4 skipped).
+Précision (aveugle_200) : garde ordinal `first`/`primero` (dét/possessif/
+`be+participe`/`half`/`-composé`), `becomes?`/`devient` nus retirés
+(410 séquences spurieuses silver réduites au silence), `pour`/`para`
+exigent infinitif, `end up` intact (non mesuré : à durcir).
+Rappel (gate) : `même si`→P0 implicite OK, `Si+néanmoins`→concession,
+clivée `c'est parce que` prioritaire, `pas accès`→prevent,
+`oppose/opposé(s)`→opposition, `en raison du/des`+`à cause du/des`,
+`lorsqu` (élision), `driven by`, `une fois`, `certes` tête,
+`alors que/tandis que/subsequently/thereafter`→P0, `temporel>pour`,
+`_strip_lead` débris + split `,(?!\d)`, seuils contenu 4→3 / total 4→3.
+Limites connues : `contrôle` nominal (s065/s112 — gold lui-même met
+control sur mentions définitionnelles s114/s115 : **conflit doctrine à
+trancher au veto lot23**, 5 quarantaines `contrôle`/`active` à revoir),
+`contributes to`→enable, `para que`→motivation, `llama`, mono-arête.
