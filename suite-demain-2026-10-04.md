@@ -109,3 +109,14 @@ Fichiers : `scripts/arbitrage_lot23.py` (rejouable) ·
   `--max-per-query 10`, cibles ≤150/run) ; arXiv ML peu causal →
   privilégier wikipedia/presse/éduc pour le volume (~45k restants :
   science ~24k, presse ~9,2k, éduc ~8,1k, divers ~4k).
+
+## Aveugle_200 arbitré 2026-10-04 (133 garder / 67 quarantaine)
+Verdicts `garder`/`quarantaine` + motif renseignés en place
+(`v5/gates/aveugle_200.json`, ids/textes intacts) via
+`scripts/verdicts_aveugle.py` (rejouable) + `AVEUGLE_200_verdicts.md`.
+Quar/rel : sequence 38, cause 14, data 4, control 3, filter/opposition/
+prevent 2, condition/enable 1. Faiblesses systématiques : `first`
+ordinal/nominal/propre → sequence (~20), `become` statif → sequence
+(~10), `nécessaire` adjectival → data (3), titres/sections accolés,
+doublon inter-registres divers-en-news-001703 = presse-en-002171.
+Prochaine étape : les merges silver doivent exclure verdict=quarantaine.
