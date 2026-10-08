@@ -103,6 +103,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Script `grid_f1_thresholds.py` (jouet, R10)** : toy 300 steps → GEL exit 2 (11 relations 6-9 < 30, correct) ; `--force` démo : 250 essais, meilleur (0.0, 0.8, 0.5) F1=0.12 ≠ ref, non adopté. Vrai grid après gold-3000.
 - **Tests (13 + 2 gate verts)** + `ruff` propre. Gate R8/R10 : GEL démontré, pas programmé.
 
+### Refacto NLU sans UD + B (2026-10-08, étape 6 — fin du socle moteur hors BCE)
+
+- **Nouveau `nlu/infer.py`** : `infer_nlu(text, lang)` — B segmente → acte par clause ([T6] ponctuation) + langue du message ([R-LANG]) + concepts sans UD + attentes P2 (`expects_response/action` dérivées de l'acte, pas du `SentenceProfile` UD) ; `silver_annotate` (+ traçabilité §6 : source, phrase-hash, campagne, outil+version) = branchement silver-B. Lazy, no-cycle (garde testée), spaCy toujours lazy dans B.
+- **Chaîne P1/P2/P3 ([D])** : P1 = 21 legacy SOUS `question` (`legacy_router` injecté dans `route_intent`, e2e testé) ; P2 = attentes ; P3 = `?` consommé par `detect_act`.
+- **Tests (8 verts)** + `ruff` propre. Session/discuss (`add_cir`, clarification 9c, file-action) : câblage phase 9 (documenté, pas ici).
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
