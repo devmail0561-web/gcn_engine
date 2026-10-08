@@ -72,6 +72,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Nouveau `gcn-python/src/gcn_python/layer0/tokenizer.py`** : `split(text) → (ids, offsets, tokens)` — 1 tokenizer, 0 frontend par langue (T6) ; profils latin (minuscule + sans-accent) / CJK-sans-espaces (thaï/lao/myanmar/khmer inclus) / arabe RTL (NFC, diacritiques gardés) / autres (NFC) ; ponctuation en tokens propres (`?` pour les actes) ; apostrophe interne gardée ; ids 64 bits stables sha256 **sans vocab** (R5, `PYTHONHASHSEED`-indépendants, prouvé inter-processus) ; offsets dans l'original ; `tokenizer_hash` (R5, s1 à venir) ; stdlib seule, jamais `hash()`.
 - **Tests `test_tokenizer.py` (10 verts)** + `ruff` propre. L0 n'efface rien (legacy cohabite jusqu'à la bascule).
 
+### Refacto L1 — E_tok + forward_ids + d_model (2026-10-08)
+
+- **Nouveau `layer1/tok_embedding.py`** : `TokEmbedding(d_model=128)` — vocab = ids stables triés (ordre d'insertion indifférent), OOV → zéros + compteur (Option A, garde R5), `backward`/`update` SGD, `to_dict`/`from_dict` + `.npz` s1/s2 (`format_refacto`, `tok_vocab`, `tokenizer_hash`, `d_model`, fail-fast). Bug réel trouvé : ids 64 bits non signés → `uint64` (overflow `int64`).
+- **Nouveau `layer1/l1_forward.py`** : `forward_ids(ids, mask)` (lookup + masque, copies R1) + `align_spans` (spans chars → indices tokens, règle unique) + `pool_clauses` (moyenne fixe, clause vide → zéros comptés) + `PoolMap` miroir lignes→tokens (R1) ; indices hors E → `ValueError` explicite.
+- **Tests (9 + 8 verts)** : déterminisme, roundtrips, rejets, smoke L0→L1 sur phrase gold (couverture totale, gradient sans fuite OOV). Legacy intact (bascule plus tard).
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
