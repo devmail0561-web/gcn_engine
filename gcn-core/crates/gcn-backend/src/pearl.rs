@@ -699,6 +699,38 @@ fn bfs_path_links(
         .collect()
 }
 
+/// Ph6b — liens directs 1 saut d'un nœud : (entrants, sortants).
+/// Sert ASK (fiche nœud) sans traversée (pas de propagation, pas de niée).
+pub fn direct_links(ir: &CausalIR, id: NodeId) -> (Vec<CausalLink>, Vec<CausalLink>) {
+    let (nm, em) = build_maps(ir);
+    let mut entrants = Vec::new();
+    let mut sortants = Vec::new();
+    for (s, d, _) in &ir.edges {
+        if *d == id
+            && let Some(link) = edge_link(&nm, &em, *s, *d)
+        {
+            entrants.push(link);
+        }
+        if *s == id
+            && let Some(link) = edge_link(&nm, &em, *s, *d)
+        {
+            sortants.push(link);
+        }
+    }
+    sort_by_strength_pairs(&mut entrants);
+    sort_by_strength_pairs(&mut sortants);
+    (entrants, sortants)
+}
+
+/// Tri décroissant par confiance (liens directs, déterministe).
+fn sort_by_strength_pairs(links: &mut [CausalLink]) {
+    links.sort_by(|a, b| {
+        b.confidence
+            .total_cmp(&a.confidence)
+            .then((a.from_id.0, a.to_id.0).cmp(&(b.from_id.0, b.to_id.0)))
+    });
+}
+
 fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<CausalLink> {
     em.get(&(src.0, dst.0)).map(|e| CausalLink {
         from_label: nm

@@ -109,6 +109,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Chaîne P1/P2/P3 ([D])** : P1 = 21 legacy SOUS `question` (`legacy_router` injecté dans `route_intent`, e2e testé) ; P2 = attentes ; P3 = `?` consommé par `detect_act`.
 - **Tests (8 verts)** + `ruff` propre. Session/discuss (`add_cir`, clarification 9c, file-action) : câblage phase 9 (documenté, pas ici).
 
+### Backend Phase 6b — produit sans chiffres faux (2026-10-08, gate NO-GO acté)
+
+- **Nouvelles requêtes** : `ASK <label>` (fiche 1 saut, sans propagation), `WHY-NOT <a> -> <b>` (`coupure_negation` = bloqueurs niés, `aucun_lien` + proches, `chemin_existe` sinon), `WHY/WHAT … TOPK=N` (N meilleurs + `total`), `EXPLAIN <e> CONTRAST <f>` (distinctives vs partagées), `ANALOGY … HOPS=N` (≥ 2 = contexte 1-saut Jaccard 50/50, défaut 1 inchangé).
+- **Dérivations D3 systématiques** : `LinkDto.derived_from` (sources résolues en labels, partout).
+- **Enveloppes Ph8** : ASK/WHY-NOT/contraste verbalisés (matrice always-answer étendue aux nouvelles syntaxes).
+- **Tests (8 gold + 4 enveloppes verts)** : fiche, TOPK+total, 3 verdicts WHY-NOT, contraste, HOPS, D3, parsing/erreurs. 2 bugs trouvés : double-découpe suffixes (panic fuzz → corrigé), groupe joint singleton (fixture → groupe valide). **Vert workspace : 240 passés, 0 échoué, clippy 0, fmt propre.**
+- **README crate** : requêtes + DTOs 6b documentés.
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

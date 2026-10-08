@@ -102,7 +102,8 @@ fn parse_why() {
         Query::parse("WHY ventes?").unwrap(),
         Query::Why {
             label: "ventes".into(),
-            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None
         }
     );
 }
@@ -128,7 +129,8 @@ fn parse_what() {
         Query::parse("WHAT coûts?").unwrap(),
         Query::What {
             label: "coûts".into(),
-            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None
         }
     );
 }
@@ -178,6 +180,7 @@ fn why_finds_direct_cause() {
         &Query::Why {
             label: "ventes".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
         },
         &ir,
     )
@@ -198,6 +201,7 @@ fn why_node_not_found_errors() {
         &Query::Why {
             label: "inexistant".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
         },
         &ir,
     );
@@ -222,6 +226,7 @@ fn what_finds_direct_effect() {
         &Query::What {
             label: "qualité".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
         },
         &ir,
     )
@@ -663,6 +668,7 @@ fn analogy_same_relation_type_scores_high() {
             to: "B".into(),
             weights: DEFAULT_ANALOGY_WEIGHTS,
             min_score: DEFAULT_ANALOGY_MIN_SCORE,
+            hops: 1,
         },
         &ir,
     )
@@ -706,6 +712,7 @@ fn analogy_unknown_pattern_returns_empty() {
             to: "Y".into(),
             weights: DEFAULT_ANALOGY_WEIGHTS,
             min_score: DEFAULT_ANALOGY_MIN_SCORE,
+            hops: 1,
         },
         &ir,
     )
@@ -1083,8 +1090,18 @@ fn explain_ranks_direct_cause_first() {
     let mut ir2 = ir.clone();
     ir2.edges[0].2.confidence = 0.9;
     ir2.edges[1].2.confidence = 0.5;
-    let result = execute(&Query::Explain("C".into()), &ir2).unwrap();
-    if let QueryResult::Abduction { effect, hypotheses } = result {
+    let result = execute(
+        &Query::Explain {
+            effect: "C".into(),
+            contrast: None,
+        },
+        &ir2,
+    )
+    .unwrap();
+    if let QueryResult::Abduction {
+        effect, hypotheses, ..
+    } = result
+    {
         assert_eq!(effect, "C");
         assert!(!hypotheses.is_empty());
         // A (conf=0.9) doit être classé avant B (conf=0.5)
@@ -1104,7 +1121,14 @@ fn explain_ranks_direct_cause_first() {
 #[test]
 fn explain_no_causes_returns_empty() {
     let ir = make_ir(vec![node(0, "isolé", NodeType::EtatLocal)], vec![]);
-    let result = execute(&Query::Explain("isolé".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Explain {
+            effect: "isolé".into(),
+            contrast: None,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Abduction { hypotheses, .. } = result {
         assert!(hypotheses.is_empty());
     } else {
@@ -1129,7 +1153,14 @@ fn explain_prefers_close_over_distant() {
     );
     ir.edges[0].2.confidence = 0.8;
     ir.edges[1].2.confidence = 0.8;
-    let result = execute(&Query::Explain("C".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Explain {
+            effect: "C".into(),
+            contrast: None,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Abduction { hypotheses, .. } = result {
         assert!(hypotheses.len() >= 2);
         let pos_b = hypotheses.iter().position(|h| h.label == "B");
@@ -1275,6 +1306,7 @@ fn parse_all_21_query_types() {
             Query::Why {
                 label: "feu".into(),
                 ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+                topk: None,
             },
         ),
         (
@@ -1282,6 +1314,7 @@ fn parse_all_21_query_types() {
             Query::What {
                 label: "feu".into(),
                 ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+                topk: None,
             },
         ),
         (
@@ -1296,7 +1329,13 @@ fn parse_all_21_query_types() {
         ("GAPS", Query::Gaps),
         ("DO feu", Query::Intervene("feu".into())),
         ("COUNTERFACTUAL feu", Query::Counterfactual("feu".into())),
-        ("EXPLAIN fumée", Query::Explain("fumée".into())),
+        (
+            "EXPLAIN fumée",
+            Query::Explain {
+                effect: "fumée".into(),
+                contrast: None,
+            },
+        ),
         (
             "ANALOGY feu -> fumée",
             Query::Analogy {
@@ -1304,6 +1343,7 @@ fn parse_all_21_query_types() {
                 to: "fumée".into(),
                 weights: DEFAULT_ANALOGY_WEIGHTS,
                 min_score: DEFAULT_ANALOGY_MIN_SCORE,
+                hops: 1,
             },
         ),
         ("ZOOM_IN feu", Query::ZoomIn("feu".into())),
@@ -1351,7 +1391,8 @@ fn parse_case_insensitive_verb() {
         Query::parse("why feu").unwrap(),
         Query::Why {
             label: "feu".into(),
-            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None
         }
     );
     assert_eq!(

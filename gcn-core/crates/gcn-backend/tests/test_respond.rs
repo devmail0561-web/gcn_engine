@@ -318,6 +318,16 @@ fn always_answer_matrix() {
         "WHY 日本語?",
         "CHAIN a->b TOPK=99",
         "WHY b1 AMBIGUITY_LIMIT=1",
+        "ASK x",
+        "ASK",
+        "WHY-NOT a -> b",
+        "WHY-NOT a",
+        "WHY x TOPK=2",
+        "WHY x TOPK=0",
+        "EXPLAIN e CONTRAST f",
+        "EXPLAIN e CONTRAST",
+        "ANALOGY a -> b HOPS=2",
+        "ANALOGY a -> b HOPS=0",
     ];
     for ir in [&small, &empty, &big, &uni] {
         for q in &queries {
@@ -329,4 +339,66 @@ fn always_answer_matrix() {
             );
         }
     }
+}
+
+// ─── Ph6b : enveloppes ASK / WHY-NOT / contraste ───────────────────────────
+
+#[test]
+fn ask_envelope_card() {
+    let r = respond("ASK Beta", &jouet());
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Ok);
+    assert!(r.phrase.contains("Beta"), "fiche nommée : {}", r.phrase);
+    assert!(matches!(r.result, Some(QueryResult::AskReport { .. })));
+}
+
+#[test]
+fn whynot_cut_envelope() {
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta"), node(2, "Gamma")],
+        vec![
+            edge(0, 1, RelationType::Cause, true),
+            edge(1, 2, RelationType::Cause, false),
+        ],
+    );
+    let r = respond("WHY-NOT Alpha -> Gamma", &ir);
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Partiel);
+    assert!(r.phrase.contains("coupe"), "bloqueur nommé : {}", r.phrase);
+    assert!(r.suggestions.iter().any(|s| s.contains("WHY Gamma")));
+}
+
+#[test]
+fn whynot_empty_envelope() {
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta"), node(2, "Zulu")],
+        vec![edge(0, 1, RelationType::Cause, false)],
+    );
+    let r = respond("WHY-NOT Alpha -> Zulu", &ir);
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Partiel);
+    assert!(r.phrase.contains("Beta"), "proche nommé : {}", r.phrase);
+}
+
+#[test]
+fn explain_contrast_envelope() {
+    let ir = make_ir(
+        vec![
+            node(0, "Aaa"),
+            node(1, "Bbb"),
+            node(2, "Eee"),
+            node(3, "Fff"),
+            node(4, "Ccc"),
+        ],
+        vec![
+            edge(0, 2, RelationType::Cause, false),
+            edge(1, 2, RelationType::Cause, false),
+            edge(1, 3, RelationType::Cause, false),
+            edge(4, 3, RelationType::Cause, false),
+        ],
+    );
+    let r = respond("EXPLAIN Eee CONTRAST Fff", &ir);
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Ok);
+    assert!(r.phrase.contains("Aaa"), "distinctif nommé : {}", r.phrase);
 }

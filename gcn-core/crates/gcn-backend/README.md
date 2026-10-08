@@ -168,13 +168,13 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 
 | Requête | Niveau Pearl | Description |
 |---------|-------------|-------------|
-| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé ; niées coupées → `blocked_by` ; exacts d'abord, flous ≤ `AMBIGUITY_LIMIT` (défaut 5), excès → erreur `Ambiguous`) |
-| `WHAT <label>` | 1 | Effets directs et indirects (même politique exact-puis-flou) |
+| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé ; niées coupées → `blocked_by` ; exacts d'abord, flous ≤ `AMBIGUITY_LIMIT` (défaut 5), excès → erreur `Ambiguous` ; `TOPK=N` = N meilleurs + `total`) |
+| `WHAT <label>` | 1 | Effets directs et indirects (même politique exact-puis-flou ; `TOPK=N`) |
 | `CHAIN <a> -> <b>` | 1 | Chemin confiance-max (Dijkstra −ln(conf), jamais via niée ; `TOPK=N` défaut 3, `path_confidence` + `ranked_paths` ; `found:false` + `blocked_by` si coupure, vide si aucun chemin) |
 | `CHAIN_T <a> -> <b>` | 1 | Chemin causal avec info temporelle |
 | `BEFORE <a>, <b>` | 1 | A précède-t-il B ? |
 | `DELAY <a> -> <b>` | 1 | Délai estimé A→B |
-| `EXPLAIN <label>` | 1 | Raisonnement abductif — causes candidates |
+| `EXPLAIN <label>` | 1 | Raisonnement abductif — causes candidates (`CONTRAST <autre>` = distinctives vs partagées) |
 | `CYCLES` | — | Cycles de rétroaction |
 | `GAPS` | — | Lacunes temporelles causales |
 | `SPOF` | — | Points de défaillance unique (+ SUPER-SPOF JointCause) |
@@ -182,7 +182,9 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 | `DENSITY` | — | Densité du graphe |
 | `COVERAGE <label>` | — | Couverture causale d'un concept |
 | `RELIABILITY <label>` | — | Fiabilité des réponses |
-| `ANALOGY <a> -> <b>` | — | Patterns causaux similaires (`WEIGHTS=a,b,c,d` défaut 0.40/0.30/0.20/0.10, `MIN_SCORE=x` défaut 0.3) |
+| `ANALOGY <a> -> <b>` | — | Patterns causaux similaires (`WEIGHTS=a,b,c,d` défaut 0.40/0.30/0.20/0.10, `MIN_SCORE=x` défaut 0.3, `HOPS=N` défaut 1 = mono-saut, ≥ 2 = contexte Jaccard 50/50) |
+| `ASK <label>` | — | Fiche nœud (type + causes/effets directs 1 saut, sans propagation) |
+| `WHY-NOT <a> -> <b>` | — | Pourquoi aucun chemin : `coupure_negation` (bloqueurs = `blocked_by`) ou `aucun_lien` (proches), `chemin_existe` sinon |
 | `NORM_DIFF <a>, <b>` | — | Écart normatif A→B |
 | `DO <label>` | 2 | Intervention do-calculus (entrantes niées incluses dans `severed`, effets jamais via niée) |
 | `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés ; niées non traversées) |
@@ -212,9 +214,9 @@ impl Query {
 // Serde tag = "type", rename_all = "snake_case"
 pub enum QueryResult {
     Causes        { target: String, links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
-                    match_scores: Vec<(String, u8)>, fuzzy: bool, .. },
+                    match_scores: Vec<(String, u8)>, fuzzy: bool, total: usize, .. },
     Effects       { source: String, links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
-                    match_scores: Vec<(String, u8)>, fuzzy: bool, .. },
+                    match_scores: Vec<(String, u8)>, fuzzy: bool, total: usize, .. },
     Path          { from: String, to: String, found: bool,
                     links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
                     path_confidence: f32, ranked_paths: Vec<RankedPathDto> },
@@ -249,7 +251,8 @@ pub enum QueryResult {
 // chemin confiance-max, plus le plus-court BFS.
 
 pub struct LinkDto { pub from: String, pub to: String,
-                     pub relation: String, pub confidence: f32, pub negated: bool }
+                     pub relation: String, pub confidence: f32, pub negated: bool,
+                     pub derived_from: Option<Vec<(String, String)>> /* D3 Ph6b */ }
 pub struct CycleDto { pub id: u32, pub kind: String, pub nodes: Vec<String> }
 pub struct GapDto   { pub from: String, pub to: String, pub relation: String }
 ```

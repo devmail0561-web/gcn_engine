@@ -552,14 +552,16 @@ fn parse_ambiguity_limit_suffix() {
         Query::parse("WHY vent AMBIGUITY_LIMIT=3").unwrap(),
         Query::Why {
             label: "vent".into(),
-            ambiguity_limit: 3
+            ambiguity_limit: 3,
+            topk: None
         }
     );
     assert_eq!(
         Query::parse("WHAT vent").unwrap(),
         Query::What {
             label: "vent".into(),
-            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None
         }
     );
     assert!(Query::parse("WHY AMBIGUITY_LIMIT=3").is_err());
@@ -785,8 +787,270 @@ fn parse_topk_weights_minscore() {
             from: "a".into(),
             to: "b".into(),
             weights: [0.4, 0.3, 0.2, 0.1],
-            min_score: 0.5
+            min_score: 0.5,
+            hops: 1
         }
     );
     assert!(Query::parse("ANALOGY a -> b WEIGHTS=0.4,0.3").is_err());
+}
+
+// ─── Ph6b : ASK — fiche nœud 1 saut ─────────────────────────────────────────
+
+#[test]
+fn ask_returns_node_card() {
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta"), node(2, "Gamma")],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("ASK Beta").unwrap(), &ir).unwrap();
+    if let QueryResult::AskReport {
+        label,
+        node_type,
+        causes,
+        effects,
+    } = result
+    {
+        assert_eq!(label, "Beta");
+        assert!(!node_type.is_empty());
+        assert_eq!(causes.len(), 1);
+        assert_eq!(causes[0].from, "Alpha");
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].to, "Gamma");
+    } else {
+        panic!("AskReport attendu, obtenu : {result:?}");
+    }
+    let err = execute(&Query::parse("ASK Zzz").unwrap(), &ir);
+    assert!(matches!(err, Err(BackendError::NodeNotFound(_))));
+    assert!(Query::parse("ASK ").is_err());
+}
+
+// ─── Ph6b : WHY/WHAT TOPK — N meilleurs + total ─────────────────────────────
+
+#[test]
+fn why_topk_limits_links_reports_total() {
+    // Chaîne Alpha→Beta→Gamma→Delta : WHY(Delta) = 3 liens (force décroissante).
+    let ir = make_ir(
+        vec![
+            node(0, "Alpha"),
+            node(1, "Beta"),
+            node(2, "Gamma"),
+            node(3, "Delta"),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHY Delta TOPK=2").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes { links, total, .. } = result {
+        assert_eq!(total, 3, "total avant limite : {links:?}");
+        assert_eq!(links.len(), 2, "TOPK=2 : {links:?}");
+        assert_eq!(links[0].from, "Gamma", "le plus fort d'abord : {links:?}");
+    } else {
+        panic!("Causes attendu, obtenu : {result:?}");
+    }
+    // Sans TOPK : tout + total == len.
+    let result = execute(&Query::parse("WHY Delta").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes { links, total, .. } = result {
+        assert_eq!(links.len(), total);
+        assert_eq!(total, 3);
+    } else {
+        panic!("Causes attendu, obtenu : {result:?}");
+    }
+    assert!(Query::parse("WHY Delta TOPK=0").is_err());
+}
+
+// ─── Ph6b : WHY-NOT — coupure, aucun lien, chemin existant ──────────────────
+
+#[test]
+fn why_not_negation_cut() {
+    // Alpha → Beta NIÉE, Beta → Gamma : WHY-NOT = coupure + bloqueurs.
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta"), node(2, "Gamma")],
+        vec![
+            edge_full(0, 1, RelationType::Cause, true, None),
+            edge(1, 2, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHY-NOT Alpha -> Gamma").unwrap(), &ir).unwrap();
+    if let QueryResult::WhyNot {
+        verdict,
+        blocked_by,
+        proches,
+        ..
+    } = result
+    {
+        assert_eq!(verdict, "coupure_negation");
+        assert!(
+            blocked_by
+                .iter()
+                .any(|l| l.from == "Alpha" && l.to == "Beta"),
+            "bloqueurs : {blocked_by:?}"
+        );
+        assert!(proches.is_empty());
+    } else {
+        panic!("WhyNot attendu, obtenu : {result:?}");
+    }
+}
+
+#[test]
+fn why_not_no_link_gives_proches() {
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta"), node(2, "Zulu")],
+        vec![edge(0, 1, RelationType::Cause)],
+    );
+    let result = execute(&Query::parse("WHY-NOT Alpha -> Zulu").unwrap(), &ir).unwrap();
+    if let QueryResult::WhyNot {
+        verdict, proches, ..
+    } = result
+    {
+        assert_eq!(verdict, "aucun_lien");
+        assert!(
+            proches.contains(&"Beta".to_string()),
+            "proches : {proches:?}"
+        );
+    } else {
+        panic!("WhyNot attendu, obtenu : {result:?}");
+    }
+}
+
+#[test]
+fn why_not_existing_path_says_so() {
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta")],
+        vec![edge(0, 1, RelationType::Cause)],
+    );
+    let result = execute(&Query::parse("WHY-NOT Alpha -> Beta").unwrap(), &ir).unwrap();
+    if let QueryResult::WhyNot { verdict, links, .. } = result {
+        assert_eq!(verdict, "chemin_existe");
+        assert_eq!(links.len(), 1);
+    } else {
+        panic!("WhyNot attendu, obtenu : {result:?}");
+    }
+    assert!(Query::parse("WHY-NOT Alpha").is_err());
+}
+
+// ─── Ph6b : EXPLAIN CONTRAST — distinctif vs partagé ────────────────────────
+
+#[test]
+fn explain_contrast_distinctive_vs_shared() {
+    // E ← {A, B} ; F ← {B, C} : distinctif=[A], partagé=[B].
+    let ir = make_ir(
+        vec![
+            node(0, "Aaa"),
+            node(1, "Bbb"),
+            node(2, "Eee"),
+            node(3, "Fff"),
+            node(4, "Ccc"),
+        ],
+        vec![
+            edge(0, 2, RelationType::Cause),
+            edge(1, 2, RelationType::Cause),
+            edge(1, 3, RelationType::Cause),
+            edge(4, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("EXPLAIN Eee CONTRAST Fff").unwrap(), &ir).unwrap();
+    if let QueryResult::Abduction {
+        hypotheses,
+        contrast,
+        ..
+    } = result
+    {
+        assert_eq!(hypotheses.len(), 2);
+        let c = contrast.expect("contraste présent");
+        assert_eq!(c.alternative, "Fff");
+        let dist: Vec<&str> = c.distinctive.iter().map(|h| h.label.as_str()).collect();
+        assert_eq!(dist, vec!["Aaa"], "distinctif : {dist:?}");
+        assert_eq!(
+            c.shared,
+            vec!["Bbb".to_string()],
+            "partagé : {:?}",
+            c.shared
+        );
+    } else {
+        panic!("Abduction attendue, obtenue : {result:?}");
+    }
+    // Alternative inconnue → NodeNotFound (référence explicite).
+    let err = execute(&Query::parse("EXPLAIN Eee CONTRAST Zzz").unwrap(), &ir);
+    assert!(matches!(err, Err(BackendError::NodeNotFound(_))));
+    // Sans contraste : inchangé (contrast None).
+    let result = execute(&Query::parse("EXPLAIN Eee").unwrap(), &ir).unwrap();
+    if let QueryResult::Abduction { contrast, .. } = result {
+        assert!(contrast.is_none());
+    } else {
+        panic!("Abduction attendue, obtenue : {result:?}");
+    }
+}
+
+// ─── Ph6b : ANALOGY HOPS — contexte multi-sauts ────────────────────────────
+
+#[test]
+fn analogy_hops_runs_and_parses() {
+    // A→B patron, C→D analogue, E→F témoin (cf. test ANALOGY existant).
+    let ir = make_ir(
+        vec![
+            node(0, "A"),
+            node(1, "B"),
+            node(2, "C"),
+            node(3, "D"),
+            node(4, "E"),
+            node(5, "F"),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+            edge(4, 5, RelationType::Enable),
+        ],
+    );
+    let result = execute(&Query::parse("ANALOGY A -> B HOPS=2").unwrap(), &ir).unwrap();
+    if let QueryResult::AnalogyReport { matches, .. } = result {
+        assert!(
+            matches.iter().all(|m| m.similarity_score >= 0.3),
+            "seuil respecté : {matches:?}"
+        );
+        // Déterminisme : deux runs identiques.
+        let result2 = execute(&Query::parse("ANALOGY A -> B HOPS=2").unwrap(), &ir).unwrap();
+        if let QueryResult::AnalogyReport { matches: m2, .. } = result2 {
+            assert_eq!(matches.len(), m2.len());
+        } else {
+            panic!("AnalogyReport attendu");
+        }
+    } else {
+        panic!("AnalogyReport attendu, obtenu : {result:?}");
+    }
+    assert!(Query::parse("ANALOGY A -> B HOPS=0").is_err());
+}
+
+// ─── Ph6b : dérivations D3 systématiques sur les liens ─────────────────────
+
+#[test]
+fn derived_from_surfaced_on_links() {
+    // A→B inférée de X→A (Derivation.source_edges).
+    let mut e = edge(0, 1, RelationType::Cause);
+    e.2.derivation = Some(gcn_ir::Derivation {
+        source_edges: vec![(NodeId(2), NodeId(0))],
+    });
+    let ir = make_ir(
+        vec![node(0, "Aaa"), node(1, "Bbb"), node(2, "Xxx")],
+        vec![edge(2, 0, RelationType::Cause), e],
+    );
+    let result = execute(&Query::parse("WHY Bbb").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes { links, .. } = result {
+        let lien = links
+            .iter()
+            .find(|l| l.from == "Aaa")
+            .expect("lien Aaa→Bbb");
+        assert_eq!(
+            lien.derived_from,
+            Some(vec![("Xxx".to_string(), "Aaa".to_string())]),
+            "dérivation D3 : {lien:?}"
+        );
+    } else {
+        panic!("Causes attendu, obtenu : {result:?}");
+    }
 }

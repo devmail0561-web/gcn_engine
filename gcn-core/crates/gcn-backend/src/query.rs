@@ -25,35 +25,57 @@ fn split_pair(rest: &str, cmd: &str) -> Result<(String, String), BackendError> {
     Ok((a, b))
 }
 
-/// Suffixe `AMBIGUITY_LIMIT=N` (Ph2 [D2]) : extrait la limite floue, défaut 5.
-///
-/// Retourne (label, limite). `WHY AMBIGUITY_LIMIT=3` sans label → erreur
-/// (jamais de match-all silencieux) ; N mal formé → `QueryParseError`.
-fn split_ambiguity_limit(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
-    let rest = rest.trim();
-    if let Some((head, tail)) = rest.rsplit_once(char::is_whitespace) {
-        if tail.to_ascii_uppercase().starts_with("AMBIGUITY_LIMIT=") {
-            let n: usize = tail["AMBIGUITY_LIMIT=".len()..].parse().map_err(|_| {
+/// Options WHY/WHAT (Ph2 + Ph6b) : suffixes `AMBIGUITY_LIMIT=N` et `TOPK=N`
+/// en ordre libre, optionnels. Retourne (label, limite, topk).
+/// Label vide ou option mal formée → `QueryParseError` (jamais de match-all).
+fn split_why_options(
+    rest: &str,
+    cmd: &str,
+) -> Result<(String, usize, Option<usize>), BackendError> {
+    let mut body = rest.trim().to_string();
+    let mut limit = pearl::DEFAULT_AMBIGUITY_LIMIT;
+    let mut topk: Option<usize> = None;
+    while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
+        let up = tail.to_ascii_uppercase();
+        if let Some(v) = up.strip_prefix("AMBIGUITY_LIMIT=") {
+            limit = v.parse().map_err(|_| {
                 BackendError::QueryParseError(format!(
                     "{cmd}: AMBIGUITY_LIMIT entier attendu, reçu '{tail}'"
                 ))
             })?;
-            return Ok((head.trim().to_string(), n));
+            body = head.trim().to_string();
+        } else if let Some(v) = up.strip_prefix("TOPK=") {
+            let n: usize = v.parse().map_err(|_| {
+                BackendError::QueryParseError(format!(
+                    "{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"
+                ))
+            })?;
+            if n == 0 {
+                return Err(BackendError::QueryParseError(format!(
+                    "{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"
+                )));
+            }
+            topk = Some(n);
+            body = head.trim().to_string();
+        } else {
+            break;
         }
-    } else if rest.to_ascii_uppercase().starts_with("AMBIGUITY_LIMIT=") {
+    }
+    let up = body.to_ascii_uppercase();
+    if body.is_empty() || up.starts_with("AMBIGUITY_LIMIT=") || up.starts_with("TOPK=") {
         return Err(BackendError::QueryParseError(format!(
             "{cmd}: label manquant"
         )));
     }
-    Ok((rest.to_string(), pearl::DEFAULT_AMBIGUITY_LIMIT))
+    Ok((body, limit, topk))
 }
 
 /// Ph3 [D3] — chemins retournés par CHAIN sans `TOPK=` (documenté).
 pub const DEFAULT_TOPK: usize = 3;
 
-/// Suffixe `TOPK=N` (Ph3 [D3]) : extrait le nombre de chemins, défaut 3.
-/// `N = 0` ou mal formé → `QueryParseError`.
-fn split_topk_suffix(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
+/// Suffixe `TOPK=N` optionnel (Ph6b) : `None` si absent (tous), `Some(n ≥ 1`
+/// sinon. `N = 0` ou mal formé → `QueryParseError`.
+fn split_topk_opt_suffix(rest: &str, cmd: &str) -> Result<(String, Option<usize>), BackendError> {
     let rest = rest.trim();
     if let Some((head, tail)) = rest.rsplit_once(char::is_whitespace)
         && tail.to_ascii_uppercase().starts_with("TOPK=")
@@ -66,17 +88,25 @@ fn split_topk_suffix(rest: &str, cmd: &str) -> Result<(String, usize), BackendEr
                 "{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"
             )));
         }
-        return Ok((head.trim().to_string(), n));
+        return Ok((head.trim().to_string(), Some(n)));
     }
-    Ok((rest.to_string(), DEFAULT_TOPK))
+    Ok((rest.to_string(), None))
 }
 
-/// Suffixes `WEIGHTS=a,b,c,d` + `MIN_SCORE=x` (Ph3 [D3], ordre libre, optionnels).
-/// Retourne (corps, poids, seuil). Mal formés → `QueryParseError`.
-fn split_analogy_options(rest: &str) -> Result<(String, [f32; 4], f32), BackendError> {
+/// Suffixe `TOPK=N` (Ph3 [D3]) : extrait le nombre de chemins, défaut 3.
+/// `N = 0` ou mal formé → `QueryParseError`.
+fn split_topk_suffix(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
+    let (body, topk) = split_topk_opt_suffix(rest, cmd)?;
+    Ok((body, topk.unwrap_or(DEFAULT_TOPK)))
+}
+
+/// Variante Ph6b : extrait en plus `HOPS=N` (profondeur de contexte, ≥ 1,
+/// défaut 1 = mono-saut). Retourne (corps, poids, seuil, hops).
+fn split_analogy_options_hops(rest: &str) -> Result<(String, [f32; 4], f32, u32), BackendError> {
     let mut body = rest.trim().to_string();
     let mut weights = DEFAULT_ANALOGY_WEIGHTS;
     let mut min_score = DEFAULT_ANALOGY_MIN_SCORE;
+    let mut hops: u32 = 1;
     while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
         let up = tail.to_ascii_uppercase();
         if let Some(v) = up.strip_prefix("WEIGHTS=") {
@@ -89,11 +119,23 @@ fn split_analogy_options(rest: &str) -> Result<(String, [f32; 4], f32), BackendE
                 ))
             })?;
             body = head.trim().to_string();
+        } else if let Some(v) = up.strip_prefix("HOPS=") {
+            hops = v.parse().map_err(|_| {
+                BackendError::QueryParseError(format!(
+                    "ANALOGY: HOPS entier ≥ 1 attendu, reçu '{tail}'"
+                ))
+            })?;
+            if hops == 0 {
+                return Err(BackendError::QueryParseError(format!(
+                    "ANALOGY: HOPS entier ≥ 1 attendu, reçu '{tail}'"
+                )));
+            }
+            body = head.trim().to_string();
         } else {
             break;
         }
     }
-    Ok((body, weights, min_score))
+    Ok((body, weights, min_score, hops))
 }
 
 /// `WEIGHTS=a,b,c,d` : exactement 4 flottants (relation, type, confiance, degré).
@@ -119,14 +161,17 @@ fn parse_weights(v: &str) -> Result<[f32; 4], BackendError> {
 pub enum Query {
     /// Ph2 [D2] : `ambiguity_limit` = max de matchs FLOUS (défaut 5) ;
     /// les exacts passent toujours, l'excès flou → `Err(Ambiguous)`.
+    /// Ph6b : `topk` = N meilleurs liens (None = tous).
     Why {
         label: String,
         ambiguity_limit: usize,
+        topk: Option<usize>,
     },
-    /// Ph2 [D2] : voir `Why`.
+    /// Ph2 [D2] : voir `Why`. Ph6b : voir `Why.topk`.
     What {
         label: String,
         ambiguity_limit: usize,
+        topk: Option<usize>,
     },
     /// Ph3 [D3] : `topk` = chemins retournés, confiance-max (défaut 3, ≥ 1).
     Chain {
@@ -140,16 +185,32 @@ pub enum Query {
     Intervene(String),
     /// Pearl niveau 3 — `COUNTERFACTUAL <nœud>` : raisonnement contrefactuel
     Counterfactual(String),
-    /// Abductif — `EXPLAIN <effet>` : hypothèses causales les plus plausibles pour E
-    Explain(String),
+    /// Abductif — `EXPLAIN <effet>` : hypothèses causales les plus plausibles pour E.
+    /// Ph6b : `EXPLAIN <effet> CONTRAST <alternative>` = causes de E hors F.
+    Explain {
+        effect: String,
+        contrast: Option<String>,
+    },
     /// Analogie — `ANALOGY <from> -> <to>` : patterns causaux similaires au patron (from→to).
     /// Ph3 [D3] : `weights` = pondération (relation, type, confiance, degré),
     /// `min_score` = seuil (défauts documentés).
+    /// Ph6b : `hops` = profondeur de contexte (1 = mono-saut historique).
     Analogy {
         from: String,
         to: String,
         weights: [f32; 4],
         min_score: f32,
+        hops: u32,
+    },
+    /// Ph6b — `ASK <label>` : fiche d'un nœud (type + causes/effets directs).
+    Ask {
+        label: String,
+    },
+    /// Ph6b — `WHY-NOT <from> -> <to>` : pourquoi aucun chemin causal ?
+    /// Réutilise `blocked_by` (coupure niée) + proches (vraiment aucun lien).
+    WhyNot {
+        from: String,
+        to: String,
     },
     /// Multi-échelle — `ZOOM_IN <label>` : enfants directs du nœud dans la hiérarchie
     ZoomIn(String),
@@ -188,17 +249,19 @@ impl Query {
         let s = normalized.as_str();
 
         if let Some(rest) = s.strip_prefix("WHY ") {
-            let (label, ambiguity_limit) = split_ambiguity_limit(rest, "WHY")?;
+            let (label, ambiguity_limit, topk) = split_why_options(rest, "WHY")?;
             return Ok(Query::Why {
                 label,
                 ambiguity_limit,
+                topk,
             });
         }
         if let Some(rest) = s.strip_prefix("WHAT ") {
-            let (label, ambiguity_limit) = split_ambiguity_limit(rest, "WHAT")?;
+            let (label, ambiguity_limit, topk) = split_why_options(rest, "WHAT")?;
             return Ok(Query::What {
                 label,
                 ambiguity_limit,
+                topk,
             });
         }
         if let Some(rest) = s.strip_prefix("CHAIN ") {
@@ -218,18 +281,59 @@ impl Query {
         if let Some(label) = s.strip_prefix("COUNTERFACTUAL ") {
             return Ok(Query::Counterfactual(label.trim().to_string()));
         }
-        if let Some(label) = s.strip_prefix("EXPLAIN ") {
-            return Ok(Query::Explain(label.trim().to_string()));
+        if let Some(rest) = s.strip_prefix("EXPLAIN ") {
+            // Ph6b : `EXPLAIN <effet> CONTRAST <alternative>` (insensible à la casse).
+            let up = rest.to_ascii_uppercase();
+            if let Some(pos) = up.find(" CONTRAST ") {
+                let effect = rest[..pos].trim().to_string();
+                let contrast = rest[pos + " CONTRAST ".len()..].trim().to_string();
+                if effect.is_empty() || contrast.is_empty() {
+                    return Err(BackendError::QueryParseError(
+                        "EXPLAIN: effet et alternative requis (EXPLAIN <effet> CONTRAST <alternative>)"
+                            .to_string(),
+                    ));
+                }
+                return Ok(Query::Explain {
+                    effect,
+                    contrast: Some(contrast),
+                });
+            }
+            let effect = rest.trim().to_string();
+            if effect.is_empty() {
+                return Err(BackendError::QueryParseError(
+                    "EXPLAIN: effet manquant".to_string(),
+                ));
+            }
+            return Ok(Query::Explain {
+                effect,
+                contrast: None,
+            });
         }
         if let Some(rest) = s.strip_prefix("ANALOGY ") {
-            let (body, weights, min_score) = split_analogy_options(rest)?;
+            let (body, weights, min_score, hops) = split_analogy_options_hops(rest)?;
             let (from, to) = split_pair(&body, "ANALOGY")?;
             return Ok(Query::Analogy {
                 from,
                 to,
                 weights,
                 min_score,
+                hops,
             });
+        }
+        if let Some(label) = s.strip_prefix("ASK ") {
+            // Ph6b : fiche nœud (label requis, pas de match-all silencieux).
+            let label = label.trim().to_string();
+            if label.is_empty() {
+                return Err(BackendError::QueryParseError(
+                    "ASK: label manquant".to_string(),
+                ));
+            }
+            return Ok(Query::Ask { label });
+        }
+        if let Some(rest) = s.strip_prefix("WHY-NOT ") {
+            // Ph6b : pourquoi aucun chemin causal ? (réutilise blocked_by).
+            let (from, to) = split_pair(rest, "WHY-NOT")?;
+            return Ok(Query::WhyNot { from, to });
         }
         if let Some(label) = s.strip_prefix("ZOOM_IN ") {
             return Ok(Query::ZoomIn(label.trim().to_string()));
@@ -312,6 +416,9 @@ pub enum QueryResult {
         /// Ph2 [D2] : vrai si réponse sur flous (warning ; voir `match_scores`).
         #[serde(default)]
         fuzzy: bool,
+        /// Ph6b : liens avant limite TOPK (== `links.len()` sans TOPK).
+        #[serde(default)]
+        total: usize,
     },
     Effects {
         source: String,
@@ -329,6 +436,9 @@ pub enum QueryResult {
         /// Ph2 [D2] : voir `Causes::fuzzy`.
         #[serde(default)]
         fuzzy: bool,
+        /// Ph6b : voir `Causes::total`.
+        #[serde(default)]
+        total: usize,
     },
     Path {
         from: String,
@@ -481,6 +591,31 @@ pub enum QueryResult {
     Abduction {
         effect: String,
         hypotheses: Vec<AbductionHypothesisDto>,
+        /// Ph6b : contraste vs une alternative (None = abduction simple).
+        #[serde(default)]
+        contrast: Option<AbductionContrastDto>,
+    },
+    /// Ph6b — fiche nœud (ASK) : type + causes/effets directs 1 saut.
+    AskReport {
+        label: String,
+        node_type: String,
+        causes: Vec<LinkDto>,
+        effects: Vec<LinkDto>,
+    },
+    /// Ph6b — WHY-NOT : pourquoi aucun chemin causal (blocked_by ou proches).
+    WhyNot {
+        from: String,
+        to: String,
+        /// `chemin_existe` | `coupure_negation` | `aucun_lien`.
+        verdict: String,
+        /// Chemin existant ssi `chemin_existe` (sinon vide).
+        links: Vec<LinkDto>,
+        /// Niées de coupure ssi `coupure_negation` (WHY-NOT = les bloqueurs).
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
+        /// Voisins 1 saut ssi `aucun_lien` (rebond).
+        #[serde(default)]
+        proches: Vec<String>,
     },
     /// Temporal — chemin causal respectant l'ordre temporal_index.
     TemporalPath {
@@ -526,6 +661,10 @@ pub struct LinkDto {
     /// C4 fix — third_node pour les relations ternaires
     #[serde(skip_serializing_if = "Option::is_none")]
     pub third_node_label: Option<String>,
+    /// Ph6b — dérivation D3 systématique : (from, to) sources ayant inféré
+    /// ce lien (``Derivation.source_edges`` résolues en labels).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<Vec<(String, String)>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -590,6 +729,17 @@ pub struct AbductionHypothesisDto {
     pub depth: usize,
 }
 
+/// Ph6b — contraste abductif : causes de l'effet hors alternative.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AbductionContrastDto {
+    /// Label de l'alternative comparée.
+    pub alternative: String,
+    /// Hypothèses de l'effet absentes de l'alternative (distinctives).
+    pub distinctive: Vec<AbductionHypothesisDto>,
+    /// Labels causes des deux (contexte partagé).
+    pub shared: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemporalLinkDto {
     pub from: String,
@@ -607,6 +757,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         Query::Why {
             label,
             ambiguity_limit,
+            topk,
         } => {
             // Ph2 [D2] : exacts (tous) > flous (≤ limite) > Err(Ambiguous).
             let scoped = pearl::why_scoped(ir, label, *ambiguity_limit)
@@ -621,7 +772,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let links: Vec<LinkDto> = scoped
+            let mut links: Vec<LinkDto> = scoped
                 .matched
                 .iter()
                 .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
@@ -632,6 +783,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
+            // Ph6b : TOPK sur les meilleurs (force décroissante par match).
+            let total = links.len();
+            if let Some(k) = topk {
+                links.truncate(*k);
+            }
             Ok(QueryResult::Causes {
                 target,
                 links,
@@ -639,12 +795,14 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 blocked_by,
                 match_scores: scoped.match_scores,
                 fuzzy: scoped.fuzzy,
+                total,
             })
         }
 
         Query::What {
             label,
             ambiguity_limit,
+            topk,
         } => {
             // Ph2 [D2] : voir bras WHY (propagation avant).
             let scoped = pearl::what_scoped(ir, label, *ambiguity_limit)
@@ -659,7 +817,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let links: Vec<LinkDto> = scoped
+            let mut links: Vec<LinkDto> = scoped
                 .matched
                 .iter()
                 .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
@@ -670,6 +828,11 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
+            // Ph6b : voir bras WHY.
+            let total = links.len();
+            if let Some(k) = topk {
+                links.truncate(*k);
+            }
             Ok(QueryResult::Effects {
                 source,
                 links,
@@ -677,6 +840,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 blocked_by,
                 match_scores: scoped.match_scores,
                 fuzzy: scoped.fuzzy,
+                total,
             })
         }
 
@@ -775,9 +939,12 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             to,
             weights,
             min_score,
+            hops,
         } => {
             // Ph3 [D3] : poids/seuil paramétrables (défauts documentés).
-            let matches = crate::analogy::find_analogies(ir, from, to, *min_score, *weights);
+            // Ph6b : HOPS = profondeur de contexte (1 = mono-saut).
+            let matches =
+                crate::analogy::find_analogies_hops(ir, from, to, *min_score, *weights, *hops);
             Ok(QueryResult::AnalogyReport {
                 pattern_from: from.clone(),
                 pattern_to: to.clone(),
@@ -854,6 +1021,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                             .iter()
                             .find(|n| n.id.0 as u64 == t.node)
                             .map(|n| n.label.clone())
+                    }),
+                    // Ph6b : dérivation D3 (même règle que link_to_dto).
+                    derived_from: e.derivation.as_ref().map(|drv| {
+                        drv.source_edges
+                            .iter()
+                            .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
+                            .collect()
                     }),
                 })
                 .collect();
@@ -1080,10 +1254,45 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             })
         }
 
-        Query::Explain(effect) => {
+        Query::Explain { effect, contrast } => {
             let node = pearl::find_best(ir, effect)
                 .ok_or_else(|| BackendError::NodeNotFound(effect.clone()))?;
             let hypotheses = pearl::abduct(ir, node.id);
+            // Ph6b : contraste vs alternative (causes de E hors F).
+            let contrast_dto = match contrast {
+                Some(alt) => {
+                    let alt_node = pearl::find_best(ir, alt)
+                        .ok_or_else(|| BackendError::NodeNotFound(alt.clone()))?;
+                    let alt_labels: std::collections::HashSet<String> =
+                        pearl::abduct(ir, alt_node.id)
+                            .into_iter()
+                            .map(|h| h.label)
+                            .collect();
+                    let mut distinctive = Vec::new();
+                    let mut shared = Vec::new();
+                    for h in &hypotheses {
+                        if alt_labels.contains(&h.label) {
+                            shared.push(h.label.clone());
+                        } else {
+                            distinctive.push(AbductionHypothesisDto {
+                                label: h.label.clone(),
+                                relation: serde_name(&h.relation),
+                                edge_confidence: h.edge_confidence,
+                                score: h.score,
+                                depth: h.depth,
+                            });
+                        }
+                    }
+                    shared.sort();
+                    shared.dedup();
+                    Some(AbductionContrastDto {
+                        alternative: alt_node.label.clone(),
+                        distinctive,
+                        shared,
+                    })
+                }
+                None => None,
+            };
             Ok(QueryResult::Abduction {
                 effect: node.label.clone(),
                 hypotheses: hypotheses
@@ -1096,6 +1305,72 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                         depth: h.depth,
                     })
                     .collect(),
+                contrast: contrast_dto,
+            })
+        }
+
+        Query::Ask { label } => {
+            // Ph6b : fiche nœud (1 saut, sans traversée ni propagation).
+            let node = pearl::find_best(ir, label)
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let (causes, effects) = pearl::direct_links(ir, node.id);
+            Ok(QueryResult::AskReport {
+                label: node.label.clone(),
+                node_type: serde_name(&node.node_type),
+                causes: causes.iter().map(|l| link_to_dto(ir, l)).collect(),
+                effects: effects.iter().map(|l| link_to_dto(ir, l)).collect(),
+            })
+        }
+
+        Query::WhyNot { from, to } => {
+            // Ph6b : pourquoi aucun chemin causal (WHY-NOT = bloqueurs niés).
+            let from_node = pearl::find_best(ir, from)
+                .ok_or_else(|| BackendError::NodeNotFound(from.clone()))?;
+            let to_node =
+                pearl::find_best(ir, to).ok_or_else(|| BackendError::NodeNotFound(to.clone()))?;
+            let (paths, blocked) = pearl::chain_topk(ir, from, to, 1);
+            if let Some(best) = paths.first() {
+                // Un chemin pur existe : pas de « pourquoi pas ».
+                return Ok(QueryResult::WhyNot {
+                    from: from_node.label.clone(),
+                    to: to_node.label.clone(),
+                    verdict: "chemin_existe".to_string(),
+                    links: best.links.iter().map(|l| link_to_dto(ir, l)).collect(),
+                    blocked_by: vec![],
+                    proches: vec![],
+                });
+            }
+            if blocked.is_empty() {
+                // Vraiment aucun lien : voisins pour rebondir.
+                let mut proches_set: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
+                for (s, d, _) in &ir.edges {
+                    if *s == from_node.id && *d != to_node.id {
+                        proches_set.insert(pearl::node_label(ir, *d));
+                    }
+                    if *d == to_node.id && *s != from_node.id {
+                        proches_set.insert(pearl::node_label(ir, *s));
+                    }
+                }
+                let mut proches: Vec<String> = proches_set.into_iter().collect();
+                proches.sort();
+                proches.truncate(6);
+                return Ok(QueryResult::WhyNot {
+                    from: from_node.label.clone(),
+                    to: to_node.label.clone(),
+                    verdict: "aucun_lien".to_string(),
+                    links: vec![],
+                    blocked_by: vec![],
+                    proches,
+                });
+            }
+            Ok(QueryResult::WhyNot {
+                from: from_node.label.clone(),
+                to: to_node.label.clone(),
+                verdict: "coupure_negation".to_string(),
+                links: vec![],
+                blocked_by: blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                proches: vec![],
             })
         }
 
@@ -1245,6 +1520,18 @@ pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
             .find(|n| n.id == tid)
             .map(|n| n.label.clone())
     });
+    // Ph6b : dérivations D3 systématiques (`Derivation.source_edges` → labels).
+    let derived_from = ir
+        .edges
+        .iter()
+        .find(|(s, d, _)| *s == l.from_id && *d == l.to_id)
+        .and_then(|(_, _, e)| e.derivation.as_ref())
+        .map(|drv| {
+            drv.source_edges
+                .iter()
+                .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
+                .collect()
+        });
     LinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),
@@ -1253,6 +1540,7 @@ pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
         negated: l.negated,
         joint_group_id: l.joint_group_id.clone(),
         third_node_label,
+        derived_from,
     }
 }
 

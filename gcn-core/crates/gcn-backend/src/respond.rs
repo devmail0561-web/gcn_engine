@@ -416,6 +416,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             blocked_by,
             match_scores,
             fuzzy,
+            total,
         } => {
             let mut head = format!("Causes de {target}");
             if !blocked_by.is_empty() {
@@ -443,6 +444,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     blocked_by,
                     match_scores,
                     fuzzy,
+                    total,
                 },
             )
         }
@@ -453,6 +455,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             blocked_by,
             match_scores,
             fuzzy,
+            total,
         } => {
             let mut head = format!("Effets de {source}");
             if !blocked_by.is_empty() {
@@ -476,6 +479,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     blocked_by,
                     match_scores,
                     fuzzy,
+                    total,
                 },
             )
         }
@@ -564,6 +568,85 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                 },
             )
         }
+        QueryResult::AskReport {
+            label,
+            node_type,
+            causes,
+            effects,
+        } => {
+            // Ph6b : fiche nœud factuelle (1 saut, sans propagation).
+            let head = format!(
+                "Fiche « {label} » ({node_type}) : {} cause(s), {} effet(s)",
+                causes.len(),
+                effects.len()
+            );
+            let mut items: Vec<String> = causes
+                .iter()
+                .take(MAX_ITEMS)
+                .map(|l| format!("{} → {}", l.from, l.to))
+                .collect();
+            let reste = MAX_ITEMS.saturating_sub(items.len());
+            items.extend(
+                effects
+                    .iter()
+                    .take(reste)
+                    .map(|l| format!("{} → {}", l.from, l.to)),
+            );
+            let extra = (causes.len() + effects.len()).saturating_sub(items.len());
+            let resp = answer_items(
+                Status::Ok,
+                head,
+                items,
+                extra,
+                vec![format!("WHY {label}"), format!("WHAT {label}")],
+            );
+            with_result(
+                resp,
+                QueryResult::AskReport {
+                    label,
+                    node_type,
+                    causes,
+                    effects,
+                },
+            )
+        }
+        QueryResult::WhyNot {
+            from,
+            to,
+            verdict,
+            links,
+            blocked_by,
+            proches,
+        } => {
+            // Ph6b : WHY-NOT = bloqueurs niés (comme CHAIN coupé) ou proches.
+            if verdict == "chemin_existe" {
+                let head = format!("Un chemin de {from} vers {to} existe déjà");
+                let resp = answer(Status::Ok, head, &links, vec![format!("WHY {to}")]);
+                return with_result(
+                    resp,
+                    QueryResult::WhyNot {
+                        from,
+                        to,
+                        verdict,
+                        links,
+                        blocked_by,
+                        proches,
+                    },
+                );
+            }
+            let snapshot = QueryResult::WhyNot {
+                from: from.clone(),
+                to: to.clone(),
+                verdict: verdict.clone(),
+                links: vec![],
+                blocked_by: blocked_by.clone(),
+                proches: proches.clone(),
+            };
+            if verdict == "coupure_negation" {
+                return no_path(&from, &to, blocked_by, vec![], Some(snapshot));
+            }
+            no_path(&from, &to, vec![], proches, Some(snapshot))
+        }
         other => generic_ok(other),
     }
 }
@@ -635,8 +718,29 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                 },
             )
         }
-        QueryResult::Abduction { effect, hypotheses } => {
-            let head = format!("Explications possibles de {effect}");
+        QueryResult::Abduction {
+            effect,
+            hypotheses,
+            contrast,
+        } => {
+            let mut head = format!("Explications possibles de {effect}");
+            if let Some(c) = contrast.as_ref() {
+                let dist: Vec<String> = c
+                    .distinctive
+                    .iter()
+                    .take(3)
+                    .map(|h| h.label.clone())
+                    .collect();
+                if dist.is_empty() {
+                    head.push_str(&format!(" — rien de distinctif vs {}", c.alternative));
+                } else {
+                    head.push_str(&format!(
+                        " — distinctif vs {} : {}",
+                        c.alternative,
+                        dist.join(", ")
+                    ));
+                }
+            }
             let items: Vec<String> = hypotheses
                 .iter()
                 .take(MAX_ITEMS)
@@ -650,7 +754,14 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                 extra,
                 vec![format!("WHY {effect}")],
             );
-            with_result(resp, QueryResult::Abduction { effect, hypotheses })
+            with_result(
+                resp,
+                QueryResult::Abduction {
+                    effect,
+                    hypotheses,
+                    contrast,
+                },
+            )
         }
         QueryResult::AnalogyReport {
             pattern_from,
