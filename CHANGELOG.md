@@ -95,6 +95,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Gardes R4** : `make guards` + CI `guards` interdisent `models/final` et `checkpoints/final`.
 - **Tests (8 verts)** : dry-run, déterminisme (gold hash), équivalence forward par lemme, refus (script + `load_checkpoint` + `run_eval`), ban `final/`, kinds. Legacy `E`/`têtes` intacts.
 
+### Refacto loss + seuils grid F1 + chunk_hash (2026-10-08, étape 5)
+
+- **Nouveau `training/refacto_loss.py`** : CE nœuds/arêtes/actes par phrase, `build_class_mask` (N≥30, [R8]), `require_min_counts` → `GelError`, silver 0.0/0.3 ([R9]), fallback → 0.0 ([T1]). BCE hors périmètre (acté).
+- **Nouveau `evaluation/grid_f1.py`** : `predict_with_thresholds` (marge top-1−top-2 = ambiguïté v0), micro-F1, `run_grid` (250 essais, tripwire `!= (0.0,0.65,1.0)`), gate `check_gel_or_grid`.
+- **Nouveau `layer1/chunk.py`** : `chunk_hash` ([C]), manifest `{tokenizer_hash, d_model}` exact + `assert_compatible` (vec_dim + hash, [C]/[R5]).
+- **Script `grid_f1_thresholds.py` (jouet, R10)** : toy 300 steps → GEL exit 2 (11 relations 6-9 < 30, correct) ; `--force` démo : 250 essais, meilleur (0.0, 0.8, 0.5) F1=0.12 ≠ ref, non adopté. Vrai grid après gold-3000.
+- **Tests (13 + 2 gate verts)** + `ruff` propre. Gate R8/R10 : GEL démontré, pas programmé.
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
