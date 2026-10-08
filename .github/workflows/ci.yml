@@ -41,6 +41,9 @@ jobs:
       - run: '! grep -rn "^import torch\|^from torch" gcn-python/src/'
       # Acceptation A (cible finale = 0) : comptage publié, informatif pour l'instant.
       - run: grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ ; true
+      # R4 — ban final/ : aucun répertoire final/ sous les chemins de modèles.
+      - run: test ! -d gcn-python/models/final
+      - run: test ! -d gcn-datasets/checkpoints/final
 
   transformers:
     name: gcn-transformers — pytest

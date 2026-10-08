@@ -12,6 +12,43 @@ from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
 
 
+class LegacyUDError(ValueError):
+    """Checkpoint legacy-UD refusé : convertir ou ré-entraîner (R4)."""
+
+
+def checkpoint_format_kind(path: Path | str) -> str:
+    """Format d'un checkpoint SANS désérialisation (liste zip, sûre).
+
+    Retourne ``"refacto"`` (clé ``format_refacto``), ``"legacy-ud"``
+    (marqueurs ``word_emb_E``/``_word_emb_vocab_json`` sans format) ou
+    ``"unknown"`` (ni l'un ni l'autre).
+    """
+    import zipfile
+
+    try:
+        names = set(zipfile.ZipFile(Path(path)).namelist())
+    except FileNotFoundError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"checkpoint illisible : {path} ({exc}).") from exc
+    keys = {n[:-4] for n in names if n.endswith(".npy")}
+    if "format_refacto" in keys:
+        return "refacto"
+    if "word_emb_E" in keys or "_word_emb_vocab_json" in keys:
+        return "legacy-ud"
+    return "unknown"
+
+
+def _kind_of_files(files) -> str:
+    """Variante sur clés déjà chargées (même règle que ``checkpoint_format_kind``)."""
+    keys = set(files)
+    if "format_refacto" in keys:
+        return "refacto"
+    if "word_emb_E" in keys or "_word_emb_vocab_json" in keys:
+        return "legacy-ud"
+    return "unknown"
+
+
 def _check_path_safe(path: Path, *, allow_symlink: bool = False) -> None:
     """Refuse les chemins suspects : symlinks dans l'arbre, hardlinks, FIFO.
 
@@ -283,12 +320,16 @@ def _gat_ar_2d_compatible(layer, j: int, arr) -> bool:
 def load_checkpoint(
     pipeline: CGNPipeline, path: Path,
     *, trusted: bool = False, allow_symlink: bool = False,
-    _skip_path_check: bool = False,
+    _skip_path_check: bool = False, allow_legacy: bool = True,
 ) -> None:
     """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
 
     Atomique : toutes les shapes sont validées avant toute mutation du pipeline.
     Un ValueError laisse le pipeline intact (vocabulary, encoder et graph inchangés).
+
+    ``allow_legacy`` (défaut True = dual-read transitoire, R4) : accepte les
+    checkpoints legacy-UD ; ``False`` lève ``LegacyUDError`` (« legacy-UD :
+    convertir ou ré-entraîner ») — utilisé par ``run_eval`` (refus en eval).
 
     Sécurité : le .npz contient des tableaux `object` (JSON d'architecture/vocab)
     qui exigent `allow_pickle=True`, soit une exécution de pickle au chargement.
@@ -324,6 +365,15 @@ def load_checkpoint(
     # Garde anti-RCE : audit pickle (allowlist numpy) AVANT toute
     # désérialisation, même quand l'appelant a posé trusted=True.
     data = guarded_np_load(path)
+
+    # R4 — refus legacy en eval (dual-read transitoire sinon) : jamais
+    # d'évaluation sur un checkpoint legacy-UD (métriques non comparables).
+    if not allow_legacy and _kind_of_files(data.files) == "legacy-ud":
+        raise LegacyUDError(
+            f"run_eval : {Path(path).name} est un checkpoint legacy-UD — refusé. "
+            "legacy-UD : convertir ou ré-entraîner "
+            "(scripts/convert_legacy_ud.py --dry-run d'abord)."
+        )
 
     # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",

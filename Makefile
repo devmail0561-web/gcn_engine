@@ -22,6 +22,10 @@ guards:
 	! grep -rq gcn_transformers gcn-python/src/
 	! grep -rn "^import torch\|^from torch" gcn-python/src/
 	grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ || true
+	# R4 — ban final/ : aucun répertoire final/ sous les chemins de modèles
+	# (les splits DATA/final/* fuyards sont exclus par ailleurs : voir audit-gold).
+	test ! -d gcn-python/models/final
+	test ! -d gcn-datasets/checkpoints/final
 
 lint:
 	cd gcn-core && cargo clippy -- -D warnings

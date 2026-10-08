@@ -23,7 +23,7 @@ from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
-from ..training.checkpoint import load_checkpoint
+from ..training.checkpoint import LegacyUDError, checkpoint_format_kind, load_checkpoint
 
 _FORBIDDEN_EVAL_DIRS = {"final", "c1_merged", "c1_oversampled"}
 
@@ -46,6 +46,14 @@ def run_eval(
             f"run_eval : répertoire '{dir_name}' interdit pour l'évaluation "
             f"(contient train+val fusionnés → mémorisation). "
             f"Utilisez un split val/test séparé (ex: combined_v2/val_v2)."
+        )
+    # R4 — refus legacy en eval AVANT toute construction (liste zip, sans
+    # désérialisation) : exit!=0 + message convert-or-retrain.
+    if checkpoint_format_kind(model_path) == "legacy-ud":
+        raise LegacyUDError(
+            f"run_eval : {Path(model_path).name} est un checkpoint legacy-UD — refusé. "
+            "legacy-UD : convertir ou ré-entraîner "
+            "(scripts/convert_legacy_ud.py --dry-run d'abord)."
         )
     # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /

@@ -87,6 +87,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Matrice silver 30 (R9) : 30/30** (`scripts/silver_matrix_30.py` + gate `test_silver_matrix`, gold_mini stratifié seed 42 ; weight silver 0.0 maintenu).
 - **Tests (14 + 3 + 1 verts)** + `ruff` propre (fichiers neufs ; UP037 préexistant sur `stage2.py` laissé intact). Moteur/éval/train : câblage à la bascule (documenté, pas ici).
 
+### Refacto convertisseur legacy-UD → refacto (2026-10-08, R4)
+
+- **Nouveau `scripts/convert_legacy_ud.py`** : one-shot table E (lemmes → ids stables calculés comme le runtime, vocab trié, `_unk`/absents abandonnés, collisions comptées premier-gagnant, têtes MLP/RGCN non converties → ré-entraîner) ; `--dry-run` (rien écrit, mtime/hash vérifiés) ; rapport JSON + sha256. Bug réel trouvé : `save_npz` `int64` → `uint64` (corrigé dans `TokEmbedding`).
+- **`training/checkpoint.py`** : `LegacyUDError` + `checkpoint_format_kind()` (zip, sans désérialisation) + `load_checkpoint(allow_legacy=True)` (dual-read transitoire ; `False` → refus).
+- **`evaluation/eval_runner.py`** : refus legacy en eval AVANT construction (`exit!=0` + « legacy-UD : convertir ou ré-entraîner ») ; ban `final/` préexistant épinglé en tests.
+- **Gardes R4** : `make guards` + CI `guards` interdisent `models/final` et `checkpoints/final`.
+- **Tests (8 verts)** : dry-run, déterminisme (gold hash), équivalence forward par lemme, refus (script + `load_checkpoint` + `run_eval`), ban `final/`, kinds. Legacy `E`/`têtes` intacts.
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

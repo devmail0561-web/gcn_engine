@@ -204,7 +204,7 @@ class TokEmbedding:
         np.savez(
             path,
             E=self._E,
-            tok_vocab=np.asarray(self._vocab, dtype=np.int64),
+            tok_vocab=np.asarray(self._vocab, dtype=np.uint64),
             tokenizer_hash=np.asarray(
                 tokenizer_hash(RULES_VERSION, [str(v) for v in self._vocab])
             ),
