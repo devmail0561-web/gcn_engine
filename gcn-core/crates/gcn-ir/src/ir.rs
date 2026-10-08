@@ -102,6 +102,8 @@ pub struct Ambiguity {
     pub node_id: NodeId,
     pub field: AmbiguousField,
     pub candidates: Vec<AmbiguityCandidate>,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub context_hint: Option<String>,
 }
 
@@ -121,9 +123,14 @@ pub struct AmbiguityCandidate {
     pub rule_source: String,
 }
 
+/// Métadonnées d'échange : champs optionnels en lecture (tolérance D-S03).
+/// La version du contrat vaut [`crate::EXCHANGE_SCHEMA_VERSION`] (gate CI).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IrMetadata {
+    #[serde(default)]
     pub schema_version: String,
+    #[serde(default)]
     pub pipeline: Vec<String>,
+    #[serde(default)]
     pub created_at: Option<String>,
 }

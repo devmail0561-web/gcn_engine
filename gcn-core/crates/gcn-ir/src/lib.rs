@@ -34,6 +34,11 @@ pub use normalize::normalize_label;
 pub use scope::Scope;
 pub use temporal::{GapNature, TemporalAnchor, TemporalGap, TemporalRef};
 
+/// Version du contrat d'échange M1 (pont Python → Rust, socle 0b, D-S03).
+/// Émise par `ir_emitter.py` et les frontends Rust ; vérifiée en CI
+/// (test de compatibilité + gate de version).
+pub const EXCHANGE_SCHEMA_VERSION: &str = "2.0";
+
 #[cfg(test)]
 mod tests {
     use super::*;

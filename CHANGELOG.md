@@ -54,6 +54,24 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (8b/8d)** : `tests/test_respond.rs` (12 tests : 11 cas enveloppe + property always-answer 16 requêtes × 4 IR adverses + roundtrip) + 3 tests unitaires `say`. **Vert : 61 + 11 + 24 + 12 + 6 (+ 6 verbalizer), clippy workspace `-D warnings` 0 erreur, fmt propre.**
 - **READMEs** : `gcn-backend` (enveloppe + règle statut + CLI), `gcn-verbalizer` (`say`).
 
+### Socle 0a — moteur B spaCy + format s0 (2026-10-08)
+
+- **Nouveau `gcn-python/src/gcn_python/layer0/engine_b.py`** : `analyze(text, lang) → (clauses, connecteurs, source)`, import spaCy lazy, pin `==3.8` vérifié (env 3.8.16 + `fr_core_news_sm`), timeout 30 s, fallback systématique + compteur (`fallback_stats`, seuil proposé 5 %), `{outil, version, source}`, `format_refacto=20261007` via `to_record`/`save_record` (s0 seul, garde anti-s1/s2/s3 testée), jamais importé par `pipeline/`/`training/`/`engine.py` (garde testée).
+- **Nouveau `layer0/fallback_regex.py`** (stdlib) : segmentation ponctuation forte + familles `?/؟/？/¿…?/!`, connecteurs via tables existantes (`causal_scorer` fr/en + `balanced_auto` es/de, origine tracée) ; pt/it = segmentation seule (aucune table auditée, écart documenté).
+- **Tests `test_engine_b.py` (11 verts)** + `ruff` propre (22 lints corrigés : `global` → état dict, `except` resserrés, `__all__` triés). Cadre D-SPACY respecté : spaCy hors moteur appris.
+
+### Socle 0b — contrat CIR versionné + lecteur tolérant (2026-10-08, D-S03)
+
+- **Vrai CIR Python → Rust prouvé** : `ir_emitter` (schema 2.0) parsé par `gcn query` bout-en-bout (WHY + CYCLES reclassé par middleend). 3 incompatibilités trouvées et corrigées : `cycles` listes nues → `[]` côté émetteur (middleend recalcule+classe, consommateurs Python : aucun ; test S-7 mis à jour), `SourceSpan` snake_case + aliases PascalCase, `temporal_ref` déjà snake_case.
+- **`gcn-ir`** : `#[serde(default)]` systématique sur champs `Option` (attrs, spans, gaps, markers, in_cycle, hints, metadata) + `EXCHANGE_SCHEMA_VERSION = "2.0"`.
+- **Gate CI** : `tests/test_exchange_contract.rs` (fixture réelle `python_emitter_s0.json` + clés futures `tok_vocab`/inconnues ignorées + formes historiques + roundtrip M1) + `test_m1_contract_version_and_cycles` côté Python (les deux jobs CI existants couvrent).
+- **Gate Format s0 — GO** : `format_refacto=20261007` écrit (B) + roundtrip Rust vert.
+
+### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
+
+- **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
+- **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
+
 ### Session v4 : 7 bugs ouverts corrigés + P0/P2 (2026-09-29, branche `feat/p2-frontends`)
 
 **Bugs moteur §2.7–§2.13 (tous clos ; §2.10 volontairement sans changement) :**

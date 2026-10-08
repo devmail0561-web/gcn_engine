@@ -182,10 +182,16 @@ impl Provenance {
 pub struct CausalEdge {
     pub relation: RelationType,
     pub confidence: f32,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub temporal_gap: Option<TemporalGap>,
     pub explicit: bool,
     pub negated: bool,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub marker_token: Option<u32>,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub in_cycle: Option<CycleId>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub provenance: Option<Provenance>,

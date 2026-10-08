@@ -1,0 +1,196 @@
+{
+ "source_lang": {
+  "natural": {
+   "lang": "und"
+  }
+ },
+ "source_text": "La pluie cause les inondations qui causent des degats qui causent la pluie.",
+ "nodes": [
+  {
+   "id": 0,
+   "node_type": "processus",
+   "label": "pluie",
+   "source_span": {
+    "token_span": {
+     "start": 3,
+     "end": 8
+    }
+   },
+   "scope": "universal",
+   "modifiers": [],
+   "temporal_ref": "unresolved",
+   "temporal_index": 0,
+   "origin": "explicit",
+   "is_inferred": false,
+   "attributes": {
+    "entity": null,
+    "quality": null,
+    "agent": null,
+    "patient": null,
+    "agent_type": null,
+    "reversible": null
+   },
+   "future_field": 1
+  },
+  {
+   "id": 1,
+   "node_type": "evenement",
+   "label": "inondations",
+   "source_span": {
+    "token_span": {
+     "start": 20,
+     "end": 31
+    }
+   },
+   "scope": "universal",
+   "modifiers": [],
+   "temporal_ref": "unresolved",
+   "temporal_index": 1,
+   "origin": "explicit",
+   "is_inferred": false,
+   "attributes": {
+    "entity": null,
+    "quality": null,
+    "agent": null,
+    "patient": null,
+    "agent_type": null,
+    "reversible": null
+   }
+  },
+  {
+   "id": 2,
+   "node_type": "entite",
+   "label": "degats",
+   "source_span": {
+    "token_span": {
+     "start": 45,
+     "end": 51
+    }
+   },
+   "scope": "unknown",
+   "modifiers": [],
+   "temporal_ref": "unresolved",
+   "temporal_index": 2,
+   "origin": "explicit",
+   "is_inferred": false,
+   "attributes": {
+    "entity": null,
+    "quality": null,
+    "agent": null,
+    "patient": null,
+    "agent_type": null,
+    "reversible": null
+   }
+  }
+ ],
+ "edges": [
+  [
+   0,
+   1,
+   {
+    "relation": "cause",
+    "confidence": 0.9,
+    "confidence_ml": 0.9,
+    "confidence_d6": 0.25,
+    "temporal_gap": {
+     "min": null,
+     "max": 1,
+     "nature": "deferred"
+    },
+    "explicit": false,
+    "negated": false,
+    "source_polarity": null,
+    "marker_token": null,
+    "third": null,
+    "joint_group_id": null,
+    "ambiguous": false,
+    "candidates": null,
+    "in_cycle": 0,
+    "provenance": {
+     "ref": null,
+     "span": "synthetic",
+     "extraction_method": "ml_python",
+     "model_version": "4.0.0",
+     "extracted_at": "2026-10-08T12:53:26Z"
+    },
+    "future_score": 0.5
+   }
+  ],
+  [
+   1,
+   2,
+   {
+    "relation": "cause",
+    "confidence": 0.8,
+    "confidence_ml": 0.8,
+    "confidence_d6": 0.25,
+    "temporal_gap": {
+     "min": null,
+     "max": 1,
+     "nature": "deferred"
+    },
+    "explicit": false,
+    "negated": false,
+    "source_polarity": null,
+    "marker_token": null,
+    "third": null,
+    "joint_group_id": null,
+    "ambiguous": false,
+    "candidates": null,
+    "in_cycle": 0,
+    "provenance": {
+     "ref": null,
+     "span": "synthetic",
+     "extraction_method": "ml_python",
+     "model_version": "4.0.0",
+     "extracted_at": "2026-10-08T12:53:26Z"
+    }
+   }
+  ],
+  [
+   2,
+   0,
+   {
+    "relation": "cause",
+    "confidence": 0.7,
+    "confidence_ml": 0.7,
+    "confidence_d6": 0.25,
+    "temporal_gap": {
+     "min": null,
+     "max": -2,
+     "nature": "deferred"
+    },
+    "explicit": false,
+    "negated": false,
+    "source_polarity": null,
+    "marker_token": null,
+    "third": null,
+    "joint_group_id": null,
+    "ambiguous": false,
+    "candidates": null,
+    "in_cycle": 0,
+    "provenance": {
+     "ref": null,
+     "span": "synthetic",
+     "extraction_method": "ml_python",
+     "model_version": "4.0.0",
+     "extracted_at": "2026-10-08T12:53:26Z"
+    }
+   }
+  ]
+ ],
+ "cycles": [],
+ "unresolved": [],
+ "metadata": {
+  "schema_version": "2.0",
+  "pipeline": [
+   "cgnp-layer1",
+   "cgnp-layer2",
+   "cgnp-layer3"
+  ],
+  "created_at": "2026-10-08T12:53:26.684168Z"
+ },
+ "tok_vocab": {
+  "note": "cle-s2-future-inconnue-du-lecteur-s0"
+ }
+}

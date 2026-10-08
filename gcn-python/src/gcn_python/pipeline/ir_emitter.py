@@ -411,9 +411,11 @@ def emit(
         if start not in visited:
             _dfs_cycle(start, [])
 
-    # Dédupliquer les cycles
+    # Dédupliquer les cycles (détection conservée pour in_cycle ci-dessous)
     unique_cycles = list({frozenset(c) for c in cycle_node_sets})
-    cycles_output = [sorted(c) for c in unique_cycles]
+    # Contrat M1 (socle 0b, D-S03) : cycles non classés ici — le middleend Rust
+    # recalcule + classe (process) ; consommateurs Python de "cycles" : aucun.
+    cycles_output = []
 
     node_to_cycle: dict[int, int] = {}
     for cycle_id, c in enumerate(unique_cycles):
