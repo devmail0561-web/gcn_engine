@@ -21,8 +21,8 @@ pub use edge::{
 };
 pub use error::{GcnError, GcnResult};
 pub use ir::{
-    Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, GraphFormat,
-    IrMetadata, NaturalLanguage, ProgrammingLanguage, SourceLanguage,
+    Act, Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CirIntent,
+    CycleType, GraphFormat, IrMetadata, NaturalLanguage, ProgrammingLanguage, SourceLanguage,
 };
 pub use lattice::{Lattice, LatticeDep, LatticePos, LatticeToken};
 pub use modifier::{FrequencyKind, LocationScope, Maturity, Modifier};
@@ -149,6 +149,7 @@ mod tests {
             cycles: vec![],
             unresolved: vec![],
             metadata: IrMetadata::default(),
+            intent: None,
         };
         assert_eq!(ir.node_count(), 0);
         assert_eq!(ir.edge_count(), 0);

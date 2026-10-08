@@ -65,6 +65,7 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
             pipeline: vec!["test_respond".to_string()],
             created_at: None,
         },
+        intent: None,
     };
     process(ir).unwrap().ir
 }
@@ -84,6 +85,7 @@ fn empty_ir() -> CausalIR {
             pipeline: vec!["test_respond".to_string()],
             created_at: None,
         },
+        intent: None,
     }
 }
 

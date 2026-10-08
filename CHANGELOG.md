@@ -78,6 +78,15 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Nouveau `layer1/l1_forward.py`** : `forward_ids(ids, mask)` (lookup + masque, copies R1) + `align_spans` (spans chars → indices tokens, règle unique) + `pool_clauses` (moyenne fixe, clause vide → zéros comptés) + `PoolMap` miroir lignes→tokens (R1) ; indices hors E → `ValueError` explicite.
 - **Tests (9 + 8 verts)** : déterminisme, roundtrips, rejets, smoke L0→L1 sur phrase gold (couverture totale, gradient sans fuite OOV). Legacy intact (bascule plus tard).
 
+### Refacto tête act + route intent (2026-10-08)
+
+- **Nouveau `layer2/act.py`** : 3 actes (`assert/question/request`, ordre = indices tête) + `detect_act` règles v0 ([R9] `!`→assert saillant, `?/؟/？`→question, consigne→request+bascule, politesse→request, défaut assert assumé) + `detect_lang` ([R-LANG] consigne > arabe→ar > CJK→und > fr ; impératif nu → assert, écart assumé documenté).
+- **Nouveau `layer2/act_head.py`** : MLP (d_model→64→3) NumPy + softmax, `forward/backward/update`, format **s3** (`format_refacto`, `act_types`, `d_model`, fail-fast) ; smoke : 6 reps → 6/6.
+- **Nouveau `pipeline/route_intent.py`** : couches (b) — assert→store, question→query+dsl (`nlu_route` injecté, `None` sinon), request→ack factuel+filé (9c) ; `cir.intent` prio 0, jamais deviné.
+- **Rust `CirIntent {act, lang, saillant}` + `CausalIR.intent: Option` (serde default)** : absent→None, langue absente→`fr`, roundtrip testé (R9 avant tête) ; 7 sites `intent: None` (frontends+tests).
+- **Matrice silver 30 (R9) : 30/30** (`scripts/silver_matrix_30.py` + gate `test_silver_matrix`, gold_mini stratifié seed 42 ; weight silver 0.0 maintenu).
+- **Tests (14 + 3 + 1 verts)** + `ruff` propre (fichiers neufs ; UP037 préexistant sur `stage2.py` laissé intact). Moteur/éval/train : câblage à la bascule (documenté, pas ici).
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

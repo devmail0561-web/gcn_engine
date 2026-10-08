@@ -170,6 +170,8 @@ pub fn parse_bundle_with_report(
                 pipeline: vec!["gcn-frontend-graph:stix-2.x".to_string()],
                 created_at: None,
             },
+            // Frontend symbolique : pas d'intent (tête act, T4).
+            intent: None,
         },
         report,
     ))

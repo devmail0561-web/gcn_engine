@@ -72,3 +72,44 @@ fn tolerant_reader_legacy_shapes() {
     let meta: gcn_ir::IrMetadata = serde_json::from_str(r#"{}"#).unwrap();
     assert_eq!(meta.schema_version, "");
 }
+
+#[test]
+fn cir_intent_optional_and_roundtrip() {
+    // R9 : PR Rust Option<CirIntent> + roundtrip AVANT la tête.
+    // Absent → None (CIR legacy / non annoté).
+    let bare: gcn_ir::CausalIR = serde_json::from_str(
+        r#"{"source_lang":{"natural":{"lang":"french"}},"source_text":"",
+            "nodes":[],"edges":[],"cycles":[],"unresolved":[],
+            "metadata":{"schema_version":"2.0","pipeline":[],"created_at":null}}"#,
+    )
+    .unwrap();
+    assert!(bare.intent.is_none());
+    // Présent → porté (acte + langue + saillance).
+    let full: gcn_ir::CausalIR = serde_json::from_str(
+        r#"{"source_lang":{"natural":{"lang":"french"}},"source_text":"",
+            "nodes":[],"edges":[],"cycles":[],"unresolved":[],
+            "metadata":{"schema_version":"2.0","pipeline":[],"created_at":null},
+            "intent":{"act":"question","lang":"fr","saillant":false}}"#,
+    )
+    .unwrap();
+    let intent = full.intent.as_ref().expect("intent présent");
+    assert!(matches!(intent.act, gcn_ir::Act::Question));
+    assert_eq!(intent.lang, "fr");
+    assert!(!intent.saillant);
+    // Roundtrip : l'intent survit à la sérialisation (pont M1).
+    let back: gcn_ir::CausalIR =
+        serde_json::from_str(&serde_json::to_string(&full).unwrap()).unwrap();
+    let intent = back.intent.expect("intent après roundtrip");
+    assert!(matches!(intent.act, gcn_ir::Act::Question));
+    // Langue absente → défaut français ([R-LANG]).
+    let no_lang: gcn_ir::CausalIR = serde_json::from_str(
+        r#"{"source_lang":{"natural":{"lang":"french"}},"source_text":"",
+            "nodes":[],"edges":[],"cycles":[],"unresolved":[],
+            "metadata":{"schema_version":"2.0","pipeline":[],"created_at":null},
+            "intent":{"act":"assert"}}"#,
+    )
+    .unwrap();
+    let intent = no_lang.intent.expect("intent présent");
+    assert_eq!(intent.lang, "fr");
+    assert!(!intent.saillant);
+}

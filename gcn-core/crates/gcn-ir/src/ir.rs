@@ -15,6 +15,36 @@ pub struct CausalIR {
     pub cycles: Vec<CausalCycle>,
     pub unresolved: Vec<Ambiguity>,
     pub metadata: IrMetadata,
+    /// Intention d'acte refacto (tête act, T4) : None = CIR legacy / non annoté.
+    /// Tolérant en lecture (absent → None) pour le pont M1 (D-S03, R9).
+    #[serde(default)]
+    pub intent: Option<CirIntent>,
+}
+
+/// Acte de langage refacto (tête act, 3 actes T4 + saillance exclamative).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Act {
+    Assert,
+    Question,
+    Request,
+}
+
+fn default_intent_lang() -> String {
+    // [R-LANG] : défaut français.
+    "fr".to_string()
+}
+
+/// Intention produite par L2 / règles v0 (Python) et lue par le routeur.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CirIntent {
+    pub act: Act,
+    /// Langue comprise ([R-LANG]) ; défaut français si absente.
+    #[serde(default = "default_intent_lang")]
+    pub lang: String,
+    /// Exclamatif saillant (``!`` ≠ request, R9).
+    #[serde(default)]
+    pub saillant: bool,
 }
 
 impl CausalIR {

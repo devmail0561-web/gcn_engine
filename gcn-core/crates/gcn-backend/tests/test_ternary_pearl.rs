@@ -59,6 +59,7 @@ fn ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> Causa
         cycles: vec![],
         unresolved: vec![],
         metadata: gcn_ir::IrMetadata::default(),
+        intent: None,
     }
 }
 

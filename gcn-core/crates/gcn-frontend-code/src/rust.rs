@@ -60,6 +60,8 @@ pub fn parse_with_report(source: &str) -> Result<(CausalIR, CodeParseReport), Co
                 pipeline: vec!["gcn-frontend-code".to_string()],
                 created_at: None,
             },
+            // Frontends symboliques : pas d'intent (tête act, T4).
+            intent: None,
         },
         report,
     ))

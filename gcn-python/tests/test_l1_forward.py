@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,6 +13,9 @@ import pytest
 from gcn_python.layer0.tokenizer import split
 from gcn_python.layer1.l1_forward import PoolMap, align_spans, forward_ids, pool_clauses
 from gcn_python.layer1.tok_embedding import TokEmbedding
+
+#: Données locales (DATA hors git) : test ignoré en CI, actif en local.
+GOLD_MINI = Path("gcn-datasets/DATA/supervision/gold_mini/gold_mini.jsonl")
 
 
 def test_forward_ids_forme_masque_copies():
@@ -56,9 +60,10 @@ def test_poolmap_copies_independantes():
     assert miroir.rows == [[0, 1]]
 
 
+@pytest.mark.skipif(not GOLD_MINI.exists(), reason="DATA hors git (local uniquement)")
 def test_smoke_l0_l1_phrase_gold():
     # Bout-en-bout L0→L1 sur phrase réelle : split → vocab → embed → pool → grad.
-    with open("gcn-datasets/DATA/supervision/gold_mini/gold_mini.jsonl", encoding="utf-8") as f:
+    with open(GOLD_MINI, encoding="utf-8") as f:
         rec = json.loads(f.readline())
     ids, offsets, _ = split(rec["text"])
     assert len(ids) > 0

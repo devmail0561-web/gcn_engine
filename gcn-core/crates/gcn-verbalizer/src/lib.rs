@@ -94,6 +94,7 @@ mod tests {
             cycles: vec![],
             unresolved: vec![],
             metadata: IrMetadata::default(),
+            intent: None,
         };
         let original_path = std::env::var("PATH").unwrap_or_default();
         // SAFETY : test mono-thread, aucun autre thread ne lit PATH simultanément.

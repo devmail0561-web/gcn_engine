@@ -225,6 +225,8 @@ pub fn parse_table(
                 pipeline: vec!["gcn-frontend-table:csv".to_string()],
                 created_at: None,
             },
+            // Frontend symbolique : pas d'intent (tête act, T4).
+            intent: None,
         },
         report,
     ))

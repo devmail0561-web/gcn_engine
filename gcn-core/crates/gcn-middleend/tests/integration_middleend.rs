@@ -72,6 +72,7 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
             pipeline: vec!["gcn-frontend-fr".to_string()],
             created_at: None,
         },
+        intent: None,
     }
 }
 
