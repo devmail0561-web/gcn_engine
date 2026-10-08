@@ -67,8 +67,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Gate CI** : `tests/test_exchange_contract.rs` (fixture réelle `python_emitter_s0.json` + clés futures `tok_vocab`/inconnues ignorées + formes historiques + roundtrip M1) + `test_m1_contract_version_and_cycles` côté Python (les deux jobs CI existants couvrent).
 - **Gate Format s0 — GO** : `format_refacto=20261007` écrit (B) + roundtrip Rust vert.
 
-### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
+### Refacto L0 — tokenizer + profils script (2026-10-08)
 
+- **Nouveau `gcn-python/src/gcn_python/layer0/tokenizer.py`** : `split(text) → (ids, offsets, tokens)` — 1 tokenizer, 0 frontend par langue (T6) ; profils latin (minuscule + sans-accent) / CJK-sans-espaces (thaï/lao/myanmar/khmer inclus) / arabe RTL (NFC, diacritiques gardés) / autres (NFC) ; ponctuation en tokens propres (`?` pour les actes) ; apostrophe interne gardée ; ids 64 bits stables sha256 **sans vocab** (R5, `PYTHONHASHSEED`-indépendants, prouvé inter-processus) ; offsets dans l'original ; `tokenizer_hash` (R5, s1 à venir) ; stdlib seule, jamais `hash()`.
+- **Tests `test_tokenizer.py` (10 verts)** + `ruff` propre. L0 n'efface rien (legacy cohabite jusqu'à la bascule).
+
+### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
 
