@@ -143,6 +143,7 @@ pub struct CounterfactualResult {
 ### Éq.12 — Comportement ternaire Pearl
 
 - **WHY/CHAIN** : `CausalLink.joint_group_id` propagé pour identifier les co-sources
+  (groupe valide ssi ≥ 2 arêtes — orphelin = joint invalide, traité en arête simple)
 - **COUNTERFACTUAL** : `JointCause([A,A₂]→C)` — si A supprimé, C disparaît même si A₂ reste
 - **SPOF** : `is_super_spof=true` si nœud dans au moins 1 groupe `joint_group_id`
 
@@ -167,9 +168,9 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 
 | Requête | Niveau Pearl | Description |
 |---------|-------------|-------------|
-| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé) |
-| `WHAT <label>` | 1 | Effets directs et indirects |
-| `CHAIN <a> -> <b>` | 1 | Chemin causal le plus court |
+| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé ; niées coupées → `blocked_by` ; exacts d'abord, flous ≤ `AMBIGUITY_LIMIT` (défaut 5), excès → erreur `Ambiguous`) |
+| `WHAT <label>` | 1 | Effets directs et indirects (même politique exact-puis-flou) |
+| `CHAIN <a> -> <b>` | 1 | Chemin confiance-max (Dijkstra −ln(conf), jamais via niée ; `TOPK=N` défaut 3, `path_confidence` + `ranked_paths` ; `found:false` + `blocked_by` si coupure, vide si aucun chemin) |
 | `CHAIN_T <a> -> <b>` | 1 | Chemin causal avec info temporelle |
 | `BEFORE <a>, <b>` | 1 | A précède-t-il B ? |
 | `DELAY <a> -> <b>` | 1 | Délai estimé A→B |
@@ -181,10 +182,10 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 | `DENSITY` | — | Densité du graphe |
 | `COVERAGE <label>` | — | Couverture causale d'un concept |
 | `RELIABILITY <label>` | — | Fiabilité des réponses |
-| `ANALOGY <a> -> <b>` | — | Patterns causaux similaires |
+| `ANALOGY <a> -> <b>` | — | Patterns causaux similaires (`WEIGHTS=a,b,c,d` défaut 0.40/0.30/0.20/0.10, `MIN_SCORE=x` défaut 0.3) |
 | `NORM_DIFF <a>, <b>` | — | Écart normatif A→B |
-| `DO <label>` | 2 | Intervention do-calculus |
-| `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés) |
+| `DO <label>` | 2 | Intervention do-calculus (entrantes niées incluses dans `severed`, effets jamais via niée) |
+| `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés ; niées non traversées) |
 | `ZOOM_IN <label>` | — | Sous-graphe enfants (hiérarchie multi-échelle) |
 | `ZOOM_OUT <label>` | — | Nœud parent |
 | `AGGREGATE <label>` | — | Vue agrégée nœud + enfants |
@@ -210,16 +211,42 @@ impl Query {
 ```rust
 // Serde tag = "type", rename_all = "snake_case"
 pub enum QueryResult {
-    Causes        { target: String, links: Vec<LinkDto> },
-    Effects       { source: String, links: Vec<LinkDto> },
-    Path          { from: String, to: String, found: bool, links: Vec<LinkDto> },
+    Causes        { target: String, links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
+                    match_scores: Vec<(String, u8)>, fuzzy: bool, .. },
+    Effects       { source: String, links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
+                    match_scores: Vec<(String, u8)>, fuzzy: bool, .. },
+    Path          { from: String, to: String, found: bool,
+                    links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
+                    path_confidence: f32, ranked_paths: Vec<RankedPathDto> },
     CycleList     { count: usize, cycles: Vec<CycleDto> },
     GapList       { gap_edges: Vec<GapDto>, unresolved_nodes: usize },
     Intervention  { target: String, severed_count: usize,
-                    severed: Vec<LinkDto>, effects: Vec<LinkDto> },
+                    severed: Vec<LinkDto>, effects: Vec<LinkDto>,
+                    blocked_by: Vec<LinkDto> },
     CounterfactualDiff { target: String, actual_effects: Vec<LinkDto>,
-                         unique_effects: Vec<String> },
+                         unique_effects: Vec<String>, blocked_by: Vec<LinkDto> },
 }
+
+// Ph1 [D1] — sémantique négation : arête niée = propagation COUPÉE (pas
+// d'inversion). `blocked_by` liste les niées qui auraient porté une
+// propagation (triées, déterministes). `prevent` reste une relation positive.
+// `chain_strict` (CLI `--strict`) exige en plus le `third_node` des liens
+// ternaires sur le chemin, sinon `NoPath`.
+//
+// Ph2 [D2] — résolution exact-puis-flou : exact (score 0) toujours répondu
+// (même multiples) ; flou (préfixe/contient, puis similarité injectable via
+// `pearl::LabelSim`, backend sans ML) seulement si 0 exact ;
+// `WHY x AMBIGUITY_LIMIT=N` (défaut 5, flous seuls comptés) ; excès →
+// `Err(Ambiguous { candidates })`, convertie en partiel+question par Ph8.
+// `match_scores` = (label, score) des retenus, `fuzzy` = warning flou.
+//
+// Ph3 [D3] — ranking : CHAIN = Dijkstra confiance-max (coût −ln(conf),
+// conf ≤ 0 → epsilon), k-chemins (Yen, `TOPK=N` défaut 3) ; `links` = rang 1,
+// `path_confidence` = produit du rang 1, `ranked_paths` ssi TOPK > 1 ;
+// WHY/WHAT triés par force (produit depuis la cible) ; EXPLAIN déjà trié par
+// score ; ANALOGY poids/seuil paramétrables (défauts 0.40/0.30/0.20/0.10 et 0.3).
+// Shift assumé : `chain()` (et NormDiff/Before/Delay/ChainT/strict) utilise le
+// chemin confiance-max, plus le plus-court BFS.
 
 pub struct LinkDto { pub from: String, pub to: String,
                      pub relation: String, pub confidence: f32, pub negated: bool }
@@ -228,6 +255,25 @@ pub struct GapDto   { pub from: String, pub to: String, pub relation: String }
 ```
 
 ---
+
+## Always-answer — `respond()` (Ph8)
+
+```rust
+use gcn_backend::{Status, UserResponse, respond};
+
+let resp: UserResponse = respond("WHY ventes?", &ir);
+// UserResponse { status, phrase, lang, result: Option<QueryResult>,
+//                caveats, suggestions } — sérialisable (pont M1).
+```
+
+Jamais d'Err nue à la frontière interactive : `execute()` reste inchangé
+(Err internes), `respond()` enveloppe tout — parse, introuvable, ambigu,
+sans-chemin (bloqueurs niés = WHY-NOT, sinon proches), trop-gros (> 500
+nœuds : partiel + top connectés), graphe vide, incident.
+Règle de statut : Degrade = parse / introuvable / vide / incident ; Partiel =
+ambigu / sans-chemin / flou / coupures niées / trop-gros / ordre temporel
+rejeté ; Ok sinon. `gcn query` imprime l'enveloppe (exit 0 sauf Degrade → 1,
+contrat batch préservé ; `--strict` inchangé).
 
 ## Export
 
@@ -258,6 +304,7 @@ pub enum BackendError {
     QueryParseError(String),
     Serialization(serde_json::Error),
     NoPath(String, String),
+    Ambiguous { candidates: Vec<String> },
 }
 ```
 

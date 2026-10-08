@@ -1,0 +1,24 @@
+{
+  "type": "intervention",
+  "target": "Beta",
+  "severed_count": 1,
+  "severed": [
+    {
+      "from": "Alpha",
+      "to": "Beta",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": true
+    }
+  ],
+  "effects": [
+    {
+      "from": "Beta",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false
+    }
+  ],
+  "blocked_by": []
+}

@@ -30,6 +30,18 @@ jobs:
       - run: ruff check gcn-python/src/ gcn-python/tests/
       - run: pytest gcn-python/tests/ -q
 
+  guards:
+    name: Guards I1 — socle sans transformers/torch
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # T5 : aucun import gcn_transformers au runtime du socle.
+      - run: '! grep -rq gcn_transformers gcn-python/src/'
+      # torch reste optionnel : aucun import top-level dans le socle (lazy seul).
+      - run: '! grep -rn "^import torch\|^from torch" gcn-python/src/'
+      # Acceptation A (cible finale = 0) : comptage publié, informatif pour l'instant.
+      - run: grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ ; true
+
   transformers:
     name: gcn-transformers — pytest
     runs-on: self-hosted

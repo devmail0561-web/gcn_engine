@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use gcn_backend::{Query, execute, to_dot, to_json};
+use gcn_backend::{Query, respond, to_dot, to_json};
 use gcn_frontend_code::{parse_js_with_report, parse_python_with_report, parse_rust_with_report};
 use gcn_frontend_en::parse_lattice as parse_lattice_en;
 use gcn_frontend_fr::parse_lattice as parse_lattice_fr;
@@ -375,19 +375,24 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             for d in &processed.diagnostics {
                 eprintln!("[{:?}] {:?}", d.severity, d.kind);
             }
-            let q = Query::parse(&query)?;
+            let parsed = Query::parse(&query);
             // P0-2 : --strict route CHAIN vers chain_strict() (Err NoPath
             // si pas de chemin) au lieu de Path{found:false}.
             if strict {
-                if let Query::Chain(from, to) = &q {
+                if let Ok(Query::Chain { from, to, .. }) = &parsed {
                     let links = gcn_backend::chain_strict(&processed.ir, from, to)?;
                     println!("{}", serde_json::to_string_pretty(&links)?);
                     return Ok(());
                 }
                 eprintln!("warning: --strict ne s'applique qu'à CHAIN, ignoré ici");
             }
-            let result = execute(&q, &processed.ir)?;
+            let result = respond(&query, &processed.ir);
+            // Ph8 [R-ALWAYS] : enveloppe always-answer sur stdout (jamais d'Err nue).
+            // Batch/CI : degrade → sortie non-zéro (contrat batch préservé).
             println!("{}", serde_json::to_string_pretty(&result)?);
+            if result.status == gcn_backend::Status::Degrade {
+                return Err("requête dégrade (voir enveloppe JSON sur stdout)".into());
+            }
         }
 
         Commands::Export { ir, format } => {

@@ -13,10 +13,15 @@ test:
 	cd gcn-core && cargo test --workspace
 	python3 -m pytest gcn-python/tests/ -q
 
-gates:
+gates: guards
 	for f in gcn-datasets/DATA/supervision/v4/annotated/lot*.json; do \
 	  python3 scripts/check_v4.py --min-class-count 1 "$$f" || exit 1; \
 	done
+
+guards:
+	! grep -rq gcn_transformers gcn-python/src/
+	! grep -rn "^import torch\|^from torch" gcn-python/src/
+	grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ || true
 
 lint:
 	cd gcn-core && cargo clippy -- -D warnings

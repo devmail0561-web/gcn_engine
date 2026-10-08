@@ -85,7 +85,7 @@ fn test_why_joint_cause_link_has_joint_group_id() {
     );
     let results = pearl::why(&ir, "C");
     assert!(!results.is_empty());
-    let (_, links) = &results[0];
+    let (_, links, _) = &results[0];
     // Au moins une arête JointCause avec joint_group_id
     let has_joint = links.iter().any(|l| {
         l.relation == RelationType::JointCause && l.joint_group_id.as_deref() == Some("grp1")
@@ -102,13 +102,21 @@ fn test_why_joint_cause_link_has_joint_group_id() {
 
 #[test]
 fn test_chain_joint_cause_link_has_joint_group_id() {
+    // Ph4 : groupe joint VALIDE = 2 co-sources (B1 ∧ B2 → C). Un singleton
+    // serait un joint invalide (gid effacé, cf. test_properties).
     let ir = ir(
-        vec![node(0, "A"), node(1, "B"), node(2, "C")],
+        vec![node(0, "A"), node(1, "B1"), node(2, "B2"), node(3, "C")],
         vec![
             (NodeId(0), NodeId(1), edge(RelationType::Cause, None, None)),
+            (NodeId(0), NodeId(2), edge(RelationType::Cause, None, None)),
             (
                 NodeId(1),
+                NodeId(3),
+                edge(RelationType::JointCause, Some("grp2"), None),
+            ),
+            (
                 NodeId(2),
+                NodeId(3),
                 edge(RelationType::JointCause, Some("grp2"), None),
             ),
         ],
@@ -245,7 +253,7 @@ fn test_causal_link_simple_edge_none_fields() {
     );
     let results = pearl::why(&ir, "B");
     assert!(!results.is_empty());
-    let (_, links) = &results[0];
+    let (_, links, _) = &results[0];
     assert!(!links.is_empty());
     let link = &links[0];
     assert!(link.joint_group_id.is_none());

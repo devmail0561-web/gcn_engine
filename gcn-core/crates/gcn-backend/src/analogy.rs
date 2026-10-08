@@ -112,7 +112,7 @@ fn type_similarity(a: NodeType, b: NodeType) -> f32 {
     0.0
 }
 
-fn similarity(pattern: &EdgeSignature, candidate: &EdgeSignature) -> f32 {
+fn similarity(pattern: &EdgeSignature, candidate: &EdgeSignature, weights: [f32; 4]) -> f32 {
     let rel_sim = relation_similarity(pattern.relation, candidate.relation);
     let src_sim = type_similarity(pattern.src_type, candidate.src_type);
     let dst_sim = type_similarity(pattern.dst_type, candidate.dst_type);
@@ -123,15 +123,27 @@ fn similarity(pattern: &EdgeSignature, candidate: &EdgeSignature) -> f32 {
         let d_in = pattern.dst_in_degree.abs_diff(candidate.dst_in_degree) as f32;
         1.0 / (1.0 + d_out + d_in)
     };
-    // Poids : relation > type > confiance > degré
-    0.40 * rel_sim + 0.30 * type_sim + 0.20 * conf_prox + 0.10 * degree_prox
+    // Ph3 [D3] : poids paramétrables (défauts = actuels) : relation > type > confiance > degré.
+    weights[0] * rel_sim + weights[1] * type_sim + weights[2] * conf_prox + weights[3] * degree_prox
 }
+
+/// Ph3 [D3] — poids par défaut (documentés) : relation > type > confiance > degré.
+pub const DEFAULT_ANALOGY_WEIGHTS: [f32; 4] = [0.40, 0.30, 0.20, 0.10];
+/// Ph3 [D3] — seuil par défaut (documenté).
+pub const DEFAULT_ANALOGY_MIN_SCORE: f32 = 0.3;
 
 /// Trouve les arêtes du graphe analogues à l'arête (from→to).
 ///
 /// Retourne les matches triés par score décroissant, en excluant l'arête patron elle-même.
-/// `min_score` filtre les résultats trop faibles (défaut recommandé : 0.3).
-pub fn find_analogies(ir: &CausalIR, from: &str, to: &str, min_score: f32) -> Vec<AnalogyMatch> {
+/// `min_score` filtre les résultats trop faibles ; `weights` pondère
+/// (relation, type, confiance, degré).
+pub fn find_analogies(
+    ir: &CausalIR,
+    from: &str,
+    to: &str,
+    min_score: f32,
+    weights: [f32; 4],
+) -> Vec<AnalogyMatch> {
     use gcn_ir::normalize_label;
     let from_n = normalize_label(from);
     let to_n = normalize_label(to);
@@ -173,7 +185,7 @@ pub fn find_analogies(ir: &CausalIR, from: &str, to: &str, min_score: f32) -> Ve
         .filter(|(s, d, _)| !(*s == src_id && *d == dst_id))
         .filter_map(|(s, d, e)| {
             let cand_sig = edge_signature(&dm, *s, *d, e.confidence, e.relation);
-            let score = similarity(&pattern_sig, &cand_sig);
+            let score = similarity(&pattern_sig, &cand_sig, weights);
             if score < min_score {
                 return None;
             }

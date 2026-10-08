@@ -1,9 +1,10 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_ir::{CausalCycle, CausalIR};
+use gcn_ir::{CausalCycle, CausalIR, NodeId};
 use serde::{Deserialize, Serialize};
 
+use crate::analogy::{DEFAULT_ANALOGY_MIN_SCORE, DEFAULT_ANALOGY_WEIGHTS};
 use crate::error::BackendError;
 use crate::pearl::{self, CausalLink, SpofScore};
 
@@ -24,11 +25,115 @@ fn split_pair(rest: &str, cmd: &str) -> Result<(String, String), BackendError> {
     Ok((a, b))
 }
 
+/// Suffixe `AMBIGUITY_LIMIT=N` (Ph2 [D2]) : extrait la limite floue, défaut 5.
+///
+/// Retourne (label, limite). `WHY AMBIGUITY_LIMIT=3` sans label → erreur
+/// (jamais de match-all silencieux) ; N mal formé → `QueryParseError`.
+fn split_ambiguity_limit(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
+    let rest = rest.trim();
+    if let Some((head, tail)) = rest.rsplit_once(char::is_whitespace) {
+        if tail.to_ascii_uppercase().starts_with("AMBIGUITY_LIMIT=") {
+            let n: usize = tail["AMBIGUITY_LIMIT=".len()..].parse().map_err(|_| {
+                BackendError::QueryParseError(format!(
+                    "{cmd}: AMBIGUITY_LIMIT entier attendu, reçu '{tail}'"
+                ))
+            })?;
+            return Ok((head.trim().to_string(), n));
+        }
+    } else if rest.to_ascii_uppercase().starts_with("AMBIGUITY_LIMIT=") {
+        return Err(BackendError::QueryParseError(format!(
+            "{cmd}: label manquant"
+        )));
+    }
+    Ok((rest.to_string(), pearl::DEFAULT_AMBIGUITY_LIMIT))
+}
+
+/// Ph3 [D3] — chemins retournés par CHAIN sans `TOPK=` (documenté).
+pub const DEFAULT_TOPK: usize = 3;
+
+/// Suffixe `TOPK=N` (Ph3 [D3]) : extrait le nombre de chemins, défaut 3.
+/// `N = 0` ou mal formé → `QueryParseError`.
+fn split_topk_suffix(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
+    let rest = rest.trim();
+    if let Some((head, tail)) = rest.rsplit_once(char::is_whitespace)
+        && tail.to_ascii_uppercase().starts_with("TOPK=")
+    {
+        let n: usize = tail["TOPK=".len()..].parse().map_err(|_| {
+            BackendError::QueryParseError(format!("{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"))
+        })?;
+        if n == 0 {
+            return Err(BackendError::QueryParseError(format!(
+                "{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"
+            )));
+        }
+        return Ok((head.trim().to_string(), n));
+    }
+    Ok((rest.to_string(), DEFAULT_TOPK))
+}
+
+/// Suffixes `WEIGHTS=a,b,c,d` + `MIN_SCORE=x` (Ph3 [D3], ordre libre, optionnels).
+/// Retourne (corps, poids, seuil). Mal formés → `QueryParseError`.
+fn split_analogy_options(rest: &str) -> Result<(String, [f32; 4], f32), BackendError> {
+    let mut body = rest.trim().to_string();
+    let mut weights = DEFAULT_ANALOGY_WEIGHTS;
+    let mut min_score = DEFAULT_ANALOGY_MIN_SCORE;
+    while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
+        let up = tail.to_ascii_uppercase();
+        if let Some(v) = up.strip_prefix("WEIGHTS=") {
+            weights = parse_weights(v)?;
+            body = head.trim().to_string();
+        } else if let Some(v) = up.strip_prefix("MIN_SCORE=") {
+            min_score = v.parse().map_err(|_| {
+                BackendError::QueryParseError(format!(
+                    "ANALOGY: MIN_SCORE flottant attendu, reçu '{tail}'"
+                ))
+            })?;
+            body = head.trim().to_string();
+        } else {
+            break;
+        }
+    }
+    Ok((body, weights, min_score))
+}
+
+/// `WEIGHTS=a,b,c,d` : exactement 4 flottants (relation, type, confiance, degré).
+fn parse_weights(v: &str) -> Result<[f32; 4], BackendError> {
+    let parts: Vec<f32> = v
+        .split(',')
+        .map(|x| x.trim().parse())
+        .collect::<Result<Vec<f32>, _>>()
+        .map_err(|_| {
+            BackendError::QueryParseError(format!(
+                "ANALOGY: WEIGHTS=a,b,c,d (4 flottants) attendu, reçu '{v}'"
+            ))
+        })?;
+    if parts.len() != 4 {
+        return Err(BackendError::QueryParseError(format!(
+            "ANALOGY: WEIGHTS=a,b,c,d (4 flottants) attendu, reçu '{v}'"
+        )));
+    }
+    Ok([parts[0], parts[1], parts[2], parts[3]])
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Query {
-    Why(String),
-    What(String),
-    Chain(String, String),
+    /// Ph2 [D2] : `ambiguity_limit` = max de matchs FLOUS (défaut 5) ;
+    /// les exacts passent toujours, l'excès flou → `Err(Ambiguous)`.
+    Why {
+        label: String,
+        ambiguity_limit: usize,
+    },
+    /// Ph2 [D2] : voir `Why`.
+    What {
+        label: String,
+        ambiguity_limit: usize,
+    },
+    /// Ph3 [D3] : `topk` = chemins retournés, confiance-max (défaut 3, ≥ 1).
+    Chain {
+        from: String,
+        to: String,
+        topk: usize,
+    },
     Cycles,
     Gaps,
     /// Pearl niveau 2 — `DO <nœud>` : intervention do-calculus
@@ -37,8 +142,15 @@ pub enum Query {
     Counterfactual(String),
     /// Abductif — `EXPLAIN <effet>` : hypothèses causales les plus plausibles pour E
     Explain(String),
-    /// Analogie — `ANALOGY <from> -> <to>` : patterns causaux similaires au patron (from→to)
-    Analogy(String, String),
+    /// Analogie — `ANALOGY <from> -> <to>` : patterns causaux similaires au patron (from→to).
+    /// Ph3 [D3] : `weights` = pondération (relation, type, confiance, degré),
+    /// `min_score` = seuil (défauts documentés).
+    Analogy {
+        from: String,
+        to: String,
+        weights: [f32; 4],
+        min_score: f32,
+    },
     /// Multi-échelle — `ZOOM_IN <label>` : enfants directs du nœud dans la hiérarchie
     ZoomIn(String),
     /// Multi-échelle — `ZOOM_OUT <label>` : parent du nœud dans la hiérarchie
@@ -75,15 +187,24 @@ impl Query {
         };
         let s = normalized.as_str();
 
-        if let Some(label) = s.strip_prefix("WHY ") {
-            return Ok(Query::Why(label.trim().to_string()));
+        if let Some(rest) = s.strip_prefix("WHY ") {
+            let (label, ambiguity_limit) = split_ambiguity_limit(rest, "WHY")?;
+            return Ok(Query::Why {
+                label,
+                ambiguity_limit,
+            });
         }
-        if let Some(label) = s.strip_prefix("WHAT ") {
-            return Ok(Query::What(label.trim().to_string()));
+        if let Some(rest) = s.strip_prefix("WHAT ") {
+            let (label, ambiguity_limit) = split_ambiguity_limit(rest, "WHAT")?;
+            return Ok(Query::What {
+                label,
+                ambiguity_limit,
+            });
         }
         if let Some(rest) = s.strip_prefix("CHAIN ") {
-            let (from, to) = split_pair(rest, "CHAIN")?;
-            return Ok(Query::Chain(from, to));
+            let (body, topk) = split_topk_suffix(rest, "CHAIN")?;
+            let (from, to) = split_pair(&body, "CHAIN")?;
+            return Ok(Query::Chain { from, to, topk });
         }
         if s == "CYCLES" {
             return Ok(Query::Cycles);
@@ -101,8 +222,14 @@ impl Query {
             return Ok(Query::Explain(label.trim().to_string()));
         }
         if let Some(rest) = s.strip_prefix("ANALOGY ") {
-            let (from, to) = split_pair(rest, "ANALOGY")?;
-            return Ok(Query::Analogy(from, to));
+            let (body, weights, min_score) = split_analogy_options(rest)?;
+            let (from, to) = split_pair(&body, "ANALOGY")?;
+            return Ok(Query::Analogy {
+                from,
+                to,
+                weights,
+                min_score,
+            });
         }
         if let Some(label) = s.strip_prefix("ZOOM_IN ") {
             return Ok(Query::ZoomIn(label.trim().to_string()));
@@ -175,6 +302,16 @@ pub enum QueryResult {
         /// Labels de tous les nœuds matchés par la requête (le 1er = `target`).
         #[serde(default)]
         matched_targets: Vec<String>,
+        /// Ph1 [D1] : arêtes niées qui auraient porté une propagation
+        /// (coupées, listées au lieu d'être traversées).
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
+        /// Ph2 [D2] : (label, score) des nœuds retenus — 0 = exact, >0 = flou.
+        #[serde(default)]
+        match_scores: Vec<(String, u8)>,
+        /// Ph2 [D2] : vrai si réponse sur flous (warning ; voir `match_scores`).
+        #[serde(default)]
+        fuzzy: bool,
     },
     Effects {
         source: String,
@@ -183,12 +320,31 @@ pub enum QueryResult {
         /// Labels de tous les nœuds matchés par la requête (le 1er = `source`).
         #[serde(default)]
         matched_sources: Vec<String>,
+        /// Ph1 [D1] : voir `Causes::blocked_by`.
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
+        /// Ph2 [D2] : voir `Causes::match_scores`.
+        #[serde(default)]
+        match_scores: Vec<(String, u8)>,
+        /// Ph2 [D2] : voir `Causes::fuzzy`.
+        #[serde(default)]
+        fuzzy: bool,
     },
     Path {
         from: String,
         to: String,
         found: bool,
         links: Vec<LinkDto>,
+        /// Ph1 [D1] : `found:false` + `blocked_by` rempli = chemin existant
+        /// mais coupé par négation ; `found:false` + vide = vraiment aucun chemin.
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
+        /// Ph3 [D3] : produit des confidences du meilleur chemin (0.0 si !found).
+        #[serde(default)]
+        path_confidence: f32,
+        /// Ph3 [D3] : chemins classés (rang 1 = `links`), présent ssi TOPK > 1.
+        #[serde(default)]
+        ranked_paths: Vec<RankedPathDto>,
     },
     CycleList {
         count: usize,
@@ -207,6 +363,9 @@ pub enum QueryResult {
         severed: Vec<LinkDto>,
         /// Effets en aval de `target` après l'intervention.
         effects: Vec<LinkDto>,
+        /// Ph1 [D1] : niées rencontrées en aval (voir `Causes::blocked_by`).
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
     },
     /// Pearl niveau 3 : résultat d'une requête contrefactuelle.
     CounterfactualDiff {
@@ -215,6 +374,9 @@ pub enum QueryResult {
         actual_effects: Vec<LinkDto>,
         /// Effets counterfactuellement dépendants de `target` (n'auraient pas eu lieu sans X).
         unique_effects: Vec<String>,
+        /// Ph1 [D1] : niées rencontrées depuis `target` (voir `Causes::blocked_by`).
+        #[serde(default)]
+        blocked_by: Vec<LinkDto>,
     },
     /// Analogie — patterns causaux similaires au patron (from→to).
     AnalogyReport {
@@ -373,6 +535,16 @@ pub struct CycleDto {
     pub nodes: Vec<String>,
 }
 
+/// Ph3 [D3] — un chemin classé de CHAIN TOPK.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RankedPathDto {
+    /// Rang 1-based (1 = meilleur = `Path.links`).
+    pub rank: usize,
+    /// Produit des confidences du chemin.
+    pub path_confidence: f32,
+    pub links: Vec<LinkDto>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GapDto {
     pub from: String,
@@ -432,51 +604,83 @@ pub struct TemporalLinkDto {
 
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     match query {
-        Query::Why(label) => {
-            let results = pearl::why(ir, label);
-            if results.is_empty() {
+        Query::Why {
+            label,
+            ambiguity_limit,
+        } => {
+            // Ph2 [D2] : exacts (tous) > flous (≤ limite) > Err(Ambiguous).
+            let scoped = pearl::why_scoped(ir, label, *ambiguity_limit)
+                .map_err(|candidates| BackendError::Ambiguous { candidates })?;
+            if scoped.matched.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
             // P0-1 : agréger TOUS les matchs au lieu du premier seul.
-            let matched_targets: Vec<String> = results.iter().map(|(t, _)| t.clone()).collect();
+            let matched_targets: Vec<String> =
+                scoped.matched.iter().map(|(t, _, _)| t.clone()).collect();
             let target = matched_targets
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let links: Vec<LinkDto> = results
+            let links: Vec<LinkDto> = scoped
+                .matched
                 .iter()
-                .flat_map(|(_, ls)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .collect();
+            // Ph1 [D1] : niées coupées sur tous les matchs (triées, cf. pearl).
+            let blocked_by: Vec<LinkDto> = scoped
+                .matched
+                .iter()
+                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
             Ok(QueryResult::Causes {
                 target,
                 links,
                 matched_targets,
+                blocked_by,
+                match_scores: scoped.match_scores,
+                fuzzy: scoped.fuzzy,
             })
         }
 
-        Query::What(label) => {
-            let results = pearl::what(ir, label);
-            if results.is_empty() {
+        Query::What {
+            label,
+            ambiguity_limit,
+        } => {
+            // Ph2 [D2] : voir bras WHY (propagation avant).
+            let scoped = pearl::what_scoped(ir, label, *ambiguity_limit)
+                .map_err(|candidates| BackendError::Ambiguous { candidates })?;
+            if scoped.matched.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
             // P0-1 : agréger TOUS les matchs au lieu du premier seul.
-            let matched_sources: Vec<String> = results.iter().map(|(s, _)| s.clone()).collect();
+            let matched_sources: Vec<String> =
+                scoped.matched.iter().map(|(s, _, _)| s.clone()).collect();
             let source = matched_sources
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let links: Vec<LinkDto> = results
+            let links: Vec<LinkDto> = scoped
+                .matched
                 .iter()
-                .flat_map(|(_, ls)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .collect();
+            // Ph1 [D1] : voir bras WHY.
+            let blocked_by: Vec<LinkDto> = scoped
+                .matched
+                .iter()
+                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
             Ok(QueryResult::Effects {
                 source,
                 links,
                 matched_sources,
+                blocked_by,
+                match_scores: scoped.match_scores,
+                fuzzy: scoped.fuzzy,
             })
         }
 
-        Query::Chain(from, to) => {
+        Query::Chain { from, to, topk } => {
             // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
             if pearl::find_best(ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
@@ -484,17 +688,34 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             if pearl::find_best(ir, to).is_none() {
                 return Err(BackendError::NodeNotFound(to.clone()));
             }
-            let links = pearl::chain(ir, from, to);
-            let found = links.is_some();
+            // Ph3 [D3] : jusqu'à `topk` chemins confiance-max (Dijkstra + Yen).
+            let (paths, blocked) = pearl::chain_topk(ir, from, to, *topk);
+            let found = !paths.is_empty();
+            let best = paths.first();
             Ok(QueryResult::Path {
                 from: from.clone(),
                 to: to.clone(),
                 found,
-                links: links
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|l| link_to_dto(ir, l))
-                    .collect(),
+                links: best
+                    .map(|p| p.links.iter().map(|l| link_to_dto(ir, l)).collect())
+                    .unwrap_or_default(),
+                // Ph1 [D1] : rempli ssi coupure par négation (vide = vraiment aucun chemin).
+                blocked_by: blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                path_confidence: best.map(|p| p.confidence).unwrap_or(0.0),
+                // Chemins classés ssi TOPK > 1 (rang 1 = `links`).
+                ranked_paths: if *topk > 1 {
+                    paths
+                        .iter()
+                        .enumerate()
+                        .map(|(i, p)| RankedPathDto {
+                            rank: i + 1,
+                            path_confidence: p.confidence,
+                            links: p.links.iter().map(|l| link_to_dto(ir, l)).collect(),
+                        })
+                        .collect()
+                } else {
+                    vec![]
+                },
             })
         }
 
@@ -528,6 +749,8 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 severed_count: result.severed.len(),
                 severed: result.severed.iter().map(|l| link_to_dto(ir, l)).collect(),
                 effects: result.effects.iter().map(|l| link_to_dto(ir, l)).collect(),
+                // Ph1 [D1] : niées rencontrées en aval.
+                blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
             })
         }
 
@@ -542,11 +765,19 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     .map(|l| link_to_dto(ir, l))
                     .collect(),
                 unique_effects: result.unique_effects,
+                // Ph1 [D1] : niées rencontrées depuis la cible.
+                blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
             })
         }
 
-        Query::Analogy(from, to) => {
-            let matches = crate::analogy::find_analogies(ir, from, to, 0.3);
+        Query::Analogy {
+            from,
+            to,
+            weights,
+            min_score,
+        } => {
+            // Ph3 [D3] : poids/seuil paramétrables (défauts documentés).
+            let matches = crate::analogy::find_analogies(ir, from, to, *min_score, *weights);
             Ok(QueryResult::AnalogyReport {
                 pattern_from: from.clone(),
                 pattern_to: to.clone(),
@@ -952,6 +1183,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 
 /// Variante stricte de CHAIN : erreur `NoPath` si les nœuds existent mais sans
 /// chemin causal (rend `BackendError::NoPath` atteignable).
+///
+/// Ph1 [D1] + tiers Éq.12 : comme CHAIN (niées jamais traversées) ET exige que
+/// tout lien ternaire du chemin ait son `third_node` présent sur le chemin
+/// (sinon `NoPath`). Les liens du tiers restent annotés via `third_node_label`.
 pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>, BackendError> {
     if pearl::find_best(ir, from).is_none() {
         return Err(BackendError::NodeNotFound(from.to_string()));
@@ -959,9 +1194,19 @@ pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>,
     if pearl::find_best(ir, to).is_none() {
         return Err(BackendError::NodeNotFound(to.to_string()));
     }
-    pearl::chain(ir, from, to)
-        .map(|links| links.iter().map(|l| link_to_dto(ir, l)).collect())
-        .ok_or_else(|| BackendError::NoPath(from.to_string(), to.to_string()))
+    let no_path = || BackendError::NoPath(from.to_string(), to.to_string());
+    let (path, _) = pearl::chain_with_blocked(ir, from, to);
+    let links = path.ok_or_else(no_path)?;
+    let on_path: std::collections::HashSet<NodeId> =
+        links.iter().flat_map(|l| [l.from_id, l.to_id]).collect();
+    for l in &links {
+        if let Some(third) = l.third_node
+            && !on_path.contains(&third)
+        {
+            return Err(BackendError::NoPath(from.to_string(), to.to_string()));
+        }
+    }
+    Ok(links.iter().map(|l| link_to_dto(ir, l)).collect())
 }
 
 fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
@@ -988,7 +1233,7 @@ fn serde_name<T: serde::Serialize + std::fmt::Debug>(v: &T) -> String {
         .unwrap_or_else(|| format!("{v:?}").to_lowercase())
 }
 
-fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
+pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
     // C4 fix : sérialiser la relation en snake_case via serde (pas Debug).
     let relation = serde_name(&l.relation);
     // P1-5 : résoudre le tiers ternaire (médiateur/condition) en label.

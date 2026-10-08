@@ -7,6 +7,53 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Lot A — démarrage refacto-2026-10 (2026-10-08, branche `refacto/arch-cible-refacto-2026-10`)
+
+- **Baselines (I2, `docs/refactory/baselines-2026-10-08.md`, local)** : `cargo test -p gcn-backend` 67 passés / 4,2 s ; supervision 351 M, models 56 M, checkpoints 253 M ; Python 3.11.9, rustc 1.98.0, **pas de GPU local** (S4-opt impossible, reste exclu). `val_edge_f1` : réfs contradictoires (0.468 vs 0.1867, harnais distincts) — re-mesure sur harnais unique au slice/socle ; ECE différée à la gate Ph5.
+- **Gardes CI (I1)** : nouveau job `guards` — `gcn_transformers==0` et `import torch` top-level `==0` dans `gcn-python/src/` (durs), comptage `subprocess|gcn_bin|Lattice` informatif (8 fichiers sources, cible 0 en fin de refacto). Miroir local : `make guards`, branché avant `make gates`.
+- **Socle 0c (gate GO)** : `scripts/select_gold_mini.py` (seed 42, déterministe) — `gold_mini` 85 phrases extraites des lots v4 08-24 (11 relations × 7-10, + 5 exclamatives / 3 interrogatives), jamais vues au train ; held-out re-gelés hors docs (mixte_final test 380 + v4/final2 test) + manifests sha256.
+- **Comptes sans cap (`scripts/count_classes.py`)** : 321 343 phrases / 35 521 CIR ; 11 relations directes ≥1 491 occurrences ; **8 nouvelles relations à 0 occurrence** → gel R8 programmé pour ces classes jusqu'au gold-3000 ; aliases legacy v2 confirmés dans les pools anciens.
+
+### Slice -1 — gate GO (2026-10-08)
+- **Verdict GO, vérifié par re-run** : `scripts/slice_minus1_gate.py` (sous-agent, relu) — harnais existant (`GCNDataLoader`, `CGNPipeline`, boucle `train.py`), 4 phrases gold_mini (cause/sequence/condition/opposition, 2 nœuds + 1 arête), 300 steps, arch défauts `gcn-train` (d_emb=128), lr=0.05, eval **sans oracle**. Seed 42 : loss_eval=0.0057 (<0.20), acc=4/4, Δcos=+0.130 (≥0.05) ; seed 123 : 0.0066, 4/4, +0.094. Zone grise non déclenchée. Caveat : phrases jouets — gate appliqué tel qu'écrit, robustesse via socle + held-out. **Socle autorisé.**
+
+### Backend Phase 1 — négation bloqueuse + tiers (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D1])** : arête niée = propagation COUPÉE (pas d'inversion) dans `bfs_ancestors`/`bfs_descendants`/`bfs_path_links`/`abduct`/`intervene`/`counterfactual` (+ résiduel) ; niées collectées triées pour `blocked_by` ; nouveau `chain_with_blocked()` (pur / coupé-par-négation / vraiment-aucun-chemin) ; `chain()` inchangé en signature ; `DO.severed` inclut les entrantes niées.
+- **`gcn-backend/src/query.rs`** : champ `blocked_by: Vec<LinkDto>` (`#[serde(default)]`, additif — anciens JSON sans le champ toujours lisibles) sur `Causes/Effects/Path/Intervention/CounterfactualDiff` ; `CHAIN found:false + blocked_by` = coupure par négation vs vide = aucun chemin ; `chain_strict` exige le `third_node` des liens ternaires sur le chemin (sinon `NoPath`, `--strict` inchangé).
+- **Tests** : nouveau `tests/test_query_gold.rs` (12 tests : chaîne niée WHY/CHAIN/DO/CF, prevent, diamant, joint, cycle, temporel désordonné, tiers strict ×2 — dont 1 correction d'attente documentée : diamant WHY = 3 liens arbre couvrant, pas 4) ; `test_ternary_pearl.rs` adapté (tuples 3 éléments). **Vert : 61 + 12 + 6, clippy `-D warnings` propre, `cargo fmt` propre, workspace check OK.**
+- **README crate** : contrat `blocked_by` + sémantique négation/tiers documentés.
+
+### Backend Phase 2 — résolution exact-puis-flou (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D2])** : nouveau trait `LabelSim` (score 0 = exact, >0 = flou ; `DefaultLabelSim` = paliers normalisés, cosinus appelant mappable, backend sans ML) ; `find_all_ranked_with` ; `why_scoped/what_scoped (+_with)` — exacts (tous) > flous (≤ limite) > `Err(candidats)`, limite sur flous seuls ; `DEFAULT_AMBIGUITY_LIMIT = 5`.
+- **`gcn-backend/src/query.rs` + `error.rs`** : `Query::Why/What` portent `ambiguity_limit` (parsé via suffixe `AMBIGUITY_LIMIT=N`, défaut 5 ; sans label ou N mal formé → `QueryParseError`) ; excès flou → `Err(Ambiguous { candidates })` (frontière Ph8 : partiel + question) ; `match_scores: Vec<(String, u8)>` + `fuzzy: bool` (`#[serde(default)]`, additifs) sur `Causes/Effects`.
+- **Tests** : 6 nouveaux gold (exact > flou, 7 flous → Ambiguous + 7 candidats, limite 7 → réponse + warning, 6 exacts → quota non déclenché, parsing limite, `LabelSim` injecté) ; 2 tests P0-1 mis à jour (agrégation porte sur l'ensemble exact — l'ancien mélange exact+flou est interdit par D2). **Vert : 61 + 18 + 6, clippy `-D warnings` propre, fmt propre, workspace OK.**
+- **README crate** : politique exact-puis-flou + `AMBIGUITY_LIMIT` + `Ambiguous` documentés.
+
+### Backend Phase 3 — ranking Dijkstra + TOPK (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D3])** : `CHAIN` = Dijkstra confiance-max (coût `−ln(conf)`, conf ≤ 0 → epsilon, niées jamais traversées) + k-chemins (Yen, déterministes) via `chain_topk()` ; `ScoredPath { links, confidence }` ; `WHY/WHAT` triés par force (produit depuis la cible, égalités par ids) ; `chain()`/`chain_strict`/temporels/NormDiff branchés sur le meilleur Dijkstra (shift BFS→confiance-max assumé et testé).
+- **`gcn-backend/src/analogy.rs`** : `find_analogies(ir, from, to, min_score, weights)` — `DEFAULT_ANALOGY_WEIGHTS = [0.40, 0.30, 0.20, 0.10]`, `DEFAULT_ANALOGY_MIN_SCORE = 0.3` (documentés).
+- **`gcn-backend/src/query.rs`** : `Chain { from, to, topk }` (suffixe `TOPK=N`, défaut 3, 0/mal formé → erreur), `Analogy { from, to, weights, min_score }` (suffixes `WEIGHTS=a,b,c,d` + `MIN_SCORE=x`, ordre libre) ; `Path` += `path_confidence: f32` + `ranked_paths: Vec<RankedPathDto>` (`#[serde(default)]`, additifs ; `ranked_paths` ssi TOPK > 1, rang 1 = `links`).
+- **Tests** : 6 nouveaux gold (rank1 direct 0.9 vs 0.25, TOPK=2 ordonnés, TOPK=1 sans ranked, détour fort 0.81 > direct 0.1, WHY 0.9 > 0.5 > 0.45, ANALOGY seuil 1.01 → vide, parsing). **Vert : 61 + 24 + 6, clippy `-D warnings` propre (3 lints corrigés : type-complexity, collapsible-if, while-let), fmt propre, workspace OK.**
+- **README crate** : ranking + `TOPK`/`WEIGHTS`/`MIN_SCORE` + shift documentés.
+
+### Backend Phase 4 — verrouillage tests + gate P0 GO (2026-10-08)
+
+- **Nouveau `tests/test_properties.rs` (11 tests)** : déterminisme (6 requêtes × 2 runs = mêmes octets JSON), monotonie (retirer une arête ne crée jamais de lien), joint-nécessité (co-source retirée = groupe invalide), négation-bloque (aucun lien traversé nié + abduction exclut l'ancêtre via niée), temporel (indices ordonnés ⟺ `temporally_ordered`), ambiguïté (5 flous OK / 6 → `Ambiguous`, frontière exacte), fuzz `Query::parse` (20 invalides → erreur typée dont unicode/overflow/`TOPK=0`, 7 valides, jamais panic).
+- **Snapshots JSON (`tests/snapshots/`, comparés à l'octet)** : `why_gamma_negated`, `chain_alpha_beta_ranked`, `do_beta_negated` — relus (tri force, `blocked_by`, produit f32 `0.80999994`) ; régénération via `SNAPSHOT_UPDATE=1` (diff revu exigé).
+- **Validité des joints (enforcement Ph4, `pearl.rs`)** : `edge_link` efface `joint_group_id` orphelin (< 2 arêtes → arête simple), `group_by_joint_id` exclut les singletons (contrefactuels cohérents). 1 fixture ternaire mise à jour (groupe valide à 2 co-sources) ; comportement documenté (README).
+- **Gate P0 — GO → P0 LIVRÉ** : `cargo test -p gcn-backend` **102 passés (61 + 11 + 24 + 6)**, `clippy --all-targets -D warnings` 0 erreur, `cargo fmt --check` propre, `cargo check --workspace` 0 erreur.
+
+### Backend Phase 8 — always-answer + pont M1 (2026-10-08)
+
+- **`gcn-verbalizer/src/fallback.rs` (nouveau, 8c)** : `say(status, lang, kind)` + `Status` + `SpeechKind` (9 cas FR déterministes : Answer, NotFound, Ambiguous, BlockedPath, NoPathEmpty, TooBig, BadQuery, EmptyIr, Incident) — pur Rust std, testé sans Python, ne ment jamais (constat + miettes + suggestions). Dépendance `serde` ajoutée à la crate (déjà workspace, rien d'externe).
+- **`gcn-backend/src/respond.rs` (nouveau, 8a)** : `respond(input, ir) -> UserResponse` (jamais d'Err) + contrat versionné `{status, phrase, lang, result?, caveats, suggestions}` ; règle de statut documentée (Degrade = parse/introuvable/vide/incident ; Partiel = ambigu/sans-chemin/flou/coupures/trop-gros/temporel-rejeté ; Ok sinon) ; `fuzzy → Partiel` + suggestion label exact ; `AMBIGUITY` → candidats + question ; coupure niée → bloqueurs + `DO`/`WHY` ; `SPOF > 500` → partiel + top degrés ; parse → aide + « vouliez-vous dire » (distance ≤ 2) ; `execute()` inchangé.
+- **Pont M1 (CLI)** : `gcn query` imprime l'enveloppe `UserResponse` JSON (vérifié bout-en-bout : ok → exit 0, dégrade → exit 1, `--strict` inchangé) ; roundtrip CIR JSON → UserResponse JSON testé (D-PH8 : **socle 0b débloqué**).
+- **Tests (8b/8d)** : `tests/test_respond.rs` (12 tests : 11 cas enveloppe + property always-answer 16 requêtes × 4 IR adverses + roundtrip) + 3 tests unitaires `say`. **Vert : 61 + 11 + 24 + 12 + 6 (+ 6 verbalizer), clippy workspace `-D warnings` 0 erreur, fmt propre.**
+- **READMEs** : `gcn-backend` (enveloppe + règle statut + CLI), `gcn-verbalizer` (`say`).
+
 ### Session v4 : 7 bugs ouverts corrigés + P0/P2 (2026-09-29, branche `feat/p2-frontends`)
 
 **Bugs moteur §2.7–§2.13 (tous clos ; §2.10 volontairement sans changement) :**

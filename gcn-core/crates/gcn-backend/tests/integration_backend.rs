@@ -1,6 +1,9 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
+use gcn_backend::analogy::{DEFAULT_ANALOGY_MIN_SCORE, DEFAULT_ANALOGY_WEIGHTS};
+use gcn_backend::pearl::DEFAULT_AMBIGUITY_LIMIT;
+use gcn_backend::query::DEFAULT_TOPK;
 use gcn_backend::{BackendError, Query, QueryResult, execute, to_dot, to_json};
 use gcn_ir::temporal::GapNature;
 use gcn_ir::{
@@ -96,7 +99,10 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
 fn parse_why() {
     assert_eq!(
         Query::parse("WHY ventes?").unwrap(),
-        Query::Why("ventes".into())
+        Query::Why {
+            label: "ventes".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+        }
     );
 }
 
@@ -119,7 +125,10 @@ fn parse_why_trailing_space_only_returns_error() {
 fn parse_what() {
     assert_eq!(
         Query::parse("WHAT coûts?").unwrap(),
-        Query::What("coûts".into())
+        Query::What {
+            label: "coûts".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+        }
     );
 }
 
@@ -127,7 +136,11 @@ fn parse_what() {
 fn parse_chain() {
     assert_eq!(
         Query::parse("CHAIN qualité -> ventes?").unwrap(),
-        Query::Chain("qualité".into(), "ventes".into())
+        Query::Chain {
+            from: "qualité".into(),
+            to: "ventes".into(),
+            topk: DEFAULT_TOPK
+        }
     );
 }
 
@@ -160,7 +173,14 @@ fn why_finds_direct_cause() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Why("ventes".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Why {
+            label: "ventes".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Causes { links, .. } = result {
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].from, "chute(qualité)");
@@ -173,7 +193,13 @@ fn why_finds_direct_cause() {
 #[test]
 fn why_node_not_found_errors() {
     let ir = make_ir(vec![node(0, "chute(qualité)", NodeType::Processus)], vec![]);
-    let err = execute(&Query::Why("inexistant".into()), &ir);
+    let err = execute(
+        &Query::Why {
+            label: "inexistant".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+        },
+        &ir,
+    );
     assert!(matches!(err, Err(BackendError::NodeNotFound(_))));
 }
 
@@ -191,7 +217,14 @@ fn what_finds_direct_effect() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::What("qualité".into()), &ir).unwrap();
+    let result = execute(
+        &Query::What {
+            label: "qualité".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Effects { links, .. } = result {
         assert_eq!(links.len(), 2);
     } else {
@@ -214,7 +247,15 @@ fn chain_finds_path() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::Chain("qualité".into(), "coûts".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Chain {
+            from: "qualité".into(),
+            to: "coûts".into(),
+            topk: DEFAULT_TOPK,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Path { found, links, .. } = result {
         assert!(found);
         assert_eq!(links.len(), 2);
@@ -232,7 +273,15 @@ fn chain_no_path() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Chain("ventes".into(), "qualité".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Chain {
+            from: "ventes".into(),
+            to: "qualité".into(),
+            topk: DEFAULT_TOPK,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Path { found, .. } = result {
         assert!(!found);
     } else {
@@ -607,7 +656,16 @@ fn analogy_same_relation_type_scores_high() {
             edge(4, 5, RelationType::Enable),
         ],
     );
-    let result = execute(&Query::Analogy("A".into(), "B".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Analogy {
+            from: "A".into(),
+            to: "B".into(),
+            weights: DEFAULT_ANALOGY_WEIGHTS,
+            min_score: DEFAULT_ANALOGY_MIN_SCORE,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::AnalogyReport { matches, .. } = result {
         assert!(!matches.is_empty(), "au moins un analogue attendu");
         // C→D (Cause) doit scorer plus haut que E→F (Enable)
@@ -641,7 +699,16 @@ fn analogy_unknown_pattern_returns_empty() {
         vec![],
     );
     // Patron X→Y n'existe pas dans le graphe (pas d'arête)
-    let result = execute(&Query::Analogy("X".into(), "Y".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Analogy {
+            from: "X".into(),
+            to: "Y".into(),
+            weights: DEFAULT_ANALOGY_WEIGHTS,
+            min_score: DEFAULT_ANALOGY_MIN_SCORE,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::AnalogyReport { matches, .. } = result {
         assert!(matches.is_empty(), "pas d'arête patron → aucun analogue");
     } else {
@@ -1202,11 +1269,27 @@ fn delay_sums_temporal_gaps() {
 #[test]
 fn parse_all_21_query_types() {
     let cases = vec![
-        ("WHY feu", Query::Why("feu".into())),
-        ("WHAT feu", Query::What("feu".into())),
+        (
+            "WHY feu",
+            Query::Why {
+                label: "feu".into(),
+                ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            },
+        ),
+        (
+            "WHAT feu",
+            Query::What {
+                label: "feu".into(),
+                ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            },
+        ),
         (
             "CHAIN feu -> fumée",
-            Query::Chain("feu".into(), "fumée".into()),
+            Query::Chain {
+                from: "feu".into(),
+                to: "fumée".into(),
+                topk: DEFAULT_TOPK,
+            },
         ),
         ("CYCLES", Query::Cycles),
         ("GAPS", Query::Gaps),
@@ -1215,7 +1298,12 @@ fn parse_all_21_query_types() {
         ("EXPLAIN fumée", Query::Explain("fumée".into())),
         (
             "ANALOGY feu -> fumée",
-            Query::Analogy("feu".into(), "fumée".into()),
+            Query::Analogy {
+                from: "feu".into(),
+                to: "fumée".into(),
+                weights: DEFAULT_ANALOGY_WEIGHTS,
+                min_score: DEFAULT_ANALOGY_MIN_SCORE,
+            },
         ),
         ("ZOOM_IN feu", Query::ZoomIn("feu".into())),
         ("ZOOM_OUT feu", Query::ZoomOut("feu".into())),
@@ -1258,10 +1346,20 @@ fn parse_all_21_query_types() {
 
 #[test]
 fn parse_case_insensitive_verb() {
-    assert_eq!(Query::parse("why feu").unwrap(), Query::Why("feu".into()));
+    assert_eq!(
+        Query::parse("why feu").unwrap(),
+        Query::Why {
+            label: "feu".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT
+        }
+    );
     assert_eq!(
         Query::parse("chain feu -> fumée").unwrap(),
-        Query::Chain("feu".into(), "fumée".into())
+        Query::Chain {
+            from: "feu".into(),
+            to: "fumée".into(),
+            topk: DEFAULT_TOPK
+        }
     );
 }
 
@@ -1292,7 +1390,11 @@ fn parse_unknown_query() {
 fn parse_comma_separator_for_pair_queries() {
     assert_eq!(
         Query::parse("CHAIN feu, fumée").unwrap(),
-        Query::Chain("feu".into(), "fumée".into())
+        Query::Chain {
+            from: "feu".into(),
+            to: "fumée".into(),
+            topk: DEFAULT_TOPK
+        }
     );
     assert_eq!(
         Query::parse("DELAY feu, fumée").unwrap(),
@@ -1304,13 +1406,14 @@ fn parse_comma_separator_for_pair_queries() {
 
 #[test]
 fn p01_why_returns_all_matching_targets() {
-    // Deux nœuds matchant "ventes" (exact + préfixe), ancêtres distincts.
+    // Deux nœuds "ventes" EXACTS, ancêtres distincts (Ph2 [D2] : exacts tous
+    // répondus ; l'agrégation P0-1 porte sur l'ensemble exact).
     let ir = make_ir(
         vec![
             node(0, "hausse prix", NodeType::Processus),
             node(1, "ventes", NodeType::Processus),
             node(2, "promo", NodeType::Processus),
-            node(3, "ventes web", NodeType::Processus),
+            node(3, "ventes", NodeType::Processus),
         ],
         vec![
             edge(0, 1, RelationType::Cause),
@@ -1329,8 +1432,6 @@ fn p01_why_returns_all_matching_targets() {
             2,
             "les 2 nœuds matchés doivent apparaître, obtenu {matched_targets:?}"
         );
-        assert!(matched_targets.contains(&"ventes".to_string()));
-        assert!(matched_targets.contains(&"ventes web".to_string()));
         // Les ancêtres des DEUX cibles doivent être présents (avant : 1er seul).
         assert!(
             links.iter().any(|l| l.from == "hausse prix"),
@@ -1338,7 +1439,7 @@ fn p01_why_returns_all_matching_targets() {
         );
         assert!(
             links.iter().any(|l| l.from == "promo"),
-            "ancêtre de 'ventes web' manquant (P0-1) : {links:?}"
+            "ancêtre du 2e 'ventes' manquant (P0-1) : {links:?}"
         );
     } else {
         panic!("expected Causes result");
@@ -1347,11 +1448,12 @@ fn p01_why_returns_all_matching_targets() {
 
 #[test]
 fn p01_what_returns_all_matching_sources() {
+    // Deux sources "pluie" EXACTES (Ph2 [D2] : voir test WHY ci-dessus).
     let ir = make_ir(
         vec![
             node(0, "pluie", NodeType::Processus),
             node(1, "inondation", NodeType::Evenement),
-            node(2, "pluie acide", NodeType::Processus),
+            node(2, "pluie", NodeType::Processus),
             node(3, "corrosion", NodeType::Processus),
         ],
         vec![
@@ -1370,7 +1472,7 @@ fn p01_what_returns_all_matching_sources() {
         assert!(links.iter().any(|l| l.to == "inondation"), "{links:?}");
         assert!(
             links.iter().any(|l| l.to == "corrosion"),
-            "effet de 'pluie acide' manquant (P0-1) : {links:?}"
+            "effet de la 2e 'pluie' manquant (P0-1) : {links:?}"
         );
     } else {
         panic!("expected Effects result");

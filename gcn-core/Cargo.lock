@@ -202,6 +202,7 @@ version = "4.0.0"
 dependencies = [
  "gcn-ir",
  "gcn-middleend",
+ "gcn-verbalizer",
  "petgraph",
  "serde",
  "serde_json",
@@ -309,6 +310,7 @@ name = "gcn-verbalizer"
 version = "4.0.0"
 dependencies = [
  "gcn-ir",
+ "serde",
  "serde_json",
  "thiserror",
 ]

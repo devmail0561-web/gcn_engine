@@ -13,4 +13,8 @@ pub enum BackendError {
     /// `Path { found: false }` au lieu d'erreur pour compatibilité.
     #[error("no path from '{0}' to '{1}'")]
     NoPath(String, String),
+    /// Ph2 [D2] : trop de matchs flous (que des flous, au-delà de la limite) —
+    /// la frontière (Ph8) convertira en réponse partielle + question.
+    #[error("ambiguous query: {candidates:?} (matchs flous au-delà de la limite)")]
+    Ambiguous { candidates: Vec<String> },
 }

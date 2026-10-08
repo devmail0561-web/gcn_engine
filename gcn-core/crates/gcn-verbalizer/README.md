@@ -92,6 +92,19 @@ pub enum VerbalizerError {
 }
 ```
 
+### `fallback::say` — verbalizer de secours (Ph8)
+
+```rust
+pub fn say(status: Status, lang: &str, kind: &SpeechKind) -> String
+```
+
+Pur Rust, std uniquement, testé sans Python. Gabarits FR déterministes
+(autres langues à la demande) qui ne mentent jamais : constat + miettes
+réelles + suggestions. Cas : `Answer`, `NotFound`, `Ambiguous`,
+`BlockedPath`, `NoPathEmpty`, `TooBig`, `BadQuery`, `EmptyIr`, `Incident`.
+Utilisé par `gcn_backend::respond` (enveloppe always-answer) ; voie noble =
+`decode` quand le décodeur appris fonctionne.
+
 ---
 
 ## Pipeline complet

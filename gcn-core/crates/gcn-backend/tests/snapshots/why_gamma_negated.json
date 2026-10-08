@@ -1,0 +1,39 @@
+{
+  "type": "causes",
+  "target": "Gamma",
+  "links": [
+    {
+      "from": "Alpha",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false
+    },
+    {
+      "from": "Beta",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false
+    }
+  ],
+  "matched_targets": [
+    "Gamma"
+  ],
+  "blocked_by": [
+    {
+      "from": "Alpha",
+      "to": "Beta",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": true
+    }
+  ],
+  "match_scores": [
+    [
+      "Gamma",
+      0
+    ]
+  ],
+  "fuzzy": false
+}

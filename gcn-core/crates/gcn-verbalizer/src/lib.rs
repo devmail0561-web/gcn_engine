@@ -4,6 +4,9 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+/// Verbalizer de secours déterministe (Ph8) : voir `fallback`.
+pub mod fallback;
+
 use gcn_ir::CausalIR;
 
 #[derive(Debug, thiserror::Error)]
