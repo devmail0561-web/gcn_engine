@@ -41,9 +41,13 @@ v4.0    ████████████████████  100%  ETUD
 AuditC  ████████████████████  100%  Correctifs audit C1-C5 : D5 renommage, hash joint, metrics K2, Pearl serde, T5-min
 AuditD2 ████████████████████  100%  Post-audit D5/D10 : dead code analogy, serde 8 types, calibration §D.5, datasets D4→D5
 ```
+> **Note 2026-10-09** : le tableau ci-dessus fige l'histoire pré-refacto (≤ v4.0, sept. 2026).
+> Travail en cours : **refacto-2026-10** (branche `refacto/arch-cible-refacto-2026-10`) —
+> socle B/L0/L1/tête act, backend P0–Ph8+6b+7, dialogue Ph9 agnostic, perfs Ph10 M4→M3,
+> R4-fix F2. Source de vérité live : `CHANGELOG.md` + `docs/refactory/` (locaux).
 
-**Tests Python : 685 / 685 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
-**Tests Rust : 0 échec** (`cargo test --workspace`)
+**Tests Python : 855 / 855 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
+**Tests Rust : 0 échec** (`cargo test --workspace`, 258 passés)
 
 ---
 

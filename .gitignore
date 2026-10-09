@@ -28,6 +28,7 @@ __pycache__/
 # Fichiers de travail internes — racine
 /PROGRESS.md
 /TODO.md
+/annotation-session-*.md
 /audit_chaine_labelisation_poids.txt
 /notes_augmentation_constantes.txt
 /*.txt

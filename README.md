@@ -3,8 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-192%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-685%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-258%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-855%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
 [![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
@@ -719,6 +719,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 | Audit 1 | 7 correctifs scripts post-restructuration (paths, spans, edges) | ✅ Terminé |
 | v2.4.1 | Mise à niveau infra : edge_norm, graph_vecs, schéma v2.0, checkpoint atomique (256 tests) | ✅ Terminé |
 | Pearl+ | Extensions Pearl P1–P3 : CIR v2 provenance, normalize_label, 14 nouvelles requêtes GCN-QL, analogie O(E) (185 tests Rust, 425 tests Python) | ✅ Terminé |
+| refacto-2026-10 | Remodelage moteur (branche dédiée) : socle B/L0/L1/tête act, backend P0–Ph8+6b+7, dialogue Ph9 agnostic, perfs Ph10 M4→M3 (258 Rust, 855 Python) — dataset/annotation ensuite | ✅ Moteur terminé 2026-10-09, suivi live : CHANGELOG.md |
 
 ---
 
