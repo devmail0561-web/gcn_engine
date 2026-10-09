@@ -7,6 +7,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Cleanup S5 audit — garde lints partagée (2026-10-09)
+
+- `[workspace.lints.clippy]` : `uninlined_format_args`, `redundant_closure_for_method_calls`, `format_push_string`, `map_unwrap_or` (hérité par les 10 crates). Reste de pedantic exclu : casts (revue sémantique), docs FR (bruit), `must_use` (51 sites, bruit), bras identiques voulus.
+- Micro-fixes mécaniques (`--fix` relu : `map_or`, refs de méthodes, `write!`/`writeln!`) + 10 sites manuels (`fallback`/`export`/`respond`, import `fmt::Write`). Sémantique identique (eagerness préservée, snapshots verts).
+- `cargo audit` : exit 0, 0 vulnérabilité (61 deps, base 1296 avis). Déjà en CI, rien à ajouter.
+- Pins `==` non posés (politique upgrades = owner) ; `proptest` déjà retiré (S2).
+- **Vert workspace : 258 passés, 0 échoué, clippy `-D warnings` 0, fmt propre.**
+
 ### Cleanup S6 audit — ménage disque sans risque code (2026-10-09)
 
 - Supprimés (disque 98 %) : doublon imbriqué `checkpoints/archive_v2/model_train_v2.npz` (md5 identique ×3, 2 copies restantes, aucune référence de chemin), dists périmées `gcn-python/dist` 1.0.2–2.5.0 (gardé 4.0.0, rebuildable), 29 `__pycache__` (~5 Mo). ~32 Mo libérés.
