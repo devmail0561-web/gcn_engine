@@ -322,30 +322,14 @@ def _gat_ar_2d_compatible(layer, j: int, arr) -> bool:
     return len(_shape) == 2 and _shape == (n_rel, 2 * d_out)
 
 
-def load_checkpoint(
-    pipeline: CGNPipeline, path: Path,
-    *, trusted: bool = False, allow_symlink: bool = False,
-    _skip_path_check: bool = False, allow_legacy: bool = True,
-) -> None:
-    """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
+# ---------------------------------------------------------------------------
+# S1 — phases de load_checkpoint (extraites, ordre et atomicité inchangés :
+# gardes → avertissements → validation complète → mutations).
+# ---------------------------------------------------------------------------
 
-    Atomique : toutes les shapes sont validées avant toute mutation du pipeline.
-    Un ValueError laisse le pipeline intact (vocabulary, encoder et graph inchangés).
-
-    ``allow_legacy`` (défaut True = dual-read transitoire, R4) : accepte les
-    checkpoints legacy-UD ; ``False`` lève ``LegacyUDError`` (« legacy-UD :
-    convertir ou ré-entraîner ») — utilisé par ``run_eval`` (refus en eval).
-
-    Sécurité : le .npz contient des tableaux `object` (JSON d'architecture/vocab)
-    qui exigent `allow_pickle=True`, soit une exécution de pickle au chargement.
-    `trusted=False` par défaut refuse le chargement ; passez `trusted=True`
-    uniquement pour un checkpoint local de confiance (produit par votre
-    `gcn-train`). Les CLI (`gcn-train --encoder-checkpoint`, `gcn-eval`,
-    `gcn-discuss`, `gcn-index`) le passent explicitement — l'invocation vaut opt-in.
-
-    Symlinks : refusés par défaut (R4 — vecteur de substitution silencieuse).
-    Passez `allow_symlink=True` si vous êtes sûr de la cible.
-    """
+def _ckpt_load_guarded(path: Path, trusted: bool, allow_symlink: bool,
+                       _skip_path_check: bool, allow_legacy: bool):
+    """Gardes + chargement + refus legacy (R4). Lève avant toute mutation."""
     if not trusted:
         raise RuntimeError(
             f"Refus de charger {Path(path).name} : checkpoint .npz non fiable par défaut "
@@ -364,8 +348,7 @@ def load_checkpoint(
             _w.warn(
                 f"Checkpoint {Path(path).name} est un symlink — allow_symlink=True "
                 "passé explicitement.",
-                UserWarning,
-                stacklevel=2,
+                UserWarning, stacklevel=2,
             )
     # Garde anti-RCE : audit pickle (allowlist numpy) AVANT toute
     # désérialisation, même quand l'appelant a posé trusted=True.
@@ -379,8 +362,11 @@ def load_checkpoint(
             "legacy-UD : convertir ou ré-entraîner "
             "(scripts/convert_legacy_ud.py --dry-run d'abord)."
         )
+    return data
 
-    # Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)
+
+def _ckpt_warn_unknown_keys(data, path: Path) -> None:
+    """Clés attendues : inconnues -> warn+ignore (forward-compat v2.5 dans code v2.0)."""
     _VALID_PREFIXES = ("encoder_", "graph_", "graph_extra_", "decoder_",
                        "link_pred_", "hyperedge_", "assembler_", "_mha_", "intent_layer_",
                        "sentence_layer_", "qual_layer_")
@@ -395,11 +381,12 @@ def load_checkpoint(
         _w2.warn(
             f"Checkpoint {Path(path).name} contient des clés inconnues ignorées : "
             f"{sorted(unexpected)}.",
-            UserWarning,
-            stacklevel=2,
+            UserWarning, stacklevel=2,
         )
 
-    # Validation sémantique du triplet (d_eff, d_hidden, |V|, n_relations, bidi)
+
+def _ckpt_parse_arch(data, path: Path) -> dict:
+    """Parse `_arch_json` (warn + {} si illisible/absent : validation désactivée)."""
     _arch: dict = {}
     if "_arch_json" in data:
         import json as _json
@@ -420,6 +407,11 @@ def load_checkpoint(
             "désactivée (re-entraîner avec gcn-train >= 2.1.0).",
             UserWarning, stacklevel=2,
         )
+    return _arch if isinstance(_arch, dict) else {}
+
+
+def _ckpt_validate_arch(pipeline: CGNPipeline, data, _arch: dict, path: Path) -> None:
+    """Validation sémantique (triplet dims + couches + doubles-absents). Ne mute rien."""
     if isinstance(_arch, dict):
         _we = getattr(pipeline, 'word_embedding', None)
         _d_emb = _we.d_emb if _we is not None else 0
@@ -481,10 +473,12 @@ def load_checkpoint(
     elif not _has_pipe_lp and not _has_ckpt_lp:
         _ckpt_log.debug("Checkpoint sans link_pred_* et pipeline sans link_predictor — usage normal.")
 
-    new_vocab = None
-    if "_vocab_json" in data:
-        new_vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
 
+def _ckpt_validate_shapes(pipeline: CGNPipeline, data, new_vocab, path: Path) -> None:
+    """Pré-validation de TOUTES les formes avant toute mutation (atomicité).
+
+    `new_vocab` ne sert qu'au texte d'indice legacy (pas de mutation ici).
+    Lève ValueError en laissant le pipeline intact."""
     # Validation de toutes les formes avant toute mutation
     encoder_params = pipeline.encoder.parameters()
     for i, p in enumerate(encoder_params):
@@ -516,6 +510,10 @@ def load_checkpoint(
                     f"checkpoint={data[key].shape} ≠ pipeline={p.shape}."
                 )
 
+
+def _ckpt_restore_all(pipeline: CGNPipeline, data, _arch: dict,
+                      path: Path, new_vocab) -> None:
+    """Mutations (après validation complète) : vocab, hyperparams, poids, bump."""
     # Toutes les formes validées — mutation sûre
     if new_vocab is not None:
         # _vocab_json est incomplet sur les checkpoints legacy (ex. prod_v1 :
@@ -611,8 +609,7 @@ def load_checkpoint(
                     f"mlp_hidden archivé={_mh_int} != pipeline={pipeline.encoder.mlp_hidden} "
                     "— attribut non mis à jour (matrices incompatibles). "
                     f"Reconstruire avec mlp_hidden={_mh_int}.",
-                    UserWarning,
-                    stacklevel=2,
+                    UserWarning, stacklevel=2,
                 )
             else:
                 pipeline.encoder.mlp_hidden = _mh_int
@@ -629,8 +626,7 @@ def load_checkpoint(
                         f"{_key} archivé={_vi} != pipeline={getattr(pipeline.encoder, _attr)} "
                         "— attribut non mis à jour (matrices incompatibles). "
                         f"Reconstruire avec {_key}={_vi}.",
-                        UserWarning,
-                        stacklevel=2,
+                        UserWarning, stacklevel=2,
                     )
                 else:
                     setattr(pipeline.encoder, _attr, _vi)
@@ -643,8 +639,7 @@ def load_checkpoint(
                     f"edge_hidden archivé={_eh} != pipeline={','.join(map(str, pipeline.encoder.edge_hidden))} "
                     "— attribut non mis à jour (matrices incompatibles). "
                     f"Reconstruire avec edge_hidden={_eh}.",
-                    UserWarning,
-                    stacklevel=2,
+                    UserWarning, stacklevel=2,
                 )
         _dw = _arch.get("decoupled_wd")
         if _dw is not None and hasattr(pipeline.encoder, 'decoupled_wd'):
@@ -655,6 +650,7 @@ def load_checkpoint(
             # Dropout : valeur scalaire sans impact sur les shapes — reprise sûre.
             pipeline.encoder.edge_dropout = float(_ed)
 
+    encoder_params = pipeline.encoder.parameters()
     for i, p in enumerate(encoder_params):
         key = f"encoder_{i}"
         if key in data:
@@ -809,3 +805,46 @@ def load_checkpoint(
 
     from ..param_epoch import bump as _bump_param_epoch
     _bump_param_epoch()  # M1a : poids restaurés → cache analyze invalide
+
+
+def load_checkpoint(
+    pipeline: CGNPipeline, path: Path,
+    *, trusted: bool = False, allow_symlink: bool = False,
+    _skip_path_check: bool = False, allow_legacy: bool = True,
+) -> None:
+    """Restaure les poids depuis un fichier .npz produit par save_checkpoint.
+
+    Atomique : toutes les shapes sont validées avant toute mutation du pipeline.
+    Un ValueError laisse le pipeline intact (vocabulary, encoder et graph inchangés).
+
+    ``allow_legacy`` (défaut True = dual-read transitoire, R4) : accepte les
+    checkpoints legacy-UD ; ``False`` lève ``LegacyUDError`` (« legacy-UD :
+    convertir ou ré-entraîner ») — utilisé par ``run_eval`` (refus en eval).
+
+    Sécurité : le .npz contient des tableaux `object` (JSON d'architecture/vocab)
+    qui exigent `allow_pickle=True`, soit une exécution de pickle au chargement.
+    `trusted=False` par défaut refuse le chargement ; passez `trusted=True`
+    uniquement pour un checkpoint local de confiance (produit par votre
+    `gcn-train`). Les CLI (`gcn-train --encoder-checkpoint`, `gcn-eval`,
+    `gcn-discuss`, `gcn-index`) le passent explicitement — l'invocation vaut opt-in.
+
+    Symlinks : refusés par défaut (R4 — vecteur de substitution silencieuse).
+    Passez `allow_symlink=True` si vous êtes sûr de la cible.
+    """
+    # S1 — gardes mutualisées (_ckpt_load_guarded, avant toute mutation).
+    data = _ckpt_load_guarded(path, trusted, allow_symlink,
+                              _skip_path_check, allow_legacy)
+
+    _ckpt_warn_unknown_keys(data, path)
+
+    _arch = _ckpt_parse_arch(data, path)
+    _ckpt_validate_arch(pipeline, data, _arch, path)
+
+    new_vocab = None
+    if "_vocab_json" in data:
+        new_vocab = FeatureVocabulary.from_json(str(data["_vocab_json"][0]))
+
+    _ckpt_validate_shapes(pipeline, data, new_vocab, path)
+
+    # S1 — tout le restore ci-dessous vit dans _ckpt_restore_all (même ordre).
+    _ckpt_restore_all(pipeline, data, _arch, path, new_vocab)
