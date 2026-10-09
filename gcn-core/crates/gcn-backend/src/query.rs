@@ -1321,6 +1321,81 @@ fn execute_chain(
     })
 }
 
+/// S1 — DO sur contexte partagé : entrantes coupées (`severed`, niées
+/// incluses) + effets avant jamais via coupure [D1/Pearl-2] ; filtre résultat
+/// [Ph7] ; caveats cible + effets [Ph7b] ; warning `irreversible` FIGÉ [7d].
+fn execute_intervene(
+    ctx: &pearl::GraphCtx<'_>,
+    label: &str,
+    filter: &LinkFilter,
+) -> Result<QueryResult, BackendError> {
+    let (target, result) = pearl::intervene_ctx(ctx, label)
+        .ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    // Ph7 : filtre résultat (severed + effets).
+    let severed = filter_links_ctx(ctx, result.severed, filter);
+    let effects = filter_links_ctx(ctx, result.effects, filter);
+    // Ph7b : caveats de la cible + effets retenus.
+    let mut ids = vec![
+        pearl::find_best(ctx.ir, label)
+            .map(|n| n.id)
+            .unwrap_or(NodeId(0)),
+    ];
+    ids.extend(endpoint_ids(&effects));
+    let caveats = caveats_for_ctx(ctx, &ids);
+    // Ph7d : cible irréversible → warning FIGÉ (effets calculés quand même).
+    let warnings = match pearl::find_best(ctx.ir, label) {
+        Some(n) if n.attributes.reversible == Some(false) => {
+            vec!["irreversible".to_string()]
+        }
+        _ => vec![],
+    };
+    Ok(QueryResult::Intervention {
+        target,
+        severed_count: severed.len(),
+        severed: severed.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        effects: effects.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        // Ph1 [D1] : niées rencontrées en aval.
+        blocked_by: result.blocked.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        caveats,
+        warnings,
+    })
+}
+
+/// S1 — CONTREFACTUEL sur contexte partagé : effets réels (monde brut,
+/// pas de filtre requête) × dépendants uniques [Pearl-3] ; caveats [Ph7b].
+fn execute_counterfactual(
+    ctx: &pearl::GraphCtx<'_>,
+    label: &str,
+) -> Result<QueryResult, BackendError> {
+    let (target, result) = pearl::counterfactual_ctx(ctx, label)
+        .ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    // Ph7 : filtre résultat (pas de filtre requête sur CF : monde actuel brut).
+    let actual = filter_links_ctx(ctx, result.actual_effects, &LinkFilter::default());
+    let gardes: std::collections::HashSet<String> =
+        actual.iter().map(|l| l.to_label.clone()).collect();
+    let unique_effects: Vec<String> = result
+        .unique_effects
+        .into_iter()
+        .filter(|u| gardes.contains(u))
+        .collect();
+    // Ph7b : caveats de la cible + effets retenus.
+    let mut ids = vec![
+        pearl::find_best(ctx.ir, label)
+            .map(|n| n.id)
+            .unwrap_or(NodeId(0)),
+    ];
+    ids.extend(endpoint_ids(&actual));
+    let caveats = caveats_for_ctx(ctx, &ids);
+    Ok(QueryResult::CounterfactualDiff {
+        target,
+        actual_effects: actual.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        unique_effects,
+        // Ph1 [D1] : niées rencontrées depuis la cible.
+        blocked_by: result.blocked.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        caveats,
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1393,76 +1468,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             })
         }
 
-        Query::Intervene { label, filter } => {
-            let (target, result) = pearl::intervene_ctx(&ctx, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            // Ph7 : filtre résultat (severed + effets).
-            let severed = filter_links_ctx(&ctx, result.severed, filter);
-            let effects = filter_links_ctx(&ctx, result.effects, filter);
-            // Ph7b : caveats de la cible + effets retenus.
-            let mut ids = vec![
-                pearl::find_best(ctx.ir, label)
-                    .map(|n| n.id)
-                    .unwrap_or(NodeId(0)),
-            ];
-            ids.extend(endpoint_ids(&effects));
-            let caveats = caveats_for_ctx(&ctx, &ids);
-            // Ph7d : cible irréversible → warning FIGÉ (effets calculés quand même).
-            let warnings = match pearl::find_best(ctx.ir, label) {
-                Some(n) if n.attributes.reversible == Some(false) => {
-                    vec!["irreversible".to_string()]
-                }
-                _ => vec![],
-            };
-            Ok(QueryResult::Intervention {
-                target,
-                severed_count: severed.len(),
-                severed: severed.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                effects: effects.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                // Ph1 [D1] : niées rencontrées en aval.
-                blocked_by: result
-                    .blocked
-                    .iter()
-                    .map(|l| link_to_dto(&ctx, l))
-                    .collect(),
-                caveats,
-                warnings,
-            })
-        }
+        Query::Intervene { label, filter } => execute_intervene(&ctx, label, filter),
 
-        Query::Counterfactual(label) => {
-            let (target, result) = pearl::counterfactual_ctx(&ctx, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            // Ph7 : filtre résultat (pas de filtre requête sur CF : monde actuel brut).
-            let actual = filter_links_ctx(&ctx, result.actual_effects, &LinkFilter::default());
-            let gardes: std::collections::HashSet<String> =
-                actual.iter().map(|l| l.to_label.clone()).collect();
-            let unique_effects: Vec<String> = result
-                .unique_effects
-                .into_iter()
-                .filter(|u| gardes.contains(u))
-                .collect();
-            // Ph7b : caveats de la cible + effets retenus.
-            let mut ids = vec![
-                pearl::find_best(ctx.ir, label)
-                    .map(|n| n.id)
-                    .unwrap_or(NodeId(0)),
-            ];
-            ids.extend(endpoint_ids(&actual));
-            let caveats = caveats_for_ctx(&ctx, &ids);
-            Ok(QueryResult::CounterfactualDiff {
-                target,
-                actual_effects: actual.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                unique_effects,
-                // Ph1 [D1] : niées rencontrées depuis la cible.
-                blocked_by: result
-                    .blocked
-                    .iter()
-                    .map(|l| link_to_dto(&ctx, l))
-                    .collect(),
-                caveats,
-            })
-        }
+        Query::Counterfactual(label) => execute_counterfactual(&ctx, label),
 
         Query::Analogy {
             from,
