@@ -90,11 +90,15 @@ class CGNPipeline:
         # A/B : dimension effective = structure + embeddings (+ sujet/objet)
         _d_emb = word_embedding.d_emb if word_embedding is not None else 0
         _d_eff = vocabulary.d_clause_effective(_d_emb, self.subject_object_emb)
-        if hasattr(graph, 'd_out') and graph.d_out != _d_eff:
+        if hasattr(graph, "d_out") and graph.d_out != _d_eff:
             raise ValueError(
                 f"RGCNLayer.d_out={graph.d_out} ≠ d_effective={_d_eff} "
                 f"(vocabulary.d_clause={vocabulary.d_clause}"
-                + (f" + word_embedding.d_emb={word_embedding.d_emb}" if word_embedding is not None else "")
+                + (
+                    f" + word_embedding.d_emb={word_embedding.d_emb}"
+                    if word_embedding is not None
+                    else ""
+                )
                 + (" + 2*d_emb (subject_object_emb)" if self.subject_object_emb else "")
                 + ") : instanciez RGCNLayer avec d_out=d_effective."
             )
@@ -109,7 +113,9 @@ class CGNPipeline:
             )
         self.temperature = float(temperature)
         self.node_types = list(node_types) if node_types is not None else list(NODE_TYPES)
-        self.relation_types = list(relation_types) if relation_types is not None else list(RELATION_TYPES)
+        self.relation_types = (
+            list(relation_types) if relation_types is not None else list(RELATION_TYPES)
+        )
         # Masque classes d'arêtes vides (v3.0) : appliqué au forward (argmax/softmax
         # d'émission) ET à la loss — une classe sans exemple ne peut ni être apprise
         # ni être prédite. Sans masque (None) : comportement historique, 19 classes.
@@ -135,15 +141,16 @@ class CGNPipeline:
         # v5.6b : l'encodeur doit matcher les dims effectives — même
         # philosophie que le garde R-GCN v5.2 (échec bruyant à la construction).
         _need_edge = vocabulary.d_edge_closed_loop(
-            _d_eff, len(self.node_types), _d_emb, self.subject_object_emb)
-        _got_clause = getattr(encoder, 'd_clause', None)
+            _d_eff, len(self.node_types), _d_emb, self.subject_object_emb
+        )
+        _got_clause = getattr(encoder, "d_clause", None)
         if _got_clause is not None and int(_got_clause) != _d_eff:
             raise ValueError(
                 f"MLPEncoder.d_clause={_got_clause} ≠ d_effective={_d_eff} "
                 f"(construisez avec d_clause=d_effective)."
             )
-        _edge_layers = getattr(encoder, '_edge_layers', None) or []
-        if _edge_layers and hasattr(_edge_layers[0], 'W'):
+        _edge_layers = getattr(encoder, "_edge_layers", None) or []
+        if _edge_layers and hasattr(_edge_layers[0], "W"):
             _got_edge = int(_edge_layers[0].W.shape[1])
             if _got_edge != _need_edge:
                 raise ValueError(
@@ -151,8 +158,8 @@ class CGNPipeline:
                     f"(construisez avec d_edge=vocab.d_edge_closed_loop(...))."
                 )
         _need_rel = rgcn_n_relations(len(self.relation_types), bool(bidirectional))
-        for _layer in ([graph] if not isinstance(graph, (list, tuple)) else list(graph)):
-            _got_rel = getattr(_layer, 'n_relations', None)
+        for _layer in [graph] if not isinstance(graph, (list, tuple)) else list(graph):
+            _got_rel = getattr(_layer, "n_relations", None)
             if _got_rel is not None and int(_got_rel) != _need_rel:
                 raise ValueError(
                     f"R-GCN.n_relations={_got_rel} ≠ {_need_rel} requis "
@@ -164,9 +171,7 @@ class CGNPipeline:
         self.link_predictor = link_predictor
         self.scope_hints: dict = scope_hints if scope_hints is not None else {}
         if not (0.0 <= float(edge_threshold) < 1.0):
-            raise ValueError(
-                f"edge_threshold doit être dans [0, 1[ (reçu {edge_threshold!r})."
-            )
+            raise ValueError(f"edge_threshold doit être dans [0, 1[ (reçu {edge_threshold!r}).")
         self.edge_threshold = float(edge_threshold)
         self.drop_morph = bool(drop_morph)
         self.theta_ambiguity = float(theta_ambiguity)
@@ -184,8 +189,7 @@ class CGNPipeline:
             bfs_depth = int(bfs_depth)
             if bfs_depth < 1:
                 raise ValueError(
-                    f"bfs_depth doit être ≥ 1 (reçu {bfs_depth!r}) — "
-                    "None = candidats illimités."
+                    f"bfs_depth doit être ≥ 1 (reçu {bfs_depth!r}) — None = candidats illimités."
                 )
         self.bfs_depth = bfs_depth
 
@@ -210,27 +214,29 @@ class CGNPipeline:
         self.n_rgcn_layers = n_rgcn_layers
         self._graph_layers: list = [] if n_rgcn_layers == 0 else [graph]
         if n_rgcn_layers > 1:
-            if hasattr(graph, 'd_in') and hasattr(graph, 'd_out') and hasattr(graph, 'n_relations'):
+            if hasattr(graph, "d_in") and hasattr(graph, "d_out") and hasattr(graph, "n_relations"):
                 LayerClass = type(graph)
                 for extra_i in range(1, n_rgcn_layers):
                     _kwargs: dict = {
-                        "d_in": graph.d_in, "d_out": graph.d_out,
+                        "d_in": graph.d_in,
+                        "d_out": graph.d_out,
                         "n_relations": graph.n_relations,
                         "seed": self._seed + extra_i * 100,
                     }
                     _kwargs["dropout"] = getattr(
-                        graph, 'dropout_rate', getattr(graph, 'dropout', 0.0))
-                    if hasattr(graph, 'n_heads'):
+                        graph, "dropout_rate", getattr(graph, "dropout", 0.0)
+                    )
+                    if hasattr(graph, "n_heads"):
                         # GAT : même attention multi-tête, activation relu
                         # (intermédiaire), même LayerNorm
                         _kwargs["n_heads"] = graph.n_heads
                         _kwargs["output_activation"] = "relu"
-                        _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
+                        _kwargs["use_layernorm"] = getattr(graph, "use_layernorm", False)
                     # Propager output_activation et use_layernorm pour tous les backends
-                    if hasattr(graph, 'output_activation') and "output_activation" not in _kwargs:
+                    if hasattr(graph, "output_activation") and "output_activation" not in _kwargs:
                         _kwargs["output_activation"] = graph.output_activation
-                    if hasattr(graph, 'use_layernorm') and "use_layernorm" not in _kwargs:
-                        _kwargs["use_layernorm"] = getattr(graph, 'use_layernorm', False)
+                    if hasattr(graph, "use_layernorm") and "use_layernorm" not in _kwargs:
+                        _kwargs["use_layernorm"] = getattr(graph, "use_layernorm", False)
                     # Phase B/D (RGCNLayerPT) : propager pairnorm/drop_edge/compgcn
                     # aux couches extra (défauts False/0.0 si absents → transparents).
                     for _k in ("pairnorm", "drop_edge", "use_compgcn", "d_rel_emb"):
@@ -241,6 +247,7 @@ class CGNPipeline:
                     # (sans filtre, TypeError → repli minimal sans les flags).
                     try:
                         import inspect as _insp
+
                         _params = set(_insp.signature(LayerClass.__init__).parameters)
                         _kwargs = {k: v for k, v in _kwargs.items() if k in _params}
                     except (TypeError, ValueError):
@@ -249,7 +256,8 @@ class CGNPipeline:
                         _extra = LayerClass(**_kwargs)
                     except TypeError:
                         _extra = LayerClass(
-                            d_in=graph.d_in, d_out=graph.d_out,
+                            d_in=graph.d_in,
+                            d_out=graph.d_out,
                             n_relations=graph.n_relations,
                             seed=self._seed + extra_i * 100,
                         )
@@ -257,16 +265,18 @@ class CGNPipeline:
                 # E1/E4 : intermédiaires en relu, finale en sigmoid
                 # (couches exposant output_activation uniquement)
                 for _lyr in self._graph_layers[:-1]:
-                    if hasattr(_lyr, 'output_activation'):
+                    if hasattr(_lyr, "output_activation"):
                         _lyr.output_activation = "relu"
-                if hasattr(self._graph_layers[-1], 'output_activation'):
+                if hasattr(self._graph_layers[-1], "output_activation"):
                     self._graph_layers[-1].output_activation = "sigmoid"
             else:
                 import warnings as _w
+
                 _w.warn(
                     f"n_rgcn_layers={n_rgcn_layers} requiert un graph avec d_in/d_out/n_relations. "
                     "Repli sur n_rgcn_layers=1.",
-                    UserWarning, stacklevel=2,
+                    UserWarning,
+                    stacklevel=2,
                 )
                 self.n_rgcn_layers = 1
 
@@ -341,7 +351,7 @@ class CGNPipeline:
         )
         node_type_probs = _softmax(node_logits)
         predicted: dict[tuple[int, int], int] = {}
-        was_training = getattr(self.encoder, 'training', False)
+        was_training = getattr(self.encoder, "training", False)
         if was_training:
             self.encoder.training = False
         try:
@@ -350,14 +360,18 @@ class CGNPipeline:
                 real_dst = clause_positions[dst_i] if clause_positions else dst_i
                 connector = (
                     connector_reps[src_i]
-                    if connector_reps and src_i < len(connector_reps)
-                    and dst_i == src_i + 1
+                    if connector_reps and src_i < len(connector_reps) and dst_i == src_i + 1
                     else None
                 )
                 edge_vec_base = vectorize_edge(
-                    reps[src_i], reps[dst_i], connector,
-                    real_src, real_dst, real_n,
-                    self.vocabulary, self.word_embedding,
+                    reps[src_i],
+                    reps[dst_i],
+                    connector,
+                    real_src,
+                    real_dst,
+                    real_n,
+                    self.vocabulary,
+                    self.word_embedding,
                     drop_morph=self.drop_morph,
                     clause_pooling=self.clause_pooling,
                     subject_object_emb=self.subject_object_emb,
@@ -366,13 +380,15 @@ class CGNPipeline:
                     no_positional=self.no_positional,
                     no_ternary=self.no_ternary,
                 )
-                enriched_edge = np.concatenate([
-                    edge_vec_base,
-                    clause_vecs[src_i],
-                    clause_vecs[dst_i],
-                    node_type_probs[src_i],
-                    node_type_probs[dst_i],
-                ])
+                enriched_edge = np.concatenate(
+                    [
+                        edge_vec_base,
+                        clause_vecs[src_i],
+                        clause_vecs[dst_i],
+                        node_type_probs[src_i],
+                        node_type_probs[dst_i],
+                    ]
+                )
                 edge_logit = self.encoder.forward_edge(enriched_edge)
                 predicted[(src_i, dst_i)] = int(np.argmax(edge_logit))
         finally:
@@ -398,24 +414,18 @@ class CGNPipeline:
           Comparé via `is not None` — la valeur 0 est traitée comme zéro clause, pas comme absent.
         connector_reps : UDRepresentation|None par paire consécutive (len = len(reps)-1).
         """
-        return self._forward_from_reps(reps, text, clause_positions, n_total_clauses,
-                                       connector_reps, gold_edge_map)
+        return self._forward_from_reps(
+            reps, text, clause_positions, n_total_clauses, connector_reps, gold_edge_map
+        )
 
-    def _forward_from_reps(
-        self,
-        reps: list,
-        text: str,
-        clause_positions: list[int] | None = None,
-        n_total_clauses: int | None = None,
-        connector_reps: list | None = None,
-        gold_edge_map: dict | None = None,
-    ) -> dict:
-        if clause_positions is not None and len(clause_positions) != len(reps):
-            raise ValueError(
-                f"clause_positions a {len(clause_positions)} éléments pour {len(reps)} reps."
-            )
+    # ------------------------------------------------------------------
+    # S1 — phases du forward (extraites de `_forward_from_reps`, inchangées).
+    # Chaque phase écrit le même état `_cached_*` ; `backward()` les relit
+    # comme avant. Aucun changement numérique (tests gold + snapshots).
+    # ------------------------------------------------------------------
 
-        # Réinitialiser le cache
+    def _reset_forward_cache(self) -> None:
+        """Réinitialise l'état `_cached_*` (début de forward)."""
         self._cached_clause_vecs = None
         self._cached_enriched_vecs = None
         self._cached_edge_vecs = None
@@ -434,62 +444,88 @@ class CGNPipeline:
         self._cached_d_quals: dict[str, np.ndarray] | None = None
         self._cached_d_edge_base = None
         self._cached_d_eff = None
-        _snap = hasattr(self.encoder, 'snapshot_node_cache')
 
-        if not reps:
-            return emit(text, [], [], [], [], [])
-
+    def _vectorize_reps(self, reps: list) -> np.ndarray:
+        """Couche 1 — vectorisation clauses (S1/A/B : pooling + subj/obj)."""
         self._cached_reps = reps
-
-        # Couche 1 — vectorisation (S1 : word_embedding optionnel, A/B : pooling + subj/obj)
-        clause_vecs = np.stack([
-            vectorize_clause(r, self.vocabulary, self.word_embedding,
-                             drop_morph=self.drop_morph,
-                             no_mood=self.no_mood,
-                             no_tense=self.no_tense,
-                             no_positional=self.no_positional,
-                             no_ternary=self.no_ternary,
-                             clause_pooling=self.clause_pooling,
-                             subject_object_emb=self.subject_object_emb) for r in reps
-        ])  # (N, D_effective)
-        self._cached_clause_vecs = clause_vecs
-
-        # P4a — tête type de phrase : moyenne de vecteurs COMPLETS (d_effective)
-        # vectorisés en pooling "mean" (contenu + marques "?" / "!"), quel que
-        # soit le mode clause du pipeline — sous "root" (défaut), "?" serait
-        # invisible. Même espace d'entrée que la tête intent : le gradient
-        # remonte via d_enriched (cf. backward). Calculée AVANT l'intent
-        # (P4b : distribution conditionnante).
-        if (self.n_sentence_types > 0 and hasattr(self.encoder, 'forward_sentence')
-                and len(reps) > 0):
-            _sent_vec = np.stack([
-                vectorize_clause(r, self.vocabulary, self.word_embedding,
-                                 drop_morph=self.drop_morph,
-                                 no_mood=self.no_mood,
-                                 no_tense=self.no_tense,
-                                 no_positional=self.no_positional,
-                                 no_ternary=self.no_ternary,
-                                 clause_pooling="mean",
-                                 subject_object_emb=self.subject_object_emb)
+        clause_vecs = np.stack(
+            [
+                vectorize_clause(
+                    r,
+                    self.vocabulary,
+                    self.word_embedding,
+                    drop_morph=self.drop_morph,
+                    no_mood=self.no_mood,
+                    no_tense=self.no_tense,
+                    no_positional=self.no_positional,
+                    no_ternary=self.no_ternary,
+                    clause_pooling=self.clause_pooling,
+                    subject_object_emb=self.subject_object_emb,
+                )
                 for r in reps
-            ]).mean(axis=0)
-            self._cached_sentence_logits = self.encoder.forward_sentence(
-                _sent_vec).reshape(1, -1)
+            ]
+        )  # (N, D_effective)
+        self._cached_clause_vecs = clause_vecs
+        # Routage des gradients d'embeddings (A+B) — miroir exact du forward
+        if self.word_embedding is not None:
+            self._cached_pool_routing = [
+                embedding_routing(
+                    r, self.word_embedding, self.clause_pooling, self.subject_object_emb
+                )
+                for r in reps
+            ]
+        return clause_vecs
+
+    def _forward_sentence_head(self, reps: list) -> None:
+        """P4a — tête type de phrase : moyenne de vecteurs COMPLETS (d_effective)
+        vectorisés en pooling "mean" (contenu + marques "?" / "!"), quel que
+        soit le mode clause du pipeline — sous "root" (défaut), "?" serait
+        invisible. Même espace d'entrée que la tête intent : le gradient
+        remonte via d_enriched (cf. backward). Calculée AVANT l'intent
+        (P4b : distribution conditionnante)."""
+        if (
+            self.n_sentence_types > 0
+            and hasattr(self.encoder, "forward_sentence")
+            and len(reps) > 0
+        ):
+            _sent_vec = np.stack(
+                [
+                    vectorize_clause(
+                        r,
+                        self.vocabulary,
+                        self.word_embedding,
+                        drop_morph=self.drop_morph,
+                        no_mood=self.no_mood,
+                        no_tense=self.no_tense,
+                        no_positional=self.no_positional,
+                        no_ternary=self.no_ternary,
+                        clause_pooling="mean",
+                        subject_object_emb=self.subject_object_emb,
+                    )
+                    for r in reps
+                ]
+            ).mean(axis=0)
+            self._cached_sentence_logits = self.encoder.forward_sentence(_sent_vec).reshape(1, -1)
         else:
             self._cached_sentence_logits = None
-        # Éq.6 — tête d'intention (non-breaking : désactivée si n_intent_types=0).
-        # P4b : si couplée (intent_conditioned), entrée = [vec_clause | probs_sentence]
-        # (distribution détachée : signal conditionnant, pas de bout-en-bout).
-        if self.n_intent_types > 0 and hasattr(self.encoder, 'forward_intent'):
-            if bool(getattr(self.encoder, 'intent_conditioned', False)):
+
+    def _forward_intent_head(self, clause_vecs: np.ndarray) -> None:
+        """Éq.6 — tête d'intention (non-breaking : désactivée si n_intent_types=0).
+        P4b : si couplée (intent_conditioned), entrée = [vec_clause | probs_sentence]
+        (distribution détachée : signal conditionnant, pas de bout-en-bout)."""
+        if self.n_intent_types > 0 and hasattr(self.encoder, "forward_intent"):
+            if bool(getattr(self.encoder, "intent_conditioned", False)):
                 if self._cached_sentence_logits is None:
                     raise ValueError(
                         "intent_conditioned=True mais logits sentence absents — "
-                        "n_sentence_types > 0 requis avec forward_sentence.")
+                        "n_sentence_types > 0 requis avec forward_sentence."
+                    )
                 _sent_probs = _softmax(self._cached_sentence_logits.reshape(1, -1))[0]
                 self._cached_intent_logits = np.stack(
-                    [self.encoder.forward_intent(
-                        np.concatenate([v, _sent_probs])) for v in clause_vecs]
+                    [
+                        self.encoder.forward_intent(np.concatenate([v, _sent_probs]))
+                        for v in clause_vecs
+                    ]
                 )
             else:
                 self._cached_intent_logits = np.stack(
@@ -497,37 +533,46 @@ class CGNPipeline:
                 )
         else:
             self._cached_intent_logits = None
-        # Routage des gradients d'embeddings (A+B) — miroir exact du forward
-        if self.word_embedding is not None:
-            self._cached_pool_routing = [
-                embedding_routing(r, self.word_embedding,
-                                  self.clause_pooling, self.subject_object_emb)
-                for r in reps
-            ]
 
+    def _forward_node_logits(self, vecs: np.ndarray) -> tuple[np.ndarray, list]:
+        """Couche 2 — logits types de nœuds (batch si dispo, sinon boucle).
+        Utilisée aux deux passages (clauses puis enrichis). Retourne
+        (logits, snapshots) — l'appelant assigne le cache."""
+        _snap = hasattr(self.encoder, "snapshot_node_cache")
         # S3 : chemin batch si forward_batch disponible et pas de snapshots requis.
         # Opt-in Phase C : un encodeur global (MHA) pose prefers_batch_forward=True
         # pour emprunter forward_batch() même s'il fournit des snapshots — sinon
         # la boucle forward_node contournerait la self-attention (code mort).
         # Le backward rejoue alors forward_node (MLP seul) : approximation actée.
-        _has_batch = hasattr(self.encoder, 'forward_batch')
-        _batch_opt_in = bool(getattr(self.encoder, 'prefers_batch_forward', False))
-
-        # Couche 2 — prédiction des types de nœuds (premier passage)
+        _has_batch = hasattr(self.encoder, "forward_batch")
+        _batch_opt_in = bool(getattr(self.encoder, "prefers_batch_forward", False))
         node_snapshots: list = []
         if _has_batch and (not _snap or _batch_opt_in):
-            node_logits = self.encoder.forward_batch(clause_vecs)
+            node_logits = self.encoder.forward_batch(vecs)
         else:
             node_logits_list: list[np.ndarray] = []
-            for v in clause_vecs:
+            for v in vecs:
                 node_logits_list.append(self.encoder.forward_node(v))
                 if _snap:
                     node_snapshots.append(self.encoder.snapshot_node_cache())
             node_logits = np.stack(node_logits_list)
+        return node_logits, node_snapshots
 
-        # Couche 3 — R-GCN message passing (AVANT edge classification)
+    def _rgcn_message_passing(
+        self,
+        reps: list,
+        clause_vecs: np.ndarray,
+        node_logits: np.ndarray,
+        clause_positions: list[int] | None,
+        n_total_clauses: int | None,
+        connector_reps: list | None,
+        gold_edge_map: dict | None,
+    ) -> np.ndarray:
+        """Couche 3 — R-GCN message passing (AVANT edge classification).
+        Types d'arêtes : gold (teacher forcing), two-pass préliminaire ou
+        no-edge explicite (v5.2 : jamais 0=cause). Retourne `enriched`."""
+        _snap = hasattr(self.encoder, "snapshot_node_cache")
         enriched = clause_vecs
-        edge_triples: list[tuple] = []
         if len(reps) > 1:
             # Paires d'arêtes pour le R-GCN (toutes les paires si all_pairs, sinon adjacentes)
             _edge_pairs_rgcn = (
@@ -536,46 +581,60 @@ class CGNPipeline:
                 else [(i, i + 1) for i in range(len(reps) - 1)]
             )
             # Pour le R-GCN, on a besoin d'arêtes même sans gold — utiliser la prédiction courante
-            edge_index_rgcn = np.array(
-                [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
-                dtype=np.int64,
-            ) if _edge_pairs_rgcn else np.zeros((2, 0), dtype=np.int64)
+            edge_index_rgcn = (
+                np.array(
+                    [[p[0] for p in _edge_pairs_rgcn], [p[1] for p in _edge_pairs_rgcn]],
+                    dtype=np.int64,
+                )
+                if _edge_pairs_rgcn
+                else np.zeros((2, 0), dtype=np.int64)
+            )
             # Types d'arêtes : gold (teacher forcing) si disponible,
             # sinon two-pass (prédiction préliminaire) ou type no-edge.
             # v5.2 : paires sans gold = no-edge explicite, jamais 0=cause.
             _n_types = len(self.relation_types)
             _no_edge = rgcn_no_edge_idx(_n_types)
             _g0 = self._graph_layers[0] if self._graph_layers else None
-            _g_nrel = int(getattr(_g0, 'n_relations',
-                                 rgcn_n_relations(_n_types, self.bidirectional)))
+            _g_nrel = int(
+                getattr(_g0, "n_relations", rgcn_n_relations(_n_types, self.bidirectional))
+            )
             _n_fwd = _g_nrel // 2 if self.bidirectional else _g_nrel
             if _no_edge >= _n_fwd:
                 raise ValueError(
                     f"R-GCN sans slot no-edge : n_relations={_g_nrel} < "
                     f"no-edge idx {_no_edge} — construisez le graphe avec "
-                    f"rgcn_n_relations({ _n_types}, bidirectional={self.bidirectional})."
+                    f"rgcn_n_relations({_n_types}, bidirectional={self.bidirectional})."
                 )
             if gold_edge_map:
-                edge_type_idxs_rgcn = np.array([
-                    gold_edge_map.get((i, j), gold_edge_map.get((j, i), _no_edge))
-                    for (i, j) in _edge_pairs_rgcn
-                ], dtype=np.int64)
+                edge_type_idxs_rgcn = np.array(
+                    [
+                        gold_edge_map.get((i, j), gold_edge_map.get((j, i), _no_edge))
+                        for (i, j) in _edge_pairs_rgcn
+                    ],
+                    dtype=np.int64,
+                )
                 edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, _n_fwd - 1)
             elif self.two_pass_val and len(reps) >= 2 and self._graph_layers:
                 predicted_map = self._predict_edge_types_preliminary(
-                    clause_vecs, node_logits, reps, clause_positions,
-                    n_total_clauses, connector_reps,
+                    clause_vecs,
+                    node_logits,
+                    reps,
+                    clause_positions,
+                    n_total_clauses,
+                    connector_reps,
                 )
-                edge_type_idxs_rgcn = np.array([
-                    predicted_map.get((i, j), predicted_map.get((j, i), _no_edge))
-                    for (i, j) in _edge_pairs_rgcn
-                ], dtype=np.int64)
+                edge_type_idxs_rgcn = np.array(
+                    [
+                        predicted_map.get((i, j), predicted_map.get((j, i), _no_edge))
+                        for (i, j) in _edge_pairs_rgcn
+                    ],
+                    dtype=np.int64,
+                )
                 edge_type_idxs_rgcn = np.clip(edge_type_idxs_rgcn, 0, _n_fwd - 1)
                 self._cached_d_edge_base = None
                 self._cached_d_eff = None
             else:
-                edge_type_idxs_rgcn = np.full(len(_edge_pairs_rgcn), _no_edge,
-                                              dtype=np.int64)
+                edge_type_idxs_rgcn = np.full(len(_edge_pairs_rgcn), _no_edge, dtype=np.int64)
 
             # Message passing bidirectionnel
             if self.bidirectional and edge_index_rgcn.shape[1] > 0:
@@ -587,8 +646,8 @@ class CGNPipeline:
                 n_forward = _n_fwd
                 rev_types = np.where(
                     edge_type_idxs_rgcn < n_forward,
-                    edge_type_idxs_rgcn + n_forward,    # forward → _inv
-                    edge_type_idxs_rgcn - n_forward,    # _inv → forward
+                    edge_type_idxs_rgcn + n_forward,  # forward → _inv
+                    edge_type_idxs_rgcn - n_forward,  # _inv → forward
                 )
                 rev_types = np.clip(rev_types, 0, _g_nrel - 1)
                 edge_index_mp = np.concatenate([edge_index_rgcn, rev_index], axis=1)
@@ -606,23 +665,167 @@ class CGNPipeline:
             for _layer in self._graph_layers:
                 _h = _layer.message_pass(enriched, edge_index_mp, edge_types_mp)
                 # E3 : résidu (h + prev) si shapes compatibles, sinon h seul
-                enriched = _h + enriched if (
-                    self.gat_residual and _h.shape == enriched.shape
-                ) else _h
+                enriched = (
+                    _h + enriched if (self.gat_residual and _h.shape == enriched.shape) else _h
+                )
+        return enriched
+
+    def _classify_one_edge(
+        self,
+        reps: list,
+        enriched: np.ndarray,
+        node_type_probs: np.ndarray,
+        src_i: int,
+        dst_i: int,
+        real_src: int,
+        real_dst: int,
+        real_n: int,
+        connector,
+    ) -> tuple:
+        """Une paire (src, dst) → (triple|None, vec, logit, routes, quals, snapshot).
+
+        Éq.11 (θ_ambiguity), masque v3.0, P4 quals, négation — inchangés."""
+        # Vectorizer avec les reps originales pour les features syntaxiques
+        edge_vec_base = vectorize_edge(
+            reps[src_i],
+            reps[dst_i],
+            connector,
+            real_src,
+            real_dst,
+            real_n,
+            self.vocabulary,
+            self.word_embedding,
+            drop_morph=self.drop_morph,
+            clause_pooling=self.clause_pooling,
+            subject_object_emb=self.subject_object_emb,
+            no_mood=self.no_mood,
+            no_tense=self.no_tense,
+            no_positional=self.no_positional,
+            no_ternary=self.no_ternary,
+        )
+        # Enrichir avec les representations R-GCN + node type predictions
+        enriched_edge = np.concatenate(
+            [
+                edge_vec_base,
+                enriched[src_i],  # representation R-GCN du source
+                enriched[dst_i],  # representation R-GCN du destination
+                node_type_probs[src_i],  # proba types nœud source (7 dims)
+                node_type_probs[dst_i],  # proba types nœud destination (7 dims)
+            ]
+        )
+        if self._cached_d_edge_base is None:
+            self._cached_d_edge_base = len(edge_vec_base)
+            self._cached_d_eff = len(enriched[src_i])
+        # P1 : routage lexical edge — offsets des blocs embeddings dans
+        # edge_vec_base = [clause(src) | clause(dst) | conn | inter].
+        # Clause : section emb à d_struct (+ L_ce pour dst) ; connecteur :
+        # lemme à 2*L_ce + (d_conn - 2). Miroir exact du forward ci-dessus.
+        _routes_i: list[tuple[str, int, np.ndarray]] = []
+        if self.word_embedding is not None:
+            _d_emb_r = self.word_embedding.d_emb
+            _d_struct = self.vocabulary.d_clause
+            _L_ce = self.vocabulary.d_clause_effective(_d_emb_r, self.subject_object_emb)
+            for _lemma, _off, _w in embedding_routing(
+                reps[src_i], self.word_embedding, self.clause_pooling, self.subject_object_emb
+            ):
+                _routes_i.append((_lemma, _d_struct + _off, _w))
+            for _lemma, _off, _w in embedding_routing(
+                reps[dst_i], self.word_embedding, self.clause_pooling, self.subject_object_emb
+            ):
+                _routes_i.append((_lemma, _L_ce + _d_struct + _off, _w))
+            if connector is not None:
+                _routes_i.append(
+                    (
+                        connector.root_lemma,
+                        2 * _L_ce + self.vocabulary.d_conn - 2,
+                        np.ones(_d_emb_r, dtype=np.float32),
+                    )
+                )
+        edge_logit = self.encoder.forward_edge(enriched_edge)
+        # P4 quals — logits par tête sur le même vecteur enrichi.
+        _qlogits = None
+        if getattr(self.encoder, "qual_heads", False):
+            _qlogits = self.encoder.forward_quals(enriched_edge)
+        # Masque v3.0 : les classes sans exemple d'entraînement sont exclues
+        # du cache, de l'argmax/softmax d'émission ET de la loss (qui le
+        # réapplique sans effet). Sans masque, l'inférence pouvait prédire
+        # des classes jamais vues au train (incohérence train/inférence).
+        if self.edge_logit_mask is not None:
+            edge_logit = np.array(edge_logit, copy=True)
+            edge_logit[..., ~self.edge_logit_mask] = -1e9
+        _snap = hasattr(self.encoder, "snapshot_edge_cache")
+        _edge_snap = self.encoder.snapshot_edge_cache() if _snap else None
+        _emit_logit = edge_logit
+        rel_idx = int(np.argmax(_emit_logit))
+        edge_probs = _softmax((_emit_logit / self.temperature).reshape(1, -1))[0]
+        rel_conf = float(edge_probs[rel_idx])
+        rel_conf = 0.0 if not np.isfinite(rel_conf) else min(1.0, max(0.0, rel_conf))
+        marker_tok_id = connector.token_span[0] if connector is not None else None
+        negated, negation_site = _detect_negation(reps[src_i], reps[dst_i], connector)
+        # Éq.11 — résolution d'ambiguïté (θ_ambiguity)
+        if rel_conf < self.theta_ambiguity and rel_conf >= self.edge_threshold:
+            top2 = np.argsort(edge_probs)[-2:][::-1]
+            candidates = [(self.relation_types[int(i)], float(edge_probs[i])) for i in top2]
+            ambiguous = True
+        else:
+            candidates = None
+            ambiguous = False
+        triple = None
+        if rel_conf >= self.edge_threshold:
+            triple = (
+                src_i,
+                dst_i,
+                self.relation_types[rel_idx],
+                rel_conf,
+                negated,
+                marker_tok_id,
+                negation_site,
+                ambiguous,
+                candidates,
+            )
+        return triple, enriched_edge, edge_logit, _routes_i, _qlogits, _edge_snap
+
+    def _forward_from_reps(
+        self,
+        reps: list,
+        text: str,
+        clause_positions: list[int] | None = None,
+        n_total_clauses: int | None = None,
+        connector_reps: list | None = None,
+        gold_edge_map: dict | None = None,
+    ) -> dict:
+        if clause_positions is not None and len(clause_positions) != len(reps):
+            raise ValueError(
+                f"clause_positions a {len(clause_positions)} éléments pour {len(reps)} reps."
+            )
+
+        # S1 — phases extraites (helpers ci-dessus, état et valeurs inchangés).
+        self._reset_forward_cache()
+
+        if not reps:
+            return emit(text, [], [], [], [], [])
+
+        clause_vecs = self._vectorize_reps(reps)
+        self._forward_sentence_head(reps)
+        self._forward_intent_head(clause_vecs)
+
+        # Couche 2 — prédiction des types de nœuds (premier passage)
+        node_logits, node_snapshots = self._forward_node_logits(clause_vecs)
+
+        # Couche 3 — R-GCN message passing (AVANT edge classification)
+        enriched = self._rgcn_message_passing(
+            reps,
+            clause_vecs,
+            node_logits,
+            clause_positions,
+            n_total_clauses,
+            connector_reps,
+            gold_edge_map,
+        )
 
         # Deuxième passage nœuds sur les vecteurs enrichis
         if len(reps) > 1:
-            node_snapshots = []
-            if _has_batch and (not _snap or _batch_opt_in):
-                node_logits2 = self.encoder.forward_batch(enriched)
-            else:
-                node_logits2_list: list[np.ndarray] = []
-                for v in enriched:
-                    node_logits2_list.append(self.encoder.forward_node(v))
-                    if _snap:
-                        node_snapshots.append(self.encoder.snapshot_node_cache())
-                node_logits2 = np.stack(node_logits2_list)
-            node_logits = node_logits2
+            node_logits, node_snapshots = self._forward_node_logits(enriched)
 
         node_type_idxs = np.argmax(node_logits, axis=1)
         node_types = [self.node_types[i] for i in node_type_idxs]
@@ -635,6 +838,7 @@ class CGNPipeline:
         edge_pairs_cache: list[tuple[int, int]] = []
         edge_routing_cache: list = []
         qual_logits_cache: dict[str, list[np.ndarray]] = {}
+        edge_triples: list[tuple] = []
         if len(reps) >= 2:
             real_n = n_total_clauses if n_total_clauses is not None else len(reps)
             _edge_pairs = (
@@ -647,96 +851,35 @@ class CGNPipeline:
             for src_i, dst_i in _edge_pairs:
                 real_src = clause_positions[src_i] if clause_positions else src_i
                 real_dst = clause_positions[dst_i] if clause_positions else dst_i
-                connector = (connector_reps[src_i]
-                             if connector_reps and src_i < len(connector_reps) and dst_i == src_i + 1
-                             else None)
-                # Vectorizer avec les reps originales pour les features syntaxiques
-                edge_vec_base = vectorize_edge(
-                    reps[src_i], reps[dst_i], connector,
-                    real_src, real_dst, real_n,
-                    self.vocabulary, self.word_embedding,
-                    drop_morph=self.drop_morph,
-                    clause_pooling=self.clause_pooling,
-                    subject_object_emb=self.subject_object_emb,
-                    no_mood=self.no_mood,
-                    no_tense=self.no_tense,
-                    no_positional=self.no_positional,
-                    no_ternary=self.no_ternary,
+                connector = (
+                    connector_reps[src_i]
+                    if connector_reps and src_i < len(connector_reps) and dst_i == src_i + 1
+                    else None
                 )
-                # Enrichir avec les representations R-GCN + node type predictions
-                enriched_edge = np.concatenate([
-                    edge_vec_base,
-                    enriched[src_i],      # representation R-GCN du source
-                    enriched[dst_i],      # representation R-GCN du destination
-                    node_type_probs[src_i],  # proba types nœud source (7 dims)
-                    node_type_probs[dst_i],  # proba types nœud destination (7 dims)
-                ])
-                if self._cached_d_edge_base is None:
-                    self._cached_d_edge_base = len(edge_vec_base)
-                    self._cached_d_eff = len(enriched[src_i])
+                triple, enriched_edge, edge_logit, _routes_i, _qlogits, _edge_snap = (
+                    self._classify_one_edge(
+                        reps,
+                        enriched,
+                        node_type_probs,
+                        src_i,
+                        dst_i,
+                        real_src,
+                        real_dst,
+                        real_n,
+                        connector,
+                    )
+                )
                 edge_vecs.append(enriched_edge)
                 edge_pairs_cache.append((src_i, dst_i))
-                # P1 : routage lexical edge — offsets des blocs embeddings dans
-                # edge_vec_base = [clause(src) | clause(dst) | conn | inter].
-                # Clause : section emb à d_struct (+ L_ce pour dst) ; connecteur :
-                # lemme à 2*L_ce + (d_conn - 2). Miroir exact du forward ci-dessus.
-                _routes_i: list[tuple[str, int, np.ndarray]] = []
-                if self.word_embedding is not None:
-                    _d_emb_r = self.word_embedding.d_emb
-                    _d_struct = self.vocabulary.d_clause
-                    _L_ce = self.vocabulary.d_clause_effective(
-                        _d_emb_r, self.subject_object_emb)
-                    for (_lemma, _off, _w) in embedding_routing(
-                            reps[src_i], self.word_embedding,
-                            self.clause_pooling, self.subject_object_emb):
-                        _routes_i.append((_lemma, _d_struct + _off, _w))
-                    for (_lemma, _off, _w) in embedding_routing(
-                            reps[dst_i], self.word_embedding,
-                            self.clause_pooling, self.subject_object_emb):
-                        _routes_i.append((_lemma, _L_ce + _d_struct + _off, _w))
-                    if connector is not None:
-                        _routes_i.append((
-                            connector.root_lemma,
-                            2 * _L_ce + self.vocabulary.d_conn - 2,
-                            np.ones(_d_emb_r, dtype=np.float32),
-                        ))
                 edge_routing_cache.append(_routes_i)
-                edge_logit = self.encoder.forward_edge(enriched_edge)
-                # P4 quals — logits par tête sur le même vecteur enrichi.
-                if getattr(self.encoder, 'qual_heads', False):
-                    _qlogits = self.encoder.forward_quals(enriched_edge)
+                if _qlogits is not None:
                     for _qn, _ql in _qlogits.items():
                         qual_logits_cache.setdefault(_qn, []).append(np.asarray(_ql))
-                # Masque v3.0 : les classes sans exemple d'entraînement sont exclues
-                # du cache, de l'argmax/softmax d'émission ET de la loss (qui le
-                # réapplique sans effet). Sans masque, l'inférence pouvait prédire
-                # des classes jamais vues au train (incohérence train/inférence).
-                if self.edge_logit_mask is not None:
-                    edge_logit = np.array(edge_logit, copy=True)
-                    edge_logit[..., ~self.edge_logit_mask] = -1e9
                 all_edge_logits.append(edge_logit)
-                if _snap:
-                    edge_snapshots.append(self.encoder.snapshot_edge_cache())
-                _emit_logit = edge_logit
-                rel_idx = int(np.argmax(_emit_logit))
-                edge_probs = _softmax((_emit_logit / self.temperature).reshape(1, -1))[0]
-                rel_conf = float(edge_probs[rel_idx])
-                rel_conf = (0.0 if not np.isfinite(rel_conf)
-                            else min(1.0, max(0.0, rel_conf)))
-                marker_tok_id = connector.token_span[0] if connector is not None else None
-                negated, negation_site = _detect_negation(reps[src_i], reps[dst_i], connector)
-                # Éq.11 — résolution d'ambiguïté (θ_ambiguity)
-                if rel_conf < self.theta_ambiguity and rel_conf >= self.edge_threshold:
-                    top2 = np.argsort(edge_probs)[-2:][::-1]
-                    candidates = [(self.relation_types[int(i)], float(edge_probs[i])) for i in top2]
-                    ambiguous = True
-                else:
-                    candidates = None
-                    ambiguous = False
-                if rel_conf >= self.edge_threshold:
-                    edge_triples.append((src_i, dst_i, self.relation_types[rel_idx], rel_conf,
-                                         negated, marker_tok_id,
-                                         negation_site, ambiguous, candidates))
+                if _edge_snap is not None:
+                    edge_snapshots.append(_edge_snap)
+                if triple is not None:
+                    edge_triples.append(triple)
 
         if edge_vecs:
             self._cached_edge_vecs = np.stack(edge_vecs)
@@ -744,20 +887,19 @@ class CGNPipeline:
             self._cached_edge_pairs = edge_pairs_cache
             self._cached_edge_routing = edge_routing_cache
             # P4 quals — stacks par tête, alignés sur edge_pairs.
-            self._cached_qual_logits = {
-                _qn: np.stack(_ql) for _qn, _ql in qual_logits_cache.items()
-            } if qual_logits_cache else None
-            if _snap:
+            self._cached_qual_logits = (
+                {_qn: np.stack(_ql) for _qn, _ql in qual_logits_cache.items()}
+                if qual_logits_cache
+                else None
+            )
+            if hasattr(self.encoder, "snapshot_edge_cache"):
                 self._cached_edge_snapshots = edge_snapshots
 
         self._cached_node_logits = node_logits
-        if _snap:
+        if hasattr(self.encoder, "snapshot_node_cache"):
             self._cached_node_snapshots = node_snapshots
 
-        node_labels_attrs = [
-            build_label(r, nt)
-            for r, nt in zip(reps, node_types, strict=False)
-        ]
+        node_labels_attrs = [build_label(r, nt) for r, nt in zip(reps, node_types, strict=False)]
         node_labels = [la[0] for la in node_labels_attrs]
         node_attributes = [la[1] for la in node_labels_attrs]
 
@@ -776,15 +918,23 @@ class CGNPipeline:
         # D6-shadow (plan §C.5) : prior ETUDE en champ séparé, ML inchangé.
         # Mood = clause cible (effet), fallback source ; connecteur explicite
         # si marker présent. Salience positionnelle : follow-up (0.0 ici).
-        mood_by_node = {i: (r.mood if r.mood not in ("", "_absent") else "Ind")
-                        for i, r in enumerate(reps)}
+        mood_by_node = {
+            i: (r.mood if r.mood not in ("", "_absent") else "Ind") for i, r in enumerate(reps)
+        }
 
-        return emit(text, node_types, node_labels, token_spans,
-                    scopes, edge_triples, node_origins=node_origins,
-                    node_attributes=node_attributes,
-                    node_inferred=[o == "inferred" for o in node_origins],
-                    temporal_refs=temporal_refs,
-                    mood_by_node=mood_by_node)
+        return emit(
+            text,
+            node_types,
+            node_labels,
+            token_spans,
+            scopes,
+            edge_triples,
+            node_origins=node_origins,
+            node_attributes=node_attributes,
+            node_inferred=[o == "inferred" for o in node_origins],
+            temporal_refs=temporal_refs,
+            mood_by_node=mood_by_node,
+        )
 
     def filter_edge_cache(self, valid_idxs: np.ndarray) -> None:
         """Filtre les caches MLP d'arêtes aux seuls indices valides.
@@ -845,7 +995,9 @@ class CGNPipeline:
             )
         vecs = node_vecs if node_vecs is not None else self._cached_enriched_vecs
         if vecs is None:
-            raise RuntimeError("predict_links : aucun vecteur (forward requis ou node_vecs fourni).")
+            raise RuntimeError(
+                "predict_links : aucun vecteur (forward requis ou node_vecs fourni)."
+            )
         scored = []
         for src, dst in candidate_pairs:
             if src >= len(vecs) or dst >= len(vecs):
@@ -856,6 +1008,7 @@ class CGNPipeline:
             scored.append((src, dst, s))
         if topk is not None and 0 < topk < len(scored):
             import heapq as _hq
+
             scored = _hq.nlargest(topk, scored, key=lambda t: (t[2], -t[0], -t[1]))
             scored.sort(key=lambda t: (-t[2], t[0], t[1]))
         else:
@@ -871,10 +1024,13 @@ class CGNPipeline:
 
     #: État `_cached_*` exclu du snapshot (train-only : snapshots backward ;
     #: le train appelle forward(), jamais analyze()).
-    _CACHE_SKIP = frozenset({
-        "_cached_node_snapshots", "_cached_edge_snapshots",
-        "_cached_decode_gradient",
-    })
+    _CACHE_SKIP = frozenset(
+        {
+            "_cached_node_snapshots",
+            "_cached_edge_snapshots",
+            "_cached_decode_gradient",
+        }
+    )
 
     def _model_tag(self) -> str:
         """Empreinte des paramètres du forward (morceau de clé de cache).
@@ -886,6 +1042,7 @@ class CGNPipeline:
         """
         from .. import param_epoch as _pe
         from ..data.graph_vecs import checkpoint_hash
+
         if self._tag is not None and self._tag_epoch == _pe.current():
             return self._tag
         params: dict = {}
@@ -908,8 +1065,7 @@ class CGNPipeline:
         return self._tag
 
     @staticmethod
-    def _parser_tag(parser_name: str, gcn_bin: str, subcommand: str,
-                    parser=None) -> tuple:
+    def _parser_tag(parser_name: str, gcn_bin: str, subcommand: str, parser=None) -> tuple:
         """Identité du parseur + version observable du tokenizer (clé de cache).
 
         Lattice subprocess : (classe, binaire résolu, sous-commande,
@@ -923,6 +1079,7 @@ class CGNPipeline:
             from pathlib import Path as _P
 
             from ..frontend.bridge import _resolve_gcn_bin
+
             p = _P(_resolve_gcn_bin(gcn_bin or "gcn"))
             st = p.stat()
             return (parser_name, str(p), subcommand, st.st_mtime_ns, st.st_size)
@@ -933,6 +1090,7 @@ class CGNPipeline:
     def _copy_cached(v):
         """Copie d'une valeur d'état (jamais d'alias cache ↔ appelant)."""
         import copy as _copy
+
         if isinstance(v, np.ndarray):
             return v.copy()
         if isinstance(v, dict):
@@ -959,6 +1117,7 @@ class CGNPipeline:
     def _store_analyze(self, key: tuple, cir: dict) -> None:
         """Mémorise (état + copie CIR). FIFO au-delà du cap."""
         import copy as _copy
+
         try:
             cir_copy = _copy.deepcopy(cir)
         except Exception:  # noqa: BLE001  # CIR non-copiable : non caché
@@ -969,8 +1128,12 @@ class CGNPipeline:
 
     def cache_stats(self) -> dict:
         """Compteurs du cache (vérification M1 : hit ⇒ zéro nouveau calcul)."""
-        return {"hits": self._cache_hits, "misses": self._cache_misses,
-                "size": len(self._analyze_cache), "max": self.ANALYZE_CACHE_MAX}
+        return {
+            "hits": self._cache_hits,
+            "misses": self._cache_misses,
+            "size": len(self._analyze_cache),
+            "max": self.ANALYZE_CACHE_MAX,
+        }
 
     def clear_cache(self) -> None:
         """Vide le cache (ex. upgrade tokenizer hors binaire)."""
@@ -994,34 +1157,41 @@ class CGNPipeline:
         subcommand : sous-commande gcn-cli en clair (défaut "analyze", ex. "analyze-en").
         """
         from ..frontend.bridge import GCNLatticeParser
+
         if text_parser is None:
             text_parser = GCNLatticeParser(gcn_bin, subcommand)
         # M1a : phrase déjà vue (même modèle + même parseur) → hit, zéro calcul.
-        _key = (self._model_tag(),
-                self._parser_tag(type(text_parser).__name__,
-                                 getattr(text_parser, "gcn_bin", gcn_bin),
-                                 getattr(text_parser, "subcommand", subcommand),
-                                 text_parser),
-                text)
+        _key = (
+            self._model_tag(),
+            self._parser_tag(
+                type(text_parser).__name__,
+                getattr(text_parser, "gcn_bin", gcn_bin),
+                getattr(text_parser, "subcommand", subcommand),
+                text_parser,
+            ),
+            text,
+        )
         _hit = self._analyze_cache.get(_key)
         if _hit is not None:
             import copy as _copy
+
             self._cache_hits += 1
             self._restore_snapshot(_hit["state"])
             return _copy.deepcopy(_hit["cir"])
         reps, connector_reps = text_parser.parse(text)
         # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
-        _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
-        _layers_tr.extend((_l, getattr(_l, 'training', False))
-                          for _l in getattr(self, '_graph_layers', []))
+        _layers_tr = [(self.encoder, getattr(self.encoder, "training", False))]
+        _layers_tr.extend(
+            (_l, getattr(_l, "training", False)) for _l in getattr(self, "_graph_layers", [])
+        )
         for _obj, _was in _layers_tr:
-            if _was and hasattr(_obj, 'training'):
+            if _was and hasattr(_obj, "training"):
                 _obj.training = False
         try:
             cir = self.forward(reps, text, connector_reps=connector_reps)
         finally:
             for _obj, _was in _layers_tr:
-                if hasattr(_obj, 'training'):
+                if hasattr(_obj, "training"):
                     _obj.training = _was
         self._cache_misses += 1
         self._store_analyze(_key, cir)
@@ -1048,21 +1218,24 @@ class CGNPipeline:
         import shutil
 
         from ..frontend.bridge import GCNBridgeError, GCNLatticeParser
+
         if shutil.which(gcn_bin) is None:
             return None
         # BUG-6 : basculer encoder + TOUTES les couches graph + decoder
-        _to_toggle = [self.encoder, *list(getattr(self, '_graph_layers', [])), self.decoder]
-        _layers_tr = [(_obj, getattr(_obj, 'training', False))
-                      for _obj in _to_toggle if _obj is not None and hasattr(_obj, 'training')]
+        _to_toggle = [self.encoder, *list(getattr(self, "_graph_layers", [])), self.decoder]
+        _layers_tr = [
+            (_obj, getattr(_obj, "training", False))
+            for _obj in _to_toggle
+            if _obj is not None and hasattr(_obj, "training")
+        ]
         for _obj, _ in _layers_tr:
             _obj.training = False
         # M1a : même cache que analyze() (clé modèle + parseur + texte).
-        _key = (self._model_tag(),
-                self._parser_tag("GCNLatticeParser", gcn_bin, subcommand),
-                text)
+        _key = (self._model_tag(), self._parser_tag("GCNLatticeParser", gcn_bin, subcommand), text)
         _hit = self._analyze_cache.get(_key)
         if _hit is not None:
             import copy as _copy
+
             self._cache_hits += 1
             self._restore_snapshot(_hit["state"])
             return _copy.deepcopy(_hit["cir"])
@@ -1073,7 +1246,7 @@ class CGNPipeline:
             return None
         finally:
             for _obj, _was in _layers_tr:
-                if hasattr(_obj, 'training'):
+                if hasattr(_obj, "training"):
                     _obj.training = _was
         self._cache_misses += 1
         self._store_analyze(_key, cir)
@@ -1081,22 +1254,22 @@ class CGNPipeline:
 
     def loss(
         self,
-        node_logits: np.ndarray,    # (N, 7)  — logits nœuds du forward
+        node_logits: np.ndarray,  # (N, 7)  — logits nœuds du forward
         edge_logits: np.ndarray | None,  # (E, 11) — logits arêtes du forward, ou None
-        gold_node: np.ndarray,      # (N,) int — indices dans NODE_TYPES
+        gold_node: np.ndarray,  # (N,) int — indices dans NODE_TYPES
         gold_edge: np.ndarray | None = None,  # (E,) int — indices dans RELATION_TYPES
         edge_loss_weight: float = 1.0,  # pondération relative edge_loss / node_loss
         gold_surface: np.ndarray | None = None,  # (T,) int — tokens gold pour le décodeur
         node_class_weights: np.ndarray | None = None,  # (N_NODES,) float — poids par classe nœud
         edge_class_weights: np.ndarray | None = None,  # (N_REL,) float — poids par classe arête
-        edge_logit_mask: np.ndarray | None = None,    # (N_REL,) bool — v3.0 : masque classes vides
+        edge_logit_mask: np.ndarray | None = None,  # (N_REL,) bool — v3.0 : masque classes vides
         label_smoothing: float = 0.0,  # lissage des labels [0, 1]
         sample_weight: float = 1.0,  # F : poids gold/silver de la phrase
         edge_sample_weights: np.ndarray | None = None,  # S-5 : (E,) poids par arête (confidence)
-        gold_intent: np.ndarray | None = None,           # Éq.6 : (1,) int — index dans INTENT_TYPES
-        intent_logit_mask: np.ndarray | None = None,     # Éq.6 : (N_INTENTS,) bool
-        gold_sentence: np.ndarray | None = None,         # P4a : (1,) int — index dans SENTENCE_TYPES
-        sentence_logit_mask: np.ndarray | None = None,   # P4a : (N_SENT,) bool
+        gold_intent: np.ndarray | None = None,  # Éq.6 : (1,) int — index dans INTENT_TYPES
+        intent_logit_mask: np.ndarray | None = None,  # Éq.6 : (N_INTENTS,) bool
+        gold_sentence: np.ndarray | None = None,  # P4a : (1,) int — index dans SENTENCE_TYPES
+        sentence_logit_mask: np.ndarray | None = None,  # P4a : (N_SENT,) bool
         gold_quals: dict[str, np.ndarray] | None = None,  # P4 quals : {nom: (E,) int}
         qual_logit_masks: dict[str, np.ndarray] | None = None,  # P4 : {nom: (K,) bool}
         qual_loss_weight: float = 1.0,  # P4 : échelle des 3 têtes quals
@@ -1120,25 +1293,28 @@ class CGNPipeline:
                 f"sample_weight doit être un nombre fini >= 0 (reçu {sample_weight!r})."
             )
         if not (0.0 <= label_smoothing < 1.0) or not np.isfinite(label_smoothing):
-            raise ValueError(
-                f"label_smoothing doit être dans [0, 1[ (reçu {label_smoothing!r})."
-            )
+            raise ValueError(f"label_smoothing doit être dans [0, 1[ (reçu {label_smoothing!r}).")
         if len(node_logits) != len(gold_node):
             raise ValueError(
                 f"Désalignement node_logits/gold_node : {len(node_logits)} logits vs {len(gold_node)} labels"
             )
-        node_loss, d_node = _cross_entropy(node_logits, gold_node, node_class_weights,
-                                              label_smoothing=label_smoothing)
+        node_loss, d_node = _cross_entropy(
+            node_logits, gold_node, node_class_weights, label_smoothing=label_smoothing
+        )
 
         if edge_logits is not None and gold_edge is not None and len(edge_logits) > 0:
             if len(edge_logits) != len(gold_edge):
                 raise ValueError(
                     f"Désalignement edge_logits/gold_edge : {len(edge_logits)} logits vs {len(gold_edge)} labels"
                 )
-            edge_loss, d_edge = _cross_entropy(edge_logits, gold_edge, edge_class_weights,
-                                                label_smoothing=label_smoothing,
-                                                sample_weights=edge_sample_weights,
-                                                logit_mask=edge_logit_mask)
+            edge_loss, d_edge = _cross_entropy(
+                edge_logits,
+                gold_edge,
+                edge_class_weights,
+                label_smoothing=label_smoothing,
+                sample_weights=edge_sample_weights,
+                logit_mask=edge_logit_mask,
+            )
         else:
             edge_loss = 0.0
             d_edge = np.zeros((0, len(self.relation_types)), dtype=np.float32)
@@ -1149,19 +1325,23 @@ class CGNPipeline:
         d_edge = d_edge * edge_loss_weight * sample_weight
         if not np.isfinite(total_loss):
             import warnings as _w3
+
             _w3.warn(
                 f"loss non finie ({total_loss!r}) — vérifiez les logits/labels "
                 "(overflow softmax, labels corrompus ?).",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
 
         # Éq.6 — Intent loss (optionnel — supervisé si gold_intent fourni)
         self._cached_d_intent = None
-        if (gold_intent is not None
-                and self.n_intent_types > 0
-                and self._cached_intent_logits is not None
-                and hasattr(self.encoder, 'forward_intent')):
-            _intent_logits = self._cached_intent_logits[:len(gold_intent)]
+        if (
+            gold_intent is not None
+            and self.n_intent_types > 0
+            and self._cached_intent_logits is not None
+            and hasattr(self.encoder, "forward_intent")
+        ):
+            _intent_logits = self._cached_intent_logits[: len(gold_intent)]
             intent_loss, d_intent = _cross_entropy(
                 _intent_logits, gold_intent, logit_mask=intent_logit_mask
             )
@@ -1172,11 +1352,13 @@ class CGNPipeline:
         # Tête phrase-level sur pooling moyen : la structure phrastique devient
         # un signal appris (nourrit P4b : détection d'intention).
         self._cached_d_sentence = None
-        if (gold_sentence is not None
-                and self.n_sentence_types > 0
-                and self._cached_sentence_logits is not None
-                and hasattr(self.encoder, 'forward_sentence')):
-            _sent_logits = self._cached_sentence_logits[:len(gold_sentence)]
+        if (
+            gold_sentence is not None
+            and self.n_sentence_types > 0
+            and self._cached_sentence_logits is not None
+            and hasattr(self.encoder, "forward_sentence")
+        ):
+            _sent_logits = self._cached_sentence_logits[: len(gold_sentence)]
             sentence_loss, d_sentence = _cross_entropy(
                 _sent_logits, gold_sentence, logit_mask=sentence_logit_mask
             )
@@ -1185,21 +1367,23 @@ class CGNPipeline:
 
         # P4 quals — une loss par tête active avec gold (petites, pondérées).
         self._cached_d_quals = None
-        if (gold_quals is not None
-                and getattr(self.encoder, 'qual_heads', False)
-                and self._cached_qual_logits is not None
-                and hasattr(self.encoder, 'forward_quals')):
+        if (
+            gold_quals is not None
+            and getattr(self.encoder, "qual_heads", False)
+            and self._cached_qual_logits is not None
+            and hasattr(self.encoder, "forward_quals")
+        ):
             _d_quals: dict[str, np.ndarray] = {}
             for _qn, _gold in gold_quals.items():
-                _ql = (self._cached_qual_logits.get(_qn)
-                       if self._cached_qual_logits else None)
+                _ql = self._cached_qual_logits.get(_qn) if self._cached_qual_logits else None
                 if _ql is None or _gold is None or len(_gold) == 0:
                     continue
                 if len(_ql) != len(_gold):
                     continue  # désaligné : ignoré, jamais tronqué silencieusement sans trace
                 _qm = (qual_logit_masks or {}).get(_qn)
                 _q_loss, _d = _cross_entropy(
-                    np.asarray(_ql[:len(_gold)]), np.asarray(_gold),
+                    np.asarray(_ql[: len(_gold)]),
+                    np.asarray(_gold),
                     logit_mask=_qm,
                 )
                 total_loss += qual_loss_weight * _q_loss
@@ -1208,12 +1392,12 @@ class CGNPipeline:
 
         # Decoder loss (optionnel — teacher forcing si gold_surface fourni)
         self._cached_decode_gradient = None
-        if (self.decoder is not None
-                and gold_surface is not None
-                and len(gold_surface) > 0):
-            _vecs = (self._cached_enriched_vecs
-                     if self._cached_enriched_vecs is not None
-                     else self._cached_clause_vecs)
+        if self.decoder is not None and gold_surface is not None and len(gold_surface) > 0:
+            _vecs = (
+                self._cached_enriched_vecs
+                if self._cached_enriched_vecs is not None
+                else self._cached_clause_vecs
+            )
             if _vecs is not None and len(_vecs) > 0:
                 dec_logits = self.decoder.forward_decode(_vecs, gold_surface)
                 dec_loss, d_dec = self.decoder.loss_decode(dec_logits, gold_surface)
@@ -1256,16 +1440,24 @@ class CGNPipeline:
             raise ValueError(f"max_grad_norm doit être > 0 et fini (reçu {max_grad_norm!r}).")
         if not np.all(np.isfinite(d_node_logits)):
             import warnings as _wf
+
             _wf.warn(
                 "backward() : d_node_logits non finis — mise à jour annulée.",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
             return
-        if d_edge_logits is not None and len(d_edge_logits) > 0 and not np.all(np.isfinite(d_edge_logits)):
+        if (
+            d_edge_logits is not None
+            and len(d_edge_logits) > 0
+            and not np.all(np.isfinite(d_edge_logits))
+        ):
             import warnings as _wf2
+
             _wf2.warn(
                 "backward() : d_edge_logits non finis — mise à jour annulée.",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
             return
         if max_grad_norm is not None:
@@ -1276,8 +1468,9 @@ class CGNPipeline:
                 _en = float(np.linalg.norm(d_edge_logits))
                 if _en > max_grad_norm:
                     d_edge_logits = d_edge_logits * (max_grad_norm / _en)
-        if not hasattr(self.encoder, 'backward_node_dx'):
+        if not hasattr(self.encoder, "backward_node_dx"):
             import warnings
+
             warnings.warn(
                 "CGNPipeline.backward() : encodeur sans backward_node_dx — "
                 "les poids R-GCN ne sont pas mis à jour par ce backward. "
@@ -1287,9 +1480,11 @@ class CGNPipeline:
             )
             return
 
-        vecs = (self._cached_enriched_vecs
-                if self._cached_enriched_vecs is not None
-                else self._cached_clause_vecs)
+        vecs = (
+            self._cached_enriched_vecs
+            if self._cached_enriched_vecs is not None
+            else self._cached_clause_vecs
+        )
         if vecs is None or len(vecs) == 0:
             return
 
@@ -1301,13 +1496,12 @@ class CGNPipeline:
             )
         n = N
         _has_node_snap = (
-            hasattr(self.encoder, 'restore_node_cache')
+            hasattr(self.encoder, "restore_node_cache")
             and self._cached_node_snapshots is not None
             and len(self._cached_node_snapshots) >= n
         )
         _has_edge_snap = (
-            hasattr(self.encoder, 'restore_edge_cache')
-            and self._cached_edge_snapshots is not None
+            hasattr(self.encoder, "restore_edge_cache") and self._cached_edge_snapshots is not None
         )
 
         # --- Rétropropagation nœuds ---
@@ -1320,11 +1514,11 @@ class CGNPipeline:
             else:
                 # Re-run sans dropout pour que le cache soit déterministe.
                 # Les gradients restent approximatifs si le forward original avait du dropout.
-                _was_tr = getattr(self.encoder, 'training', False)
-                if _was_tr and hasattr(self.encoder, 'training'):
+                _was_tr = getattr(self.encoder, "training", False)
+                if _was_tr and hasattr(self.encoder, "training"):
                     self.encoder.training = False
                 self.encoder.forward_node(vecs[i])
-                if _was_tr and hasattr(self.encoder, 'training'):
+                if _was_tr and hasattr(self.encoder, "training"):
                     self.encoder.training = True
             grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
             d_enriched[i] = dx_i
@@ -1341,11 +1535,14 @@ class CGNPipeline:
 
         # --- Rétropropagation arêtes ---
         all_edge_grads: list[tuple[np.ndarray, np.ndarray]] | None = None
-        _has_edge_dx = hasattr(self.encoder, 'backward_edge_dx')
+        _has_edge_dx = hasattr(self.encoder, "backward_edge_dx")
         _d_base_edge = self._cached_d_edge_base
         _d_eff_cached = self._cached_d_eff
-        if (d_edge_logits is not None and len(d_edge_logits) > 0
-                and self._cached_edge_vecs is not None):
+        if (
+            d_edge_logits is not None
+            and len(d_edge_logits) > 0
+            and self._cached_edge_vecs is not None
+        ):
             if len(d_edge_logits) != len(self._cached_edge_vecs):
                 raise ValueError(
                     f"backward : {len(d_edge_logits)} gradients arêtes pour "
@@ -1357,28 +1554,35 @@ class CGNPipeline:
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
                 else:
-                    _was_tr = getattr(self.encoder, 'training', False)
-                    if _was_tr and hasattr(self.encoder, 'training'):
+                    _was_tr = getattr(self.encoder, "training", False)
+                    if _was_tr and hasattr(self.encoder, "training"):
                         self.encoder.training = False
                     self.encoder.forward_edge(self._cached_edge_vecs[i])
-                    if _was_tr and hasattr(self.encoder, 'training'):
+                    if _was_tr and hasattr(self.encoder, "training"):
                         self.encoder.training = True
                 if _has_edge_dx:
                     grads_i, dx_i = self.encoder.backward_edge_dx(d_edge_logits[i])
-                    if (self._cached_edge_pairs is not None
-                            and i < len(self._cached_edge_pairs)
-                            and _d_base_edge is not None and _d_eff_cached is not None
-                            and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff_cached):
+                    if (
+                        self._cached_edge_pairs is not None
+                        and i < len(self._cached_edge_pairs)
+                        and _d_base_edge is not None
+                        and _d_eff_cached is not None
+                        and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff_cached
+                    ):
                         src_i, dst_i = self._cached_edge_pairs[i]
-                        d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff_cached]
-                        d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff_cached:_d_base_edge + 2 * _d_eff_cached]
+                        d_enriched[src_i] += dx_i[_d_base_edge : _d_base_edge + _d_eff_cached]
+                        d_enriched[dst_i] += dx_i[
+                            _d_base_edge + _d_eff_cached : _d_base_edge + 2 * _d_eff_cached
+                        ]
                     else:
                         # v5.6b : gradient edge→enriched non routé — warn, jamais silencieux.
                         import warnings as _w_dx
+
                         _w_dx.warn(
                             "backward() : gradient edge→enriched non routé "
                             "(dims inattendues) — R-GCN non mis à jour sur cette arête.",
-                            UserWarning, stacklevel=2,
+                            UserWarning,
+                            stacklevel=2,
                         )
                     # P1 : gradient lexical edge → word_embedding (connecteur + poolés).
                     self._backward_edge_base(i, dx_i)
@@ -1395,26 +1599,31 @@ class CGNPipeline:
             # _cross_entropy normalise déjà par E — pas de renormalisation ici
 
         # --- Mise à jour encodeur ---
-        if all_node_grads is not None and hasattr(self.encoder, 'update_node'):
+        if all_node_grads is not None and hasattr(self.encoder, "update_node"):
             self.encoder.update_node(all_node_grads, lr)
-        if all_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
+        if all_edge_grads is not None and hasattr(self.encoder, "update_edge"):
             self.encoder.update_edge(all_edge_grads, lr)
 
         # --- Éq.6 : intent backward + update ---
-        if (self._cached_d_intent is not None
-                and hasattr(self.encoder, 'backward_intent')
-                and hasattr(self.encoder, 'update_intent')):
+        if (
+            self._cached_d_intent is not None
+            and hasattr(self.encoder, "backward_intent")
+            and hasattr(self.encoder, "update_intent")
+        ):
             intent_grads = self.encoder.backward_intent(self._cached_d_intent)
             self.encoder.update_intent(intent_grads, lr)
             self._cached_d_intent = None
 
         # --- P4a : sentence backward + update + couplage espace partagé ---
         # backward de la moyenne = dx/N vers chaque clause (d_enriched).
-        if (self._cached_d_sentence is not None
-                and hasattr(self.encoder, 'backward_sentence')
-                and hasattr(self.encoder, 'update_sentence')):
+        if (
+            self._cached_d_sentence is not None
+            and hasattr(self.encoder, "backward_sentence")
+            and hasattr(self.encoder, "update_sentence")
+        ):
             sentence_grads, d_pooled = self.encoder.backward_sentence(
-                np.asarray(self._cached_d_sentence)[0])
+                np.asarray(self._cached_d_sentence)[0]
+            )
             self.encoder.update_sentence(sentence_grads, lr)
             self._cached_d_sentence = None
             _n_cl = d_enriched.shape[0] if d_enriched is not None else 0
@@ -1425,45 +1634,55 @@ class CGNPipeline:
         # Recompute déterministe (pas de dropout) par vecteur caché, comme edge.
         # dx couvre tout le vecteur enrichi ; seule la part R-GCN (src/dst)
         # est routée — même limitation documentée que la tête edge.
-        if (self._cached_d_quals is not None
-                and hasattr(self.encoder, 'backward_quals')
-                and hasattr(self.encoder, 'update_quals')
-                and self._cached_edge_vecs is not None):
+        if (
+            self._cached_d_quals is not None
+            and hasattr(self.encoder, "backward_quals")
+            and hasattr(self.encoder, "update_quals")
+            and self._cached_edge_vecs is not None
+        ):
             _qb, _qe = _d_base_edge, _d_eff_cached
             if _qb is not None and _qe is not None:
                 for _i, _vec in enumerate(self._cached_edge_vecs):
                     _ql = self.encoder.forward_quals(np.asarray(_vec))
-                    _dm = {k: self._cached_d_quals[k][_i]
-                           for k in self._cached_d_quals
-                           if len(self._cached_d_quals[k]) > _i}
+                    _dm = {
+                        k: self._cached_d_quals[k][_i]
+                        for k in self._cached_d_quals
+                        if len(self._cached_d_quals[k]) > _i
+                    }
                     if not _dm:
                         continue
                     _gq, _dxq = self.encoder.backward_quals(_dm)
                     self.encoder.update_quals(_gq, lr)
-                    if (self._cached_edge_pairs is not None
-                            and _i < len(self._cached_edge_pairs)
-                            and _dxq):
+                    if (
+                        self._cached_edge_pairs is not None
+                        and _i < len(self._cached_edge_pairs)
+                        and _dxq
+                    ):
                         _s, _d = self._cached_edge_pairs[_i]
                         for _dxv in _dxq.values():
                             _dxa = np.asarray(_dxv)
                             if _dxa.shape[0] >= _qb + 2 * _qe:
-                                d_enriched[_s] += _dxa[_qb:_qb + _qe]
-                                d_enriched[_d] += _dxa[_qb + _qe:_qb + 2 * _qe]
+                                d_enriched[_s] += _dxa[_qb : _qb + _qe]
+                                d_enriched[_d] += _dxa[_qb + _qe : _qb + 2 * _qe]
             self._cached_d_quals = None
 
         # --- Décodeur backward + update (sans couplage vers d_enriched — P3e) ---
-        if (self.decoder is not None
-                and self._cached_decode_gradient is not None
-                and hasattr(self.decoder, 'backward_decode')):
+        if (
+            self.decoder is not None
+            and self._cached_decode_gradient is not None
+            and hasattr(self.decoder, "backward_decode")
+        ):
             # P2d: backward_decode retourne (d_node_embs, dec_grads, d_attn_vec)
             d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(
                 self._cached_decode_gradient
             )
             self.decoder.update(dec_grads, d_attn_vec, lr)
             # S11 : propager le gradient décodeur vers le R-GCN
-            if (d_node_embs is not None
-                    and d_enriched is not None
-                    and d_node_embs.shape == d_enriched.shape):
+            if (
+                d_node_embs is not None
+                and d_enriched is not None
+                and d_node_embs.shape == d_enriched.shape
+            ):
                 d_enriched += d_node_embs
 
         # --- Rétropropagation R-GCN (S5 : boucle sur _graph_layers en ordre inverse) ---
@@ -1473,11 +1692,11 @@ class CGNPipeline:
         # V3 fix : d_curr initialisé AVANT le if — 1 clause (edge_index=None) laisserait
         # d_curr indéfini si initialisé à l'intérieur → UnboundLocalError.
         d_curr = d_enriched
-        if (self._cached_edge_index is not None
-                and self._cached_enriched_vecs is not None):
+        if self._cached_edge_index is not None and self._cached_enriched_vecs is not None:
             import warnings as _w2
+
             for _layer in reversed(self._graph_layers):
-                if hasattr(_layer, 'backward_message_pass'):
+                if hasattr(_layer, "backward_message_pass"):
                     d_input, graph_grads = _layer.backward_message_pass(d_curr)
                     # E3 : gradient identité du résidu
                     if self.gat_residual and d_input.shape == d_curr.shape:
@@ -1486,14 +1705,17 @@ class CGNPipeline:
                         d_curr = d_input
                     if weight_decay > 0.0:
                         params = _layer.parameters()
-                        graph_grads = [g + weight_decay * p for g, p in zip(graph_grads, params, strict=False)]
+                        graph_grads = [
+                            g + weight_decay * p for g, p in zip(graph_grads, params, strict=False)
+                        ]
                     _layer.update(graph_grads, lr)
                 else:
                     _w2.warn(
                         f"CGNPipeline.backward() : {type(_layer).__name__} sans "
                         "backward_message_pass — poids R-GCN gelés par ce backward. "
                         "Utilisez torch_parameters() + optimizer PyTorch.",
-                        UserWarning, stacklevel=2,
+                        UserWarning,
+                        stacklevel=2,
                     )
 
         # --- Word embedding backward (S2 + routage A/B) ---
@@ -1502,10 +1724,12 @@ class CGNPipeline:
         # un alias vers d_enriched — comportement identique à l'original.
         # A/B : le gradient est routé vers tous les lemmes poolés (mean/max),
         # le root seul (root), et sujet/objet (B) via _cached_pool_routing.
-        if (self.word_embedding is not None
-                and self._cached_reps is not None
-                and d_curr is not None
-                and d_curr.shape[1] > self.vocabulary.d_clause):
+        if (
+            self.word_embedding is not None
+            and self._cached_reps is not None
+            and d_curr is not None
+            and d_curr.shape[1] > self.vocabulary.d_clause
+        ):
             self._backward_word_embedding(d_curr)
             self.word_embedding.update(lr)
 
@@ -1518,7 +1742,7 @@ class CGNPipeline:
         N'appelle PAS update() — l'appelant décide (SGD immédiat vs accumulé).
         """
         d_emb = self.word_embedding.d_emb
-        d_emb_full = d_curr[:, self.vocabulary.d_clause:]
+        d_emb_full = d_curr[:, self.vocabulary.d_clause :]
         if len(self._cached_reps) != len(d_emb_full):
             raise ValueError(
                 f"{caller} word_embedding : {len(d_emb_full)} gradients pour "
@@ -1527,17 +1751,17 @@ class CGNPipeline:
             )
         _routing = self._cached_pool_routing
         for i in range(len(self._cached_reps)):
-            _routes = (_routing[i] if _routing is not None and i < len(_routing)
-                       and _routing[i] else None)
+            _routes = (
+                _routing[i] if _routing is not None and i < len(_routing) and _routing[i] else None
+            )
             if _routes is None:
-                self.word_embedding.backward(
-                    d_emb_full[i, :d_emb], self._cached_reps[i].root_lemma)
+                self.word_embedding.backward(d_emb_full[i, :d_emb], self._cached_reps[i].root_lemma)
                 continue
-            for (lemma, offset, w) in _routes:
-                _g = d_emb_full[i, offset:offset + d_emb]
+            for lemma, offset, w in _routes:
+                _g = d_emb_full[i, offset : offset + d_emb]
                 if len(_g) < d_emb:  # garde : cache/forward désalignés
                     _pad = np.zeros(d_emb, dtype=np.float32)
-                    _pad[:len(_g)] = _g
+                    _pad[: len(_g)] = _g
                     _g = _pad
                 self.word_embedding.backward(_g * w, lemma)
 
@@ -1556,23 +1780,24 @@ class CGNPipeline:
             return
         _routing = self._cached_edge_routing
         _d_base = self._cached_d_edge_base
-        if (_routing is None or i >= len(_routing) or _d_base is None
-                or dx_i.shape[0] < _d_base):
+        if _routing is None or i >= len(_routing) or _d_base is None or dx_i.shape[0] < _d_base:
             import warnings as _w_eb
+
             _w_eb.warn(
                 f"{caller}() : gradient lexical edge non routé "
                 "(cache routing/base désaligné) — connecteur non mis à jour "
                 "sur cette arête.",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
             return
         _d_emb = self.word_embedding.d_emb
         _dx_base = dx_i[:_d_base]
-        for (_lemma, _off, _w) in _routing[i]:
-            _g = _dx_base[_off:_off + _d_emb]
+        for _lemma, _off, _w in _routing[i]:
+            _g = _dx_base[_off : _off + _d_emb]
             if len(_g) < _d_emb:  # garde : cache/forward désalignés
                 _pad = np.zeros(_d_emb, dtype=np.float32)
-                _pad[:len(_g)] = _g
+                _pad[: len(_g)] = _g
                 _g = _pad
             self.word_embedding.backward(_g * _w, _lemma)
 
@@ -1583,12 +1808,14 @@ class CGNPipeline:
         max_grad_norm: float | None = None,
     ) -> None:
         """S10 : accumule les gradients sans appeler update. Utiliser avec apply_accumulated_gradients()."""
-        if not hasattr(self.encoder, 'backward_node_dx'):
+        if not hasattr(self.encoder, "backward_node_dx"):
             import warnings as _w4
+
             _w4.warn(
                 "CGNPipeline.backward_accumulate() : encodeur sans backward_node_dx — "
                 "accumulation ignorée.",
-                UserWarning, stacklevel=2,
+                UserWarning,
+                stacklevel=2,
             )
             return
         if max_grad_norm is not None:
@@ -1600,9 +1827,11 @@ class CGNPipeline:
                 if _en > max_grad_norm:
                     d_edge_logits = d_edge_logits * (max_grad_norm / _en)
 
-        vecs = (self._cached_enriched_vecs
-                if self._cached_enriched_vecs is not None
-                else self._cached_clause_vecs)
+        vecs = (
+            self._cached_enriched_vecs
+            if self._cached_enriched_vecs is not None
+            else self._cached_clause_vecs
+        )
         if vecs is None or len(vecs) == 0:
             return
 
@@ -1614,13 +1843,12 @@ class CGNPipeline:
             )
         n = N
         _has_node_snap = (
-            hasattr(self.encoder, 'restore_node_cache')
+            hasattr(self.encoder, "restore_node_cache")
             and self._cached_node_snapshots is not None
             and len(self._cached_node_snapshots) >= n
         )
         _has_edge_snap = (
-            hasattr(self.encoder, 'restore_edge_cache')
-            and self._cached_edge_snapshots is not None
+            hasattr(self.encoder, "restore_edge_cache") and self._cached_edge_snapshots is not None
         )
 
         all_node_grads = None
@@ -1629,11 +1857,11 @@ class CGNPipeline:
             if _has_node_snap:
                 self.encoder.restore_node_cache(self._cached_node_snapshots[i])
             else:
-                _was_tr = getattr(self.encoder, 'training', False)
-                if _was_tr and hasattr(self.encoder, 'training'):
+                _was_tr = getattr(self.encoder, "training", False)
+                if _was_tr and hasattr(self.encoder, "training"):
                     self.encoder.training = False
                 self.encoder.forward_node(vecs[i])
-                if _was_tr and hasattr(self.encoder, 'training'):
+                if _was_tr and hasattr(self.encoder, "training"):
                     self.encoder.training = True
             grads_i, dx_i = self.encoder.backward_node_dx(d_node_logits[i])
             d_enriched[i] = dx_i
@@ -1644,11 +1872,14 @@ class CGNPipeline:
                     all_node_grads[j] = (all_node_grads[j][0] + dW_i, all_node_grads[j][1] + db_i)
 
         all_edge_grads = None
-        _has_edge_dx = hasattr(self.encoder, 'backward_edge_dx')
+        _has_edge_dx = hasattr(self.encoder, "backward_edge_dx")
         _d_base_edge = self._cached_d_edge_base
         _d_eff_cached = self._cached_d_eff
-        if (d_edge_logits is not None and len(d_edge_logits) > 0
-                and self._cached_edge_vecs is not None):
+        if (
+            d_edge_logits is not None
+            and len(d_edge_logits) > 0
+            and self._cached_edge_vecs is not None
+        ):
             if len(d_edge_logits) != len(self._cached_edge_vecs):
                 raise ValueError(
                     f"backward : {len(d_edge_logits)} gradients arêtes pour "
@@ -1660,28 +1891,35 @@ class CGNPipeline:
                 if _has_edge_snap and i < len(self._cached_edge_snapshots):
                     self.encoder.restore_edge_cache(self._cached_edge_snapshots[i])
                 else:
-                    _was_tr = getattr(self.encoder, 'training', False)
-                    if _was_tr and hasattr(self.encoder, 'training'):
+                    _was_tr = getattr(self.encoder, "training", False)
+                    if _was_tr and hasattr(self.encoder, "training"):
                         self.encoder.training = False
                     self.encoder.forward_edge(self._cached_edge_vecs[i])
-                    if _was_tr and hasattr(self.encoder, 'training'):
+                    if _was_tr and hasattr(self.encoder, "training"):
                         self.encoder.training = True
                 if _has_edge_dx:
                     grads_i, dx_i = self.encoder.backward_edge_dx(d_edge_logits[i])
-                    if (self._cached_edge_pairs is not None
-                            and i < len(self._cached_edge_pairs)
-                            and _d_base_edge is not None and _d_eff_cached is not None
-                            and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff_cached):
+                    if (
+                        self._cached_edge_pairs is not None
+                        and i < len(self._cached_edge_pairs)
+                        and _d_base_edge is not None
+                        and _d_eff_cached is not None
+                        and dx_i.shape[0] >= _d_base_edge + 2 * _d_eff_cached
+                    ):
                         src_i, dst_i = self._cached_edge_pairs[i]
-                        d_enriched[src_i] += dx_i[_d_base_edge:_d_base_edge + _d_eff_cached]
-                        d_enriched[dst_i] += dx_i[_d_base_edge + _d_eff_cached:_d_base_edge + 2 * _d_eff_cached]
+                        d_enriched[src_i] += dx_i[_d_base_edge : _d_base_edge + _d_eff_cached]
+                        d_enriched[dst_i] += dx_i[
+                            _d_base_edge + _d_eff_cached : _d_base_edge + 2 * _d_eff_cached
+                        ]
                     else:
                         # v5.6b : idem backward() — jamais silencieux.
                         import warnings as _w_dxa
+
                         _w_dxa.warn(
                             "backward_accumulate() : gradient edge→enriched non routé "
                             "(dims inattendues).",
-                            UserWarning, stacklevel=2,
+                            UserWarning,
+                            stacklevel=2,
                         )
                     # P1 : idem backward() — accumulation, update à l'apply.
                     self._backward_edge_base(i, dx_i, caller="backward_accumulate")
@@ -1691,7 +1929,10 @@ class CGNPipeline:
                     all_edge_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
                 else:
                     for j, (dW_i, db_i) in enumerate(grads_i):
-                        all_edge_grads[j] = (all_edge_grads[j][0] + dW_i, all_edge_grads[j][1] + db_i)
+                        all_edge_grads[j] = (
+                            all_edge_grads[j][0] + dW_i,
+                            all_edge_grads[j][1] + db_i,
+                        )
 
         # Accumulation (liste de tuples → somme)
         def _acc(existing, new):
@@ -1707,55 +1948,57 @@ class CGNPipeline:
         # v5.9 : têtes auxiliaires en accumulation (cf. backward()).
         # intent : découplée (poids seuls) ; sentence/quals : dx couplé à
         # d_enriched AVANT le backward R-GCN ci-dessous (miroir backward()).
-        if (self._cached_d_intent is not None
-                and hasattr(self.encoder, 'backward_intent')):
+        if self._cached_d_intent is not None and hasattr(self.encoder, "backward_intent"):
             _ig = self.encoder.backward_intent(self._cached_d_intent)
             self._accum_intent_grads = _acc(self._accum_intent_grads, _ig)
             self._cached_d_intent = None
-        if (self._cached_d_sentence is not None
-                and hasattr(self.encoder, 'backward_sentence')):
-            _sg, _sdx = self.encoder.backward_sentence(
-                np.asarray(self._cached_d_sentence)[0])
+        if self._cached_d_sentence is not None and hasattr(self.encoder, "backward_sentence"):
+            _sg, _sdx = self.encoder.backward_sentence(np.asarray(self._cached_d_sentence)[0])
             self._accum_sentence_grads = _acc(self._accum_sentence_grads, _sg)
             self._cached_d_sentence = None
             _n_cl = d_enriched.shape[0] if d_enriched is not None else 0
             if _n_cl > 0 and _sdx is not None and len(_sdx):
                 d_enriched += _sdx[0] / max(_n_cl, 1)
-        if (self._cached_d_quals is not None
-                and hasattr(self.encoder, 'backward_quals')
-                and self._cached_edge_vecs is not None):
+        if (
+            self._cached_d_quals is not None
+            and hasattr(self.encoder, "backward_quals")
+            and self._cached_edge_vecs is not None
+        ):
             _qb, _qe = _d_base_edge, _d_eff_cached
             if _qb is not None and _qe is not None:
                 for _i, _vec in enumerate(self._cached_edge_vecs):
                     _ql = self.encoder.forward_quals(np.asarray(_vec))
-                    _dm = {k: self._cached_d_quals[k][_i]
-                           for k in self._cached_d_quals
-                           if len(self._cached_d_quals[k]) > _i}
+                    _dm = {
+                        k: self._cached_d_quals[k][_i]
+                        for k in self._cached_d_quals
+                        if len(self._cached_d_quals[k]) > _i
+                    }
                     if not _dm:
                         continue
                     _gq, _dxq = self.encoder.backward_quals(_dm)
                     if self._accum_qual_grads is None:
                         self._accum_qual_grads = {
-                            k: [(dW.copy(), db.copy()) for dW, db in v]
-                            for k, v in _gq.items()}
+                            k: [(dW.copy(), db.copy()) for dW, db in v] for k, v in _gq.items()
+                        }
                     else:
                         for _k, _v in _gq.items():
                             _old = self._accum_qual_grads.get(_k)
                             if _old is None:
                                 self._accum_qual_grads[_k] = [
-                                    (dW.copy(), db.copy()) for dW, db in _v]
+                                    (dW.copy(), db.copy()) for dW, db in _v
+                                ]
                             else:
                                 self._accum_qual_grads[_k] = [
                                     (e[0] + n[0], e[1] + n[1])
-                                    for e, n in zip(_old, _v, strict=False)]
-                    if (self._cached_edge_pairs is not None
-                            and _i < len(self._cached_edge_pairs)):
+                                    for e, n in zip(_old, _v, strict=False)
+                                ]
+                    if self._cached_edge_pairs is not None and _i < len(self._cached_edge_pairs):
                         _s, _d = self._cached_edge_pairs[_i]
                         for _dxv in _dxq.values():
                             _dxa = np.asarray(_dxv)
                             if _dxa.shape[0] >= _qb + 2 * _qe:
-                                d_enriched[_s] += _dxa[_qb:_qb + _qe]
-                                d_enriched[_d] += _dxa[_qb + _qe:_qb + 2 * _qe]
+                                d_enriched[_s] += _dxa[_qb : _qb + _qe]
+                                d_enriched[_d] += _dxa[_qb + _qe : _qb + 2 * _qe]
             self._cached_d_quals = None
 
         # --- Décodeur backward accumulation (B3) ---
@@ -1763,9 +2006,11 @@ class CGNPipeline:
         # d_enriched doit recevoir la contribution décodeur avant que d_curr = d_enriched
         # soit capturé pour le backward RGCN (sinon le gradient décodeur ne remonte
         # pas jusqu'aux embeddings via d_curr, comme dans backward()).
-        if (self.decoder is not None
-                and self._cached_decode_gradient is not None
-                and hasattr(self.decoder, 'backward_decode')):
+        if (
+            self.decoder is not None
+            and self._cached_decode_gradient is not None
+            and hasattr(self.decoder, "backward_decode")
+        ):
             _d_node_embs, dec_grads, d_attn_vec = self.decoder.backward_decode(
                 self._cached_decode_gradient
             )
@@ -1780,20 +2025,21 @@ class CGNPipeline:
                     )
                 self._accum_dec_attn += d_attn_vec
             # S11 : propager gradient décodeur → enriched (batch) — miroir de backward()
-            if (_d_node_embs is not None
-                    and d_enriched is not None
-                    and _d_node_embs.shape == d_enriched.shape):
+            if (
+                _d_node_embs is not None
+                and d_enriched is not None
+                and _d_node_embs.shape == d_enriched.shape
+            ):
                 d_enriched += _d_node_embs
 
         # R-GCN gradients
         # V3 fix : d_curr initialisé AVANT le if — 1 clause (edge_index=None) laisserait
         # d_curr indéfini si initialisé à l'intérieur → UnboundLocalError.
         d_curr = d_enriched
-        if (self._cached_edge_index is not None
-                and self._cached_enriched_vecs is not None):
+        if self._cached_edge_index is not None and self._cached_enriched_vecs is not None:
             layer_grads_list = []
             for _layer in reversed(self._graph_layers):
-                if hasattr(_layer, 'backward_message_pass'):
+                if hasattr(_layer, "backward_message_pass"):
                     d_input, g = _layer.backward_message_pass(d_curr)
                     # E3 : gradient identité du résidu (miroir de backward())
                     if self.gat_residual and d_input.shape == d_curr.shape:
@@ -1802,36 +2048,42 @@ class CGNPipeline:
                         d_curr = d_input
                     layer_grads_list.append((_layer, g))
             if self._accum_rgcn_grads is None:
-                self._accum_rgcn_grads = [(lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list]
+                self._accum_rgcn_grads = [
+                    (lyr, [gg.copy() for gg in g]) for lyr, g in layer_grads_list
+                ]
             else:
-                for (_, acc_g), (_, new_g) in zip(self._accum_rgcn_grads, layer_grads_list, strict=False):
+                for (_, acc_g), (_, new_g) in zip(
+                    self._accum_rgcn_grads, layer_grads_list, strict=False
+                ):
                     for i in range(len(acc_g)):
                         acc_g[i] += new_g[i]
 
         # --- Word embedding backward accumulation (S2 + routage A/B) ---
         # V3 : utiliser d_curr (gradient post-R-GCN + décodeur), miroir de backward().
-        if (self.word_embedding is not None
-                and self._cached_reps is not None
-                and d_curr is not None
-                and d_curr.shape[1] > self.vocabulary.d_clause):
+        if (
+            self.word_embedding is not None
+            and self._cached_reps is not None
+            and d_curr is not None
+            and d_curr.shape[1] > self.vocabulary.d_clause
+        ):
             self._backward_word_embedding(d_curr, caller="backward_accumulate")
             # update() appelé dans apply_accumulated_gradients() avec normalisation
 
-    def apply_accumulated_gradients(self, lr: float, n_samples: int = 1, weight_decay: float = 0.0) -> None:
+    def apply_accumulated_gradients(
+        self, lr: float, n_samples: int = 1, weight_decay: float = 0.0
+    ) -> None:
         """S10 : applique les gradients accumulés normalisés par n_samples."""
         if not (np.isfinite(lr) and lr > 0):
             raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
         if not (np.isfinite(weight_decay) and weight_decay >= 0):
             raise ValueError(f"weight_decay doit être >= 0 et fini (reçu {weight_decay!r}).")
         if not isinstance(n_samples, (int, np.integer)) or int(n_samples) < 1:
-            raise ValueError(
-                f"n_samples doit être un entier >= 1 (reçu {n_samples!r})."
-            )
+            raise ValueError(f"n_samples doit être un entier >= 1 (reçu {n_samples!r}).")
         n_samples = int(n_samples)
-        if self._accum_node_grads is not None and hasattr(self.encoder, 'update_node'):
+        if self._accum_node_grads is not None and hasattr(self.encoder, "update_node"):
             norm = [(dW / n_samples, db / n_samples) for dW, db in self._accum_node_grads]
             self.encoder.update_node(norm, lr)
-        if self._accum_edge_grads is not None and hasattr(self.encoder, 'update_edge'):
+        if self._accum_edge_grads is not None and hasattr(self.encoder, "update_edge"):
             norm = [(dW / n_samples, db / n_samples) for dW, db in self._accum_edge_grads]
             self.encoder.update_edge(norm, lr)
         if self._accum_rgcn_grads is not None:
@@ -1846,21 +2098,22 @@ class CGNPipeline:
             norm_attn = self._accum_dec_attn / n_samples
             self.decoder.update(norm_grads, norm_attn, lr)
         # v5.9 : têtes auxiliaires accumulées — norme + update + reset.
-        if (self._accum_intent_grads is not None
-                and hasattr(self.encoder, 'update_intent')):
+        if self._accum_intent_grads is not None and hasattr(self.encoder, "update_intent"):
             self.encoder.update_intent(
-                [(dW / n_samples, db / n_samples)
-                 for dW, db in self._accum_intent_grads], lr)
-        if (self._accum_sentence_grads is not None
-                and hasattr(self.encoder, 'update_sentence')):
+                [(dW / n_samples, db / n_samples) for dW, db in self._accum_intent_grads], lr
+            )
+        if self._accum_sentence_grads is not None and hasattr(self.encoder, "update_sentence"):
             self.encoder.update_sentence(
-                [(dW / n_samples, db / n_samples)
-                 for dW, db in self._accum_sentence_grads], lr)
-        if (self._accum_qual_grads is not None
-                and hasattr(self.encoder, 'update_quals')):
+                [(dW / n_samples, db / n_samples) for dW, db in self._accum_sentence_grads], lr
+            )
+        if self._accum_qual_grads is not None and hasattr(self.encoder, "update_quals"):
             self.encoder.update_quals(
-                {k: [(dW / n_samples, db / n_samples) for dW, db in v]
-                 for k, v in self._accum_qual_grads.items()}, lr)
+                {
+                    k: [(dW / n_samples, db / n_samples) for dW, db in v]
+                    for k, v in self._accum_qual_grads.items()
+                },
+                lr,
+            )
         self._accum_intent_grads = None
         self._accum_sentence_grads = None
         self._accum_qual_grads = None
@@ -1884,12 +2137,12 @@ def _softmax(x: np.ndarray) -> np.ndarray:
 
 
 def _cross_entropy(
-    logits: np.ndarray,   # (N, C)
-    labels: np.ndarray,   # (N,) int
+    logits: np.ndarray,  # (N, C)
+    labels: np.ndarray,  # (N,) int
     class_weights: np.ndarray | None = None,  # (C,) float — poids par classe
     label_smoothing: float = 0.0,
     sample_weights: np.ndarray | None = None,  # (N,) float — poids par exemple (S-5)
-    logit_mask: np.ndarray | None = None,      # (C,) bool — True = classe active
+    logit_mask: np.ndarray | None = None,  # (C,) bool — True = classe active
 ) -> tuple[float, np.ndarray]:
     """Cross-entropie NumPy. Retourne (loss, d_logits) normalisés par N.
 
@@ -1910,8 +2163,7 @@ def _cross_entropy(
         return 0.0, np.zeros_like(logits)
     if len(labels) > 0 and int(labels.min()) < 0:
         raise ValueError(
-            f"Label négatif dans _cross_entropy : min={labels.min()} "
-            f"(sentinelle -1 non filtrée ?)"
+            f"Label négatif dans _cross_entropy : min={labels.min()} (sentinelle -1 non filtrée ?)"
         )
     if len(labels) > 0 and int(labels.max()) >= logits.shape[1]:
         raise ValueError(
@@ -1979,7 +2231,7 @@ def _detect_negation(src_rep, dst_rep, connector_rep) -> tuple[bool, str | None]
     for rep, site in ((src_rep, "src"), (dst_rep, "dst"), (connector_rep, None)):
         if rep is None:
             continue
-        if getattr(rep, 'is_negative', False):
+        if getattr(rep, "is_negative", False):
             return (True, site)
     return (False, None)
 
@@ -2001,7 +2253,7 @@ def _infer_scope(rep, scope_hints: dict) -> str:
 
 def _infer_origin(node_type: str, connector_rep, rep=None) -> str:
     """Dérive origin : hypothetical si mood conditionnel/subjonctif (S-3)."""
-    if rep is not None and getattr(rep, 'mood', '_absent') in ('Cnd', 'Sub'):
+    if rep is not None and getattr(rep, "mood", "_absent") in ("Cnd", "Sub"):
         return "hypothetical"
     if node_type == "condition" and connector_rep is None:
         return "inferred"
