@@ -1183,6 +1183,77 @@ pub struct TemporalLinkDto {
     pub index_delta: Option<i32>,
 }
 
+/// S1 — réponse cadrée WHY/WHAT (corps commun extrait d'`execute`).
+struct ScopedAnswer {
+    names: Vec<String>,
+    first: String,
+    links: Vec<LinkDto>,
+    blocked_by: Vec<LinkDto>,
+    match_scores: Vec<(String, u8)>,
+    fuzzy: bool,
+    total: usize,
+    caveats: Vec<Caveat>,
+}
+
+/// S1 — WHY (`reverse`) / WHAT sur contexte partagé : exacts (tous) > flous
+/// (≤ limite) > `Err(Ambiguous)` [D2] ; niées coupées [D1] ; filtre résultat
+/// (jamais de coupure) puis TOPK [Ph7/6b] ; caveats [Ph7b].
+fn scoped_why_what(
+    ctx: &pearl::GraphCtx<'_>,
+    label: &str,
+    ambiguity_limit: usize,
+    topk: Option<usize>,
+    filter: &LinkFilter,
+    reverse: bool,
+) -> Result<ScopedAnswer, BackendError> {
+    let scoped = if reverse {
+        pearl::why_scoped_ctx(ctx, label, &pearl::DefaultLabelSim, ambiguity_limit)
+    } else {
+        pearl::what_scoped_ctx(ctx, label, &pearl::DefaultLabelSim, ambiguity_limit)
+    }
+    .map_err(|candidates| BackendError::Ambiguous { candidates })?;
+    if scoped.matched.is_empty() {
+        return Err(BackendError::NodeNotFound(label.to_string()));
+    }
+    // P0-1 : agréger TOUS les matchs au lieu du premier seul.
+    let names: Vec<String> = scoped.matched.iter().map(|(t, _, _)| t.clone()).collect();
+    let first = names
+        .first()
+        .cloned()
+        .ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let raw: Vec<CausalLink> = scoped
+        .matched
+        .iter()
+        .flat_map(|(_, ls, _)| ls.iter().cloned())
+        .collect();
+    // Ph1 [D1] : niées coupées sur tous les matchs (triées, cf. pearl).
+    let blocked_by: Vec<LinkDto> = scoped
+        .matched
+        .iter()
+        .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ctx, l)))
+        .collect();
+    // Ph7 : filtre résultat (jamais de coupure), puis Ph6b TOPK.
+    let kept = filter_links_ctx(ctx, raw, filter);
+    let total = kept.len();
+    let links: Vec<LinkDto> = kept
+        .iter()
+        .take(topk.unwrap_or(usize::MAX))
+        .map(|l| link_to_dto(ctx, l))
+        .collect();
+    // Ph7b : caveats des chemins retenus.
+    let caveats = caveats_for_ctx(ctx, &endpoint_ids(&kept));
+    Ok(ScopedAnswer {
+        names,
+        first,
+        links,
+        blocked_by,
+        match_scores: scoped.match_scores,
+        fuzzy: scoped.fuzzy,
+        total,
+        caveats,
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1194,50 +1265,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             topk,
             filter,
         } => {
-            // Ph2 [D2] : exacts (tous) > flous (≤ limite) > Err(Ambiguous).
-            let scoped =
-                pearl::why_scoped_ctx(&ctx, label, &pearl::DefaultLabelSim, *ambiguity_limit)
-                    .map_err(|candidates| BackendError::Ambiguous { candidates })?;
-            if scoped.matched.is_empty() {
-                return Err(BackendError::NodeNotFound(label.clone()));
-            }
-            // P0-1 : agréger TOUS les matchs au lieu du premier seul.
-            let matched_targets: Vec<String> =
-                scoped.matched.iter().map(|(t, _, _)| t.clone()).collect();
-            let target = matched_targets
-                .first()
-                .cloned()
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let raw: Vec<CausalLink> = scoped
-                .matched
-                .iter()
-                .flat_map(|(_, ls, _)| ls.iter().cloned())
-                .collect();
-            // Ph1 [D1] : niées coupées sur tous les matchs (triées, cf. pearl).
-            let blocked_by: Vec<LinkDto> = scoped
-                .matched
-                .iter()
-                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(&ctx, l)))
-                .collect();
-            // Ph7 : filtre résultat (jamais de coupure), puis Ph6b TOPK.
-            let kept = filter_links_ctx(&ctx, raw, filter);
-            let total = kept.len();
-            let links: Vec<LinkDto> = kept
-                .iter()
-                .take(topk.unwrap_or(usize::MAX))
-                .map(|l| link_to_dto(&ctx, l))
-                .collect();
-            // Ph7b : caveats des chemins retenus.
-            let caveats = caveats_for_ctx(&ctx, &endpoint_ids(&kept));
+            let a = scoped_why_what(&ctx, label, *ambiguity_limit, *topk, filter, true)?;
             Ok(QueryResult::Causes {
-                target,
-                links,
-                matched_targets,
-                blocked_by,
-                match_scores: scoped.match_scores,
-                fuzzy: scoped.fuzzy,
-                total,
-                caveats,
+                target: a.first,
+                links: a.links,
+                matched_targets: a.names,
+                blocked_by: a.blocked_by,
+                match_scores: a.match_scores,
+                fuzzy: a.fuzzy,
+                total: a.total,
+                caveats: a.caveats,
             })
         }
 
@@ -1247,50 +1284,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             topk,
             filter,
         } => {
-            // Ph2 [D2] : voir bras WHY (propagation avant).
-            let scoped =
-                pearl::what_scoped_ctx(&ctx, label, &pearl::DefaultLabelSim, *ambiguity_limit)
-                    .map_err(|candidates| BackendError::Ambiguous { candidates })?;
-            if scoped.matched.is_empty() {
-                return Err(BackendError::NodeNotFound(label.clone()));
-            }
-            // P0-1 : agréger TOUS les matchs au lieu du premier seul.
-            let matched_sources: Vec<String> =
-                scoped.matched.iter().map(|(s, _, _)| s.clone()).collect();
-            let source = matched_sources
-                .first()
-                .cloned()
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let raw: Vec<CausalLink> = scoped
-                .matched
-                .iter()
-                .flat_map(|(_, ls, _)| ls.iter().cloned())
-                .collect();
-            // Ph1 [D1] : voir bras WHY.
-            let blocked_by: Vec<LinkDto> = scoped
-                .matched
-                .iter()
-                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(&ctx, l)))
-                .collect();
-            // Ph7 : voir bras WHY (filtre puis TOPK).
-            let kept = filter_links_ctx(&ctx, raw, filter);
-            let total = kept.len();
-            let links: Vec<LinkDto> = kept
-                .iter()
-                .take(topk.unwrap_or(usize::MAX))
-                .map(|l| link_to_dto(&ctx, l))
-                .collect();
-            // Ph7b : voir bras WHY.
-            let caveats = caveats_for_ctx(&ctx, &endpoint_ids(&kept));
+            let a = scoped_why_what(&ctx, label, *ambiguity_limit, *topk, filter, false)?;
             Ok(QueryResult::Effects {
-                source,
-                links,
-                matched_sources,
-                blocked_by,
-                match_scores: scoped.match_scores,
-                fuzzy: scoped.fuzzy,
-                total,
-                caveats,
+                source: a.first,
+                links: a.links,
+                matched_sources: a.names,
+                blocked_by: a.blocked_by,
+                match_scores: a.match_scores,
+                fuzzy: a.fuzzy,
+                total: a.total,
+                caveats: a.caveats,
             })
         }
 
