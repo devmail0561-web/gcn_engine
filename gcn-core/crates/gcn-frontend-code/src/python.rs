@@ -104,9 +104,8 @@ fn walk_block(
             info.label,
             report,
         );
-        let edge_rel = kind_info(Lang::Python, kind)
-            .map(|i| i.edge_type)
-            .unwrap_or(RelationType::ControlDependency);
+        let edge_rel =
+            kind_info(Lang::Python, kind).map_or(RelationType::ControlDependency, |i| i.edge_type);
 
         // Dispatch structurel sur la grammaire tree-sitter Python (pas de données lexicales) :
         // sélectionne la fonction de traversée selon la topologie de l'AST, pas le sens causal.
@@ -186,10 +185,7 @@ fn walk_try(
             "block" => body_ids.extend(walk_block(child, src, nodes, edges, next_id, report)),
             "except_clause" => {
                 let info = kind_info(Lang::Python, "except_clause");
-                let node_type = info
-                    .as_ref()
-                    .map(|i| i.node_type)
-                    .unwrap_or(NodeType::EtatLocal);
+                let node_type = info.as_ref().map_or(NodeType::EtatLocal, |i| i.node_type);
                 let except_id = emit_node(
                     child,
                     src,
@@ -199,9 +195,7 @@ fn walk_try(
                     info.map(|i| i.label).unwrap_or_default(),
                     report,
                 );
-                let edge_rel = info
-                    .map(|i| i.edge_type)
-                    .unwrap_or(RelationType::Concession);
+                let edge_rel = info.map_or(RelationType::Concession, |i| i.edge_type);
                 for hid in walk_body_of(child, src, nodes, edges, next_id, report) {
                     edges.push((except_id, hid, control_edge(edge_rel)));
                 }

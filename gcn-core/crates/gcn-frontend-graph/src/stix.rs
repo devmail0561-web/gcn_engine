@@ -56,13 +56,13 @@ pub fn parse_bundle_with_report(
             bundle
                 .get("type")
                 .and_then(|t| t.as_str())
-                .map(|s| s.to_string()),
+                .map(std::string::ToString::to_string),
         ));
     }
     let bundle_id = bundle
         .get("id")
         .and_then(|i| i.as_str())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
     let objects = bundle
         .get("objects")
         .and_then(|o| o.as_array())
@@ -182,13 +182,13 @@ fn stix_label(obj: &serde_json::Value, id: &str) -> String {
     let raw = obj
         .get("name")
         .and_then(|n| n.as_str())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .or_else(|| {
             obj.get("labels")
                 .and_then(|l| l.as_array())
                 .and_then(|arr| arr.first())
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
         })
         .unwrap_or_else(|| id.to_string());
     raw.trim().chars().take(128).collect()

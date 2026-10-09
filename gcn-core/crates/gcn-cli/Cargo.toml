@@ -24,3 +24,6 @@ gcn-verbalizer = { path = "../gcn-verbalizer", version = "4.0.0" }
 clap = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+[lints]
+workspace = true

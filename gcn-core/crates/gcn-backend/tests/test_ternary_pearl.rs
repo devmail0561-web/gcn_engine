@@ -43,7 +43,7 @@ fn edge(rel: RelationType, joint_id: Option<&str>, third: Option<TernaryThird>) 
             extracted_at: "2026-09-28T00:00:00Z".to_string(),
         }),
         derivation: None,
-        joint_group_id: joint_id.map(|s| s.to_string()),
+        joint_group_id: joint_id.map(std::string::ToString::to_string),
         third,
     }
 }

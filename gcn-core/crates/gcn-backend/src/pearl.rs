@@ -315,8 +315,7 @@ impl<'a> GraphCtx<'a> {
     pub(crate) fn node_label(&self, id: NodeId) -> String {
         self.nm
             .get(&id)
-            .map(|n| n.label.clone())
-            .unwrap_or_else(|| format!("node_{}", id.0))
+            .map_or_else(|| format!("node_{}", id.0), |n| n.label.clone())
     }
 }
 
@@ -524,9 +523,9 @@ fn dijkstra_path(
 fn path_cost(nm: &NodeMap, em: &EdgeMap, path: &[NodeId]) -> f32 {
     path.windows(2)
         .map(|w| {
-            em.get(&(w[0].0, w[1].0))
-                .map(|e| edge_cost(e.confidence * node_origin_weight(nm, w[0])))
-                .unwrap_or(f32::INFINITY)
+            em.get(&(w[0].0, w[1].0)).map_or(f32::INFINITY, |e| {
+                edge_cost(e.confidence * node_origin_weight(nm, w[0]))
+            })
         })
         .sum()
 }
@@ -888,12 +887,10 @@ fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<Cau
     em.get(&(src.0, dst.0)).map(|e| CausalLink {
         from_label: nm
             .get(&src)
-            .map(|n| n.label.clone())
-            .unwrap_or_else(|| format!("node_{}", src.0)),
+            .map_or_else(|| format!("node_{}", src.0), |n| n.label.clone()),
         to_label: nm
             .get(&dst)
-            .map(|n| n.label.clone())
-            .unwrap_or_else(|| format!("node_{}", dst.0)),
+            .map_or_else(|| format!("node_{}", dst.0), |n| n.label.clone()),
         from_id: src,
         to_id: dst,
         relation: e.relation,
@@ -992,7 +989,7 @@ pub fn origin_weight(origin: NodeOrigin) -> f32 {
 
 /// Poids d'origine d'un nœud par id (1.0 si nœud inconnu).
 fn node_origin_weight(nm: &NodeMap, id: NodeId) -> f32 {
-    nm.get(&id).map(|n| origin_weight(n.origin)).unwrap_or(1.0)
+    nm.get(&id).map_or(1.0, |n| origin_weight(n.origin))
 }
 
 /// Score SPOF étendu avec flag super_spof (Éq.12).
@@ -1142,8 +1139,7 @@ pub(crate) fn abduct_ctx(ctx: &GraphCtx<'_>, effect_id: NodeId) -> Vec<Abduction
                 if visited.insert(pred) {
                     let edge_conf = em
                         .get(&(pred_id.0, effect_id.0))
-                        .map(|e| e.confidence)
-                        .unwrap_or(0.5);
+                        .map_or(0.5, |e| e.confidence);
                     let new_path_conf = edge_conf;
                     queue.push_back((pred, 1, new_path_conf));
                     let score = new_path_conf / (1.0_f32 + 1.0_f32);
@@ -1153,8 +1149,7 @@ pub(crate) fn abduct_ctx(ctx: &GraphCtx<'_>, effect_id: NodeId) -> Vec<Abduction
                             label: node.label.clone(),
                             relation: em
                                 .get(&(pred_id.0, effect_id.0))
-                                .map(|e| e.relation)
-                                .unwrap_or(RelationType::Cause),
+                                .map_or(RelationType::Cause, |e| e.relation),
                             edge_confidence: edge_conf,
                             score,
                             depth: 1,
@@ -1175,10 +1170,7 @@ pub(crate) fn abduct_ctx(ctx: &GraphCtx<'_>, effect_id: NodeId) -> Vec<Abduction
                 continue;
             }
             if visited.insert(pred) {
-                let edge_conf = em
-                    .get(&(pred_id.0, cur_id.0))
-                    .map(|e| e.confidence)
-                    .unwrap_or(0.5);
+                let edge_conf = em.get(&(pred_id.0, cur_id.0)).map_or(0.5, |e| e.confidence);
                 let new_path_conf = path_conf.min(edge_conf);
                 let new_depth = depth + 1;
                 let score = new_path_conf / (1.0_f32 + new_depth as f32);
@@ -1188,8 +1180,7 @@ pub(crate) fn abduct_ctx(ctx: &GraphCtx<'_>, effect_id: NodeId) -> Vec<Abduction
                         label: node.label.clone(),
                         relation: em
                             .get(&(pred_id.0, g.g[ni].0))
-                            .map(|e| e.relation)
-                            .unwrap_or(RelationType::Cause),
+                            .map_or(RelationType::Cause, |e| e.relation),
                         edge_confidence: edge_conf,
                         score,
                         depth: new_depth,
@@ -1261,8 +1252,7 @@ pub(crate) fn chain_temporal_ctx(ctx: &GraphCtx<'_>, from: &str, to: &str) -> Te
                     let (gap_min, gap_max) = em
                         .get(&(l.from_id.0, l.to_id.0))
                         .and_then(|e| e.temporal_gap.as_ref())
-                        .map(|g| (g.min, g.max))
-                        .unwrap_or((None, None));
+                        .map_or((None, None), |g| (g.min, g.max));
                     let src_ti = idx_map.get(&l.from_id).copied().flatten();
                     let dst_ti = idx_map.get(&l.to_id).copied().flatten();
                     let index_delta = match (src_ti, dst_ti) {
@@ -1299,8 +1289,7 @@ pub fn node_label(ir: &CausalIR, id: NodeId) -> String {
     ir.nodes
         .iter()
         .find(|n| n.id == id)
-        .map(|n| n.label.clone())
-        .unwrap_or_else(|| format!("node_{}", id.0))
+        .map_or_else(|| format!("node_{}", id.0), |n| n.label.clone())
 }
 
 // ---------------------------------------------------------------------------

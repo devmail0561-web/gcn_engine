@@ -104,9 +104,8 @@ fn walk_block(
             info.label,
             report,
         );
-        let edge_rel = kind_info(Lang::Rust, kind)
-            .map(|i| i.edge_type)
-            .unwrap_or(RelationType::ControlDependency);
+        let edge_rel =
+            kind_info(Lang::Rust, kind).map_or(RelationType::ControlDependency, |i| i.edge_type);
 
         let body_ids = match kind {
             "if_expression" | "match_expression" => {

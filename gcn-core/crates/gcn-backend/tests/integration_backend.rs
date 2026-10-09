@@ -637,8 +637,7 @@ fn fix_c4_unique_effects_two_same_label_nodes_both_unique() {
         assert_eq!(
             unique_effects.len(),
             2,
-            "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {:?}",
-            unique_effects
+            "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {unique_effects:?}"
         );
         assert_eq!(
             unique_effects
@@ -669,8 +668,7 @@ fn fix_bug2_counterfactual_duplicate_labels() {
     if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
         assert!(
             unique_effects.contains(&"doublon".to_string()),
-            "doublon(id=2) est unique à trigger : {:?}",
-            unique_effects
+            "doublon(id=2) est unique à trigger : {unique_effects:?}"
         );
     } else {
         panic!("résultat inattendu");
@@ -910,7 +908,7 @@ fn spof_bridge_node_detected() {
             .find(|n| n.label == "B")
             .expect("B dans les résultats");
         // Supprimer B coupe A→B, A→C, B→C = 3 paires
-        assert_eq!(b.paths_cut, 3, "B coupe les 3 paires : {:?}", b);
+        assert_eq!(b.paths_cut, 3, "B coupe les 3 paires : {b:?}");
         // B est premier dans le classement (score maximal)
         assert_eq!(nodes[0].label, "B", "B doit être premier SPOF");
     } else {
@@ -1145,8 +1143,7 @@ fn explain_ranks_direct_cause_first() {
         let pos_b = labels.iter().position(|&l| l == "B");
         assert!(
             pos_a < pos_b,
-            "A (conf=0.9) doit précéder B (conf=0.5): {:?}",
-            labels
+            "A (conf=0.9) doit précéder B (conf=0.5): {labels:?}"
         );
     } else {
         panic!("résultat EXPLAIN inattendu");

@@ -67,7 +67,7 @@ pub fn detect_format(path: &Path) -> Result<DocFormat, ExtractError> {
     match path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
+        .map(str::to_lowercase)
         .as_deref()
     {
         Some("txt") | Some("md") | Some("markdown") => Ok(DocFormat::Txt),
@@ -435,7 +435,7 @@ pub fn split_sentences(text: &str) -> Vec<String> {
             // `…` seul (pas suivi de .!?) : frontière immédiate.
             let end = if c == '…' && j == i { i + 1 } else { j };
             let next = chars.get(end).copied();
-            let is_boundary = next.is_none() || next.is_some_and(|n| n.is_whitespace());
+            let is_boundary = next.is_none() || next.is_some_and(char::is_whitespace);
             if is_boundary && !is_decimal(&chars, i, end) && !is_abbreviation(&chars, start, i) {
                 let sentence: String = chars[start..end].iter().collect();
                 let trimmed = sentence.trim().to_string();

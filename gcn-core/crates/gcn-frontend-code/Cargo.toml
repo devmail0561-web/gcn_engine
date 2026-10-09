@@ -20,3 +20,6 @@ smallvec = { workspace = true }
 [dev-dependencies]
 serde_json = { workspace = true }
 gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "4.0.0" }
+
+[lints]
+workspace = true

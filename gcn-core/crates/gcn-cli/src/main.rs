@@ -168,7 +168,7 @@ fn detect_code_lang(path: &Path) -> Result<CodeLangArg, String> {
     match path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
+        .map(str::to_lowercase)
         .as_deref()
     {
         Some("py") => Ok(CodeLangArg::Py),

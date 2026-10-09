@@ -32,3 +32,12 @@ petgraph = "0.8"
 thiserror = "2.0"
 clap = { version = "4.6", features = ["derive", "env"] }
 smallvec = { version = "1.13", features = ["serde"] }
+
+# S5 audit — garde lints partagée (zéro comportement : micro-fixes mécaniques
+# uniquement). Le reste de pedantic (casts, docs FR, must_use, bras identiques
+# voulus) est volontairement exclu : bruit ou revue sémantique, voir CHANGELOG.
+[workspace.lints.clippy]
+uninlined_format_args = "warn"
+redundant_closure_for_method_calls = "warn"
+format_push_string = "warn"
+map_unwrap_or = "warn"

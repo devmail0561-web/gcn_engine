@@ -121,11 +121,11 @@ fn valid_method(v: &str) -> Result<String, BackendError> {
 fn valid_since(v: &str) -> Result<String, BackendError> {
     let b = v.as_bytes();
     let ok = b.len() >= 10
-        && b[0..4].iter().all(|c| c.is_ascii_digit())
+        && b[0..4].iter().all(u8::is_ascii_digit)
         && b[4] == b'-'
-        && b[5..7].iter().all(|c| c.is_ascii_digit())
+        && b[5..7].iter().all(u8::is_ascii_digit)
         && b[7] == b'-'
-        && b[8..10].iter().all(|c| c.is_ascii_digit());
+        && b[8..10].iter().all(u8::is_ascii_digit);
     if ok {
         Ok(v.to_string())
     } else {
@@ -708,13 +708,11 @@ impl Query {
             let end = input
                 .char_indices()
                 .nth(200)
-                .map(|(i, _)| i)
-                .unwrap_or(input.len());
+                .map_or(input.len(), |(i, _)| i);
             &input[..end]
         };
         Err(BackendError::QueryParseError(format!(
-            "unknown query '{}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, ASK, WHY-NOT, CENTRALITY, SPOF, DOUBTS, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE",
-            preview
+            "unknown query '{preview}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, ASK, WHY-NOT, CENTRALITY, SPOF, DOUBTS, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE"
         )))
     }
 }
@@ -1302,7 +1300,7 @@ fn execute_chain(
             .unwrap_or_default(),
         // Ph1 [D1] : rempli ssi coupure par négation (vide = vraiment aucun chemin).
         blocked_by: blocked.iter().map(|l| link_to_dto(ctx, l)).collect(),
-        path_confidence: best.map(|p| p.confidence).unwrap_or(0.0),
+        path_confidence: best.map_or(0.0, |p| p.confidence),
         // Chemins classés ssi TOPK > 1 (rang 1 = `links`).
         ranked_paths: if topk > 1 {
             paths
@@ -1335,11 +1333,7 @@ fn execute_intervene(
     let severed = filter_links_ctx(ctx, result.severed, filter);
     let effects = filter_links_ctx(ctx, result.effects, filter);
     // Ph7b : caveats de la cible + effets retenus.
-    let mut ids = vec![
-        pearl::find_best(ctx.ir, label)
-            .map(|n| n.id)
-            .unwrap_or(NodeId(0)),
-    ];
+    let mut ids = vec![pearl::find_best(ctx.ir, label).map_or(NodeId(0), |n| n.id)];
     ids.extend(endpoint_ids(&effects));
     let caveats = caveats_for_ctx(ctx, &ids);
     // Ph7d : cible irréversible → warning FIGÉ (effets calculés quand même).
@@ -1379,11 +1373,7 @@ fn execute_counterfactual(
         .filter(|u| gardes.contains(u))
         .collect();
     // Ph7b : caveats de la cible + effets retenus.
-    let mut ids = vec![
-        pearl::find_best(ctx.ir, label)
-            .map(|n| n.id)
-            .unwrap_or(NodeId(0)),
-    ];
+    let mut ids = vec![pearl::find_best(ctx.ir, label).map_or(NodeId(0), |n| n.id)];
     ids.extend(endpoint_ids(&actual));
     let caveats = caveats_for_ctx(ctx, &ids);
     Ok(QueryResult::CounterfactualDiff {
@@ -1936,23 +1926,19 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .filter(|(s, d, _)| *s == node.id || *d == node.id)
                 .map(|(s, d, e)| {
-                    let (method, version, doc, at) = e
-                        .provenance
-                        .as_ref()
-                        .map(|p| {
+                    let (method, version, doc, at) =
+                        e.provenance.as_ref().map_or((None, None, None, None), |p| {
                             (
                                 Some(method_name(p.extraction_method).to_string()),
                                 Some(p.model_version.clone()),
                                 p.doc_ref.clone(),
                                 Some(p.extracted_at.clone()),
                             )
-                        })
-                        .unwrap_or((None, None, None, None));
+                        });
                     let (span, kind) = e
                         .provenance
                         .as_ref()
-                        .map(|p| span_text_kind(ir, &p.span))
-                        .unwrap_or((None, None));
+                        .map_or((None, None), |p| span_text_kind(ir, &p.span));
                     ProvenanceEntryDto {
                         from: ctx.node_label(*s),
                         to: ctx.node_label(*d),
@@ -2187,7 +2173,7 @@ fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
 fn serde_name<T: serde::Serialize + std::fmt::Debug>(v: &T) -> String {
     serde_json::to_value(v)
         .ok()
-        .and_then(|j| j.as_str().map(|s| s.to_string()))
+        .and_then(|j| j.as_str().map(std::string::ToString::to_string))
         .unwrap_or_else(|| format!("{v:?}").to_lowercase())
 }
 
@@ -2270,19 +2256,17 @@ pub(crate) fn link_to_dto(ctx: &pearl::GraphCtx<'_>, l: &CausalLink) -> LinkDto 
             gcn_ir::CycleType::Oscillation => None,
         });
     // Ph7f : provenance (méthode, modèle, span) + explicite.
-    let (extraction_method, model_version) = edge
-        .and_then(|e| e.provenance.as_ref())
-        .map(|p| {
-            (
-                Some(method_name(p.extraction_method).to_string()),
-                Some(p.model_version.clone()),
-            )
-        })
-        .unwrap_or((None, None));
+    let (extraction_method, model_version) =
+        edge.and_then(|e| e.provenance.as_ref())
+            .map_or((None, None), |p| {
+                (
+                    Some(method_name(p.extraction_method).to_string()),
+                    Some(p.model_version.clone()),
+                )
+            });
     let (span, kind) = edge
         .and_then(|e| e.provenance.as_ref())
-        .map(|p| span_text_kind(ir, &p.span))
-        .unwrap_or((None, None));
+        .map_or((None, None), |p| span_text_kind(ir, &p.span));
     LinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),

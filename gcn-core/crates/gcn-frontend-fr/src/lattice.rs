@@ -49,8 +49,8 @@ fn tokenize_lattice(text: &str) -> Vec<String> {
             if core.contains('-') {
                 let parts: Vec<&str> = core.split('-').collect();
                 if parts.len() >= 2
-                    && parts.first().map(|s| s.chars().count()).unwrap_or(0) > 2
-                    && parts.last().map(|s| s.chars().count()).unwrap_or(99) <= 4
+                    && parts.first().map_or(0, |s| s.chars().count()) > 2
+                    && parts.last().map_or(99, |s| s.chars().count()) <= 4
                 {
                     for part in parts.iter() {
                         if !part.is_empty() {
@@ -67,10 +67,10 @@ fn tokenize_lattice(text: &str) -> Vec<String> {
             // "n'est" → ["n'", "est"], quel que soit le préfixe.
             if let Some(pos) = core.find(['\'', '\u{2019}']) {
                 let (pre, rest) = core.split_at(pos);
-                let apos_len = rest.chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+                let apos_len = rest.chars().next().map_or(1, char::len_utf8);
                 let after = &rest[apos_len..];
                 if !pre.is_empty() {
-                    out.push(format!("{}'", pre));
+                    out.push(format!("{pre}'"));
                 }
                 if !after.is_empty() {
                     out.push(after.to_string());
@@ -190,19 +190,19 @@ fn lemmatize_form(lower: &str) -> String {
         return format!("{}er", &lower[..lower.len() - end]);
     }
     if let Some(s) = lower.strip_suffix("ée") {
-        return format!("{}er", s);
+        return format!("{s}er");
     }
     if let Some(s) = lower.strip_suffix('é') {
-        return format!("{}er", s);
+        return format!("{s}er");
     }
     if let Some(s) = lower.strip_suffix("aient") {
-        return format!("{}er", s);
+        return format!("{s}er");
     }
     if let Some(s) = lower.strip_suffix("ait") {
-        return format!("{}er", s);
+        return format!("{s}er");
     }
     if let Some(s) = lower.strip_suffix("ais") {
-        return format!("{}er", s);
+        return format!("{s}er");
     }
     lower.to_string()
 }
@@ -634,7 +634,7 @@ mod tests {
             ["&[", "&str]"].concat(),
             ["phf:", ":"].concat(),
         ] {
-            assert!(!src.contains(&b), "table de mots interdite: {}", b);
+            assert!(!src.contains(&b), "table de mots interdite: {b}");
         }
     }
 }

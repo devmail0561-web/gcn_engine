@@ -37,8 +37,8 @@ fn tokenize_lattice(text: &str) -> Vec<String> {
             if core.contains('-') {
                 let parts: Vec<&str> = core.split('-').collect();
                 if parts.len() >= 2
-                    && parts.first().map(|s| s.chars().count()).unwrap_or(0) > 2
-                    && parts.last().map(|s| s.chars().count()).unwrap_or(99) <= 4
+                    && parts.first().map_or(0, |s| s.chars().count()) > 2
+                    && parts.last().map_or(99, |s| s.chars().count()) <= 4
                 {
                     for part in parts.iter() {
                         if !part.is_empty() {
@@ -96,10 +96,10 @@ fn lemmatize_form(lower: &str) -> String {
         return s.to_string();
     }
     if let Some(s) = lower.strip_suffix("ied") {
-        return format!("{}y", s);
+        return format!("{s}y");
     }
     if let Some(s) = lower.strip_suffix("ies") {
-        return format!("{}y", s);
+        return format!("{s}y");
     }
     // 3rd person singular -s ("reduces" → "reduce"). Applied only to
     // tokens already promoted to Verb by position (promote_s_verbs) —
@@ -521,7 +521,7 @@ mod tests {
             ["&[", "&str]"].concat(),
             ["phf:", ":"].concat(),
         ] {
-            assert!(!src.contains(&b), "forbidden word table: {}", b);
+            assert!(!src.contains(&b), "forbidden word table: {b}");
         }
     }
 }

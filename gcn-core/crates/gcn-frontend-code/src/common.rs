@@ -98,13 +98,11 @@ pub fn node_label(
         LabelStrategy::ConditionField => node
             .child_by_field_name("condition")
             .and_then(|c| c.utf8_text(src).ok())
-            .map(|s| truncate(s.trim()))
-            .unwrap_or_else(|| full_text_label(node, src)),
+            .map_or_else(|| full_text_label(node, src), |s| truncate(s.trim())),
         LabelStrategy::NameField => node
             .child_by_field_name("name")
             .and_then(|c| c.utf8_text(src).ok())
-            .map(|s| truncate(s.trim()))
-            .unwrap_or_else(|| full_text_label(node, src)),
+            .map_or_else(|| full_text_label(node, src), |s| truncate(s.trim())),
         LabelStrategy::FullText => full_text_label(node, src),
     }
 }

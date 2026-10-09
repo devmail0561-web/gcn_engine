@@ -8,6 +8,8 @@
 //! qui ne MENT jamais — constat + miettes réelles + suggestions.
 //! Voie noble = décodeur appris (`decode`) quand il fonctionne.
 
+use std::fmt::Write as _;
+
 /// Statut de l'enveloppe always-answer : ok | partiel | degrade.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -75,7 +77,7 @@ pub fn say(_status: Status, lang: &str, kind: &SpeechKind) -> String {
             }
             let mut s = format!("{} : {}.", head, join_items(items));
             if *extra > 0 {
-                s.push_str(&format!(" Et {extra} autres."));
+                let _ = write!(s, " Et {extra} autres.");
             }
             s
         }
@@ -93,7 +95,7 @@ pub fn say(_status: Status, lang: &str, kind: &SpeechKind) -> String {
                 join_items(candidates)
             );
             if *more > 0 {
-                s.push_str(&format!(" Et {more} autres."));
+                let _ = write!(s, " Et {more} autres.");
             }
             s
         }
@@ -130,7 +132,7 @@ pub fn say(_status: Status, lang: &str, kind: &SpeechKind) -> String {
         SpeechKind::BadQuery { hint } => {
             let mut s = String::from("Requête incomprise.");
             if let Some(h) = hint {
-                s.push_str(&format!(" {h}"));
+                let _ = write!(s, " {h}");
             }
             s.push_str(" Requêtes valides : WHY <mot>, WHAT <mot>, CHAIN <a> -> <b>, DO <mot>.");
             s

@@ -104,9 +104,8 @@ fn walk_block(
             info.label,
             report,
         );
-        let edge_rel = kind_info(Lang::Js, kind)
-            .map(|i| i.edge_type)
-            .unwrap_or(RelationType::ControlDependency);
+        let edge_rel =
+            kind_info(Lang::Js, kind).map_or(RelationType::ControlDependency, |i| i.edge_type);
 
         let body_ids = match kind {
             "if_statement" => walk_if(child, src, nodes, edges, next_id, report),
@@ -172,10 +171,7 @@ fn walk_try(
             }
             "catch_clause" => {
                 let info = kind_info(Lang::Js, "catch_clause");
-                let node_type = info
-                    .as_ref()
-                    .map(|i| i.node_type)
-                    .unwrap_or(NodeType::EtatLocal);
+                let node_type = info.as_ref().map_or(NodeType::EtatLocal, |i| i.node_type);
                 let catch_id = emit_node(
                     child,
                     src,
@@ -185,9 +181,7 @@ fn walk_try(
                     info.map(|i| i.label).unwrap_or_default(),
                     report,
                 );
-                let edge_rel = info
-                    .map(|i| i.edge_type)
-                    .unwrap_or(RelationType::Concession);
+                let edge_rel = info.map_or(RelationType::Concession, |i| i.edge_type);
                 for hid in walk_body_of(child, src, nodes, edges, next_id, report) {
                     edges.push((catch_id, hid, control_edge(edge_rel)));
                 }

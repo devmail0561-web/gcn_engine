@@ -3,6 +3,8 @@
 
 use gcn_ir::CausalIR;
 
+use std::fmt::Write as _;
+
 use crate::error::BackendError;
 
 pub fn to_json(ir: &CausalIR) -> Result<String, BackendError> {
@@ -24,12 +26,13 @@ pub fn to_dot(ir: &CausalIR) -> Result<String, BackendError> {
         // Même cohérence serde que pour les relations (§2.11).
         let node_type = serde_json::to_value(node.node_type)
             .ok()
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_else(|| format!("{:?}", node.node_type).to_lowercase());
-        out.push_str(&format!(
-            "  n{} [label=\"{}\", shape={}, tooltip=\"{}\"];\n",
+        let _ = writeln!(
+            out,
+            "  n{} [label=\"{}\", shape={}, tooltip=\"{}\"];",
             node.id.0, label, shape, node_type
-        ));
+        );
     }
 
     out.push('\n');
@@ -39,15 +42,16 @@ pub fn to_dot(ir: &CausalIR) -> Result<String, BackendError> {
         // pas Debug PascalCase — le DOT reste parsable avec les mêmes règles que le JSON.
         let rel = serde_json::to_value(edge.relation)
             .ok()
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_else(|| format!("{:?}", edge.relation).to_lowercase());
         let color = edge_color(edge);
         let style = if edge.negated { "dashed" } else { "solid" };
         let conf = format!("{:.2}", edge.confidence);
-        out.push_str(&format!(
-            "  n{} -> n{} [label=\"{} ({})\" color=\"{}\" style=\"{}\"];\n",
+        let _ = writeln!(
+            out,
+            "  n{} -> n{} [label=\"{} ({})\" color=\"{}\" style=\"{}\"];",
             src.0, dst.0, rel, conf, color, style
-        ));
+        );
     }
 
     out.push_str("}\n");

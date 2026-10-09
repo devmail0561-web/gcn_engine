@@ -14,3 +14,6 @@ serde = { workspace = true }
 [dev-dependencies]
 gcn-ir = { path = "../gcn-ir", version = "4.0.0" }
 gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "4.0.0" }
+
+[lints]
+workspace = true

@@ -10,6 +10,7 @@
 //! Batch/CI : la CLI sort non-zéro sur degrade (contrat batch préservé).
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 
 use gcn_ir::CausalIR;
 use gcn_verbalizer::fallback::{SpeechKind, Status, say};
@@ -431,10 +432,11 @@ fn ok_result(ir: &CausalIR, result: QueryResult) -> UserResponse {
         } => {
             let mut head = format!("Causes de {target}");
             if !blocked_by.is_empty() {
-                head.push_str(&format!(
+                let _ = write!(
+                    head,
                     " ({} liaison(s) niée(s) écartée(s))",
                     blocked_by.len()
-                ));
+                );
             }
             let status = if fuzzy || !blocked_by.is_empty() {
                 Status::Partiel
@@ -473,10 +475,11 @@ fn ok_result(ir: &CausalIR, result: QueryResult) -> UserResponse {
         } => {
             let mut head = format!("Effets de {source}");
             if !blocked_by.is_empty() {
-                head.push_str(&format!(
+                let _ = write!(
+                    head,
                     " ({} liaison(s) niée(s) écartée(s))",
                     blocked_by.len()
-                ));
+                );
             }
             let status = if fuzzy || !blocked_by.is_empty() {
                 Status::Partiel
@@ -707,10 +710,7 @@ fn generic_ok(result: QueryResult) -> UserResponse {
             let mut head =
                 format!("Intervention sur {target} : {severed_count} cause(s) coupée(s)");
             if !blocked_by.is_empty() {
-                head.push_str(&format!(
-                    " ({} niée(s) en aval écartée(s))",
-                    blocked_by.len()
-                ));
+                let _ = write!(head, " ({} niée(s) en aval écartée(s))", blocked_by.len());
             }
             // Ph7d : cible irréversible — annoncé, effets calculés quand même.
             if warnings.iter().any(|w| w == "irreversible") {
@@ -786,13 +786,14 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                     .map(|h| h.label.clone())
                     .collect();
                 if dist.is_empty() {
-                    head.push_str(&format!(" — rien de distinctif vs {}", c.alternative));
+                    let _ = write!(head, " — rien de distinctif vs {}", c.alternative);
                 } else {
-                    head.push_str(&format!(
+                    let _ = write!(
+                        head,
                         " — distinctif vs {} : {}",
                         c.alternative,
                         dist.join(", ")
-                    ));
+                    );
                 }
             }
             let items: Vec<String> = hypotheses
