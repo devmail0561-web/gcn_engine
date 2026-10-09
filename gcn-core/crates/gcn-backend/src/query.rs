@@ -1254,6 +1254,73 @@ fn scoped_why_what(
     })
 }
 
+/// S1 — CHAIN sur contexte partagé : nœuds manquants → `NodeNotFound`,
+/// jusqu'à `topk` chemins confiance-max [D3], filtre résultat tout-ou-rien
+/// [Ph7], caveats du meilleur [Ph7b], `blocked_by` ssi coupure [D1].
+fn execute_chain(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+    topk: usize,
+    filter: &LinkFilter,
+) -> Result<QueryResult, BackendError> {
+    // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
+    if pearl::find_best(ctx.ir, from).is_none() {
+        return Err(BackendError::NodeNotFound(from.to_string()));
+    }
+    if pearl::find_best(ctx.ir, to).is_none() {
+        return Err(BackendError::NodeNotFound(to.to_string()));
+    }
+    // Ph3 [D3] : jusqu'à `topk` chemins confiance-max (Dijkstra + Yen).
+    let (paths, blocked) = pearl::chain_topk_ctx(ctx, from, to, topk);
+    // Ph7 : filtre résultat — chemin écarté si un lien ne passe pas
+    // (le chemin n'est valide que d'un bloc ; pas de coupure).
+    let paths: Vec<pearl::ScoredPath> = paths
+        .into_iter()
+        .filter(|p| filter_links_ctx(ctx, p.links.clone(), filter).len() == p.links.len())
+        .collect();
+    let found = !paths.is_empty();
+    let best = paths.first();
+    // Ph7b : caveats du meilleur chemin retenu (ctx, pas de rebuild — cf. M4).
+    let caveats = best
+        .map(|p| {
+            caveats_for_ctx(
+                ctx,
+                &p.links
+                    .iter()
+                    .flat_map(|l| [l.from_id, l.to_id])
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .unwrap_or_default();
+    Ok(QueryResult::Path {
+        from: from.to_string(),
+        to: to.to_string(),
+        found,
+        links: best
+            .map(|p| p.links.iter().map(|l| link_to_dto(ctx, l)).collect())
+            .unwrap_or_default(),
+        // Ph1 [D1] : rempli ssi coupure par négation (vide = vraiment aucun chemin).
+        blocked_by: blocked.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        path_confidence: best.map(|p| p.confidence).unwrap_or(0.0),
+        // Chemins classés ssi TOPK > 1 (rang 1 = `links`).
+        ranked_paths: if topk > 1 {
+            paths
+                .iter()
+                .enumerate()
+                .map(|(i, p)| RankedPathDto {
+                    rank: i + 1,
+                    path_confidence: p.confidence,
+                    links: p.links.iter().map(|l| link_to_dto(ctx, l)).collect(),
+                })
+                .collect()
+        } else {
+            vec![]
+        },
+        caveats,
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1302,63 +1369,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             to,
             topk,
             filter,
-        } => {
-            // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
-            if pearl::find_best(ctx.ir, from).is_none() {
-                return Err(BackendError::NodeNotFound(from.clone()));
-            }
-            if pearl::find_best(ctx.ir, to).is_none() {
-                return Err(BackendError::NodeNotFound(to.clone()));
-            }
-            // Ph3 [D3] : jusqu'à `topk` chemins confiance-max (Dijkstra + Yen).
-            let (paths, blocked) = pearl::chain_topk_ctx(&ctx, from, to, *topk);
-            // Ph7 : filtre résultat — chemin écarté si un lien ne passe pas
-            // (le chemin n'est valide que d'un bloc ; pas de coupure).
-            let paths: Vec<pearl::ScoredPath> = paths
-                .into_iter()
-                .filter(|p| filter_links_ctx(&ctx, p.links.clone(), filter).len() == p.links.len())
-                .collect();
-            let found = !paths.is_empty();
-            let best = paths.first();
-            // Ph7b : caveats du meilleur chemin retenu.
-            let caveats = best
-                .map(|p| {
-                    caveats_for(
-                        ir,
-                        &p.links
-                            .iter()
-                            .flat_map(|l| [l.from_id, l.to_id])
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .unwrap_or_default();
-            Ok(QueryResult::Path {
-                from: from.clone(),
-                to: to.clone(),
-                found,
-                links: best
-                    .map(|p| p.links.iter().map(|l| link_to_dto(&ctx, l)).collect())
-                    .unwrap_or_default(),
-                // Ph1 [D1] : rempli ssi coupure par négation (vide = vraiment aucun chemin).
-                blocked_by: blocked.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                path_confidence: best.map(|p| p.confidence).unwrap_or(0.0),
-                // Chemins classés ssi TOPK > 1 (rang 1 = `links`).
-                ranked_paths: if *topk > 1 {
-                    paths
-                        .iter()
-                        .enumerate()
-                        .map(|(i, p)| RankedPathDto {
-                            rank: i + 1,
-                            path_confidence: p.confidence,
-                            links: p.links.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                        })
-                        .collect()
-                } else {
-                    vec![]
-                },
-                caveats,
-            })
-        }
+        } => execute_chain(&ctx, from, to, *topk, filter),
 
         Query::Cycles => Ok(QueryResult::CycleList {
             count: ir.cycles.len(),
