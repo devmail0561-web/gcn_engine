@@ -7,6 +7,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Fix F2 audit — save/detect asymétrie R4 (2026-10-09)
+
+- **Cause racine des 11 échecs pré-existants** : `save_checkpoint` n'écrivait jamais `format_refacto`, donc le détecteur classait ses propres sorties en legacy-UD et `run_eval` (R4, `allow_legacy=False`) les refusait toutes (`LegacyUDError`).
+- **Fix** : `save_checkpoint` écrit `format_refacto=20261007` (constante `FORMAT_REFACTO` partagée). Détecteur inchangé : les vrais legacy (sans marqueur) restent refusés.
+- **Vert Python : 855 passés, 3 xfailed, 0 échoué** (11 pré-existants résorbés, aucune régression).
+
 ### Lot A — démarrage refacto-2026-10 (2026-10-08, branche `refacto/arch-cible-refacto-2026-10`)
 
 - **Baselines (I2, `docs/refactory/baselines-2026-10-08.md`, local)** : `cargo test -p gcn-backend` 67 passés / 4,2 s ; supervision 351 M, models 56 M, checkpoints 253 M ; Python 3.11.9, rustc 1.98.0, **pas de GPU local** (S4-opt impossible, reste exclu). `val_edge_f1` : réfs contradictoires (0.468 vs 0.1867, harnais distincts) — re-mesure sur harnais unique au slice/socle ; ECE différée à la gate Ph5.

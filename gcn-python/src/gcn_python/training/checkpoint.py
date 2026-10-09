@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from ..layer1.features import FeatureVocabulary
+from ..layer1.tok_embedding import FORMAT_REFACTO
 from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
 
@@ -189,6 +190,10 @@ def save_checkpoint(pipeline: CGNPipeline, path: Path) -> None:
         "training_timestamp": getattr(pipeline, 'training_timestamp', None),
     }
     arrays["_arch_json"] = np.array([json.dumps(arch)], dtype=object)
+    # R4 : marquer le format refacto — sans lui, le détecteur
+    # (checkpoint_format_kind) classe nos propres sorties en legacy-UD
+    # et run_eval les refuse (save/detect asymétrie).
+    arrays["format_refacto"] = np.array([FORMAT_REFACTO])
 
     encoder_params = pipeline.encoder.parameters()
     for i, p in enumerate(encoder_params):
