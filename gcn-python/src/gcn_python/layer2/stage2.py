@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..security import guarded_np_load
+
 N_FEATURES = 36
 N_CLASSES = 12
 REJECT_LABEL = 11
@@ -165,7 +167,8 @@ class Stage2Classifier:
     @classmethod
     def load(cls, path: str) -> tuple["Stage2Classifier", dict]:
         import json as _json
-        data = np.load(path, allow_pickle=True)
+        # F1 audit : pickle audité (prov = object array) via la garde centrale.
+        data = guarded_np_load(path)
         obj = cls(hidden=int(data["hidden"][0]), seed=int(data["seed"][0]))
         obj.W1 = data["W1"].astype(np.float32)
         obj.b1 = data["b1"].astype(np.float32)
