@@ -117,6 +117,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (8 gold + 4 enveloppes verts)** : fiche, TOPK+total, 3 verdicts WHY-NOT, contraste, HOPS, D3, parsing/erreurs. 2 bugs trouvés : double-découpe suffixes (panic fuzz → corrigé), groupe joint singleton (fixture → groupe valide). **Vert workspace : 240 passés, 0 échoué, clippy 0, fmt propre.**
 - **README crate** : requêtes + DTOs 6b documentés.
 
+### Backend Phase 7 — gisement CIR (2026-10-08, 7c enterré : NO-GO Ph5)
+
+- **7a gaps + cycles** : concession/opposition BLOQUEUSES (même `blocked_by`, motif `causal_gap`) ; `damped`/`amplifying` sur liens + `CycleDto.effect` ; CHAIN_T rejette l'oscillation sans phase.
+- **7b origine** : ranking × poids FIGÉS (1.0/0.7/0.3, D-ORIG : 9a côté session) ; `origin` sur liens ; `caveats` systématiques (hypothétiques, ambiguïtés, portées) ; `DOUBTS`.
+- **7f provenance** : méthode/modèle/span/kind sur liens (+ `explicit`) ; filtres `ONLY_EXPLICIT`/`METHOD=`/`SINCE=` (+ `SCOPE=`/`AGENT=` parsés, appliqués en 7d/7e) ; `PROVENANCE` (fiche : qui/quand/comment/span).
+- **7d agents** : `irreversible` FIGÉ (effets calculés) ; `agent`/`patient`/`agent_type` ; `AGENT=` ; EXPLAIN `by_agent` ; `AgentType::System` ajouté (le système lui-même — les 4 valeurs ne suffisaient pas ; `Natural` = forces/phénomènes).
+- **7e scope** : Null BLOQUEUR (`null_scope`, règle dst) ; `witness_only` + exclu des agrégats ; `WHERE scope=` (+ mot-clé `WHERE`).
+- **Tests (3 + 4 + 2 + 3 + 4 gold verts)** + 3 snapshots régénérés (diff additif revu). **Vert workspace : 257 passés, 0 échoué, clippy 0, fmt propre.**
+- **README crate** : requêtes/filtres/DTOs Ph7 + note agent_type (champ vide aujourd'hui → attribution gold-3000 requise).
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

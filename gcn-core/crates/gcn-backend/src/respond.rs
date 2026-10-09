@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::BackendError;
 use crate::pearl::{self, SPOF_MAX_NODES};
-use crate::query::{LinkDto, Query, QueryResult, execute};
+use crate::query::{Caveat, LinkDto, Query, QueryResult, execute};
 
 /// Enveloppe always-answer (Ph8) : contrat d'échange versionné (pont M1).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -407,6 +407,14 @@ fn no_path(
     }
 }
 
+/// Ph7b — caveats structurés → lignes d'avertissement (nœud — indice).
+fn caveat_strings(caveats: &[Caveat]) -> Vec<String> {
+    caveats
+        .iter()
+        .map(|c| format!("{} — {}", c.node, c.hint))
+        .collect()
+}
+
 fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse {
     match result {
         QueryResult::Causes {
@@ -417,6 +425,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             match_scores,
             fuzzy,
             total,
+            caveats,
         } => {
             let mut head = format!("Causes de {target}");
             if !blocked_by.is_empty() {
@@ -434,7 +443,8 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             if fuzzy {
                 suggestions.push("Match approximatif : précisez avec le label exact.".to_string());
             }
-            let resp = answer(status, head, &links, suggestions);
+            let mut resp = answer(status, head, &links, suggestions);
+            resp.caveats = caveat_strings(&caveats);
             with_result(
                 resp,
                 QueryResult::Causes {
@@ -445,6 +455,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     match_scores,
                     fuzzy,
                     total,
+                    caveats,
                 },
             )
         }
@@ -456,6 +467,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             match_scores,
             fuzzy,
             total,
+            caveats,
         } => {
             let mut head = format!("Effets de {source}");
             if !blocked_by.is_empty() {
@@ -469,7 +481,8 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             } else {
                 Status::Ok
             };
-            let resp = answer(status, head, &links, vec![format!("WHY {source}")]);
+            let mut resp = answer(status, head, &links, vec![format!("WHY {source}")]);
+            resp.caveats = caveat_strings(&caveats);
             with_result(
                 resp,
                 QueryResult::Effects {
@@ -480,6 +493,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     match_scores,
                     fuzzy,
                     total,
+                    caveats,
                 },
             )
         }
@@ -491,6 +505,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             blocked_by,
             path_confidence,
             ranked_paths,
+            caveats,
         } => {
             if !found {
                 let proches = proches(ir, &from, &to);
@@ -502,11 +517,13 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     blocked_by: blocked_by.clone(),
                     path_confidence,
                     ranked_paths,
+                    caveats: caveats.clone(),
                 };
                 return no_path(&from, &to, blocked_by, proches, Some(snapshot));
             }
             let head = format!("Chemin de {from} vers {to} (confiance {path_confidence:.2})");
-            let resp = answer(Status::Ok, head, &links, vec![format!("WHY {to}")]);
+            let mut resp = answer(Status::Ok, head, &links, vec![format!("WHY {to}")]);
+            resp.caveats = caveat_strings(&caveats);
             with_result(
                 resp,
                 QueryResult::Path {
@@ -517,6 +534,7 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
                     blocked_by,
                     path_confidence,
                     ranked_paths,
+                    caveats,
                 },
             )
         }
@@ -647,6 +665,27 @@ fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse
             }
             no_path(&from, &to, vec![], proches, Some(snapshot))
         }
+        QueryResult::Doubts { count, doubts } => {
+            // Ph7b : liste brute — phrase factuelle + labels en suggestions.
+            let head = if count == 0 {
+                "Aucun doute enregistré.".to_string()
+            } else {
+                format!("{count} doute(s) enregistré(s)")
+            };
+            let items: Vec<String> = doubts
+                .iter()
+                .take(MAX_ITEMS)
+                .map(|d| format!("{} ({})", d.node, d.field))
+                .collect();
+            let extra = doubts.len().saturating_sub(items.len());
+            let suggestions: Vec<String> = doubts
+                .iter()
+                .take(MAX_ITEMS)
+                .map(|d| format!("WHY {}", d.node))
+                .collect();
+            let resp = answer_items(Status::Ok, head, items, extra, suggestions);
+            with_result(resp, QueryResult::Doubts { count, doubts })
+        }
         other => generic_ok(other),
     }
 }
@@ -660,6 +699,8 @@ fn generic_ok(result: QueryResult) -> UserResponse {
             severed,
             effects,
             blocked_by,
+            caveats,
+            warnings,
         } => {
             let mut head =
                 format!("Intervention sur {target} : {severed_count} cause(s) coupée(s)");
@@ -669,14 +710,19 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                     blocked_by.len()
                 ));
             }
+            // Ph7d : cible irréversible — annoncé, effets calculés quand même.
+            if warnings.iter().any(|w| w == "irreversible") {
+                head.push_str(" (cible irréversible — informatif, pas de blocage)");
+            }
             let (items, extra) = dto_items(&effects);
             let suggestions = vec![format!("WHAT {target}"), format!("COUNTERFACTUAL {target}")];
-            let status = if blocked_by.is_empty() {
+            let status = if blocked_by.is_empty() && warnings.is_empty() {
                 Status::Ok
             } else {
                 Status::Partiel
             };
-            let resp = answer_items(status, head, items, extra, suggestions);
+            let mut resp = answer_items(status, head, items, extra, suggestions);
+            resp.caveats = caveat_strings(&caveats);
             with_result(
                 resp,
                 QueryResult::Intervention {
@@ -685,6 +731,8 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                     severed,
                     effects,
                     blocked_by,
+                    caveats,
+                    warnings,
                 },
             )
         }
@@ -693,6 +741,7 @@ fn generic_ok(result: QueryResult) -> UserResponse {
             actual_effects,
             unique_effects,
             blocked_by,
+            caveats,
         } => {
             let head = if unique_effects.is_empty() {
                 format!("Sans {target}, aucun effet ne disparaît")
@@ -701,13 +750,14 @@ fn generic_ok(result: QueryResult) -> UserResponse {
             };
             let items: Vec<String> = unique_effects.iter().take(MAX_ITEMS).cloned().collect();
             let extra = unique_effects.len().saturating_sub(items.len());
-            let resp = answer_items(
+            let mut resp = answer_items(
                 Status::Ok,
                 head,
                 items,
                 extra,
                 vec![format!("WHAT {target}")],
             );
+            resp.caveats = caveat_strings(&caveats);
             with_result(
                 resp,
                 QueryResult::CounterfactualDiff {
@@ -715,6 +765,7 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                     actual_effects,
                     unique_effects,
                     blocked_by,
+                    caveats,
                 },
             )
         }
@@ -722,6 +773,7 @@ fn generic_ok(result: QueryResult) -> UserResponse {
             effect,
             hypotheses,
             contrast,
+            by_agent,
         } => {
             let mut head = format!("Explications possibles de {effect}");
             if let Some(c) = contrast.as_ref() {
@@ -760,6 +812,7 @@ fn generic_ok(result: QueryResult) -> UserResponse {
                     effect,
                     hypotheses,
                     contrast,
+                    by_agent,
                 },
             )
         }

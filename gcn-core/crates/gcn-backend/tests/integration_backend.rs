@@ -1,6 +1,7 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
+use gcn_backend::LinkFilter;
 use gcn_backend::analogy::{DEFAULT_ANALOGY_MIN_SCORE, DEFAULT_ANALOGY_WEIGHTS};
 use gcn_backend::pearl::DEFAULT_AMBIGUITY_LIMIT;
 use gcn_backend::query::DEFAULT_TOPK;
@@ -103,7 +104,8 @@ fn parse_why() {
         Query::Why {
             label: "ventes".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
-            topk: None
+            topk: None,
+            filter: LinkFilter::default()
         }
     );
 }
@@ -130,7 +132,8 @@ fn parse_what() {
         Query::What {
             label: "coûts".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
-            topk: None
+            topk: None,
+            filter: LinkFilter::default()
         }
     );
 }
@@ -142,7 +145,8 @@ fn parse_chain() {
         Query::Chain {
             from: "qualité".into(),
             to: "ventes".into(),
-            topk: DEFAULT_TOPK
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
         }
     );
 }
@@ -181,6 +185,7 @@ fn why_finds_direct_cause() {
             label: "ventes".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
             topk: None,
+            filter: LinkFilter::default(),
         },
         &ir,
     )
@@ -202,6 +207,7 @@ fn why_node_not_found_errors() {
             label: "inexistant".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
             topk: None,
+            filter: LinkFilter::default(),
         },
         &ir,
     );
@@ -227,6 +233,7 @@ fn what_finds_direct_effect() {
             label: "qualité".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
             topk: None,
+            filter: LinkFilter::default(),
         },
         &ir,
     )
@@ -258,6 +265,7 @@ fn chain_finds_path() {
             from: "qualité".into(),
             to: "coûts".into(),
             topk: DEFAULT_TOPK,
+            filter: LinkFilter::default(),
         },
         &ir,
     )
@@ -284,6 +292,7 @@ fn chain_no_path() {
             from: "ventes".into(),
             to: "qualité".into(),
             topk: DEFAULT_TOPK,
+            filter: LinkFilter::default(),
         },
         &ir,
     )
@@ -429,11 +438,17 @@ fn json_roundtrip() {
 fn parse_do() {
     assert_eq!(
         Query::parse("DO crise?").unwrap(),
-        Query::Intervene("crise".into())
+        Query::Intervene {
+            label: "crise".into(),
+            filter: LinkFilter::default()
+        }
     );
     assert_eq!(
         Query::parse("DO hausse").unwrap(),
-        Query::Intervene("hausse".into())
+        Query::Intervene {
+            label: "hausse".into(),
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -452,7 +467,14 @@ fn intervene_cuts_incoming_and_propagates_forward() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::Intervene("B".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Intervene {
+            label: "B".into(),
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Intervention {
         severed_count,
         severed,
@@ -481,7 +503,14 @@ fn intervene_no_incoming_zero_severed() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Intervene("racine".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Intervene {
+            label: "racine".into(),
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Intervention {
         severed_count,
         effects,
@@ -499,7 +528,13 @@ fn intervene_no_incoming_zero_severed() {
 fn intervene_node_not_found() {
     let ir = make_ir(vec![node(0, "A", NodeType::Processus)], vec![]);
     assert!(matches!(
-        execute(&Query::Intervene("INEXISTANT".into()), &ir),
+        execute(
+            &Query::Intervene {
+                label: "INEXISTANT".into(),
+                filter: LinkFilter::default()
+            },
+            &ir
+        ),
         Err(BackendError::NodeNotFound(_))
     ));
 }
@@ -1307,6 +1342,7 @@ fn parse_all_21_query_types() {
                 label: "feu".into(),
                 ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
                 topk: None,
+                filter: LinkFilter::default(),
             },
         ),
         (
@@ -1315,6 +1351,7 @@ fn parse_all_21_query_types() {
                 label: "feu".into(),
                 ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
                 topk: None,
+                filter: LinkFilter::default(),
             },
         ),
         (
@@ -1323,11 +1360,18 @@ fn parse_all_21_query_types() {
                 from: "feu".into(),
                 to: "fumée".into(),
                 topk: DEFAULT_TOPK,
+                filter: LinkFilter::default(),
             },
         ),
         ("CYCLES", Query::Cycles),
         ("GAPS", Query::Gaps),
-        ("DO feu", Query::Intervene("feu".into())),
+        (
+            "DO feu",
+            Query::Intervene {
+                label: "feu".into(),
+                filter: LinkFilter::default(),
+            },
+        ),
         ("COUNTERFACTUAL feu", Query::Counterfactual("feu".into())),
         (
             "EXPLAIN fumée",
@@ -1392,7 +1436,8 @@ fn parse_case_insensitive_verb() {
         Query::Why {
             label: "feu".into(),
             ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
-            topk: None
+            topk: None,
+            filter: LinkFilter::default()
         }
     );
     assert_eq!(
@@ -1400,7 +1445,8 @@ fn parse_case_insensitive_verb() {
         Query::Chain {
             from: "feu".into(),
             to: "fumée".into(),
-            topk: DEFAULT_TOPK
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
         }
     );
 }
@@ -1435,7 +1481,8 @@ fn parse_comma_separator_for_pair_queries() {
         Query::Chain {
             from: "feu".into(),
             to: "fumée".into(),
-            topk: DEFAULT_TOPK
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
         }
     );
     assert_eq!(

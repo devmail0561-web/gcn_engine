@@ -9,7 +9,10 @@
       "to": "Beta",
       "relation": "cause",
       "confidence": 0.9,
-      "negated": false
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
     }
   ],
   "blocked_by": [],
@@ -24,7 +27,10 @@
           "to": "Beta",
           "relation": "cause",
           "confidence": 0.9,
-          "negated": false
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
         }
       ]
     },
@@ -37,16 +43,40 @@
           "to": "Xi",
           "relation": "cause",
           "confidence": 0.9,
-          "negated": false
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
         },
         {
           "from": "Xi",
           "to": "Beta",
           "relation": "cause",
           "confidence": 0.9,
-          "negated": false
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
         }
       ]
+    }
+  ],
+  "caveats": [
+    {
+      "node": "Alpha",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Beta",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
     }
   ]
 }

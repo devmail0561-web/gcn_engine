@@ -14,7 +14,7 @@ pub use error::BackendError;
 pub use export::{to_dot, to_json};
 pub use gcn_verbalizer::fallback::Status;
 pub use query::{
-    AbductionHypothesisDto, Query, QueryResult, RankedPathDto, SpofNodeDto, TemporalLinkDto,
-    chain_strict, execute,
+    AbductionContrastDto, AbductionHypothesisDto, Caveat, LinkFilter, ProvenanceEntryDto, Query,
+    QueryResult, RankedPathDto, SpofNodeDto, TemporalLinkDto, chain_strict, execute,
 };
 pub use respond::{UserResponse, respond};

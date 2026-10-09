@@ -1,7 +1,7 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_ir::{CausalCycle, CausalIR, NodeId};
+use gcn_ir::{CausalCycle, CausalIR, NodeId, NodeOrigin, Scope};
 use serde::{Deserialize, Serialize};
 
 use crate::analogy::{DEFAULT_ANALOGY_MIN_SCORE, DEFAULT_ANALOGY_WEIGHTS};
@@ -31,10 +31,11 @@ fn split_pair(rest: &str, cmd: &str) -> Result<(String, String), BackendError> {
 fn split_why_options(
     rest: &str,
     cmd: &str,
-) -> Result<(String, usize, Option<usize>), BackendError> {
+) -> Result<(String, usize, Option<usize>, LinkFilter), BackendError> {
     let mut body = rest.trim().to_string();
     let mut limit = pearl::DEFAULT_AMBIGUITY_LIMIT;
     let mut topk: Option<usize> = None;
+    let mut filter = LinkFilter::default();
     while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
         let up = tail.to_ascii_uppercase();
         if let Some(v) = up.strip_prefix("AMBIGUITY_LIMIT=") {
@@ -57,47 +58,302 @@ fn split_why_options(
             }
             topk = Some(n);
             body = head.trim().to_string();
+        } else if consume_filter_suffix(tail, cmd, &mut filter)? {
+            body = head.trim().to_string();
         } else {
             break;
         }
     }
-    let up = body.to_ascii_uppercase();
-    if body.is_empty() || up.starts_with("AMBIGUITY_LIMIT=") || up.starts_with("TOPK=") {
+    if is_lone_option(&body) {
         return Err(BackendError::QueryParseError(format!(
             "{cmd}: label manquant"
         )));
     }
-    Ok((body, limit, topk))
+    Ok((body, limit, topk, filter))
+}
+
+/// Ph7 — vrai si `body` n'est qu'une option orpheline (pas un label).
+fn is_lone_option(body: &str) -> bool {
+    if body.is_empty() {
+        return true;
+    }
+    let up = body.to_ascii_uppercase();
+    up.starts_with("AMBIGUITY_LIMIT=")
+        || up.starts_with("TOPK=")
+        || up.starts_with("SCOPE=")
+        || up.starts_with("AGENT=")
+        || up.starts_with("METHOD=")
+        || up.starts_with("SINCE=")
+        || up == "ONLY_EXPLICIT"
+}
+
+/// Ph7 — valeurs valides des suffixes de filtre (erreur sinon, jamais silencieux).
+fn valid_scope(v: &str) -> Result<String, BackendError> {
+    let s = v.to_ascii_lowercase();
+    match s.as_str() {
+        "universal" | "existential" | "specific" | "null" | "unknown" | "partial" => Ok(s),
+        _ => Err(BackendError::QueryParseError(format!(
+            "SCOPE ∈ universal/existential/specific/null/unknown/partial attendu, reçu '{v}'"
+        ))),
+    }
+}
+
+fn valid_agent(v: &str) -> Result<String, BackendError> {
+    let s = v.to_ascii_lowercase();
+    match s.as_str() {
+        "human" | "collective" | "institutional" | "natural" | "system" => Ok(s),
+        _ => Err(BackendError::QueryParseError(format!(
+            "AGENT ∈ human/collective/institutional/natural/system attendu, reçu '{v}'"
+        ))),
+    }
+}
+
+fn valid_method(v: &str) -> Result<String, BackendError> {
+    let s = v.to_ascii_lowercase();
+    match s.as_str() {
+        "silver" | "ml" | "symbolic" => Ok(s),
+        _ => Err(BackendError::QueryParseError(format!(
+            "METHOD ∈ silver/ml/symbolic attendu, reçu '{v}'"
+        ))),
+    }
+}
+
+fn valid_since(v: &str) -> Result<String, BackendError> {
+    let b = v.as_bytes();
+    let ok = b.len() >= 10
+        && b[0..4].iter().all(|c| c.is_ascii_digit())
+        && b[4] == b'-'
+        && b[5..7].iter().all(|c| c.is_ascii_digit())
+        && b[7] == b'-'
+        && b[8..10].iter().all(|c| c.is_ascii_digit());
+    if ok {
+        Ok(v.to_string())
+    } else {
+        Err(BackendError::QueryParseError(format!(
+            "SINCE date ISO (AAAA-MM-JJ) attendue, reçue '{v}'"
+        )))
+    }
+}
+
+/// Ph7 — consomme UN suffixe de filtre sur `tail` (token original).
+/// Retourne true si consommé. Valeurs validées (erreur sinon, jamais silencieux).
+fn consume_filter_suffix(
+    tail: &str,
+    cmd: &str,
+    filter: &mut LinkFilter,
+) -> Result<bool, BackendError> {
+    const SCOPE_EQ: &str = "SCOPE=";
+    const AGENT_EQ: &str = "AGENT=";
+    const METHOD_EQ: &str = "METHOD=";
+    const SINCE_EQ: &str = "SINCE=";
+    let up = tail.to_ascii_uppercase();
+    if up == "ONLY_EXPLICIT" {
+        filter.only_explicit = true;
+        return Ok(true);
+    }
+    // Mot-clé WHERE : `... WHERE SCOPE=u` (le filtre suit ; seul, erreur).
+    if up == "WHERE" {
+        if filter == &LinkFilter::default() {
+            return Err(BackendError::QueryParseError(format!(
+                "{cmd}: WHERE sans filtre (SCOPE=/AGENT=/METHOD=/SINCE=/ONLY_EXPLICIT)"
+            )));
+        }
+        return Ok(true);
+    }
+    if up.starts_with(SCOPE_EQ) {
+        let v = &tail[SCOPE_EQ.len()..];
+        filter.scope = Some(valid_scope(v).map_err(|_| {
+            BackendError::QueryParseError(format!("{cmd}: SCOPE invalide ('{tail}')"))
+        })?);
+        return Ok(true);
+    }
+    if up.starts_with(AGENT_EQ) {
+        let v = &tail[AGENT_EQ.len()..];
+        filter.agent = Some(valid_agent(v).map_err(|_| {
+            BackendError::QueryParseError(format!("{cmd}: AGENT invalide ('{tail}')"))
+        })?);
+        return Ok(true);
+    }
+    if up.starts_with(METHOD_EQ) {
+        let v = &tail[METHOD_EQ.len()..];
+        filter.method = Some(valid_method(v).map_err(|_| {
+            BackendError::QueryParseError(format!("{cmd}: METHOD invalide ('{tail}')"))
+        })?);
+        return Ok(true);
+    }
+    if up.starts_with(SINCE_EQ) {
+        let v = &tail[SINCE_EQ.len()..];
+        filter.since = Some(valid_since(v.trim()).map_err(|_| {
+            BackendError::QueryParseError(format!("{cmd}: SINCE invalide ('{tail}')"))
+        })?);
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 /// Ph3 [D3] — chemins retournés par CHAIN sans `TOPK=` (documenté).
 pub const DEFAULT_TOPK: usize = 3;
 
-/// Suffixe `TOPK=N` optionnel (Ph6b) : `None` si absent (tous), `Some(n ≥ 1`
-/// sinon. `N = 0` ou mal formé → `QueryParseError`.
-fn split_topk_opt_suffix(rest: &str, cmd: &str) -> Result<(String, Option<usize>), BackendError> {
-    let rest = rest.trim();
-    if let Some((head, tail)) = rest.rsplit_once(char::is_whitespace)
-        && tail.to_ascii_uppercase().starts_with("TOPK=")
-    {
-        let n: usize = tail["TOPK=".len()..].parse().map_err(|_| {
-            BackendError::QueryParseError(format!("{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"))
-        })?;
-        if n == 0 {
-            return Err(BackendError::QueryParseError(format!(
-                "{cmd}: TOPK entier ≥ 1 attendu, reçu '{tail}'"
-            )));
-        }
-        return Ok((head.trim().to_string(), Some(n)));
-    }
-    Ok((rest.to_string(), None))
+/// Ph7 — filtres de liens (7d AGENT, 7e SCOPE, 7f ONLY_EXPLICIT/METHOD/SINCE).
+/// Filtre en RÉSULTAT (pas de coupure : niées/gaps/null restent en `blocked_by`).
+/// Parsés par suffixes (un suffixe par phase) ; `Default` = aucun filtre.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LinkFilter {
+    /// `SCOPE=<scope>` (7e) : les deux extrémités doivent matcher.
+    pub scope: Option<String>,
+    /// `AGENT=<type>` (7d, DO) : le nœud source doit matcher.
+    pub agent: Option<String>,
+    /// `ONLY_EXPLICIT` (7f) : arêtes explicites seules.
+    pub only_explicit: bool,
+    /// `METHOD=silver|ml|symbolic` (7f) : méthode d'extraction requise.
+    pub method: Option<String>,
+    /// `SINCE=<date>` (7f) : `extracted_at` ISO ≥ date.
+    pub since: Option<String>,
 }
 
-/// Suffixe `TOPK=N` (Ph3 [D3]) : extrait le nombre de chemins, défaut 3.
-/// `N = 0` ou mal formé → `QueryParseError`.
-fn split_topk_suffix(rest: &str, cmd: &str) -> Result<(String, usize), BackendError> {
-    let (body, topk) = split_topk_opt_suffix(rest, cmd)?;
-    Ok((body, topk.unwrap_or(DEFAULT_TOPK)))
+/// Ph7 — applique un filtre à des liens (résultat, jamais de coupure).
+/// Champs inconnus/sans provenance = exclus quand le filtre l'exige.
+pub fn filter_links(ir: &CausalIR, links: Vec<CausalLink>, filter: &LinkFilter) -> Vec<CausalLink> {
+    if filter == &LinkFilter::default() {
+        return links;
+    }
+    let (nm, em) = pearl::build_maps_pub(ir);
+    links
+        .into_iter()
+        .filter(|l| {
+            if let Some(scope) = &filter.scope {
+                let ok = |id: NodeId| nm.get(&id).is_some_and(|n| serde_name(&n.scope) == *scope);
+                if !(ok(l.from_id) && ok(l.to_id)) {
+                    return false;
+                }
+            }
+            if let Some(agent) = &filter.agent {
+                let ok = nm
+                    .get(&l.from_id)
+                    .and_then(|n| n.attributes.agent_type)
+                    .is_some_and(|t| serde_name(&t) == *agent);
+                if !ok {
+                    return false;
+                }
+            }
+            let edge = em.get(&(l.from_id.0, l.to_id.0));
+            if filter.only_explicit && !edge.is_some_and(|e| e.explicit) {
+                return false;
+            }
+            if let Some(method) = &filter.method {
+                let ok = edge
+                    .and_then(|e| e.provenance.as_ref())
+                    .is_some_and(|p| method_name(p.extraction_method) == method);
+                if !ok {
+                    return false;
+                }
+            }
+            if let Some(since) = &filter.since {
+                let ok = edge
+                    .and_then(|e| e.provenance.as_ref())
+                    .is_some_and(|p| p.extracted_at.as_str() >= since.as_str());
+                if !ok {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect()
+}
+
+/// Ph7b — caveat : point d'honnêteté sur un nœud de chemin (origine
+/// hypothétique, ambiguïté non levée, portée incertaine).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Caveat {
+    pub node: String,
+    pub field: String,
+    pub candidates: Vec<String>,
+    pub hint: String,
+}
+
+/// Ph7b — caveats systématiques d'un ensemble de nœuds (ordre stable, dédup).
+/// Déclencheurs : origine Hypothetical, `Ambiguity` (ir.unresolved), scope
+/// Unknown/Partial (Ph7e). Vide = chemin propre.
+pub fn caveats_for(ir: &CausalIR, ids: &[NodeId]) -> Vec<Caveat> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for id in ids {
+        if !seen.insert(*id) {
+            continue;
+        }
+        let Some(node) = ir.nodes.iter().find(|n| n.id == *id) else {
+            continue;
+        };
+        if node.origin == NodeOrigin::Hypothetical {
+            out.push(Caveat {
+                node: node.label.clone(),
+                field: "origin".to_string(),
+                candidates: vec!["hypothetical".to_string()],
+                hint: "chemin hypothétique : à confirmer avant d'agir (poids 0.3)".to_string(),
+            });
+        }
+        match node.scope {
+            Scope::Unknown | Scope::Partial => out.push(Caveat {
+                node: node.label.clone(),
+                field: "scope".to_string(),
+                candidates: vec![serde_name(&node.scope)],
+                hint: "portée incertaine : généralisation suspendue".to_string(),
+            }),
+            _ => {}
+        }
+        for amb in ir.unresolved.iter().filter(|a| a.node_id == *id) {
+            out.push(Caveat {
+                node: node.label.clone(),
+                field: serde_name(&amb.field),
+                candidates: amb.candidates.iter().map(|c| c.value.clone()).collect(),
+                hint: amb
+                    .context_hint
+                    .clone()
+                    .unwrap_or_else(|| "levée d'ambiguïté requise".to_string()),
+            });
+        }
+    }
+    out
+}
+
+/// Ph7b — extrémités (from+to) de liens, dans l'ordre (dédup en aval).
+fn endpoint_ids(links: &[CausalLink]) -> Vec<NodeId> {
+    let mut ids = Vec::with_capacity(links.len() * 2);
+    for l in links {
+        ids.push(l.from_id);
+        ids.push(l.to_id);
+    }
+    ids
+}
+
+/// Options CHAIN (Ph3 + Ph7) : `TOPK=N` (défaut 3) + suffixes de filtre,
+/// ordre libre. Retourne (corps, topk, filtre).
+fn split_chain_options(rest: &str) -> Result<(String, usize, LinkFilter), BackendError> {
+    let mut body = rest.trim().to_string();
+    let mut topk = DEFAULT_TOPK;
+    let mut filter = LinkFilter::default();
+    while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
+        let up = tail.to_ascii_uppercase();
+        if up.starts_with("TOPK=") {
+            let n: usize = tail["TOPK=".len()..].parse().map_err(|_| {
+                BackendError::QueryParseError(format!(
+                    "CHAIN: TOPK entier ≥ 1 attendu, reçu '{tail}'"
+                ))
+            })?;
+            if n == 0 {
+                return Err(BackendError::QueryParseError(format!(
+                    "CHAIN: TOPK entier ≥ 1 attendu, reçu '{tail}'"
+                )));
+            }
+            topk = n;
+            body = head.trim().to_string();
+        } else if consume_filter_suffix(tail, "CHAIN", &mut filter)? {
+            body = head.trim().to_string();
+        } else {
+            break;
+        }
+    }
+    Ok((body, topk, filter))
 }
 
 /// Variante Ph6b : extrait en plus `HOPS=N` (profondeur de contexte, ≥ 1,
@@ -162,27 +418,36 @@ pub enum Query {
     /// Ph2 [D2] : `ambiguity_limit` = max de matchs FLOUS (défaut 5) ;
     /// les exacts passent toujours, l'excès flou → `Err(Ambiguous)`.
     /// Ph6b : `topk` = N meilleurs liens (None = tous).
+    /// Ph7 : `filter` = filtres de liens (défaut : aucun).
     Why {
         label: String,
         ambiguity_limit: usize,
         topk: Option<usize>,
+        filter: LinkFilter,
     },
-    /// Ph2 [D2] : voir `Why`. Ph6b : voir `Why.topk`.
+    /// Ph2 [D2] : voir `Why`. Ph6b : voir `Why.topk`. Ph7 : voir `Why.filter`.
     What {
         label: String,
         ambiguity_limit: usize,
         topk: Option<usize>,
+        filter: LinkFilter,
     },
     /// Ph3 [D3] : `topk` = chemins retournés, confiance-max (défaut 3, ≥ 1).
+    /// Ph7 : `filter` = filtres de liens (défaut : aucun).
     Chain {
         from: String,
         to: String,
         topk: usize,
+        filter: LinkFilter,
     },
     Cycles,
     Gaps,
-    /// Pearl niveau 2 — `DO <nœud>` : intervention do-calculus
-    Intervene(String),
+    /// Pearl niveau 2 — `DO <nœud>` : intervention do-calculus.
+    /// Ph7 : `filter` = filtres de liens (défaut : aucun ; `AGENT=` en 7d).
+    Intervene {
+        label: String,
+        filter: LinkFilter,
+    },
     /// Pearl niveau 3 — `COUNTERFACTUAL <nœud>` : raisonnement contrefactuel
     Counterfactual(String),
     /// Abductif — `EXPLAIN <effet>` : hypothèses causales les plus plausibles pour E.
@@ -222,6 +487,11 @@ pub enum Query {
     Centrality(String),
     /// Adversarial — `SPOF?` : nœuds dont la suppression coupe le plus de paires causales
     Spof,
+    /// Ph7b — `DOUBTS` : liste brute des non-résolus (`ir.unresolved`).
+    Doubts,
+    /// Ph7f — `PROVENANCE <label>` : fiche complète des arêtes incidentes
+    /// (qui, quand, comment, span texte).
+    Provenance(String),
     /// Normatif — `DIFF <from> -> <to>` : écart entre confiance observée et attente normative (1.0)
     NormDiff(String, String),
     /// Méta — `DENSITY` ou `DENSITY <label>` : densité globale ou locale du graphe
@@ -249,25 +519,32 @@ impl Query {
         let s = normalized.as_str();
 
         if let Some(rest) = s.strip_prefix("WHY ") {
-            let (label, ambiguity_limit, topk) = split_why_options(rest, "WHY")?;
+            let (label, ambiguity_limit, topk, filter) = split_why_options(rest, "WHY")?;
             return Ok(Query::Why {
                 label,
                 ambiguity_limit,
                 topk,
+                filter,
             });
         }
         if let Some(rest) = s.strip_prefix("WHAT ") {
-            let (label, ambiguity_limit, topk) = split_why_options(rest, "WHAT")?;
+            let (label, ambiguity_limit, topk, filter) = split_why_options(rest, "WHAT")?;
             return Ok(Query::What {
                 label,
                 ambiguity_limit,
                 topk,
+                filter,
             });
         }
         if let Some(rest) = s.strip_prefix("CHAIN ") {
-            let (body, topk) = split_topk_suffix(rest, "CHAIN")?;
+            let (body, topk, filter) = split_chain_options(rest)?;
             let (from, to) = split_pair(&body, "CHAIN")?;
-            return Ok(Query::Chain { from, to, topk });
+            return Ok(Query::Chain {
+                from,
+                to,
+                topk,
+                filter,
+            });
         }
         if s == "CYCLES" {
             return Ok(Query::Cycles);
@@ -275,8 +552,26 @@ impl Query {
         if s == "GAPS" {
             return Ok(Query::Gaps);
         }
-        if let Some(label) = s.strip_prefix("DO ") {
-            return Ok(Query::Intervene(label.trim().to_string()));
+        if let Some(rest) = s.strip_prefix("DO ") {
+            // Ph7 : suffixes de filtre (`AGENT=` en 7d), ordre libre.
+            let mut body = rest.trim().to_string();
+            let mut filter = LinkFilter::default();
+            while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
+                if consume_filter_suffix(tail, "DO", &mut filter)? {
+                    body = head.trim().to_string();
+                } else {
+                    break;
+                }
+            }
+            if is_lone_option(&body) {
+                return Err(BackendError::QueryParseError(
+                    "DO: label manquant".to_string(),
+                ));
+            }
+            return Ok(Query::Intervene {
+                label: body,
+                filter,
+            });
         }
         if let Some(label) = s.strip_prefix("COUNTERFACTUAL ") {
             return Ok(Query::Counterfactual(label.trim().to_string()));
@@ -350,6 +645,19 @@ impl Query {
         if s == "SPOF" {
             return Ok(Query::Spof);
         }
+        if s == "DOUBTS" {
+            return Ok(Query::Doubts);
+        }
+        if let Some(label) = s.strip_prefix("PROVENANCE ") {
+            // Ph7f : fiche provenance (label requis).
+            let label = label.trim().to_string();
+            if label.is_empty() {
+                return Err(BackendError::QueryParseError(
+                    "PROVENANCE: label manquant".to_string(),
+                ));
+            }
+            return Ok(Query::Provenance(label));
+        }
         if let Some(rest) = s.strip_prefix("DIFF ") {
             let (from, to) = split_pair(rest, "DIFF")?;
             return Ok(Query::NormDiff(from, to));
@@ -388,7 +696,7 @@ impl Query {
             &input[..end]
         };
         Err(BackendError::QueryParseError(format!(
-            "unknown query '{}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, CENTRALITY, SPOF, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE",
+            "unknown query '{}'. Valid: WHY, WHAT, CHAIN, CYCLES, GAPS, DO, COUNTERFACTUAL, EXPLAIN, ANALOGY, ASK, WHY-NOT, CENTRALITY, SPOF, DOUBTS, DIFF, DENSITY, COVERAGE, RELIABILITY, CHAIN_T, BEFORE?, DELAY, ZOOM_IN, ZOOM_OUT, AGGREGATE",
             preview
         )))
     }
@@ -419,6 +727,9 @@ pub enum QueryResult {
         /// Ph6b : liens avant limite TOPK (== `links.len()` sans TOPK).
         #[serde(default)]
         total: usize,
+        /// Ph7b : caveats systématiques (hypothétiques, ambiguïtés, portées).
+        #[serde(default)]
+        caveats: Vec<Caveat>,
     },
     Effects {
         source: String,
@@ -439,6 +750,9 @@ pub enum QueryResult {
         /// Ph6b : voir `Causes::total`.
         #[serde(default)]
         total: usize,
+        /// Ph7b : voir `Causes::caveats`.
+        #[serde(default)]
+        caveats: Vec<Caveat>,
     },
     Path {
         from: String,
@@ -455,6 +769,9 @@ pub enum QueryResult {
         /// Ph3 [D3] : chemins classés (rang 1 = `links`), présent ssi TOPK > 1.
         #[serde(default)]
         ranked_paths: Vec<RankedPathDto>,
+        /// Ph7b : voir `Causes::caveats`.
+        #[serde(default)]
+        caveats: Vec<Caveat>,
     },
     CycleList {
         count: usize,
@@ -476,6 +793,13 @@ pub enum QueryResult {
         /// Ph1 [D1] : niées rencontrées en aval (voir `Causes::blocked_by`).
         #[serde(default)]
         blocked_by: Vec<LinkDto>,
+        /// Ph7b : voir `Causes::caveats`.
+        #[serde(default)]
+        caveats: Vec<Caveat>,
+        /// Ph7d : avertissements FIGÉS (`irreversible` si cible irréversible —
+        /// effets calculés quand même, DO informatif).
+        #[serde(default)]
+        warnings: Vec<String>,
     },
     /// Pearl niveau 3 : résultat d'une requête contrefactuelle.
     CounterfactualDiff {
@@ -487,6 +811,9 @@ pub enum QueryResult {
         /// Ph1 [D1] : niées rencontrées depuis `target` (voir `Causes::blocked_by`).
         #[serde(default)]
         blocked_by: Vec<LinkDto>,
+        /// Ph7b : voir `Causes::caveats`.
+        #[serde(default)]
+        caveats: Vec<Caveat>,
     },
     /// Analogie — patterns causaux similaires au patron (from→to).
     AnalogyReport {
@@ -532,6 +859,16 @@ pub enum QueryResult {
         /// Nombre total de paires (s,d) avec chemin dans le graphe complet.
         total_pairs: usize,
         nodes: Vec<SpofNodeDto>,
+    },
+    /// Ph7b — DOUBTS : liste brute des non-résolus.
+    Doubts {
+        count: usize,
+        doubts: Vec<Caveat>,
+    },
+    /// Ph7f — PROVENANCE : fiche des arêtes incidentes (ancrage confiance).
+    ProvenanceReport {
+        label: String,
+        entries: Vec<ProvenanceEntryDto>,
     },
     /// Normatif — écart observé vs attente normative (1.0) sur le chemin A→B.
     NormativeDiff {
@@ -594,6 +931,9 @@ pub enum QueryResult {
         /// Ph6b : contraste vs une alternative (None = abduction simple).
         #[serde(default)]
         contrast: Option<AbductionContrastDto>,
+        /// Ph7d : hypothèses scindées par type d'agent (None = non renseigné).
+        #[serde(default)]
+        by_agent: Vec<AgentGroupDto>,
     },
     /// Ph6b — fiche nœud (ASK) : type + causes/effets directs 1 saut.
     AskReport {
@@ -662,9 +1002,51 @@ pub struct LinkDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub third_node_label: Option<String>,
     /// Ph6b — dérivation D3 systématique : (from, to) sources ayant inféré
-    /// ce lien (``Derivation.source_edges`` résolues en labels).
+    /// ce lien (`Derivation.source_edges` résolues en labels).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub derived_from: Option<Vec<(String, String)>>,
+    /// Ph7 — motif de coupure pour `blocked_by` (None = lien traversé).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motif: Option<String>,
+    /// Ph7a — effet de cycle : damped/amplifying (None sinon).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cycle_effect: Option<String>,
+    /// Ph7b — origine du nœud source (explicit/inferred/hypothetical).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    /// Ph7f — arête explicite (False si clé absente : conservateur).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub explicit: bool,
+    /// Ph7f — méthode d'extraction (silver/ml/symbolic).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extraction_method: Option<String>,
+    /// Ph7f — version du modèle extracteur.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_version: Option<String>,
+    /// Ph7f — span texte/code (texte extrait si possible, sinon coordonnées).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<String>,
+    /// Ph7f — nature du span (text/code/synthetic).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Ph7e — scope des extrémités (universal/...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    /// Ph7d — agent (nœud source) / patient (nœud cible).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patient: Option<String>,
+    /// Ph7d — type d'agent du nœud source (human/...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_type: Option<String>,
+    /// Ph7e — lien témoin (existential/specific : généralisation interdite).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub witness_only: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -672,6 +1054,9 @@ pub struct CycleDto {
     pub id: u32,
     pub kind: String,
     pub nodes: Vec<String>,
+    /// Ph7a — effet du cycle : damped/amplifying/oscillating.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
 }
 
 /// Ph3 [D3] — un chemin classé de CHAIN TOPK.
@@ -740,6 +1125,35 @@ pub struct AbductionContrastDto {
     pub shared: Vec<String>,
 }
 
+/// Ph7d — groupe d'hypothèses par type d'agent (EXPLAIN scindé).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentGroupDto {
+    /// Type d'agent (human/...), None = non renseigné sur les nœuds.
+    pub agent_type: Option<String>,
+    pub hypotheses: Vec<AbductionHypothesisDto>,
+}
+
+/// Ph7f — une arête incidente et sa provenance (None = non renseignée).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvenanceEntryDto {
+    pub from: String,
+    pub to: String,
+    pub relation: String,
+    pub explicit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extraction_method: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extracted_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemporalLinkDto {
     pub from: String,
@@ -758,6 +1172,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             label,
             ambiguity_limit,
             topk,
+            filter,
         } => {
             // Ph2 [D2] : exacts (tous) > flous (≤ limite) > Err(Ambiguous).
             let scoped = pearl::why_scoped(ir, label, *ambiguity_limit)
@@ -772,10 +1187,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let mut links: Vec<LinkDto> = scoped
+            let raw: Vec<CausalLink> = scoped
                 .matched
                 .iter()
-                .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, ls, _)| ls.iter().cloned())
                 .collect();
             // Ph1 [D1] : niées coupées sur tous les matchs (triées, cf. pearl).
             let blocked_by: Vec<LinkDto> = scoped
@@ -783,11 +1198,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
-            // Ph6b : TOPK sur les meilleurs (force décroissante par match).
-            let total = links.len();
-            if let Some(k) = topk {
-                links.truncate(*k);
-            }
+            // Ph7 : filtre résultat (jamais de coupure), puis Ph6b TOPK.
+            let kept = filter_links(ir, raw, filter);
+            let total = kept.len();
+            let links: Vec<LinkDto> = kept
+                .iter()
+                .take(topk.unwrap_or(usize::MAX))
+                .map(|l| link_to_dto(ir, l))
+                .collect();
+            // Ph7b : caveats des chemins retenus.
+            let caveats = caveats_for(ir, &endpoint_ids(&kept));
             Ok(QueryResult::Causes {
                 target,
                 links,
@@ -796,6 +1216,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 match_scores: scoped.match_scores,
                 fuzzy: scoped.fuzzy,
                 total,
+                caveats,
             })
         }
 
@@ -803,6 +1224,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             label,
             ambiguity_limit,
             topk,
+            filter,
         } => {
             // Ph2 [D2] : voir bras WHY (propagation avant).
             let scoped = pearl::what_scoped(ir, label, *ambiguity_limit)
@@ -817,10 +1239,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .first()
                 .cloned()
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let mut links: Vec<LinkDto> = scoped
+            let raw: Vec<CausalLink> = scoped
                 .matched
                 .iter()
-                .flat_map(|(_, ls, _)| ls.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, ls, _)| ls.iter().cloned())
                 .collect();
             // Ph1 [D1] : voir bras WHY.
             let blocked_by: Vec<LinkDto> = scoped
@@ -828,11 +1250,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
                 .collect();
-            // Ph6b : voir bras WHY.
-            let total = links.len();
-            if let Some(k) = topk {
-                links.truncate(*k);
-            }
+            // Ph7 : voir bras WHY (filtre puis TOPK).
+            let kept = filter_links(ir, raw, filter);
+            let total = kept.len();
+            let links: Vec<LinkDto> = kept
+                .iter()
+                .take(topk.unwrap_or(usize::MAX))
+                .map(|l| link_to_dto(ir, l))
+                .collect();
+            // Ph7b : voir bras WHY.
+            let caveats = caveats_for(ir, &endpoint_ids(&kept));
             Ok(QueryResult::Effects {
                 source,
                 links,
@@ -841,10 +1268,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 match_scores: scoped.match_scores,
                 fuzzy: scoped.fuzzy,
                 total,
+                caveats,
             })
         }
 
-        Query::Chain { from, to, topk } => {
+        Query::Chain {
+            from,
+            to,
+            topk,
+            filter,
+        } => {
             // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
             if pearl::find_best(ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
@@ -854,8 +1287,26 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             }
             // Ph3 [D3] : jusqu'à `topk` chemins confiance-max (Dijkstra + Yen).
             let (paths, blocked) = pearl::chain_topk(ir, from, to, *topk);
+            // Ph7 : filtre résultat — chemin écarté si un lien ne passe pas
+            // (le chemin n'est valide que d'un bloc ; pas de coupure).
+            let paths: Vec<pearl::ScoredPath> = paths
+                .into_iter()
+                .filter(|p| filter_links(ir, p.links.clone(), filter).len() == p.links.len())
+                .collect();
             let found = !paths.is_empty();
             let best = paths.first();
+            // Ph7b : caveats du meilleur chemin retenu.
+            let caveats = best
+                .map(|p| {
+                    caveats_for(
+                        ir,
+                        &p.links
+                            .iter()
+                            .flat_map(|l| [l.from_id, l.to_id])
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .unwrap_or_default();
             Ok(QueryResult::Path {
                 from: from.clone(),
                 to: to.clone(),
@@ -880,6 +1331,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 } else {
                     vec![]
                 },
+                caveats,
             })
         }
 
@@ -905,32 +1357,66 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             })
         }
 
-        Query::Intervene(label) => {
+        Query::Intervene { label, filter } => {
             let (target, result) = pearl::intervene(ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            // Ph7 : filtre résultat (severed + effets).
+            let severed = filter_links(ir, result.severed, filter);
+            let effects = filter_links(ir, result.effects, filter);
+            // Ph7b : caveats de la cible + effets retenus.
+            let mut ids = vec![
+                pearl::find_best(ir, label)
+                    .map(|n| n.id)
+                    .unwrap_or(NodeId(0)),
+            ];
+            ids.extend(endpoint_ids(&effects));
+            let caveats = caveats_for(ir, &ids);
+            // Ph7d : cible irréversible → warning FIGÉ (effets calculés quand même).
+            let warnings = match pearl::find_best(ir, label) {
+                Some(n) if n.attributes.reversible == Some(false) => {
+                    vec!["irreversible".to_string()]
+                }
+                _ => vec![],
+            };
             Ok(QueryResult::Intervention {
                 target,
-                severed_count: result.severed.len(),
-                severed: result.severed.iter().map(|l| link_to_dto(ir, l)).collect(),
-                effects: result.effects.iter().map(|l| link_to_dto(ir, l)).collect(),
+                severed_count: severed.len(),
+                severed: severed.iter().map(|l| link_to_dto(ir, l)).collect(),
+                effects: effects.iter().map(|l| link_to_dto(ir, l)).collect(),
                 // Ph1 [D1] : niées rencontrées en aval.
                 blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                caveats,
+                warnings,
             })
         }
 
         Query::Counterfactual(label) => {
             let (target, result) = pearl::counterfactual(ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            // Ph7 : filtre résultat (pas de filtre requête sur CF : monde actuel brut).
+            let actual = filter_links(ir, result.actual_effects, &LinkFilter::default());
+            let gardes: std::collections::HashSet<String> =
+                actual.iter().map(|l| l.to_label.clone()).collect();
+            let unique_effects: Vec<String> = result
+                .unique_effects
+                .into_iter()
+                .filter(|u| gardes.contains(u))
+                .collect();
+            // Ph7b : caveats de la cible + effets retenus.
+            let mut ids = vec![
+                pearl::find_best(ir, label)
+                    .map(|n| n.id)
+                    .unwrap_or(NodeId(0)),
+            ];
+            ids.extend(endpoint_ids(&actual));
+            let caveats = caveats_for(ir, &ids);
             Ok(QueryResult::CounterfactualDiff {
                 target,
-                actual_effects: result
-                    .actual_effects
-                    .iter()
-                    .map(|l| link_to_dto(ir, l))
-                    .collect(),
-                unique_effects: result.unique_effects,
+                actual_effects: actual.iter().map(|l| link_to_dto(ir, l)).collect(),
+                unique_effects,
                 // Ph1 [D1] : niées rencontrées depuis la cible.
                 blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                caveats,
             })
         }
 
@@ -1003,11 +1489,21 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .collect();
             let child_count = child_ids.len();
             let (nm, _) = pearl::build_maps_pub(ir);
+            // Ph7e : les liens témoins (cause existentielle/spécifique) ne sont
+            // jamais généralisés en agrégat — exclus ici.
             let outgoing: Vec<LinkDto> = ir
                 .edges
                 .iter()
                 .filter(|(s, _, _)| child_ids.contains(s))
                 .filter(|(_, d, _)| !child_ids.contains(d))
+                .filter(|(s, _, _)| {
+                    !nm.get(s).is_some_and(|n| {
+                        matches!(
+                            n.scope,
+                            gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
+                        )
+                    })
+                })
                 .map(|(s, d, e)| LinkDto {
                     from: nm.get(s).map(|n| n.label.clone()).unwrap_or_default(),
                     to: nm.get(d).map(|n| n.label.clone()).unwrap_or_default(),
@@ -1029,6 +1525,22 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                             .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
                             .collect()
                     }),
+                    motif: None,
+                    cycle_effect: None,
+                    origin: nm.get(s).map(|n| serde_name(&n.origin)),
+                    explicit: e.explicit,
+                    extraction_method: None,
+                    model_version: None,
+                    span: None,
+                    kind: None,
+                    scope: nm.get(s).map(|n| serde_name(&n.scope)),
+                    agent: nm.get(s).and_then(|n| n.attributes.agent.clone()),
+                    patient: nm.get(d).and_then(|n| n.attributes.patient.clone()),
+                    agent_type: nm
+                        .get(s)
+                        .and_then(|n| n.attributes.agent_type)
+                        .map(|t| serde_name(&t)),
+                    witness_only: false,
                 })
                 .collect();
             let mean_confidence = if outgoing.is_empty() {
@@ -1107,6 +1619,83 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             Ok(QueryResult::SpofReport {
                 total_pairs,
                 nodes: spof_nodes,
+            })
+        }
+
+        Query::Doubts => {
+            // Ph7b : liste brute des non-résolus (labels + champs + candidats).
+            let mut doubts: Vec<Caveat> = ir
+                .unresolved
+                .iter()
+                .map(|amb| {
+                    let node = pearl::node_label(ir, amb.node_id);
+                    Caveat {
+                        node,
+                        field: serde_name(&amb.field),
+                        candidates: amb.candidates.iter().map(|c| c.value.clone()).collect(),
+                        hint: amb
+                            .context_hint
+                            .clone()
+                            .unwrap_or_else(|| "levée d'ambiguïté requise".to_string()),
+                    }
+                })
+                .collect();
+            doubts.sort_by(|a, b| a.node.cmp(&b.node).then(a.field.cmp(&b.field)));
+            Ok(QueryResult::Doubts {
+                count: doubts.len(),
+                doubts,
+            })
+        }
+
+        Query::Provenance(label) => {
+            // Ph7f : fiche complète des arêtes incidentes (qui, quand, comment, span).
+            let node = pearl::find_best(ir, label)
+                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+            let mut entries: Vec<ProvenanceEntryDto> = ir
+                .edges
+                .iter()
+                .filter(|(s, d, _)| *s == node.id || *d == node.id)
+                .map(|(s, d, e)| {
+                    let (method, version, doc, at) = e
+                        .provenance
+                        .as_ref()
+                        .map(|p| {
+                            (
+                                Some(method_name(p.extraction_method).to_string()),
+                                Some(p.model_version.clone()),
+                                p.doc_ref.clone(),
+                                Some(p.extracted_at.clone()),
+                            )
+                        })
+                        .unwrap_or((None, None, None, None));
+                    let (span, kind) = e
+                        .provenance
+                        .as_ref()
+                        .map(|p| span_text_kind(ir, &p.span))
+                        .unwrap_or((None, None));
+                    ProvenanceEntryDto {
+                        from: pearl::node_label(ir, *s),
+                        to: pearl::node_label(ir, *d),
+                        relation: serde_name(&e.relation),
+                        explicit: e.explicit,
+                        extraction_method: method,
+                        model_version: version,
+                        span,
+                        kind,
+                        doc_ref: doc,
+                        extracted_at: at,
+                    }
+                })
+                .collect();
+            entries.sort_by(|a, b| {
+                a.from
+                    .cmp(&b.from)
+                    .then(a.to.cmp(&b.to))
+                    .then(a.relation.cmp(&b.relation))
+            });
+            Ok(QueryResult::ProvenanceReport {
+                label: node.label.clone(),
+                entries,
             })
         }
 
@@ -1296,9 +1885,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             Ok(QueryResult::Abduction {
                 effect: node.label.clone(),
                 hypotheses: hypotheses
-                    .into_iter()
+                    .iter()
                     .map(|h| AbductionHypothesisDto {
-                        label: h.label,
+                        label: h.label.clone(),
                         relation: serde_name(&h.relation),
                         edge_confidence: h.edge_confidence,
                         score: h.score,
@@ -1306,6 +1895,22 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     })
                     .collect(),
                 contrast: contrast_dto,
+                by_agent: pearl::group_by_agent(ir, &hypotheses)
+                    .into_iter()
+                    .map(|(agent_type, hs)| AgentGroupDto {
+                        agent_type,
+                        hypotheses: hs
+                            .into_iter()
+                            .map(|h| AbductionHypothesisDto {
+                                label: h.label,
+                                relation: serde_name(&h.relation),
+                                edge_confidence: h.edge_confidence,
+                                score: h.score,
+                                depth: h.depth,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
             })
         }
 
@@ -1508,6 +2113,49 @@ fn serde_name<T: serde::Serialize + std::fmt::Debug>(v: &T) -> String {
         .unwrap_or_else(|| format!("{v:?}").to_lowercase())
 }
 
+/// Ph7f — vocabulaire court des méthodes (cohérent avec `METHOD=`).
+pub fn method_name(m: gcn_ir::ExtractionMethod) -> &'static str {
+    match m {
+        gcn_ir::ExtractionMethod::SilverAnnotator => "silver",
+        gcn_ir::ExtractionMethod::MlPython => "ml",
+        gcn_ir::ExtractionMethod::SymbolicRust => "symbolic",
+        gcn_ir::ExtractionMethod::Derived => "derived",
+    }
+}
+
+/// Ph7f — span → (contenu, nature) : texte extrait si possible (bornes
+/// caractères valides), sinon coordonnées ; `text`/`code`/`synthetic`.
+pub fn span_text_kind(
+    ir: &CausalIR,
+    span: &gcn_ir::SourceSpan,
+) -> (Option<String>, Option<String>) {
+    match span {
+        gcn_ir::SourceSpan::TokenSpan { start, end } => {
+            let (s, e) = (*start as usize, *end as usize);
+            let text = &ir.source_text;
+            if s <= e
+                && text.is_char_boundary(s)
+                && text.is_char_boundary(e)
+                && !text[s..e].is_empty()
+            {
+                (Some(text[s..e].to_string()), Some("text".to_string()))
+            } else {
+                (Some(format!("{s}-{e}")), Some("text".to_string()))
+            }
+        }
+        gcn_ir::SourceSpan::CodeSpan {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        } => (
+            Some(format!("L{start_line}:{start_col}-L{end_line}:{end_col}")),
+            Some("code".to_string()),
+        ),
+        gcn_ir::SourceSpan::Synthetic => (None, Some("synthetic".to_string())),
+    }
+}
+
 pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
     // C4 fix : sérialiser la relation en snake_case via serde (pas Debug).
     let relation = serde_name(&l.relation);
@@ -1520,18 +2168,42 @@ pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
             .find(|n| n.id == tid)
             .map(|n| n.label.clone())
     });
-    // Ph6b : dérivations D3 systématiques (`Derivation.source_edges` → labels).
-    let derived_from = ir
+    // Une seule résolution d'arête (dérivation, cycle, provenance).
+    let edge = ir
         .edges
         .iter()
         .find(|(s, d, _)| *s == l.from_id && *d == l.to_id)
-        .and_then(|(_, _, e)| e.derivation.as_ref())
-        .map(|drv| {
-            drv.source_edges
-                .iter()
-                .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
-                .collect()
+        .map(|(_, _, e)| e);
+    // Ph6b : dérivations D3 systématiques (`Derivation.source_edges` → labels).
+    let derived_from = edge.and_then(|e| e.derivation.as_ref()).map(|drv| {
+        drv.source_edges
+            .iter()
+            .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
+            .collect()
+    });
+    // Ph7a : effet de cycle (damped/amplifying) via in_cycle.
+    let cycle_effect = edge
+        .and_then(|e| e.in_cycle)
+        .and_then(|cid| ir.cycles.iter().find(|c| c.id == cid))
+        .and_then(|c| match c.cycle_type {
+            gcn_ir::CycleType::FeedbackNegative => Some("damped".to_string()),
+            gcn_ir::CycleType::FeedbackPositive => Some("amplifying".to_string()),
+            gcn_ir::CycleType::Oscillation => None,
         });
+    // Ph7f : provenance (méthode, modèle, span) + explicite.
+    let (extraction_method, model_version) = edge
+        .and_then(|e| e.provenance.as_ref())
+        .map(|p| {
+            (
+                Some(method_name(p.extraction_method).to_string()),
+                Some(p.model_version.clone()),
+            )
+        })
+        .unwrap_or((None, None));
+    let (span, kind) = edge
+        .and_then(|e| e.provenance.as_ref())
+        .map(|p| span_text_kind(ir, &p.span))
+        .unwrap_or((None, None));
     LinkDto {
         from: l.from_label.clone(),
         to: l.to_label.clone(),
@@ -1541,13 +2213,71 @@ pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
         joint_group_id: l.joint_group_id.clone(),
         third_node_label,
         derived_from,
+        // Ph7 : motif de coupure (None = traversé).
+        motif: l.motif.map(|m| m.as_str().to_string()),
+        cycle_effect,
+        // Ph7b : origine du nœud source (cause) — ranking × poids.
+        origin: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.from_id)
+            .map(|n| serde_name(&n.origin)),
+        explicit: edge.is_some_and(|e| e.explicit),
+        extraction_method,
+        model_version,
+        span,
+        kind,
+        // Ph7e : scope du nœud source (côté cause, cohérent avec origin/agent).
+        scope: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.from_id)
+            .map(|n| serde_name(&n.scope)),
+        // Ph7d : agent + type du nœud source (qui agit), patient du nœud cible (qui subit).
+        agent: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.from_id)
+            .and_then(|n| n.attributes.agent.clone()),
+        patient: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.to_id)
+            .and_then(|n| n.attributes.patient.clone()),
+        agent_type: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.from_id)
+            .and_then(|n| n.attributes.agent_type)
+            .map(|t| serde_name(&t)),
+        // Ph7e : lien témoin si la cause est existentielle/spécifique
+        // (généralisation interdite — exclu des agrégats).
+        witness_only: ir
+            .nodes
+            .iter()
+            .find(|n| n.id == l.from_id)
+            .is_some_and(|n| {
+                matches!(
+                    n.scope,
+                    gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
+                )
+            }),
     }
 }
 
 fn cycle_to_dto(ir: &CausalIR) -> impl Fn(&CausalCycle) -> CycleDto + '_ {
-    move |c| CycleDto {
-        id: c.id.0,
-        kind: serde_name(&c.cycle_type),
-        nodes: c.path.iter().map(|&id| pearl::node_label(ir, id)).collect(),
+    move |c| {
+        // Ph7a : effet typé (feedback → damped/amplifying, oscillation → oscillating).
+        let effect = match c.cycle_type {
+            gcn_ir::CycleType::FeedbackNegative => Some("damped".to_string()),
+            gcn_ir::CycleType::FeedbackPositive => Some("amplifying".to_string()),
+            gcn_ir::CycleType::Oscillation => Some("oscillating".to_string()),
+        };
+        CycleDto {
+            id: c.id.0,
+            kind: serde_name(&c.cycle_type),
+            nodes: c.path.iter().map(|&id| pearl::node_label(ir, id)).collect(),
+            effect,
+        }
     }
 }

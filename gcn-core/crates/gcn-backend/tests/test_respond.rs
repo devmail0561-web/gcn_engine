@@ -402,3 +402,27 @@ fn explain_contrast_envelope() {
     assert_eq!(r.status, Status::Ok);
     assert!(r.phrase.contains("Aaa"), "distinctif nommé : {}", r.phrase);
 }
+
+// ─── Ph7b : enveloppe DOUBTS + propagation caveats ──────────────────────────
+
+#[test]
+fn doubts_envelope_empty() {
+    // Jouet sans unresolved : aucun doute, statut Ok.
+    let r = respond("DOUBTS", &jouet());
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Ok);
+    assert!(
+        r.phrase.contains("Aucun doute"),
+        "vide annoncé : {}",
+        r.phrase
+    );
+}
+
+#[test]
+fn caveats_propagated_to_envelope() {
+    // Scopes Unknown des fixtures → caveats portées dans l'enveloppe.
+    let r = respond("WHY Gamma", &jouet());
+    assert_envelope(&r);
+    assert!(!r.caveats.is_empty(), "caveats propagées : {:?}", r.caveats);
+    assert!(r.caveats.iter().all(|c| c.contains('—')));
+}

@@ -77,7 +77,10 @@ pub enum AgentType {
     Human,
     Collective,
     Institutional,
+    /// Forces/phénomènes naturels (tempête, pluie) — pas les personnes (= Human).
     Natural,
+    /// Le système lui-même agissant (réponse, file-action, DO délégué — phase 9).
+    System,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]

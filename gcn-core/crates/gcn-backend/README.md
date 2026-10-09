@@ -168,14 +168,14 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 
 | Requête | Niveau Pearl | Description |
 |---------|-------------|-------------|
-| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé ; niées coupées → `blocked_by` ; exacts d'abord, flous ≤ `AMBIGUITY_LIMIT` (défaut 5), excès → erreur `Ambiguous` ; `TOPK=N` = N meilleurs + `total`) |
-| `WHAT <label>` | 1 | Effets directs et indirects (même politique exact-puis-flou ; `TOPK=N`) |
-| `CHAIN <a> -> <b>` | 1 | Chemin confiance-max (Dijkstra −ln(conf), jamais via niée ; `TOPK=N` défaut 3, `path_confidence` + `ranked_paths` ; `found:false` + `blocked_by` si coupure, vide si aucun chemin) |
-| `CHAIN_T <a> -> <b>` | 1 | Chemin causal avec info temporelle |
+| `WHY <label>` | 1 | Causes directes et indirectes (joint_group_id propagé ; coupures → `blocked_by` + `motif` ; exacts d'abord, flous ≤ `AMBIGUITY_LIMIT` (défaut 5), excès → erreur `Ambiguous` ; `TOPK=N` = N meilleurs + `total` ; filtres `WHERE`/`SCOPE=`/etc.) |
+| `WHAT <label>` | 1 | Effets directs et indirects (même politique exact-puis-flou ; `TOPK=N` ; filtres) |
+| `CHAIN <a> -> <b>` | 1 | Chemin confiance-max × poids origine (Dijkstra −ln(conf), jamais via coupure ; `TOPK=N` défaut 3, `path_confidence` + `ranked_paths` ; `found:false` + `blocked_by` si coupure, vide si aucun chemin ; filtres) |
+| `CHAIN_T <a> -> <b>` | 1 | Chemin causal avec info temporelle (oscillation sans phase → rejeté) |
 | `BEFORE <a>, <b>` | 1 | A précède-t-il B ? |
 | `DELAY <a> -> <b>` | 1 | Délai estimé A→B |
-| `EXPLAIN <label>` | 1 | Raisonnement abductif — causes candidates (`CONTRAST <autre>` = distinctives vs partagées) |
-| `CYCLES` | — | Cycles de rétroaction |
+| `EXPLAIN <label>` | 1 | Raisonnement abductif — causes candidates (`CONTRAST <autre>` = distinctives vs partagées ; scindé par `agent_type`) |
+| `CYCLES` | — | Cycles de rétroaction (typés : damped/amplifying/oscillating) |
 | `GAPS` | — | Lacunes temporelles causales |
 | `SPOF` | — | Points de défaillance unique (+ SUPER-SPOF JointCause) |
 | `CENTRALITY <label>` | — | Centralité causale d'un nœud |
@@ -186,8 +186,10 @@ println!("{}", serde_json::to_string_pretty(&result)?);
 | `ASK <label>` | — | Fiche nœud (type + causes/effets directs 1 saut, sans propagation) |
 | `WHY-NOT <a> -> <b>` | — | Pourquoi aucun chemin : `coupure_negation` (bloqueurs = `blocked_by`) ou `aucun_lien` (proches), `chemin_existe` sinon |
 | `NORM_DIFF <a>, <b>` | — | Écart normatif A→B |
-| `DO <label>` | 2 | Intervention do-calculus (entrantes niées incluses dans `severed`, effets jamais via niée) |
-| `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés ; niées non traversées) |
+| `DO <label>` | 2 | Intervention do-calculus (entrantes niées incluses dans `severed`, effets jamais via coupure ; cible irréversible → warning `irreversible` FIGÉ, effets calculés ; filtre `AGENT=`) |
+| `COUNTERFACTUAL <label>` | 3 | Contrefactuel (JointCause, MediatedCause gérés ; coupures non traversées) |
+| `DOUBTS` | — | Liste brute des non-résolus (nœuds, champs, candidats) |
+| `PROVENANCE <label>` | — | Fiche des arêtes incidentes (méthode, modèle, span texte/code, dates) |
 | `ZOOM_IN <label>` | — | Sous-graphe enfants (hiérarchie multi-échelle) |
 | `ZOOM_OUT <label>` | — | Nœud parent |
 | `AGGREGATE <label>` | — | Vue agrégée nœud + enfants |
@@ -219,15 +221,29 @@ pub enum QueryResult {
                     match_scores: Vec<(String, u8)>, fuzzy: bool, total: usize, .. },
     Path          { from: String, to: String, found: bool,
                     links: Vec<LinkDto>, blocked_by: Vec<LinkDto>,
-                    path_confidence: f32, ranked_paths: Vec<RankedPathDto> },
+                    path_confidence: f32, ranked_paths: Vec<RankedPathDto>,
+                    caveats: Vec<Caveat> },
     CycleList     { count: usize, cycles: Vec<CycleDto> },
     GapList       { gap_edges: Vec<GapDto>, unresolved_nodes: usize },
     Intervention  { target: String, severed_count: usize,
                     severed: Vec<LinkDto>, effects: Vec<LinkDto>,
-                    blocked_by: Vec<LinkDto> },
+                    blocked_by: Vec<LinkDto>, caveats: Vec<Caveat>,
+                    warnings: Vec<String> },
     CounterfactualDiff { target: String, actual_effects: Vec<LinkDto>,
-                         unique_effects: Vec<String>, blocked_by: Vec<LinkDto> },
+                         unique_effects: Vec<String>, blocked_by: Vec<LinkDto>,
+                         caveats: Vec<Caveat> },
+    Doubts        { count: usize, doubts: Vec<Caveat> },
+    ProvenanceReport { label: String, entries: Vec<ProvenanceEntryDto> },
 }
+
+// Ph7 — gisement CIR :
+// [7a] concession/opposition = BLOQUEUSES (même `blocked_by`, motif `causal_gap`) ;
+//   feedback-negative → `damped`, positive → `amplifying`, oscillation → CHAIN_T
+//   exige la phase ; [7b] ranking × poids origine (1.0/0.7/0.3 FIGÉS, D-ORIG :
+//   9a côté session) + `caveats` systématiques + `DOUBTS` ; [7f] provenance sur
+//   les liens + filtres (`WHERE scope=`, `AGENT=`, `ONLY_EXPLICIT`, `METHOD=`,
+//   `SINCE=`) + `PROVENANCE` ; [7d] `irreversible` FIGÉ + agents + `by_agent`;
+//   [7e] scope null = BLOQUEUR (`null_scope`), témoins non généralisés (7c enterré : NO-GO Ph5).
 
 // Ph1 [D1] — sémantique négation : arête niée = propagation COUPÉE (pas
 // d'inversion). `blocked_by` liste les niées qui auraient porté une
@@ -252,9 +268,23 @@ pub enum QueryResult {
 
 pub struct LinkDto { pub from: String, pub to: String,
                      pub relation: String, pub confidence: f32, pub negated: bool,
-                     pub derived_from: Option<Vec<(String, String)>> /* D3 Ph6b */ }
-pub struct CycleDto { pub id: u32, pub kind: String, pub nodes: Vec<String> }
+                     pub derived_from: Option<Vec<(String, String)>> /* D3 Ph6b */,
+                     pub motif: Option<String> /* negated|causal_gap|null_scope */,
+                     pub cycle_effect: Option<String> /* damped|amplifying */,
+                     pub origin: Option<String> /* explicit|inferred|hypothetical */,
+                     pub explicit: bool, pub extraction_method: Option<String>,
+                     pub model_version: Option<String>, pub span: Option<String>,
+                     pub kind: Option<String> /* text|code|synthetic */,
+                     pub scope: Option<String>, pub agent: Option<String>,
+                     pub patient: Option<String>, pub agent_type: Option<String>,
+                     pub witness_only: bool }
+pub struct CycleDto { pub id: u32, pub kind: String, pub nodes: Vec<String>,
+                      pub effect: Option<String> /* damped|amplifying|oscillating */ }
 pub struct GapDto   { pub from: String, pub to: String, pub relation: String }
+// AgentType : human | collective | institutional | natural (forces/phénomènes)
+//             | system (le système lui-même — phase 9). Champ vide partout
+//             aujourd'hui (émetteur Python : None) : l'attribution viendra de
+//             l'annotation gold-3000, sinon filtre et groupes restent décoratifs.
 ```
 
 ---

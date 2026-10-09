@@ -7,14 +7,20 @@
       "to": "Gamma",
       "relation": "cause",
       "confidence": 0.9,
-      "negated": false
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
     },
     {
       "from": "Beta",
       "to": "Gamma",
       "relation": "cause",
       "confidence": 0.9,
-      "negated": false
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
     }
   ],
   "matched_targets": [
@@ -26,7 +32,11 @@
       "to": "Beta",
       "relation": "cause",
       "confidence": 0.9,
-      "negated": true
+      "negated": true,
+      "motif": "negated",
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
     }
   ],
   "match_scores": [
@@ -36,5 +46,31 @@
     ]
   ],
   "fuzzy": false,
-  "total": 2
+  "total": 2,
+  "caveats": [
+    {
+      "node": "Alpha",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Gamma",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Beta",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    }
+  ]
 }

@@ -3,7 +3,7 @@
 
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
-use gcn_ir::{CausalIR, NodeId, RelationType, normalize_label};
+use gcn_ir::{CausalIR, CycleType, NodeId, NodeOrigin, RelationType, Scope, normalize_label};
 use gcn_middleend::graph::{CausalGraph, build};
 use petgraph::Direction;
 use petgraph::graph::NodeIndex;
@@ -21,6 +21,30 @@ pub struct CausalLink {
     pub joint_group_id: Option<String>,
     /// Éq.12 — NodeId du tiers (médiateur ou condition) pour les arêtes ternaires.
     pub third_node: Option<NodeId>,
+    /// Ph7 — motif de coupure (None = lien traversé ; Some = collecté `blocked_by`).
+    pub motif: Option<BlockMotif>,
+}
+
+/// Ph7 — raison de coupure d'une arête (``blocked_by``, motif distinct par cause).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockMotif {
+    /// [D1] Arête niée (propagation coupée, pas d'inversion).
+    Negated,
+    /// [7a] Concession/opposition (gaps causaux, comme les niées).
+    CausalGap,
+    /// [7-i] Nœud cible sans référent (scope null).
+    NullScope,
+}
+
+impl BlockMotif {
+    /// Nom snake_case pour ``LinkDto.motif`` (stable, snapshoté).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BlockMotif::Negated => "negated",
+            BlockMotif::CausalGap => "causal_gap",
+            BlockMotif::NullScope => "null_scope",
+        }
+    }
 }
 
 /// Pearl niveau 2 — résultat d'une intervention do-calculus sur un nœud.
@@ -249,10 +273,21 @@ fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
     (nm, em)
 }
 
-/// Ph1 [D1] — une arête niée coupe la propagation (pas d'inversion de signe).
-/// Vrai si l'arête (src, dst) existe et porte `negated=true`.
-fn edge_blocked(em: &EdgeMap, src: NodeId, dst: NodeId) -> bool {
-    em.get(&(src.0, dst.0)).is_some_and(|e| e.negated)
+/// Ph7 — raison de coupure d'une arête (None = traversable).
+/// [D1] niée > [7a] gap concessif/oppositif > [7-i] cible sans référent.
+/// Le premier motif applicable gagne (ordre déterministe, documenté).
+fn edge_block_motif(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<BlockMotif> {
+    let e = em.get(&(src.0, dst.0))?;
+    if e.negated {
+        return Some(BlockMotif::Negated);
+    }
+    if e.relation.signals_causal_gap() {
+        return Some(BlockMotif::CausalGap);
+    }
+    if nm.get(&dst).is_some_and(|n| n.scope == Scope::Null) {
+        return Some(BlockMotif::NullScope);
+    }
+    None
 }
 
 /// Tri déterministe des liens bloqués (snapshots stables).
@@ -346,10 +381,11 @@ pub struct ScoredPath {
     pub confidence: f32,
 }
 
-/// Dijkstra confiance-max (Ph3 [D3]) : coût −ln(conf), niées jamais traversées.
+/// Dijkstra confiance-max (Ph3 [D3]) : coût −ln(conf), coupures jamais traversées.
 /// `removed_edges`/`removed_nodes` : exclusions temporaires (Yen).
 /// Retourne (nœuds du chemin, coût total). `None` si inatteignable.
 fn dijkstra_path(
+    nm: &NodeMap,
     em: &EdgeMap,
     g: &CausalGraph,
     src: NodeId,
@@ -395,11 +431,12 @@ fn dijkstra_path(
                 Some(e) => e,
                 None => continue,
             };
-            // Ph1 [D1] : niées jamais traversées (même en Dijkstra).
-            if e.negated {
+            // Ph1 [D1] + Ph7 : coupures (niées, gaps, null) jamais traversées.
+            if edge_block_motif(nm, em, a, b).is_some() {
                 continue;
             }
-            let c = cost.0 + edge_cost(e.confidence);
+            // Ph7b : coût × poids d'origine (cause attestée > hypothétique).
+            let c = cost.0 + edge_cost(e.confidence * node_origin_weight(nm, a));
             if c < dist.get(&nb).copied().unwrap_or(f32::INFINITY) {
                 dist.insert(nb, c);
                 prev.insert(nb, ni);
@@ -411,12 +448,12 @@ fn dijkstra_path(
     None
 }
 
-/// Coût total −ln(conf) d'un chemin de nœuds (comparaison Yen).
-fn path_cost(em: &EdgeMap, path: &[NodeId]) -> f32 {
+/// Coût total −ln(conf × poids origine) d'un chemin de nœuds (comparaison Yen).
+fn path_cost(nm: &NodeMap, em: &EdgeMap, path: &[NodeId]) -> f32 {
     path.windows(2)
         .map(|w| {
             em.get(&(w[0].0, w[1].0))
-                .map(|e| edge_cost(e.confidence))
+                .map(|e| edge_cost(e.confidence * node_origin_weight(nm, w[0])))
                 .unwrap_or(f32::INFINITY)
         })
         .sum()
@@ -446,7 +483,7 @@ fn k_shortest_paths(
 ) -> Vec<ScoredPath> {
     let empty_e: HashSet<(u32, u32)> = HashSet::new();
     let empty_n: HashSet<NodeId> = HashSet::new();
-    let Some(first) = dijkstra_path(em, g, src, dst, &empty_e, &empty_n) else {
+    let Some(first) = dijkstra_path(nm, em, g, src, dst, &empty_e, &empty_n) else {
         return vec![];
     };
     let mut known: Vec<Vec<NodeId>> = vec![first.0];
@@ -469,11 +506,11 @@ fn k_shortest_paths(
             for n in &root[..root.len() - 1] {
                 rem_n.insert(*n);
             }
-            if let Some((spur_path, _)) = dijkstra_path(em, g, spur, dst, &rem_e, &rem_n) {
+            if let Some((spur_path, _)) = dijkstra_path(nm, em, g, spur, dst, &rem_e, &rem_n) {
                 let mut full = root[..root.len() - 1].to_vec();
                 full.extend(spur_path);
                 if !known.contains(&full) && !candidates.iter().any(|(_, p)| *p == full) {
-                    candidates.push((path_cost(em, &full), full));
+                    candidates.push((path_cost(nm, em, &full), full));
                 }
             }
         }
@@ -515,8 +552,9 @@ pub fn chain_with_blocked(
 
 /// CHAIN top-k (Ph3 [D3]) : jusqu'à `k` chemins confiance-max + niées de coupure.
 ///
-/// - chemins : `k` meilleurs (Dijkstra + Yen), vide si inatteignable sans niée ;
-/// - bloqués : niées du chemin non filtré ssi aucun chemin pur (cf. `chain_with_blocked`).
+/// - chemins : `k` meilleurs (Dijkstra + Yen), vide si inatteignable sans coupure ;
+/// - bloqués : coupures (niées, gaps, null) du chemin non filtré ssi aucun
+///   chemin pur (cf. `chain_with_blocked`), avec leur motif.
 pub fn chain_topk(
     ir: &CausalIR,
     from: &str,
@@ -532,12 +570,18 @@ pub fn chain_topk(
     if !paths.is_empty() {
         return (paths, vec![]);
     }
-    // Pas de chemin pur : niées du chemin non filtré (borne : BFS historique).
+    // Pas de chemin pur : coupures du chemin non filtré (borne : BFS historique).
     let full = bfs_path_links(&nm, &em, &g, src.id, dst.id, false);
     if full.is_empty() {
         return (vec![], vec![]);
     }
-    let mut blocked: Vec<CausalLink> = full.into_iter().filter(|l| l.negated).collect();
+    let mut blocked: Vec<CausalLink> = full
+        .into_iter()
+        .filter_map(|mut l| {
+            l.motif = edge_block_motif(&nm, &em, l.from_id, l.to_id);
+            l.motif.map(|_| l)
+        })
+        .collect();
     sort_blocked(&mut blocked);
     (vec![], blocked)
 }
@@ -564,17 +608,20 @@ fn bfs_ancestors(
         let cur_id = g.g[ni];
         for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
             let pred_id = g.g[pred];
-            if edge_blocked(em, pred_id, cur_id) {
-                // Ph1 [D1] : arête niée = propagation coupée, collectée pour `blocked_by`
-                // (le prédécesseur reste atteignable par un autre chemin pur).
-                if let Some(link) = edge_link(nm, em, pred_id, cur_id) {
+            // Ph1 [D1] + Ph7 : arête coupée (niée, gap, null) = collectée
+            // `blocked_by` avec son motif (le prédécesseur reste atteignable
+            // par un autre chemin pur).
+            if let Some(motif) = edge_block_motif(nm, em, pred_id, cur_id) {
+                if let Some(mut link) = edge_link(nm, em, pred_id, cur_id) {
+                    link.motif = Some(motif);
                     blocked.push(link);
                 }
                 continue;
             }
             if visited.insert(pred) {
                 if let Some(link) = edge_link(nm, em, pred_id, cur_id) {
-                    let strength = prod * link.confidence;
+                    // Ph7b : force × poids d'origine (cause attestée > hypothétique).
+                    let strength = prod * link.confidence * node_origin_weight(nm, pred_id);
                     queue.push_back((pred, strength));
                     links.push((link, strength));
                 } else {
@@ -617,16 +664,18 @@ fn bfs_descendants(
         let cur_id = g.g[ni];
         for succ in g.g.neighbors_directed(ni, Direction::Outgoing) {
             let succ_id = g.g[succ];
-            if edge_blocked(em, cur_id, succ_id) {
-                // Ph1 [D1] : voir bfs_ancestors.
-                if let Some(link) = edge_link(nm, em, cur_id, succ_id) {
+            // Ph1 [D1] + Ph7 : voir bfs_ancestors.
+            if let Some(motif) = edge_block_motif(nm, em, cur_id, succ_id) {
+                if let Some(mut link) = edge_link(nm, em, cur_id, succ_id) {
+                    link.motif = Some(motif);
                     blocked.push(link);
                 }
                 continue;
             }
             if visited.insert(succ) {
                 if let Some(link) = edge_link(nm, em, cur_id, succ_id) {
-                    let strength = prod * link.confidence;
+                    // Ph7b : voir bfs_ancestors (poids du nœud source).
+                    let strength = prod * link.confidence * node_origin_weight(nm, cur_id);
                     queue.push_back((succ, strength));
                     links.push((link, strength));
                 } else {
@@ -646,7 +695,7 @@ fn bfs_path_links(
     g: &CausalGraph,
     from: NodeId,
     to: NodeId,
-    avoid_negated: bool,
+    avoid_blocked: bool,
 ) -> Vec<CausalLink> {
     let si = match g.node_indices.get(&from) {
         Some(&x) => x,
@@ -668,8 +717,9 @@ fn bfs_path_links(
             break 'bfs;
         }
         for nb in g.g.neighbors_directed(ni, Direction::Outgoing) {
-            // Ph1 [D1] : en mode strict, ne jamais router à travers une arête niée.
-            if avoid_negated && edge_blocked(em, g.g[ni], g.g[nb]) {
+            // Ph1 [D1] + Ph7 : en mode strict, ne jamais router à travers
+            // une arête coupée (niée, gap, null).
+            if avoid_blocked && edge_block_motif(nm, em, g.g[ni], g.g[nb]).is_some() {
                 continue;
             }
             if visited.insert(nb) {
@@ -760,6 +810,8 @@ fn edge_link(nm: &NodeMap, em: &EdgeMap, src: NodeId, dst: NodeId) -> Option<Cau
             })
             .cloned(),
         third_node: e.third.as_ref().map(|t| NodeId(t.node as u32)),
+        // Ph7 : motif positionné par les sites de collecte `blocked_by`.
+        motif: None,
     })
 }
 
@@ -819,6 +871,27 @@ fn reachable_pairs_with_graph(
 /// Garde anti-DoS SPOF (source unique — query.rs la réutilise, pas de doublon).
 pub const SPOF_MAX_NODES: usize = 500;
 
+/// Ph7b [7-ii] — poids d'origine FIGÉS (tri WHY/WHAT/CHAIN, documentés) :
+/// Explicit=1.0 > Inferred=0.7 > Hypothetical=0.3. Nommés (pas de magiques) ;
+/// la composition session (9a) vit côté Python (D-ORIG).
+pub const ORIGIN_WEIGHT_EXPLICIT: f32 = 1.0;
+pub const ORIGIN_WEIGHT_INFERRED: f32 = 0.7;
+pub const ORIGIN_WEIGHT_HYPOTHETICAL: f32 = 0.3;
+
+/// Poids d'origine d'un nœud (1.0 par défaut si inconnu).
+pub fn origin_weight(origin: NodeOrigin) -> f32 {
+    match origin {
+        NodeOrigin::Explicit => ORIGIN_WEIGHT_EXPLICIT,
+        NodeOrigin::Inferred => ORIGIN_WEIGHT_INFERRED,
+        NodeOrigin::Hypothetical => ORIGIN_WEIGHT_HYPOTHETICAL,
+    }
+}
+
+/// Poids d'origine d'un nœud par id (1.0 si nœud inconnu).
+fn node_origin_weight(nm: &NodeMap, id: NodeId) -> f32 {
+    nm.get(&id).map(|n| origin_weight(n.origin)).unwrap_or(1.0)
+}
+
 /// Score SPOF étendu avec flag super_spof (Éq.12).
 #[derive(Debug, Clone)]
 pub struct SpofScore {
@@ -877,6 +950,8 @@ pub fn spof_all(ir: &CausalIR) -> Result<(usize, Vec<SpofScore>), crate::error::
 /// Hypothèse abductive — cause candidate d'un effet observé.
 #[derive(Debug, Clone)]
 pub struct AbductionHypothesis {
+    /// Nœud cause (regroupement Ph7d par agent_type, sans ambiguïté de label).
+    pub node_id: NodeId,
     pub label: String,
     pub relation: RelationType,
     /// Confiance de l'arête directe vers l'effet (ou vers le nœud intermédiaire).
@@ -893,6 +968,35 @@ pub struct AbductionHypothesis {
 ///
 /// Le score favorise les causes proches (depth faible) et fiables (confiance élevée).
 /// `confirmations` sera intégré quand le SA fournira les compteurs — pour l'instant = 1.
+/// Ph7d — `group_by_agent` scinde les hypothèses par agent_type (tri stable,
+/// `None` = non renseigné en dernier).
+pub fn group_by_agent(
+    ir: &CausalIR,
+    hypotheses: &[AbductionHypothesis],
+) -> Vec<(Option<String>, Vec<AbductionHypothesis>)> {
+    use std::collections::BTreeMap;
+    let mut groups: BTreeMap<Option<String>, Vec<AbductionHypothesis>> = BTreeMap::new();
+    for h in hypotheses {
+        let key = ir
+            .nodes
+            .iter()
+            .find(|n| n.id == h.node_id)
+            .and_then(|n| n.attributes.agent_type)
+            .map(|t| serde_agent_type(&t));
+        groups.entry(key).or_default().push(h.clone());
+    }
+    groups.into_iter().collect()
+}
+
+fn serde_agent_type(t: &gcn_ir::AgentType) -> String {
+    match t {
+        gcn_ir::AgentType::Human => "human".to_string(),
+        gcn_ir::AgentType::Collective => "collective".to_string(),
+        gcn_ir::AgentType::Institutional => "institutional".to_string(),
+        gcn_ir::AgentType::Natural => "natural".to_string(),
+        gcn_ir::AgentType::System => "system".to_string(),
+    }
+}
 pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
     let g = build(ir);
     let (nm, em) = build_maps(ir);
@@ -914,8 +1018,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
             // Le nœud de départ (effet) n'est pas une hypothèse
             for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
                 let pred_id = g.g[pred];
-                // Ph1 [D1] : pas d'hypothèse à travers une arête niée.
-                if edge_blocked(&em, pred_id, effect_id) {
+                // Ph1 [D1] + Ph7 : pas d'hypothèse à travers une coupure.
+                if edge_block_motif(&nm, &em, pred_id, effect_id).is_some() {
                     continue;
                 }
                 if visited.insert(pred) {
@@ -928,9 +1032,10 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
                     let score = new_path_conf / (1.0_f32 + 1.0_f32);
                     if let Some(node) = nm.get(&pred_id) {
                         hypotheses.push(AbductionHypothesis {
+                            node_id: pred_id,
                             label: node.label.clone(),
                             relation: em
-                                .get(&(pred_id.0, g.g[ni].0))
+                                .get(&(pred_id.0, effect_id.0))
                                 .map(|e| e.relation)
                                 .unwrap_or(RelationType::Cause),
                             edge_confidence: edge_conf,
@@ -948,8 +1053,8 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
         let cur_id = g.g[ni];
         for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
             let pred_id = g.g[pred];
-            // Ph1 [D1] : pas de propagation à travers une arête niée.
-            if edge_blocked(&em, pred_id, cur_id) {
+            // Ph1 [D1] + Ph7 : pas de propagation à travers une coupure.
+            if edge_block_motif(&nm, &em, pred_id, cur_id).is_some() {
                 continue;
             }
             if visited.insert(pred) {
@@ -962,6 +1067,7 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
                 let score = new_path_conf / (1.0_f32 + new_depth as f32);
                 if let Some(node) = nm.get(&pred_id) {
                     hypotheses.push(AbductionHypothesis {
+                        node_id: pred_id,
                         label: node.label.clone(),
                         relation: em
                             .get(&(pred_id.0, g.g[ni].0))
@@ -990,6 +1096,10 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
 /// CHAIN_T — chemin causal avec info temporelle sur chaque saut.
 /// Utilise le même BFS que chain() mais enrichit chaque lien avec temporal_gap
 /// et index_delta. Vérifie si le chemin est temporellement ordonné.
+///
+/// Ph7a : un chemin traversant une boucle OSCILLATION sans info de phase
+/// (aucun TemporalGap sur ses arêtes) est rejeté (None) — CHAIN_T exige
+/// la phase pour raisonner sur une oscillation.
 pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResult {
     let path = chain(ir, from, to);
     let (_nm, em) = build_maps(ir);
@@ -1002,6 +1112,24 @@ pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResul
             temporally_ordered: false,
         },
         Some(links) => {
+            // Ph7a : oscillation sans phase → rejet (pas de raisonnement
+            // temporel fiable sur une boucle oscillante non phasée).
+            let oscille_sans_phase = links.iter().any(|l| {
+                em.get(&(l.from_id.0, l.to_id.0)).is_some_and(|e| {
+                    e.temporal_gap.is_none()
+                        && e.in_cycle.is_some_and(|cid| {
+                            ir.cycles.iter().any(|c| {
+                                c.id == cid && matches!(c.cycle_type, CycleType::Oscillation)
+                            })
+                        })
+                })
+            });
+            if oscille_sans_phase {
+                return TemporalChainResult {
+                    links: None,
+                    temporally_ordered: false,
+                };
+            }
             let mut temporally_ordered = true;
             let mut has_temporal_data = false;
             let temporal_links: Vec<TemporalLink> = links
@@ -1143,7 +1271,7 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
 
     // Nœuds atteignables depuis les racines SANS X (niées non traversées)
     // et sans les nœuds dépendants.
-    let mut reachable_without_x = reachable_from_roots_without(&g, &em, target.id);
+    let mut reachable_without_x = reachable_from_roots_without(&g, &nm, &em, target.id);
     for ex in &extra_excluded {
         reachable_without_x.remove(ex);
     }
@@ -1176,6 +1304,7 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
 /// On ne repart pas des nœuds qui deviendraient des racines artificielles après suppression de X.
 fn reachable_from_roots_without(
     g: &CausalGraph,
+    nm: &NodeMap,
     em: &EdgeMap,
     excluded: NodeId,
 ) -> HashSet<NodeId> {
@@ -1203,13 +1332,13 @@ fn reachable_from_roots_without(
         }
     }
 
-    // BFS en avant depuis les vraies racines, sans traverser X ni les niées
+    // BFS en avant depuis les vraies racines, sans traverser X ni les coupures
     while let Some(ni) = queue.pop_front() {
         for nb in g.g.neighbors_directed(ni, Direction::Outgoing) {
             if nb == excluded_idx {
                 continue;
             }
-            if edge_blocked(em, g.g[ni], g.g[nb]) {
+            if edge_block_motif(nm, em, g.g[ni], g.g[nb]).is_some() {
                 continue;
             }
             let nb_id = g.g[nb];
