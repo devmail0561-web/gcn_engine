@@ -13,6 +13,7 @@ import warnings
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
+from .recorder import _is_nan
 
 # ---------------------------------------------------------------------------
 # Types de base
@@ -164,7 +165,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
 
     # overall : ignore NaN (L-1 — seules les valeurs définies contribuent)
     defined = [v for v in [node_count_ratio, node_type_acc, edge_count_ratio, edge_rel_acc]
-               if not (isinstance(v, float) and v != v)]  # noqa: PLR0124  # test NaN idiomatique : v != v ↔ isnan
+               if not (isinstance(v, float) and _is_nan(v))]
     overall = float(np.mean(defined)) if defined else float('nan')
 
     # L-2 : edge_relation_f1 — macro F1 sur les types de relations (fiable même si |pred|≠|gold|)
@@ -184,7 +185,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     else:
         edge_rel_f1 = 1.0  # deux graphes sans arêtes sont identiques
 
-    def _r(v): return round(v, 4) if v == v else float('nan')  # noqa: PLR0124  # test NaN idiomatique : v == v ↔ not isnan
+    def _r(v): return round(v, 4) if not _is_nan(v) else float('nan')
     return {
         "node_count_ratio": _r(node_count_ratio),
         "node_type_accuracy": _r(node_type_acc),
