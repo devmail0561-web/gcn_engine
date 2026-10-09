@@ -348,10 +348,12 @@ fn err_result(query: &Query, ir: &CausalIR, err: BackendError) -> UserResponse {
 
 /// Contexte d'un sans-chemin : niées de coupure + voisins (WHY-NOT : les bloqueurs).
 fn path_context(ir: &CausalIR, from: &str, to: &str) -> (Vec<LinkDto>, Vec<String>) {
-    let (_, blocked) = pearl::chain_topk(ir, from, to, 1);
+    // M4 : un seul build (contexte partagé).
+    let ctx = pearl::GraphCtx::new(ir);
+    let (_, blocked) = pearl::chain_topk_ctx(&ctx, from, to, 1);
     let blocked = blocked
         .iter()
-        .map(|l| crate::query::link_to_dto(ir, l))
+        .map(|l| crate::query::link_to_dto(&ctx, l))
         .collect();
     (blocked, proches(ir, from, to))
 }

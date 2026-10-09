@@ -140,6 +140,21 @@ pub struct CounterfactualResult {
 `CausalLink.relation` est sérialisé en snake_case via serde : `"cause"`, `"joint_cause"`, etc.
 (Fix C4 audit — plus le format Debug `"Cause"`.)
 
+### Contexte partagé Ph10-M4 — un seul calcul de graphe par requête
+
+```rust
+let ctx = pearl::GraphCtx::new(&ir);   // petgraph + index, UNE fois
+let r = execute(&query, &ir);          // execute() construit ce ctx en interne
+```
+
+`execute()` (et `chain_strict`) construisent un `GraphCtx` à l'arrivée de la
+requête et le passent à toutes les fonctions d'analyse (`*_ctx` : WHY/WHAT,
+CHAIN, DO, contrefactuel, EXPLAIN, ASK, SPOF, filtres, caveats, DTO). Les
+variantes `ir` restent en wrappers fins (appelants directs + tests inchangés).
+Mesuré (release, 3000 nœuds, 5 requêtes) : ~1140 ms avant → ~870 ms après
+(~1,3× ; sous la cible 3-4× du plan car Dijkstra/BFS dominent, pas les builds —
+le vrai goulot reste M1 côté Python).
+
 ### Éq.12 — Comportement ternaire Pearl
 
 - **WHY/CHAIN** : `CausalLink.joint_group_id` propagé pour identifier les co-sources

@@ -139,6 +139,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (28 dialogue + 9 origine verts)** : scénarios multi-tours scriptés, fake engine (sans checkpoint). **Vert Python : 809 passés (11 échecs pré-existants inchangés : eval/lot1/black-box), Rust untouched.**
 - **README gcn-python** : section dialogue + codes documentés.
 
+### Backend Phase 10-M4 — un seul calcul de graphe par requête (2026-10-09)
+
+- **`pearl.rs`** : nouveau `GraphCtx { ir, g, nm, em }` (petgraph + index, un build) + cœurs `*_ctx` (scope WHY/WHAT, `why`/`what`, `chain_topk`/`with_blocked`/`chain`/`chain_temporal`, `intervene`, `counterfactual`, `abduct`, `direct_links`, `spof_all`) ; variantes `ir` en wrappers fins (résultats identiques).
+- **`query.rs`** : `execute()` construit le ctx une fois ; `filter_links`/`caveats_for`/`link_to_dto` sur ctx (index au lieu de scans linéaires répétés) ; `find_best`/`node_label`/`group_by_agent` via ctx ; bras Aggregate sans build local ; `chain_strict` même traitement ; `respond.rs:path_context` idem.
+- **Preuve** : 257 tests existants verts SANS modification + nouveau test d'équivalence wrappers/ctx (`ctx_matches_direct_on_fixture`, 13 fonctions) ; sorties byte-identiques sur gros IR.
+- **Mesure honnête (release, 3000 nœuds, 5 requêtes WHY/CHAIN/DO/CF/EXPLAIN)** : ~1140 ms avant → ~870 ms après (**~1,3×**, stable sur 3 runs ; inchangé avec filtres). Sous la cible 3-4× du plan : Dijkstra/BFS dominent, pas la construction des maps. M4 = invariant structurel + fondation M1/M2, pas un miracle.
+- **Vert workspace : 258 passés, 0 échoué, clippy 0, fmt propre.**
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

@@ -214,10 +214,20 @@ pub struct LinkFilter {
 /// Ph7 — applique un filtre à des liens (résultat, jamais de coupure).
 /// Champs inconnus/sans provenance = exclus quand le filtre l'exige.
 pub fn filter_links(ir: &CausalIR, links: Vec<CausalLink>, filter: &LinkFilter) -> Vec<CausalLink> {
+    filter_links_ctx(&pearl::GraphCtx::new(ir), links, filter)
+}
+
+/// M4 — filtre sur contexte partagé (un seul build par requête).
+pub(crate) fn filter_links_ctx(
+    ctx: &pearl::GraphCtx<'_>,
+    links: Vec<CausalLink>,
+    filter: &LinkFilter,
+) -> Vec<CausalLink> {
     if filter == &LinkFilter::default() {
         return links;
     }
-    let (nm, em) = pearl::build_maps_pub(ir);
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     links
         .into_iter()
         .filter(|l| {
@@ -275,13 +285,20 @@ pub struct Caveat {
 /// Déclencheurs : origine Hypothetical, `Ambiguity` (ir.unresolved), scope
 /// Unknown/Partial (Ph7e). Vide = chemin propre.
 pub fn caveats_for(ir: &CausalIR, ids: &[NodeId]) -> Vec<Caveat> {
+    caveats_for_ctx(&pearl::GraphCtx::new(ir), ids)
+}
+
+/// M4 — caveats sur contexte partagé (un seul build par requête).
+pub(crate) fn caveats_for_ctx(ctx: &pearl::GraphCtx<'_>, ids: &[NodeId]) -> Vec<Caveat> {
+    let ir = ctx.ir;
+    let nm = &ctx.nm;
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
     for id in ids {
         if !seen.insert(*id) {
             continue;
         }
-        let Some(node) = ir.nodes.iter().find(|n| n.id == *id) else {
+        let Some(node) = nm.get(id) else {
             continue;
         };
         if node.origin == NodeOrigin::Hypothetical {
@@ -1167,6 +1184,9 @@ pub struct TemporalLinkDto {
 }
 
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
+    // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
+    // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
+    let ctx = pearl::GraphCtx::new(ir);
     match query {
         Query::Why {
             label,
@@ -1175,8 +1195,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             filter,
         } => {
             // Ph2 [D2] : exacts (tous) > flous (≤ limite) > Err(Ambiguous).
-            let scoped = pearl::why_scoped(ir, label, *ambiguity_limit)
-                .map_err(|candidates| BackendError::Ambiguous { candidates })?;
+            let scoped =
+                pearl::why_scoped_ctx(&ctx, label, &pearl::DefaultLabelSim, *ambiguity_limit)
+                    .map_err(|candidates| BackendError::Ambiguous { candidates })?;
             if scoped.matched.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
@@ -1196,18 +1217,18 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             let blocked_by: Vec<LinkDto> = scoped
                 .matched
                 .iter()
-                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(&ctx, l)))
                 .collect();
             // Ph7 : filtre résultat (jamais de coupure), puis Ph6b TOPK.
-            let kept = filter_links(ir, raw, filter);
+            let kept = filter_links_ctx(&ctx, raw, filter);
             let total = kept.len();
             let links: Vec<LinkDto> = kept
                 .iter()
                 .take(topk.unwrap_or(usize::MAX))
-                .map(|l| link_to_dto(ir, l))
+                .map(|l| link_to_dto(&ctx, l))
                 .collect();
             // Ph7b : caveats des chemins retenus.
-            let caveats = caveats_for(ir, &endpoint_ids(&kept));
+            let caveats = caveats_for_ctx(&ctx, &endpoint_ids(&kept));
             Ok(QueryResult::Causes {
                 target,
                 links,
@@ -1227,8 +1248,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             filter,
         } => {
             // Ph2 [D2] : voir bras WHY (propagation avant).
-            let scoped = pearl::what_scoped(ir, label, *ambiguity_limit)
-                .map_err(|candidates| BackendError::Ambiguous { candidates })?;
+            let scoped =
+                pearl::what_scoped_ctx(&ctx, label, &pearl::DefaultLabelSim, *ambiguity_limit)
+                    .map_err(|candidates| BackendError::Ambiguous { candidates })?;
             if scoped.matched.is_empty() {
                 return Err(BackendError::NodeNotFound(label.clone()));
             }
@@ -1248,18 +1270,18 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             let blocked_by: Vec<LinkDto> = scoped
                 .matched
                 .iter()
-                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(ir, l)))
+                .flat_map(|(_, _, b)| b.iter().map(|l| link_to_dto(&ctx, l)))
                 .collect();
             // Ph7 : voir bras WHY (filtre puis TOPK).
-            let kept = filter_links(ir, raw, filter);
+            let kept = filter_links_ctx(&ctx, raw, filter);
             let total = kept.len();
             let links: Vec<LinkDto> = kept
                 .iter()
                 .take(topk.unwrap_or(usize::MAX))
-                .map(|l| link_to_dto(ir, l))
+                .map(|l| link_to_dto(&ctx, l))
                 .collect();
             // Ph7b : voir bras WHY.
-            let caveats = caveats_for(ir, &endpoint_ids(&kept));
+            let caveats = caveats_for_ctx(&ctx, &endpoint_ids(&kept));
             Ok(QueryResult::Effects {
                 source,
                 links,
@@ -1279,19 +1301,19 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             filter,
         } => {
             // Distingue nœud introuvable (NodeNotFound) de l'absence de chemin (found:false).
-            if pearl::find_best(ir, from).is_none() {
+            if pearl::find_best(ctx.ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
             }
-            if pearl::find_best(ir, to).is_none() {
+            if pearl::find_best(ctx.ir, to).is_none() {
                 return Err(BackendError::NodeNotFound(to.clone()));
             }
             // Ph3 [D3] : jusqu'à `topk` chemins confiance-max (Dijkstra + Yen).
-            let (paths, blocked) = pearl::chain_topk(ir, from, to, *topk);
+            let (paths, blocked) = pearl::chain_topk_ctx(&ctx, from, to, *topk);
             // Ph7 : filtre résultat — chemin écarté si un lien ne passe pas
             // (le chemin n'est valide que d'un bloc ; pas de coupure).
             let paths: Vec<pearl::ScoredPath> = paths
                 .into_iter()
-                .filter(|p| filter_links(ir, p.links.clone(), filter).len() == p.links.len())
+                .filter(|p| filter_links_ctx(&ctx, p.links.clone(), filter).len() == p.links.len())
                 .collect();
             let found = !paths.is_empty();
             let best = paths.first();
@@ -1312,10 +1334,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 to: to.clone(),
                 found,
                 links: best
-                    .map(|p| p.links.iter().map(|l| link_to_dto(ir, l)).collect())
+                    .map(|p| p.links.iter().map(|l| link_to_dto(&ctx, l)).collect())
                     .unwrap_or_default(),
                 // Ph1 [D1] : rempli ssi coupure par négation (vide = vraiment aucun chemin).
-                blocked_by: blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                blocked_by: blocked.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                 path_confidence: best.map(|p| p.confidence).unwrap_or(0.0),
                 // Chemins classés ssi TOPK > 1 (rang 1 = `links`).
                 ranked_paths: if *topk > 1 {
@@ -1325,7 +1347,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                         .map(|(i, p)| RankedPathDto {
                             rank: i + 1,
                             path_confidence: p.confidence,
-                            links: p.links.iter().map(|l| link_to_dto(ir, l)).collect(),
+                            links: p.links.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                         })
                         .collect()
                 } else {
@@ -1346,8 +1368,8 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .iter()
                 .filter(|(_, _, e)| e.temporal_gap.is_some())
                 .map(|(s, d, e)| GapDto {
-                    from: pearl::node_label(ir, *s),
-                    to: pearl::node_label(ir, *d),
+                    from: ctx.node_label(*s),
+                    to: ctx.node_label(*d),
                     relation: serde_name(&e.relation),
                 })
                 .collect();
@@ -1358,21 +1380,21 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Intervene { label, filter } => {
-            let (target, result) = pearl::intervene(ir, label)
+            let (target, result) = pearl::intervene_ctx(&ctx, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             // Ph7 : filtre résultat (severed + effets).
-            let severed = filter_links(ir, result.severed, filter);
-            let effects = filter_links(ir, result.effects, filter);
+            let severed = filter_links_ctx(&ctx, result.severed, filter);
+            let effects = filter_links_ctx(&ctx, result.effects, filter);
             // Ph7b : caveats de la cible + effets retenus.
             let mut ids = vec![
-                pearl::find_best(ir, label)
+                pearl::find_best(ctx.ir, label)
                     .map(|n| n.id)
                     .unwrap_or(NodeId(0)),
             ];
             ids.extend(endpoint_ids(&effects));
-            let caveats = caveats_for(ir, &ids);
+            let caveats = caveats_for_ctx(&ctx, &ids);
             // Ph7d : cible irréversible → warning FIGÉ (effets calculés quand même).
-            let warnings = match pearl::find_best(ir, label) {
+            let warnings = match pearl::find_best(ctx.ir, label) {
                 Some(n) if n.attributes.reversible == Some(false) => {
                     vec!["irreversible".to_string()]
                 }
@@ -1381,20 +1403,24 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             Ok(QueryResult::Intervention {
                 target,
                 severed_count: severed.len(),
-                severed: severed.iter().map(|l| link_to_dto(ir, l)).collect(),
-                effects: effects.iter().map(|l| link_to_dto(ir, l)).collect(),
+                severed: severed.iter().map(|l| link_to_dto(&ctx, l)).collect(),
+                effects: effects.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                 // Ph1 [D1] : niées rencontrées en aval.
-                blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                blocked_by: result
+                    .blocked
+                    .iter()
+                    .map(|l| link_to_dto(&ctx, l))
+                    .collect(),
                 caveats,
                 warnings,
             })
         }
 
         Query::Counterfactual(label) => {
-            let (target, result) = pearl::counterfactual(ir, label)
+            let (target, result) = pearl::counterfactual_ctx(&ctx, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             // Ph7 : filtre résultat (pas de filtre requête sur CF : monde actuel brut).
-            let actual = filter_links(ir, result.actual_effects, &LinkFilter::default());
+            let actual = filter_links_ctx(&ctx, result.actual_effects, &LinkFilter::default());
             let gardes: std::collections::HashSet<String> =
                 actual.iter().map(|l| l.to_label.clone()).collect();
             let unique_effects: Vec<String> = result
@@ -1404,18 +1430,22 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .collect();
             // Ph7b : caveats de la cible + effets retenus.
             let mut ids = vec![
-                pearl::find_best(ir, label)
+                pearl::find_best(ctx.ir, label)
                     .map(|n| n.id)
                     .unwrap_or(NodeId(0)),
             ];
             ids.extend(endpoint_ids(&actual));
-            let caveats = caveats_for(ir, &ids);
+            let caveats = caveats_for_ctx(&ctx, &ids);
             Ok(QueryResult::CounterfactualDiff {
                 target,
-                actual_effects: actual.iter().map(|l| link_to_dto(ir, l)).collect(),
+                actual_effects: actual.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                 unique_effects,
                 // Ph1 [D1] : niées rencontrées depuis la cible.
-                blocked_by: result.blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                blocked_by: result
+                    .blocked
+                    .iter()
+                    .map(|l| link_to_dto(&ctx, l))
+                    .collect(),
                 caveats,
             })
         }
@@ -1448,7 +1478,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::ZoomIn(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let children: Vec<NodeSummaryDto> = ir
                 .nodes
@@ -1466,7 +1496,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::ZoomOut(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let parent_label = node
                 .parent
@@ -1479,7 +1509,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Aggregate(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let child_ids: std::collections::HashSet<_> = ir
                 .nodes
@@ -1488,7 +1518,8 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .map(|n| n.id)
                 .collect();
             let child_count = child_ids.len();
-            let (nm, _) = pearl::build_maps_pub(ir);
+            // M4 : index partagé (plus de build local).
+            let nm = &ctx.nm;
             // Ph7e : les liens témoins (cause existentielle/spécifique) ne sont
             // jamais généralisés en agrégat — exclus ici.
             let outgoing: Vec<LinkDto> = ir
@@ -1522,7 +1553,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     derived_from: e.derivation.as_ref().map(|drv| {
                         drv.source_edges
                             .iter()
-                            .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
+                            .map(|(s, d)| (ctx.node_label(*s), ctx.node_label(*d)))
                             .collect()
                     }),
                     motif: None,
@@ -1557,7 +1588,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Centrality(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let in_edges: Vec<f32> = ir
                 .edges
@@ -1600,7 +1631,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     pearl::SPOF_MAX_NODES
                 )));
             }
-            let (total_pairs, scores) = pearl::spof_all(ir)?;
+            let (total_pairs, scores) = pearl::spof_all_ctx(&ctx)?;
             let spof_nodes: Vec<SpofNodeDto> = scores
                 .into_iter()
                 .map(|s: SpofScore| {
@@ -1628,7 +1659,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 .unresolved
                 .iter()
                 .map(|amb| {
-                    let node = pearl::node_label(ir, amb.node_id);
+                    let node = ctx.node_label(amb.node_id);
                     Caveat {
                         node,
                         field: serde_name(&amb.field),
@@ -1649,7 +1680,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 
         Query::Provenance(label) => {
             // Ph7f : fiche complète des arêtes incidentes (qui, quand, comment, span).
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let mut entries: Vec<ProvenanceEntryDto> = ir
                 .edges
@@ -1674,8 +1705,8 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                         .map(|p| span_text_kind(ir, &p.span))
                         .unwrap_or((None, None));
                     ProvenanceEntryDto {
-                        from: pearl::node_label(ir, *s),
-                        to: pearl::node_label(ir, *d),
+                        from: ctx.node_label(*s),
+                        to: ctx.node_label(*d),
                         relation: serde_name(&e.relation),
                         explicit: e.explicit,
                         extraction_method: method,
@@ -1700,17 +1731,17 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::NormDiff(from, to) => {
-            if pearl::find_best(ir, from).is_none() {
+            if pearl::find_best(ctx.ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
             }
-            if pearl::find_best(ir, to).is_none() {
+            if pearl::find_best(ctx.ir, to).is_none() {
                 return Err(BackendError::NodeNotFound(to.clone()));
             }
-            let links = pearl::chain(ir, from, to);
+            let links = pearl::chain_ctx(&ctx, from, to);
             let path_exists = links.is_some();
             let path_links_dto: Vec<LinkDto> = links
                 .as_ref()
-                .map(|ls| ls.iter().map(|l| link_to_dto(ir, l)).collect())
+                .map(|ls| ls.iter().map(|l| link_to_dto(&ctx, l)).collect())
                 .unwrap_or_default();
             let n_edges_on_path = path_links_dto.len();
             let observed_confidence = links
@@ -1743,7 +1774,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 0.0
             };
             if let Some(label) = label_opt {
-                let node = pearl::find_best(ir, label)
+                let node = pearl::find_best(ctx.ir, label)
                     .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
                 let local_degree = ir
                     .edges
@@ -1776,7 +1807,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Coverage(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let incident: Vec<_> = ir
                 .edges
@@ -1809,7 +1840,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Reliability(label) => {
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
             let incident: Vec<_> = ir
                 .edges
@@ -1844,16 +1875,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Explain { effect, contrast } => {
-            let node = pearl::find_best(ir, effect)
+            let node = pearl::find_best(ctx.ir, effect)
                 .ok_or_else(|| BackendError::NodeNotFound(effect.clone()))?;
-            let hypotheses = pearl::abduct(ir, node.id);
+            let hypotheses = pearl::abduct_ctx(&ctx, node.id);
             // Ph6b : contraste vs alternative (causes de E hors F).
             let contrast_dto = match contrast {
                 Some(alt) => {
-                    let alt_node = pearl::find_best(ir, alt)
+                    let alt_node = pearl::find_best(ctx.ir, alt)
                         .ok_or_else(|| BackendError::NodeNotFound(alt.clone()))?;
                     let alt_labels: std::collections::HashSet<String> =
-                        pearl::abduct(ir, alt_node.id)
+                        pearl::abduct_ctx(&ctx, alt_node.id)
                             .into_iter()
                             .map(|h| h.label)
                             .collect();
@@ -1895,7 +1926,7 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     })
                     .collect(),
                 contrast: contrast_dto,
-                by_agent: pearl::group_by_agent(ir, &hypotheses)
+                by_agent: pearl::group_by_agent(ctx.ir, &hypotheses)
                     .into_iter()
                     .map(|(agent_type, hs)| AgentGroupDto {
                         agent_type,
@@ -1916,31 +1947,31 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 
         Query::Ask { label } => {
             // Ph6b : fiche nœud (1 saut, sans traversée ni propagation).
-            let node = pearl::find_best(ir, label)
+            let node = pearl::find_best(ctx.ir, label)
                 .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let (causes, effects) = pearl::direct_links(ir, node.id);
+            let (causes, effects) = pearl::direct_links_ctx(&ctx, node.id);
             Ok(QueryResult::AskReport {
                 label: node.label.clone(),
                 node_type: serde_name(&node.node_type),
-                causes: causes.iter().map(|l| link_to_dto(ir, l)).collect(),
-                effects: effects.iter().map(|l| link_to_dto(ir, l)).collect(),
+                causes: causes.iter().map(|l| link_to_dto(&ctx, l)).collect(),
+                effects: effects.iter().map(|l| link_to_dto(&ctx, l)).collect(),
             })
         }
 
         Query::WhyNot { from, to } => {
             // Ph6b : pourquoi aucun chemin causal (WHY-NOT = bloqueurs niés).
-            let from_node = pearl::find_best(ir, from)
+            let from_node = pearl::find_best(ctx.ir, from)
                 .ok_or_else(|| BackendError::NodeNotFound(from.clone()))?;
-            let to_node =
-                pearl::find_best(ir, to).ok_or_else(|| BackendError::NodeNotFound(to.clone()))?;
-            let (paths, blocked) = pearl::chain_topk(ir, from, to, 1);
+            let to_node = pearl::find_best(ctx.ir, to)
+                .ok_or_else(|| BackendError::NodeNotFound(to.clone()))?;
+            let (paths, blocked) = pearl::chain_topk_ctx(&ctx, from, to, 1);
             if let Some(best) = paths.first() {
                 // Un chemin pur existe : pas de « pourquoi pas ».
                 return Ok(QueryResult::WhyNot {
                     from: from_node.label.clone(),
                     to: to_node.label.clone(),
                     verdict: "chemin_existe".to_string(),
-                    links: best.links.iter().map(|l| link_to_dto(ir, l)).collect(),
+                    links: best.links.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                     blocked_by: vec![],
                     proches: vec![],
                 });
@@ -1951,10 +1982,10 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                     std::collections::HashSet::new();
                 for (s, d, _) in &ir.edges {
                     if *s == from_node.id && *d != to_node.id {
-                        proches_set.insert(pearl::node_label(ir, *d));
+                        proches_set.insert(ctx.node_label(*d));
                     }
                     if *d == to_node.id && *s != from_node.id {
-                        proches_set.insert(pearl::node_label(ir, *s));
+                        proches_set.insert(ctx.node_label(*s));
                     }
                 }
                 let mut proches: Vec<String> = proches_set.into_iter().collect();
@@ -1974,19 +2005,19 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
                 to: to_node.label.clone(),
                 verdict: "coupure_negation".to_string(),
                 links: vec![],
-                blocked_by: blocked.iter().map(|l| link_to_dto(ir, l)).collect(),
+                blocked_by: blocked.iter().map(|l| link_to_dto(&ctx, l)).collect(),
                 proches: vec![],
             })
         }
 
         Query::ChainT(from, to) => {
-            if pearl::find_best(ir, from).is_none() {
+            if pearl::find_best(ctx.ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
             }
-            if pearl::find_best(ir, to).is_none() {
+            if pearl::find_best(ctx.ir, to).is_none() {
                 return Err(BackendError::NodeNotFound(to.clone()));
             }
-            let result = pearl::chain_temporal(ir, from, to);
+            let result = pearl::chain_temporal_ctx(&ctx, from, to);
             let found = result.links.is_some();
             Ok(QueryResult::TemporalPath {
                 from: from.clone(),
@@ -2004,12 +2035,12 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 
         Query::Before(a, b) => {
             let node_a =
-                pearl::find_best(ir, a).ok_or_else(|| BackendError::NodeNotFound(a.clone()))?;
+                pearl::find_best(ctx.ir, a).ok_or_else(|| BackendError::NodeNotFound(a.clone()))?;
             let node_b =
-                pearl::find_best(ir, b).ok_or_else(|| BackendError::NodeNotFound(b.clone()))?;
+                pearl::find_best(ctx.ir, b).ok_or_else(|| BackendError::NodeNotFound(b.clone()))?;
             let a_index = node_a.temporal_index;
             let b_index = node_b.temporal_index;
-            let path_exists = pearl::chain(ir, a, b).is_some();
+            let path_exists = pearl::chain_ctx(&ctx, a, b).is_some();
             let a_before_b = match (a_index, b_index) {
                 (Some(ai), Some(bi)) => ai < bi && path_exists,
                 _ => path_exists,
@@ -2025,13 +2056,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
         }
 
         Query::Delay(from, to) => {
-            if pearl::find_best(ir, from).is_none() {
+            if pearl::find_best(ctx.ir, from).is_none() {
                 return Err(BackendError::NodeNotFound(from.clone()));
             }
-            if pearl::find_best(ir, to).is_none() {
+            if pearl::find_best(ctx.ir, to).is_none() {
                 return Err(BackendError::NodeNotFound(to.clone()));
             }
-            let result = pearl::chain_temporal(ir, from, to);
+            let result = pearl::chain_temporal_ctx(&ctx, from, to);
             let (gap_min_sum, gap_max_sum, index_delta) = if let Some(ref links) = result.links {
                 let min_sum: Option<i32> = links
                     .iter()
@@ -2068,14 +2099,16 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 /// tout lien ternaire du chemin ait son `third_node` présent sur le chemin
 /// (sinon `NoPath`). Les liens du tiers restent annotés via `third_node_label`.
 pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>, BackendError> {
-    if pearl::find_best(ir, from).is_none() {
+    // M4 : un seul build (contexte partagé comme execute).
+    let ctx = pearl::GraphCtx::new(ir);
+    if pearl::find_best(ctx.ir, from).is_none() {
         return Err(BackendError::NodeNotFound(from.to_string()));
     }
-    if pearl::find_best(ir, to).is_none() {
+    if pearl::find_best(ctx.ir, to).is_none() {
         return Err(BackendError::NodeNotFound(to.to_string()));
     }
     let no_path = || BackendError::NoPath(from.to_string(), to.to_string());
-    let (path, _) = pearl::chain_with_blocked(ir, from, to);
+    let (path, _) = pearl::chain_with_blocked_ctx(&ctx, from, to);
     let links = path.ok_or_else(no_path)?;
     let on_path: std::collections::HashSet<NodeId> =
         links.iter().flat_map(|l| [l.from_id, l.to_id]).collect();
@@ -2086,7 +2119,7 @@ pub fn chain_strict(ir: &CausalIR, from: &str, to: &str) -> Result<Vec<LinkDto>,
             return Err(BackendError::NoPath(from.to_string(), to.to_string()));
         }
     }
-    Ok(links.iter().map(|l| link_to_dto(ir, l)).collect())
+    Ok(links.iter().map(|l| link_to_dto(&ctx, l)).collect())
 }
 
 fn temporal_link_to_dto(l: &pearl::TemporalLink) -> TemporalLinkDto {
@@ -2156,29 +2189,30 @@ pub fn span_text_kind(
     }
 }
 
-pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
+/// M4 — DTO sur contexte partagé : index nœuds/arêtes au lieu de scans
+/// linéaires répétés (8 recherches nœuds + 1 arête par lien). Mêmes valeurs.
+pub(crate) fn link_to_dto(ctx: &pearl::GraphCtx<'_>, l: &CausalLink) -> LinkDto {
     // C4 fix : sérialiser la relation en snake_case via serde (pas Debug).
     let relation = serde_name(&l.relation);
+    let ir = ctx.ir;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
+    let src_node = nm.get(&l.from_id);
+    let dst_node = nm.get(&l.to_id);
     // P1-5 : résoudre le tiers ternaire (médiateur/condition) en label.
     // Était `None` systématique alors que `CausalLink.third_node` est peuplé
     // depuis `CausalEdge.third` (pearl.rs) — perte ternaire de bout en bout.
-    let third_node_label = l.third_node.and_then(|tid| {
-        ir.nodes
-            .iter()
-            .find(|n| n.id == tid)
-            .map(|n| n.label.clone())
-    });
+    let third_node_label = l
+        .third_node
+        .and_then(|tid| nm.get(&tid).map(|n| n.label.clone()));
     // Une seule résolution d'arête (dérivation, cycle, provenance).
-    let edge = ir
-        .edges
-        .iter()
-        .find(|(s, d, _)| *s == l.from_id && *d == l.to_id)
-        .map(|(_, _, e)| e);
+    // Même sémantique que le scan : première arête (src, dst) (cf. or_insert).
+    let edge = em.get(&(l.from_id.0, l.to_id.0)).copied();
     // Ph6b : dérivations D3 systématiques (`Derivation.source_edges` → labels).
     let derived_from = edge.and_then(|e| e.derivation.as_ref()).map(|drv| {
         drv.source_edges
             .iter()
-            .map(|(s, d)| (pearl::node_label(ir, *s), pearl::node_label(ir, *d)))
+            .map(|(s, d)| (ctx.node_label(*s), ctx.node_label(*d)))
             .collect()
     });
     // Ph7a : effet de cycle (damped/amplifying) via in_cycle.
@@ -2217,51 +2251,28 @@ pub(crate) fn link_to_dto(ir: &CausalIR, l: &CausalLink) -> LinkDto {
         motif: l.motif.map(|m| m.as_str().to_string()),
         cycle_effect,
         // Ph7b : origine du nœud source (cause) — ranking × poids.
-        origin: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.from_id)
-            .map(|n| serde_name(&n.origin)),
+        origin: src_node.map(|n| serde_name(&n.origin)),
         explicit: edge.is_some_and(|e| e.explicit),
         extraction_method,
         model_version,
         span,
         kind,
         // Ph7e : scope du nœud source (côté cause, cohérent avec origin/agent).
-        scope: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.from_id)
-            .map(|n| serde_name(&n.scope)),
+        scope: src_node.map(|n| serde_name(&n.scope)),
         // Ph7d : agent + type du nœud source (qui agit), patient du nœud cible (qui subit).
-        agent: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.from_id)
-            .and_then(|n| n.attributes.agent.clone()),
-        patient: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.to_id)
-            .and_then(|n| n.attributes.patient.clone()),
-        agent_type: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.from_id)
+        agent: src_node.and_then(|n| n.attributes.agent.clone()),
+        patient: dst_node.and_then(|n| n.attributes.patient.clone()),
+        agent_type: src_node
             .and_then(|n| n.attributes.agent_type)
             .map(|t| serde_name(&t)),
         // Ph7e : lien témoin si la cause est existentielle/spécifique
         // (généralisation interdite — exclu des agrégats).
-        witness_only: ir
-            .nodes
-            .iter()
-            .find(|n| n.id == l.from_id)
-            .is_some_and(|n| {
-                matches!(
-                    n.scope,
-                    gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
-                )
-            }),
+        witness_only: src_node.is_some_and(|n| {
+            matches!(
+                n.scope,
+                gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
+            )
+        }),
     }
 }
 

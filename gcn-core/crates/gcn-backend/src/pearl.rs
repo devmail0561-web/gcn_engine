@@ -187,15 +187,17 @@ pub struct ScopedMatches {
 ///
 /// `Err` = candidats flous en trop (appelant : `BackendError::Ambiguous`).
 /// Sans aucun match : `Ok` vide (appelant : `NodeNotFound`, comme avant).
-fn scope_matches(
-    ir: &CausalIR,
+fn scope_matches_ctx(
+    ctx: &GraphCtx<'_>,
     label: &str,
     sim: &dyn LabelSim,
     limit: usize,
     reverse: bool,
 ) -> Result<ScopedMatches, Vec<String>> {
-    let g = build(ir);
-    let (nm, em) = build_maps(ir);
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let ranked = find_all_ranked_with(ir, label, sim);
     let (exacts, flous): (Vec<_>, Vec<_>) = ranked.into_iter().partition(|(s, _)| *s == 0);
     // Exact (score 0) toujours répondu, même multiples ; flou seulement si 0 exact.
@@ -211,9 +213,9 @@ fn scope_matches(
     let mut match_scores = Vec::with_capacity(picked.len());
     for (s, n) in picked {
         let (links, blocked) = if reverse {
-            bfs_ancestors(&nm, &em, &g, n.id)
+            bfs_ancestors(nm, em, g, n.id)
         } else {
-            bfs_descendants(&nm, &em, &g, n.id)
+            bfs_descendants(nm, em, g, n.id)
         };
         matched.push((n.label.clone(), links, blocked));
         match_scores.push((n.label.clone(), s));
@@ -237,7 +239,17 @@ pub fn why_scoped_with(
     sim: &dyn LabelSim,
     limit: usize,
 ) -> Result<ScopedMatches, Vec<String>> {
-    scope_matches(ir, label, sim, limit, true)
+    scope_matches_ctx(&GraphCtx::new(ir), label, sim, limit, true)
+}
+
+/// M4 — WHY cadré sur contexte partagé (un seul build par requête).
+pub(crate) fn why_scoped_ctx(
+    ctx: &GraphCtx<'_>,
+    label: &str,
+    sim: &dyn LabelSim,
+    limit: usize,
+) -> Result<ScopedMatches, Vec<String>> {
+    scope_matches_ctx(ctx, label, sim, limit, true)
 }
 
 /// WHAT cadré [D2] : même politique que `why_scoped`, propagation avant.
@@ -252,7 +264,17 @@ pub fn what_scoped_with(
     sim: &dyn LabelSim,
     limit: usize,
 ) -> Result<ScopedMatches, Vec<String>> {
-    scope_matches(ir, label, sim, limit, false)
+    scope_matches_ctx(&GraphCtx::new(ir), label, sim, limit, false)
+}
+
+/// M4 — WHAT cadré sur contexte partagé (un seul build par requête).
+pub(crate) fn what_scoped_ctx(
+    ctx: &GraphCtx<'_>,
+    label: &str,
+    sim: &dyn LabelSim,
+    limit: usize,
+) -> Result<ScopedMatches, Vec<String>> {
+    scope_matches_ctx(ctx, label, sim, limit, false)
 }
 
 type NodeMap<'a> = HashMap<NodeId, &'a gcn_ir::CausalNode>;
@@ -271,6 +293,35 @@ fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
         em.entry((s.0, d.0)).or_insert(e);
     }
     (nm, em)
+}
+
+/// Ph10-M4 — contexte de graphe partagé : UN SEUL calcul par requête.
+///
+/// `build` (petgraph) + `build_maps` (index nœuds/arêtes) sont purs en `ir` ;
+/// `execute()` construit un `GraphCtx` à l'arrivée de la requête et le passe
+/// à toutes les fonctions d'analyse (`*_ctx`). Aucun changement de résultat :
+/// les variantes `ir` restent en wrappers fins (appelants directs + tests).
+pub struct GraphCtx<'a> {
+    pub(crate) ir: &'a CausalIR,
+    pub(crate) g: CausalGraph,
+    pub(crate) nm: NodeMap<'a>,
+    pub(crate) em: EdgeMap<'a>,
+}
+
+impl<'a> GraphCtx<'a> {
+    pub fn new(ir: &'a CausalIR) -> Self {
+        let g = build(ir);
+        let (nm, em) = build_maps(ir);
+        GraphCtx { ir, g, nm, em }
+    }
+
+    /// Label d'un nœud via l'index (remplace les scans linéaires `node_label`).
+    pub(crate) fn node_label(&self, id: NodeId) -> String {
+        self.nm
+            .get(&id)
+            .map(|n| n.label.clone())
+            .unwrap_or_else(|| format!("node_{}", id.0))
+    }
 }
 
 /// Ph7 — raison de coupure d'une arête (None = traversable).
@@ -308,12 +359,22 @@ fn sort_blocked(blocked: &mut [CausalLink]) {
 /// Ph1 [D1] : les arêtes niées ne sont pas traversées (propagation coupée) ;
 /// elles sont collectées en 3e position pour `blocked_by`.
 pub fn why(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>, Vec<CausalLink>)> {
-    let g = build(ir);
-    let (nm, em) = build_maps(ir);
+    why_ctx(&GraphCtx::new(ir), label)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn why_ctx(
+    ctx: &GraphCtx<'_>,
+    label: &str,
+) -> Vec<(String, Vec<CausalLink>, Vec<CausalLink>)> {
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     find_all_ranked(ir, label)
         .into_iter()
         .map(|n| {
-            let (links, blocked) = bfs_ancestors(&nm, &em, &g, n.id);
+            let (links, blocked) = bfs_ancestors(nm, em, g, n.id);
             (n.label.clone(), links, blocked)
         })
         .collect()
@@ -323,12 +384,22 @@ pub fn why(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>, Vec<Caus
 ///
 /// Ph1 [D1] : même coupure par négation que WHY (3e position = `blocked_by`).
 pub fn what(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>, Vec<CausalLink>)> {
-    let g = build(ir);
-    let (nm, em) = build_maps(ir);
+    what_ctx(&GraphCtx::new(ir), label)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn what_ctx(
+    ctx: &GraphCtx<'_>,
+    label: &str,
+) -> Vec<(String, Vec<CausalLink>, Vec<CausalLink>)> {
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     find_all_ranked(ir, label)
         .into_iter()
         .map(|n| {
-            let (links, blocked) = bfs_descendants(&nm, &em, &g, n.id);
+            let (links, blocked) = bfs_descendants(nm, em, g, n.id);
             (n.label.clone(), links, blocked)
         })
         .collect()
@@ -343,7 +414,12 @@ pub fn what(ir: &CausalIR, label: &str) -> Vec<(String, Vec<CausalLink>, Vec<Cau
 /// Ph1 [D1] : le chemin ne traverse jamais d'arête niée. Voir
 /// `chain_with_blocked` pour le détail des coupures.
 pub fn chain(ir: &CausalIR, from: &str, to: &str) -> Option<Vec<CausalLink>> {
-    chain_with_blocked(ir, from, to).0
+    chain_ctx(&GraphCtx::new(ir), from, to)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn chain_ctx(ctx: &GraphCtx<'_>, from: &str, to: &str) -> Option<Vec<CausalLink>> {
+    chain_with_blocked_ctx(ctx, from, to).0
 }
 
 /// Ph3 [D3] — coût d'arête pour Dijkstra confiance-max : −ln(conf),
@@ -546,7 +622,16 @@ pub fn chain_with_blocked(
     from: &str,
     to: &str,
 ) -> (Option<Vec<CausalLink>>, Vec<CausalLink>) {
-    let (paths, blocked) = chain_topk(ir, from, to, 1);
+    chain_with_blocked_ctx(&GraphCtx::new(ir), from, to)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn chain_with_blocked_ctx(
+    ctx: &GraphCtx<'_>,
+    from: &str,
+    to: &str,
+) -> (Option<Vec<CausalLink>>, Vec<CausalLink>) {
+    let (paths, blocked) = chain_topk_ctx(ctx, from, to, 1);
     (paths.into_iter().next().map(|p| p.links), blocked)
 }
 
@@ -561,24 +646,36 @@ pub fn chain_topk(
     to: &str,
     k: usize,
 ) -> (Vec<ScoredPath>, Vec<CausalLink>) {
-    let g = build(ir);
+    chain_topk_ctx(&GraphCtx::new(ir), from, to, k)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn chain_topk_ctx(
+    ctx: &GraphCtx<'_>,
+    from: &str,
+    to: &str,
+    k: usize,
+) -> (Vec<ScoredPath>, Vec<CausalLink>) {
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let (Some(src), Some(dst)) = (find_best(ir, from), find_best(ir, to)) else {
         return (vec![], vec![]);
     };
-    let (nm, em) = build_maps(ir);
-    let paths = k_shortest_paths(&nm, &em, &g, src.id, dst.id, k.max(1));
+    let paths = k_shortest_paths(nm, em, g, src.id, dst.id, k.max(1));
     if !paths.is_empty() {
         return (paths, vec![]);
     }
     // Pas de chemin pur : coupures du chemin non filtré (borne : BFS historique).
-    let full = bfs_path_links(&nm, &em, &g, src.id, dst.id, false);
+    let full = bfs_path_links(nm, em, g, src.id, dst.id, false);
     if full.is_empty() {
         return (vec![], vec![]);
     }
     let mut blocked: Vec<CausalLink> = full
         .into_iter()
         .filter_map(|mut l| {
-            l.motif = edge_block_motif(&nm, &em, l.from_id, l.to_id);
+            l.motif = edge_block_motif(nm, em, l.from_id, l.to_id);
             l.motif.map(|_| l)
         })
         .collect();
@@ -752,17 +849,27 @@ fn bfs_path_links(
 /// Ph6b — liens directs 1 saut d'un nœud : (entrants, sortants).
 /// Sert ASK (fiche nœud) sans traversée (pas de propagation, pas de niée).
 pub fn direct_links(ir: &CausalIR, id: NodeId) -> (Vec<CausalLink>, Vec<CausalLink>) {
-    let (nm, em) = build_maps(ir);
+    direct_links_ctx(&GraphCtx::new(ir), id)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn direct_links_ctx(
+    ctx: &GraphCtx<'_>,
+    id: NodeId,
+) -> (Vec<CausalLink>, Vec<CausalLink>) {
+    let ir = ctx.ir;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let mut entrants = Vec::new();
     let mut sortants = Vec::new();
     for (s, d, _) in &ir.edges {
         if *d == id
-            && let Some(link) = edge_link(&nm, &em, *s, *d)
+            && let Some(link) = edge_link(nm, em, *s, *d)
         {
             entrants.push(link);
         }
         if *s == id
-            && let Some(link) = edge_link(&nm, &em, *s, *d)
+            && let Some(link) = edge_link(nm, em, *s, *d)
         {
             sortants.push(link);
         }
@@ -909,6 +1016,14 @@ pub struct SpofScore {
 /// appelant direct de la crate (le CLI garde déjà 500 nœuds dans query.rs).
 /// Retourne `Err` au-delà de `SPOF_MAX_NODES` au lieu de calculer.
 pub fn spof_all(ir: &CausalIR) -> Result<(usize, Vec<SpofScore>), crate::error::BackendError> {
+    spof_all_ctx(&GraphCtx::new(ir))
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn spof_all_ctx(
+    ctx: &GraphCtx<'_>,
+) -> Result<(usize, Vec<SpofScore>), crate::error::BackendError> {
+    let ir = ctx.ir;
     if ir.nodes.len() > SPOF_MAX_NODES {
         return Err(crate::error::BackendError::QueryParseError(format!(
             "SPOF: graph too large ({} nodes > {})",
@@ -916,9 +1031,9 @@ pub fn spof_all(ir: &CausalIR) -> Result<(usize, Vec<SpofScore>), crate::error::
             SPOF_MAX_NODES
         )));
     }
-    let g = build(ir);
-    let (_, em) = build_maps(ir);
-    let total = reachable_pairs_with_graph(&g, &ir.nodes, None);
+    let g = &ctx.g;
+    let em = &ctx.em;
+    let total = reachable_pairs_with_graph(g, &ir.nodes, None);
 
     // Éq.12 — nœuds impliqués dans un joint_group
     let joint_sources: HashSet<NodeId> = em
@@ -933,7 +1048,7 @@ pub fn spof_all(ir: &CausalIR) -> Result<(usize, Vec<SpofScore>), crate::error::
         .map(|n| {
             let ex = g.node_indices.get(&n.id).copied();
             let without = match ex {
-                Some(idx) => reachable_pairs_with_graph(&g, &ir.nodes, Some(idx)),
+                Some(idx) => reachable_pairs_with_graph(g, &ir.nodes, Some(idx)),
                 None => total,
             };
             SpofScore {
@@ -998,8 +1113,14 @@ fn serde_agent_type(t: &gcn_ir::AgentType) -> String {
     }
 }
 pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
-    let g = build(ir);
-    let (nm, em) = build_maps(ir);
+    abduct_ctx(&GraphCtx::new(ir), effect_id)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn abduct_ctx(ctx: &GraphCtx<'_>, effect_id: NodeId) -> Vec<AbductionHypothesis> {
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let mut hypotheses: Vec<AbductionHypothesis> = Vec::new();
 
     let start = match g.node_indices.get(&effect_id) {
@@ -1019,7 +1140,7 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
             for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
                 let pred_id = g.g[pred];
                 // Ph1 [D1] + Ph7 : pas d'hypothèse à travers une coupure.
-                if edge_block_motif(&nm, &em, pred_id, effect_id).is_some() {
+                if edge_block_motif(nm, em, pred_id, effect_id).is_some() {
                     continue;
                 }
                 if visited.insert(pred) {
@@ -1054,7 +1175,7 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
         for pred in g.g.neighbors_directed(ni, Direction::Incoming) {
             let pred_id = g.g[pred];
             // Ph1 [D1] + Ph7 : pas de propagation à travers une coupure.
-            if edge_block_motif(&nm, &em, pred_id, cur_id).is_some() {
+            if edge_block_motif(nm, em, pred_id, cur_id).is_some() {
                 continue;
             }
             if visited.insert(pred) {
@@ -1101,8 +1222,14 @@ pub fn abduct(ir: &CausalIR, effect_id: NodeId) -> Vec<AbductionHypothesis> {
 /// (aucun TemporalGap sur ses arêtes) est rejeté (None) — CHAIN_T exige
 /// la phase pour raisonner sur une oscillation.
 pub fn chain_temporal(ir: &CausalIR, from: &str, to: &str) -> TemporalChainResult {
-    let path = chain(ir, from, to);
-    let (_nm, em) = build_maps(ir);
+    chain_temporal_ctx(&GraphCtx::new(ir), from, to)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn chain_temporal_ctx(ctx: &GraphCtx<'_>, from: &str, to: &str) -> TemporalChainResult {
+    let ir = ctx.ir;
+    let em = &ctx.em;
+    let path = chain_ctx(ctx, from, to);
     let idx_map: HashMap<NodeId, Option<i32>> =
         ir.nodes.iter().map(|n| (n.id, n.temporal_index)).collect();
 
@@ -1192,20 +1319,30 @@ pub fn node_label(ir: &CausalIR, id: NodeId) -> String {
 /// Ph1 [D1] : les entrantes niées sont incluses dans `severed` (coupées 2x =
 /// coupées) ; les effets ne traversent aucune arête niée.
 pub fn intervene(ir: &CausalIR, target_label: &str) -> Option<(String, InterventionResult)> {
+    intervene_ctx(&GraphCtx::new(ir), target_label)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn intervene_ctx(
+    ctx: &GraphCtx<'_>,
+    target_label: &str,
+) -> Option<(String, InterventionResult)> {
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let target = find_best(ir, target_label)?;
-    let (nm, em) = build_maps(ir);
 
     // Arêtes entrantes coupées par l'intervention (niées incluses, cf. ci-dessus)
     let severed: Vec<CausalLink> = ir
         .edges
         .iter()
         .filter(|(_, d, _)| *d == target.id)
-        .filter_map(|(s, d, _)| edge_link(&nm, &em, *s, *d))
+        .filter_map(|(s, d, _)| edge_link(nm, em, *s, *d))
         .collect();
 
     // Propagation en avant depuis X (les effets de X persistent même après intervention)
-    let g = build(ir);
-    let (effects, blocked) = bfs_descendants(&nm, &em, &g, target.id);
+    let (effects, blocked) = bfs_descendants(nm, em, g, target.id);
 
     Some((
         target.label.clone(),
@@ -1228,19 +1365,28 @@ pub fn intervene(ir: &CausalIR, target_label: &str) -> Option<(String, Intervent
 /// 2. On retire X du graphe et on calcule les nœuds atteignables depuis les racines
 /// 3. Les effets réels qui ne sont plus atteignables sans X sont counterfactuellement dépendants de X
 pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, CounterfactualResult)> {
+    counterfactual_ctx(&GraphCtx::new(ir), target_label)
+}
+
+/// M4 — cœur partageable (contexte construit une fois par requête).
+pub(crate) fn counterfactual_ctx(
+    ctx: &GraphCtx<'_>,
+    target_label: &str,
+) -> Option<(String, CounterfactualResult)> {
+    let ir = ctx.ir;
+    let g = &ctx.g;
+    let nm = &ctx.nm;
+    let em = &ctx.em;
     let target = find_best(ir, target_label)?;
 
-    let g = build(ir);
-    let (nm, em) = build_maps(ir);
-
-    let (actual_effects, blocked) = bfs_descendants(&nm, &em, &g, target.id);
+    let (actual_effects, blocked) = bfs_descendants(nm, em, g, target.id);
 
     // Éq.12 — nœuds à exclure du graphe résiduel (en plus de X)
     let mut extra_excluded: HashSet<NodeId> = HashSet::new();
 
     // JointCause([X,A₂]→C) : nécessité conjointe — si X est supprimé, C disparaît
     // même si A₂ reste. Identifier les groupes joint où X est membre → exclure leur cible.
-    let joint_groups = group_by_joint_id(&em);
+    let joint_groups = group_by_joint_id(em);
     for (gid, members) in &joint_groups {
         let x_in_group = members.iter().any(|(s, _)| *s == target.id);
         if x_in_group {
@@ -1271,7 +1417,7 @@ pub fn counterfactual(ir: &CausalIR, target_label: &str) -> Option<(String, Coun
 
     // Nœuds atteignables depuis les racines SANS X (niées non traversées)
     // et sans les nœuds dépendants.
-    let mut reachable_without_x = reachable_from_roots_without(&g, &nm, &em, target.id);
+    let mut reachable_without_x = reachable_from_roots_without(g, nm, em, target.id);
     for ex in &extra_excluded {
         reachable_without_x.remove(ex);
     }
@@ -1348,4 +1494,129 @@ fn reachable_from_roots_without(
         }
     }
     reachable
+}
+
+// ---------------------------------------------------------------------------
+// Tests M4 — équivalence wrappers (build par appel) / cœurs ctx (partagé).
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod ctx_tests {
+    use super::*;
+    use gcn_ir::{
+        CausalEdge, CausalIR, CausalNode, IrMetadata, NaturalLanguage, NodeAttributes, NodeId,
+        NodeOrigin, NodeType, RelationType, Scope, SourceLanguage,
+    };
+    use smallvec::SmallVec;
+
+    fn tnode(id: u32, label: &str) -> CausalNode {
+        CausalNode {
+            id: NodeId(id),
+            node_type: NodeType::Evenement,
+            parent: None,
+            label: label.to_string(),
+            source_span: gcn_ir::SourceSpan::Synthetic,
+            scope: Scope::Unknown,
+            modifiers: SmallVec::new(),
+            temporal_ref: gcn_ir::TemporalRef::Unresolved,
+            temporal_index: Some(id as i32),
+            origin: NodeOrigin::Explicit,
+            attributes: NodeAttributes::default(),
+            kind: None,
+        }
+    }
+
+    fn tedge(src: u32, dst: u32, conf: f32, negated: bool) -> (NodeId, NodeId, CausalEdge) {
+        (
+            NodeId(src),
+            NodeId(dst),
+            CausalEdge {
+                relation: RelationType::Cause,
+                confidence: conf,
+                temporal_gap: None,
+                explicit: true,
+                negated,
+                marker_token: None,
+                in_cycle: None,
+                provenance: None,
+                derivation: None,
+                joint_group_id: None,
+                third: None,
+            },
+        )
+    }
+
+    fn fixture() -> CausalIR {
+        CausalIR {
+            source_lang: SourceLanguage::Natural {
+                lang: NaturalLanguage::Und,
+            },
+            source_text: "m4".to_string(),
+            nodes: vec![
+                tnode(0, "alpha"),
+                tnode(1, "beta"),
+                tnode(2, "gamma"),
+                tnode(3, "delta"),
+            ],
+            // Chaîne alpha→beta→gamma→delta + raccourci faible + branche niée.
+            edges: vec![
+                tedge(0, 1, 0.9, false),
+                tedge(1, 2, 0.8, false),
+                tedge(2, 3, 0.7, false),
+                tedge(0, 3, 0.4, false),
+                tedge(1, 3, 0.9, true),
+            ],
+            cycles: vec![],
+            unresolved: vec![],
+            metadata: IrMetadata::default(),
+            intent: None,
+        }
+    }
+
+    fn same(a: impl std::fmt::Debug, b: impl std::fmt::Debug) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
+    }
+
+    #[test]
+    fn ctx_matches_direct_on_fixture() {
+        let ir = fixture();
+        let ctx = GraphCtx::new(&ir);
+        same(why(&ir, "delta"), why_ctx(&ctx, "delta"));
+        same(what(&ir, "alpha"), what_ctx(&ctx, "alpha"));
+        same(
+            why_scoped_with(&ir, "delta", &DefaultLabelSim, DEFAULT_AMBIGUITY_LIMIT),
+            why_scoped_ctx(&ctx, "delta", &DefaultLabelSim, DEFAULT_AMBIGUITY_LIMIT),
+        );
+        same(
+            what_scoped_with(&ir, "alpha", &DefaultLabelSim, DEFAULT_AMBIGUITY_LIMIT),
+            what_scoped_ctx(&ctx, "alpha", &DefaultLabelSim, DEFAULT_AMBIGUITY_LIMIT),
+        );
+        same(
+            chain_topk(&ir, "alpha", "delta", 3),
+            chain_topk_ctx(&ctx, "alpha", "delta", 3),
+        );
+        same(
+            chain_with_blocked(&ir, "alpha", "delta"),
+            chain_with_blocked_ctx(&ctx, "alpha", "delta"),
+        );
+        same(
+            chain(&ir, "alpha", "delta"),
+            chain_ctx(&ctx, "alpha", "delta"),
+        );
+        same(
+            chain_temporal(&ir, "alpha", "delta"),
+            chain_temporal_ctx(&ctx, "alpha", "delta"),
+        );
+        same(intervene(&ir, "beta"), intervene_ctx(&ctx, "beta"));
+        same(
+            counterfactual(&ir, "beta"),
+            counterfactual_ctx(&ctx, "beta"),
+        );
+        same(abduct(&ir, NodeId(3)), abduct_ctx(&ctx, NodeId(3)));
+        same(
+            direct_links(&ir, NodeId(1)),
+            direct_links_ctx(&ctx, NodeId(1)),
+        );
+        same(spof_all(&ir), spof_all_ctx(&ctx));
+    }
 }
