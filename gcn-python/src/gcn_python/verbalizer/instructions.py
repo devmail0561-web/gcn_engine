@@ -44,6 +44,8 @@ COMMANDS = {
     "counterfactual", # sans X
     "summarize",      # résumé
     "verbalize",      # CIR → texte
+    "lang",           # dialogue 9d : lang: <code> (état session, intercepté avant execute)
+    "revoke",         # dialogue 9e : revoke: [tour] (état session, intercepté avant execute)
     "help",           # aide
     "clear",          # vider
     "quit",           # quitter
@@ -81,8 +83,67 @@ def parse_command(text: str) -> tuple[str, str | None]:
 
 
 # ---------------------------------------------------------------------------
-# Graphe causal en mémoire
+# Origine dialogue 9a (FIGÉ D-ORIG + spec-origine-addcir.md)
+#
+# Chaque écriture porte session_origin ∈ {document, affirmation_utilisateur,
+# question_utilisateur}. Le poids 9a (document 1.0 / affirmation 0.8 /
+# question 0.5, FIGÉ) est appliqué À L'ÉCRITURE : la confiance stockée est
+# déjà effective (raw × poids) — tout consommateur aval (tri, affichage,
+# futur export vers le backend Rust qui applique ses propres poids 7b)
+# la respecte sans recalcul, en un seul point de multiplication par axe.
+# Une question ne pose jamais un fait : ses arêtes restent visibles avec
+# mention d'origine mais ne prouvent rien (cf. origin_only_note).
 # ---------------------------------------------------------------------------
+
+SESSION_ORIGINS = ("document", "affirmation_utilisateur", "question_utilisateur")
+
+SESSION_WEIGHTS = {
+    "document": 1.0,
+    "affirmation_utilisateur": 0.8,
+    "question_utilisateur": 0.5,
+}
+
+# Apports utilisateur (poids < 1.0) — révocables par 9e, jamais le corpus.
+_USER_ORIGINS = frozenset({"affirmation_utilisateur", "question_utilisateur"})
+
+# Précédence d'attestation des nœuds : un nœud vu en question puis attesté
+# en document est promu (upgrade-only, jamais de downgrade).
+_SESSION_PRECEDENCE = {"question_utilisateur": 0, "affirmation_utilisateur": 1, "document": 2}
+
+# Tags d'origine affichés (codes stables, language-agnostic — pas de traduction).
+_ORIGIN_TAG = {"question_utilisateur": "question", "affirmation_utilisateur": "affirmation"}
+
+
+def edge_origin_tag(attrs: dict) -> str:
+    """Tag d'origine pour une ligne de réponse ("" si document/inconnu)."""
+    if not isinstance(attrs, dict):
+        return ""
+    tag = _ORIGIN_TAG.get(attrs.get("session_origin"))
+    return f" [{tag}]" if tag else ""
+
+
+def origin_only_note(edges: list) -> str:
+    """Mention 9a quand TOUTES les arêtes viennent de l'utilisateur.
+
+    Ligne de code structurée (moteur language-agnostic — pas de prose) :
+    `origin: question-only` / `origin: user-only`. Sens : les arêtes montrées
+    ne sont attestées par aucun document — une question ne pose jamais un fait.
+    edges : séquences (src, dst, attrs, text). "" si mixte/corpus/vide.
+    """
+    if not edges:
+        return ""
+    origins = set()
+    for e in edges:
+        try:
+            _s, _d, attrs, _t = e
+        except (TypeError, ValueError):
+            continue
+        origins.add(attrs.get("session_origin") if isinstance(attrs, dict) else None)
+    if not origins or not origins <= _USER_ORIGINS:
+        return ""
+    if "question_utilisateur" in origins:
+        return "  origin: question-only"
+    return "  origin: user-only"
 
 class CausalGraph:
     """Graphe causal construit depuis les CIR accumulés en session."""
@@ -93,7 +154,24 @@ class CausalGraph:
         self.adjacency: dict  = defaultdict(list)        # src → [dst]
         self.reverse_adj: dict = defaultdict(list)       # dst → [src]
 
-    def add_cir(self, cir: dict) -> None:
+    def add_cir(self, cir: dict, session_origin: str | None = None) -> None:
+        """Fusionne un CIR en session avec origine 9a REQUISE (pas de défaut silencieux).
+
+        - nœuds : origine de l'écriture, upgrade-only par précédence
+          (question → affirmation → document) ;
+        - arêtes : copie des attrs (jamais d'alias avec le CIR appelant),
+          stamp session_origin + session_weight, confiance stockée = raw ×
+          poids 9a (FIGÉ D-ORIG) ; arête déjà stampée = premier stamp conservé
+          (jamais de double multiplication).
+        Lève ValueError si session_origin absente ou inconnue.
+        """
+        if session_origin not in SESSION_WEIGHTS:
+            raise ValueError(
+                f"add_cir : session_origin requise parmi {list(SESSION_ORIGINS)} "
+                f"(reçu {session_origin!r})."
+            )
+        weight = SESSION_WEIGHTS[session_origin]
+        import math as _m
         # Ids normalisés en str : les CIR moteur portent des ids entiers (0, 1, …)
         # que JSON.stringify en clés ("0", "1", …) au save — sans normalisation,
         # tout graphe rechargé perd ses labels (nodes.get(dst) → None).
@@ -102,7 +180,18 @@ class CausalGraph:
                 nid = str(n.get("id"))
                 n = dict(n)
                 n["id"] = nid
-                self.nodes[nid] = n
+                cur = self.nodes.get(nid)
+                if cur is None:
+                    n["session_origin"] = session_origin
+                    self.nodes[nid] = n
+                else:
+                    for k, v in n.items():
+                        if k not in ("id", "session_origin"):
+                            cur[k] = v
+                    if _SESSION_PRECEDENCE[session_origin] > _SESSION_PRECEDENCE.get(
+                        cur.get("session_origin"), -1
+                    ):
+                        cur["session_origin"] = session_origin
         src_text = cir.get("source_text", "")
         for e in cir.get("edges", []):
             if isinstance(e, (list, tuple)) and len(e) == 3:
@@ -118,30 +207,55 @@ class CausalGraph:
                 continue
             if not isinstance(attrs, dict):
                 continue
+            attrs = dict(attrs)  # copie : le stamp ne doit jamais fuiter dans le CIR appelant
+            if "session_origin" not in attrs:
+                attrs["session_origin"] = session_origin
+                attrs["session_weight"] = weight
+                raw = attrs.get("confidence")
+                if isinstance(raw, (int, float)) and _m.isfinite(raw):
+                    attrs["confidence"] = max(0.0, min(1.0, float(raw) * weight))
             src, dst = str(src), str(dst)
             self.edges.append((src, dst, attrs, src_text))
             self.adjacency[src].append(dst)
             self.reverse_adj[dst].append(src)
 
-    def add_discourse_block(self, merged_cir: dict) -> None:
+    def add_discourse_block(self, merged_cir: dict, session_origin: str | None = None) -> None:
         """Ajoute un bloc de discours multi-phrases (ids pré-préfixés bNNNNN_nMMM).
 
         Format réel produit par index.py : b{block_idx:05d}_ (lettre b, 5 chiffres).
         Délègue à add_cir après validation minimale : les ids doivent être
         uniques dans le graphe courant (sinon warn, écrasement documenté).
+        L'origine se propage du bloc (requise, cf. add_cir).
         """
         import warnings as _w
         for n in merged_cir.get("nodes", []):
             if isinstance(n, dict) and str(n.get("id")) in self.nodes:
                 _w.warn(f"CausalGraph : node id {n.get('id')!r} écrasé par bloc de discours.",
                         UserWarning, stacklevel=2)
-        self.add_cir(merged_cir)
+        self.add_cir(merged_cir, session_origin=session_origin)
 
     def clear(self) -> None:
         self.nodes.clear()
         self.edges.clear()
         self.adjacency.clear()
         self.reverse_adj.clear()
+
+    def drop_edges(self, pred) -> int:
+        """Supprime les arêtes vérifiant pred(src, dst, attrs) ; reconstruit l'adjacence.
+
+        Retourne le nombre d'arêtes supprimées. Utilisé par la révocation 9e
+        (jamais le corpus : le prédicat filtre sur session_origin).
+        """
+        keep = [(s, d, a, t) for s, d, a, t in self.edges if not pred(s, d, a)]
+        removed = len(self.edges) - len(keep)
+        if removed:
+            self.edges = keep
+            self.adjacency = defaultdict(list)
+            self.reverse_adj = defaultdict(list)
+            for s, d, _a, _t in self.edges:
+                self.adjacency[s].append(d)
+                self.reverse_adj[d].append(s)
+        return removed
 
     def save(self, path) -> None:
         """Persiste le graphe en JSON."""
@@ -158,17 +272,30 @@ class CausalGraph:
 
     @classmethod
     def load(cls, path) -> CausalGraph:
-        """Charge un graphe depuis un fichier JSON produit par save()."""
+        """Charge un graphe depuis un fichier JSON produit par save().
+
+        Migration 9a : nœuds/arêtes sans session_origin (graphes pré-9a) →
+        document + migrated:true (distinguer l'attesté du supposé).
+        Confiance inchangée (poids document = 1.0).
+        """
         import json
         from pathlib import Path as _P
         data = json.loads(_P(path).read_text(encoding="utf-8"))
         g = cls()
         # Clés re-stringifiées (vieux fichiers avec clés entières -> str, cf add_cir).
         g.nodes = {str(k): v for k, v in (data.get("nodes", {}) or {}).items()}
+        for nid, nd in g.nodes.items():
+            if isinstance(nd, dict) and "session_origin" not in nd:
+                nd["session_origin"] = "document"
+                nd["migrated"] = True
         for e in data.get("edges", []):
             src  = str(e["src"])
             dst  = str(e["dst"])
             attrs = e["attrs"]
+            if isinstance(attrs, dict) and "session_origin" not in attrs:
+                attrs["session_origin"] = "document"
+                attrs["session_weight"] = 1.0
+                attrs["migrated"] = True
             text  = e.get("text", "")
             g.edges.append((src, dst, attrs, text))
             g.adjacency[src].append(dst)
@@ -176,11 +303,11 @@ class CausalGraph:
         return g
 
     @classmethod
-    def from_cirs(cls, cirs: list) -> CausalGraph:
-        """Construit depuis une liste de CIR."""
+    def from_cirs(cls, cirs: list, session_origin: str | None = None) -> CausalGraph:
+        """Construit depuis une liste de CIR (origine 9a requise, cf. add_cir)."""
         g = cls()
         for cir in cirs:
-            g.add_cir(cir)
+            g.add_cir(cir, session_origin=session_origin)
         return g
 
     @staticmethod
@@ -386,8 +513,8 @@ class InstructionHandler:
     def __init__(self):
         self.graph = CausalGraph()
 
-    def add_cir(self, cir: dict) -> None:
-        self.graph.add_cir(cir)
+    def add_cir(self, cir: dict, session_origin: str | None = None) -> None:
+        self.graph.add_cir(cir, session_origin=session_origin)
 
     def clear(self) -> None:
         self.graph.clear()
@@ -464,8 +591,11 @@ class InstructionHandler:
                 f"  {self.graph._label(src)}"
                 f"  --[{rel}]{neg}-->"
                 f"  {self.graph._label(dst)}"
-                f"  conf={conf_s}"
+                f"  conf={conf_s}{edge_origin_tag(attrs)}"
             )
+        note = origin_only_note(causes)
+        if note:
+            lines.append(note)
         return "\n".join(lines)
 
     def _abduct(self, keyword: str | None) -> str:
@@ -539,8 +669,11 @@ class InstructionHandler:
             neg = " [negated]" if attrs.get("negated") else ""
             lines.append(
                 f"  --> [{rel}]{neg}  {self.graph._label(dst)}"
-                f"  [{self.graph._type(dst)}]"
+                f"  [{self.graph._type(dst)}]{edge_origin_tag(attrs)}"
             )
+        note = origin_only_note(effects)
+        if note:
+            lines.append(note)
         return "\n".join(lines)
 
     def _analogy(self, arg: str | None) -> str:

@@ -200,6 +200,38 @@ gcn-index --corpus rapports/ --checkpoint model.npz --output graph.json
 gcn-eval --data-dir gcn-datasets/real/val/ --model-path model.npz
 ```
 
+### Session de dialogue — mémoire conversationnelle (Ph9)
+
+`DialogueSession` (`gcn_python/dialogue.py`) : sujets (3 derniers + continuité),
+clarification unique, langue (tag), journal + révocation. **Moteur
+language-agnostic : aucun lexique de langue** — mécanismes structurels
+(chiffres Unicode, répétition de nom, script Unicode) et réponses en codes
+(même modèle que le DSL : `explain:`, `chain:`) :
+
+```python
+from gcn_python.dialogue import DialogueSession
+from gcn_python.verbalizer.instructions import InstructionHandler
+
+s = DialogueSession()
+h = InstructionHandler()
+resp, info = s.handle("explain: insomnie", h)  # "  topic: insomnie\n..."
+```
+
+| Code | Sens |
+|------|------|
+| `topic: <label>` | sujet compris (toujours annoncé, pour correction) |
+| `clarify: A \| B` | ambiguïté (≥ 2 labels exacts) — répondre `1`/`2` ou le nom |
+| `abandoned: A \| B` | clarification abandonnée (3 tours ou bascule nette) |
+| `lang: <code>` | `lang: wo` = consigne persistante ; `lang:` = lecture ; `lang: auto` = retour au fil (script Unicode du message) |
+| `revoke: [tour]` | retire les apports utilisateur du tour (jamais le corpus) |
+| `origin: question-only` / `user-only` | réponse prouvée que par l'utilisateur (9a : une question ne pose jamais un fait) |
+
+Origine 9a : `add_cir(cir, session_origin="document" | "affirmation_utilisateur" | "question_utilisateur")`
+(requise, `ValueError` sinon) ; poids FIGÉS 1.0/0.8/0.5 appliqués à l'écriture
+(D-ORIG) ; nœuds en upgrade-only ; graphes pré-9a migrés `document+migrated`
+au `load`. Les questions (`?`/`؟`, hors commandes) enrichissent le graphe en
+`question_utilisateur` via `handle(..., engine=...)`.
+
 ---
 
 ## CGNPipeline — paramètres clés

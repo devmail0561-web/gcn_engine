@@ -21,6 +21,8 @@ from pathlib import Path
 
 import click
 
+from .dialogue import DialogueSession
+from .dialogue import format_response as _format_response  # re-export (compat)
 from .pipeline.nlu_routing import nlu_route
 from .verbalizer.decoder import ReferenceDecoder
 from .verbalizer.instructions import CausalGraph, InstructionHandler, parse_command
@@ -102,57 +104,10 @@ def extract_concepts_from_cir(cir: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Formatage des rapports de réponse
+# Formatage des rapports de réponse : voir dialogue.format_response
+# (re-exporté ci-dessus pour compatibilité). L'heuristique « dernier mot »
+# y est conservée en repli ; DialogueSession fournit le sujet résolu (9b).
 # ---------------------------------------------------------------------------
-
-def _format_response(handler: InstructionHandler, question: str) -> str:
-    """
-    Répond à une question sur le graphe accumulé via QueryVerbalizer.
-    Détecte le type de requête depuis la structure (pas la langue).
-    """
-    vb = QueryVerbalizer(handler.graph)
-    _q  = question.lower().strip().rstrip("?.,!")
-
-    # Commandes formelles (explain:, effects:, chain:, counterfactual:)
-    cmd, arg = parse_command(question)
-    if cmd == "explain" and arg:
-        return vb.causes(arg)
-    if cmd == "effects" and arg:
-        return vb.effects(arg)
-    if cmd == "chain" and arg:
-        parts = arg.split()
-        if len(parts) >= 2:
-            return vb.path(parts[0], parts[-1])
-    if cmd == "counterfactual" and arg:
-        return vb.counterfactual(arg)
-    if cmd == "summarize":
-        return vb.summarize()
-    if cmd == "verbalize":
-        return handler.execute("verbalize")
-
-    # Heuristique structurelle : dernier mot non-vide = sujet probable
-    words = [w.strip("?.,!()") for w in question.split() if len(w.strip("?.,!()")) > 2]
-    if not words:
-        return vb.summarize()
-
-    subject = words[-1]
-
-    # Chercher dans le graphe
-    causes  = handler.graph.find_causes(subject)
-    effects = handler.graph.find_effects(subject)
-
-    if causes and effects:
-        return vb.causes(subject) + "\n\n" + vb.effects(subject)
-    if causes:
-        return vb.causes(subject)
-    if effects:
-        return vb.effects(subject)
-
-    # Rien trouvé
-    return (
-        f"  No causal structure found for {subject!r} in the submitted corpus.\n"
-        f"  Use /analyze <file> to add documents."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +220,12 @@ def run_discuss(
         if _m:
             _sess_blk[0] = max(_sess_blk[0], int(_m.group(1)))
 
+    # État de dialogue 9b-e (sujets, clarification, langue, journal).
+    # Reconstruit depuis l'historique persisté si la session est restaurée.
+    dialogue = DialogueSession()
+    if restored["history"]:
+        dialogue.from_history(session.history)
+
     _print_header(
         len(handler.graph.edges),
         len({text for _, _, _, text in handler.graph.edges}),
@@ -352,7 +313,8 @@ def run_discuss(
                                         _re.append(_e)
                                 cir["edges"] = _re
                                 # Aussi stocké dans le graphe pour les requêtes
-                                handler.add_cir(cir)
+                                # (origine 9a : document — texte analysé du corpus)
+                                handler.add_cir(cir, session_origin="document")
                                 n_new += len(cir["edges"])
                         except Exception as _e:  # noqa: BLE001  # phrase invalide : warn + phrase suivante
                             import warnings as _dw
@@ -413,48 +375,30 @@ def run_discuss(
                 print("  Corpus vide. Utilisez /analyze <fichier> pour charger des documents.")
                 continue
             print()
-            # Éq.6 — analyser la question : intent routing (tête apprise ou surface)
-            # + enrichissement du graphe si la question contient de la causalité
-            _nlu_cmd = None
-            if engine is not None:
+            # Tour de dialogue 9b-e : résolution sujet, clarification, langue,
+            # enrichissement question (9a), routage NLU, journal.
+            response, info = dialogue.handle(
+                user_input, handler, engine=engine,
+                vec_index=_graph_vec_index or None,
+            )
+            # Collecte session : vecteurs de la question (anti-perte, best-effort)
+            if engine is not None and session.session_dir is not None:
                 try:
-                    cir = engine.analyze(user_input)
-                    _reps = getattr(engine._pipeline, '_cached_reps', None)
-                    _nlu_cmd = nlu_route(
-                        user_input,
-                        tokens=_reps[0].tokens if _reps else None,
-                        pipeline=engine._pipeline,
-                    )
-                    # Résolution sémantique : si index disponible, affiner le concept DSL
-                    # via cosine entre enriched_vecs de la requête et nœuds du graphe
-                    if _nlu_cmd and _graph_vec_index:
-                        try:
-                            from .pipeline.nlu_routing import semantic_resolve_concept
-                            _qvecs = getattr(engine._pipeline, '_cached_enriched_vecs', None)
-                            if _qvecs is not None and len(_qvecs) > 0:
-                                _resolved = semantic_resolve_concept(_qvecs, _graph_vec_index)
-                                if _resolved:
-                                    # Remplacer le concept textuel par le label résolu
-                                    _parts = _nlu_cmd.split(": ", 1)
-                                    if len(_parts) == 2:
-                                        _nlu_cmd = f"{_parts[0]}: {_resolved}"
-                        except Exception:  # noqa: S110, BLE001
-                            pass
-                    if cir.get("edges") and session.session_dir is not None:
-                        session.collect(engine, user_input, cir)
+                    _qcir = engine.analyze(user_input)
+                    if _qcir.get("edges"):
+                        session.collect(engine, user_input, _qcir)
                 except Exception:  # noqa: S110, BLE001
                     pass
-
-            if _nlu_cmd:
-                response = handler.execute(_nlu_cmd) or _format_response(handler, user_input)
-            else:
-                response = _format_response(handler, user_input)
             print(response)
             print()
             _answered = "No causal structure" not in response
             if session.session_dir is not None:
                 session.graph = handler.graph
-                session.record_exchange(user_input, _answered)
+                session.record_exchange(
+                    user_input, _answered, turn=info["n"], subject=info["subject"],
+                    summary=info["summary"], status=info["status"],
+                    lang=info["lang"], added=info["added"],
+                )
                 session.save()
             _write_log(log_path, {
                 "event": "query",

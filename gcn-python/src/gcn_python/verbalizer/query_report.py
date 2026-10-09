@@ -13,6 +13,7 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from ..constants import RELATION_TYPES
+from .instructions import edge_origin_tag, origin_only_note
 
 if TYPE_CHECKING:
     from .instructions import CausalGraph
@@ -92,7 +93,7 @@ class QueryVerbalizer:
             lines.append(
                 f"  {i}. [{src_type}] {src_lbl}"
                 f"  --[{rel}{neg}]-->  {keyword!r}"
-                f"  (conf={conf_s})"
+                f"  (conf={conf_s}){edge_origin_tag(attrs)}"
             )
             if text:
                 lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
@@ -130,6 +131,9 @@ class QueryVerbalizer:
 
         lines.append(_SEP)
         lines.append(f"  {len(results)} cause(s) found.")
+        _note = origin_only_note(results)
+        if _note:
+            lines.append(_note)
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
@@ -151,13 +155,16 @@ class QueryVerbalizer:
             conf_s = f"{conf:.0%}" if isinstance(conf, (int, float)) else "?"
             lines.append(
                 f"  {i}. --[{rel}{neg}]-->  [{dst_type}] {dst_lbl}"
-                f"  (conf={conf_s})"
+                f"  (conf={conf_s}){edge_origin_tag(attrs)}"
             )
             if text:
                 lines.append(f"     source: {_truncate(text, self.max_source_chars)}")
 
         lines.append(_SEP)
         lines.append(f"  {len(results)} effect(s) found.")
+        _note = origin_only_note(results)
+        if _note:
+            lines.append(_note)
         return "\n".join(lines)
 
     # ------------------------------------------------------------------

@@ -26,7 +26,7 @@ Usage :
 
     # Un corpus
     cirs = engine.analyze_batch(corpus_lines)
-    graph = CausalGraph.from_cirs(cirs)
+    graph = CausalGraph.from_cirs(cirs, session_origin="document")
 """
 from __future__ import annotations
 

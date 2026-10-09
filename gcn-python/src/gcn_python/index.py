@@ -178,7 +178,7 @@ def index_cmd(
                             remapped.append(e)
                     cir["edges"] = remapped
                     try:
-                        graph.add_discourse_block(cir)
+                        graph.add_discourse_block(cir, session_origin="document")
                     except Exception as exc:  # noqa: BLE001  # bloc rejeté par le graphe : log + bloc suivant
                         log.warning("index: bloc ignoré (%s) : %s", filename, exc)
                         continue

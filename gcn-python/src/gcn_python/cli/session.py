@@ -99,13 +99,30 @@ class SessionStore:
         """Retrouve un vecteur collecté par (texte, position). None si absent."""
         return self.vecs.get(stable_key(text, pos))
 
-    def record_exchange(self, question: str, answered: bool) -> None:
-        self.history.append({
+    def record_exchange(self, question: str, answered: bool, *,
+                          turn: int | None = None, subject: str | None = None,
+                          summary: str | None = None, status: str | None = None,
+                          lang: str | None = None, added: int = 0) -> None:
+        """Trace un échange. Avec turn (DialogueSession 9e) : entrée journal
+        event="turn" rejouable par DialogueSession.from_history ; sans turn :
+        forme historique event="query" (compat)."""
+        entry = {
             "ts": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
             "event": "query",
             "question": question[:500],
             "answered": bool(answered),
-        })
+        }
+        if turn is not None:
+            entry.update({
+                "event": "turn",
+                "n": turn,
+                "subject": subject,
+                "summary": summary,
+                "status": status,
+                "lang": lang,
+                "added": added,
+            })
+        self.history.append(entry)
 
     # ------------------------------------------------------------------
     # Persistance

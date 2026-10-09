@@ -127,6 +127,18 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (3 + 4 + 2 + 3 + 4 gold verts)** + 3 snapshots régénérés (diff additif revu). **Vert workspace : 257 passés, 0 échoué, clippy 0, fmt propre.**
 - **README crate** : requêtes/filtres/DTOs Ph7 + note agent_type (champ vide aujourd'hui → attribution gold-3000 requise).
 
+### Dialogue Phase 9 — mémoire conversationnelle, moteur language-agnostic (2026-10-09)
+
+- **Contrainte actée (note M. Tendeng)** : le moteur n'est pas FR ou EN — aucun lexique de langue (pronoms, marqueurs, phrases). Mécanismes structurels + réponses en codes (`topic:`/`clarify:`/`abandoned:`/`revoked:`/`lang:`/`origin:`), même modèle que le DSL.
+- **9a origine** : `add_cir(cir, session_origin=...)` requis (`ValueError` sinon) ; poids FIGÉS 1.0/0.8/0.5 appliqués à l'écriture (D-ORIG : consommateurs aval inchangés, export Rust futur compatible sans double compte) ; copies anti-alias ; nœuds upgrade-only ; `load` migre le legacy (`document+migrated`) ; tags `[question]`/`[affirmation]` + `origin: question-only/user-only` dans `_explain`/`_effects`/`QueryVerbalizer` ; ordre doc 0.6 > question 0.9×0.5 vérifié.
+- **9b sujets** : `DialogueSession` — pile 3 sujets, continuité (aucun concept reconnu → sujet en cours), chiffres Unicode + répétition de nom, `topic:` toujours annoncé ; reprise 2 tours via journal.
+- **9c clarification** : une seule en attente (rappel, jamais de file) ; réponse par chiffre/nom ; survit aux tours vagues ; abandon après 3 tours ou bascule exacte nette, toujours annoncé.
+- **9d langue** : tag opaque (`lang: <code>` persistant, `lang: auto` retour fil) + script Unicode par message ; priorité consigne > message > fil > `und`. Pas de prose traduite : réponses structurelles.
+- **9e journal + correction** : tours {n, question, sujet, résumé, statut, langue, ajouts} persistés (`record_exchange` étendu, `from_history`) ; `revoke: [tour]` ne retire que les apports utilisateur (corpus intact, annoncé) ; résumé auto différé Ph10-M2.
+- **`discuss.py`** : branche question déléguée à `handle()` (routage NLU + résolution sémantique conservés) ; `_format_response` déménagé en `dialogue.py` (re-export compat).
+- **Tests (28 dialogue + 9 origine verts)** : scénarios multi-tours scriptés, fake engine (sans checkpoint). **Vert Python : 809 passés (11 échecs pré-existants inchangés : eval/lot1/black-box), Rust untouched.**
+- **README gcn-python** : section dialogue + codes documentés.
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
