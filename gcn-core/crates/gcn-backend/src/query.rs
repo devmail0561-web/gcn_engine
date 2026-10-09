@@ -1396,6 +1396,82 @@ fn execute_counterfactual(
     })
 }
 
+/// S1 — hypothèse abductive → DTO (mapping ×3 unifié, valeurs identiques).
+fn hypothesis_to_dto(h: &pearl::AbductionHypothesis) -> AbductionHypothesisDto {
+    AbductionHypothesisDto {
+        label: h.label.clone(),
+        relation: serde_name(&h.relation),
+        edge_confidence: h.edge_confidence,
+        score: h.score,
+        depth: h.depth,
+    }
+}
+
+/// S1 — EXPLAIN abductif sur contexte partagé : hypothèses [Pearl],
+/// contraste vs alternative [Ph6b], groupes par agent [Ph7d].
+fn execute_explain(
+    ctx: &pearl::GraphCtx<'_>,
+    effect: &str,
+    contrast: &Option<String>,
+) -> Result<QueryResult, BackendError> {
+    let node = pearl::find_best(ctx.ir, effect)
+        .ok_or_else(|| BackendError::NodeNotFound(effect.to_string()))?;
+    let hypotheses = pearl::abduct_ctx(ctx, node.id);
+    // Ph6b : contraste vs alternative (causes de E hors F).
+    let contrast_dto = match contrast {
+        Some(alt) => {
+            let alt_node = pearl::find_best(ctx.ir, alt)
+                .ok_or_else(|| BackendError::NodeNotFound(alt.clone()))?;
+            let alt_labels: std::collections::HashSet<String> = pearl::abduct_ctx(ctx, alt_node.id)
+                .into_iter()
+                .map(|h| h.label)
+                .collect();
+            let mut distinctive = Vec::new();
+            let mut shared = Vec::new();
+            for h in &hypotheses {
+                if alt_labels.contains(&h.label) {
+                    shared.push(h.label.clone());
+                } else {
+                    distinctive.push(hypothesis_to_dto(h));
+                }
+            }
+            shared.sort();
+            shared.dedup();
+            Some(AbductionContrastDto {
+                alternative: alt_node.label.clone(),
+                distinctive,
+                shared,
+            })
+        }
+        None => None,
+    };
+    Ok(QueryResult::Abduction {
+        effect: node.label.clone(),
+        hypotheses: hypotheses.iter().map(hypothesis_to_dto).collect(),
+        contrast: contrast_dto,
+        by_agent: pearl::group_by_agent(ctx.ir, &hypotheses)
+            .into_iter()
+            .map(|(agent_type, hs)| AgentGroupDto {
+                agent_type,
+                hypotheses: hs.iter().map(hypothesis_to_dto).collect(),
+            })
+            .collect(),
+    })
+}
+
+/// S1 — ASK fiche nœud (1 saut, sans traversée ni propagation) [Ph6b].
+fn execute_ask(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let node = pearl::find_best(ctx.ir, label)
+        .ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let (causes, effects) = pearl::direct_links_ctx(ctx, node.id);
+    Ok(QueryResult::AskReport {
+        label: node.label.clone(),
+        node_type: serde_name(&node.node_type),
+        causes: causes.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        effects: effects.iter().map(|l| link_to_dto(ctx, l)).collect(),
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1896,89 +1972,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             })
         }
 
-        Query::Explain { effect, contrast } => {
-            let node = pearl::find_best(ctx.ir, effect)
-                .ok_or_else(|| BackendError::NodeNotFound(effect.clone()))?;
-            let hypotheses = pearl::abduct_ctx(&ctx, node.id);
-            // Ph6b : contraste vs alternative (causes de E hors F).
-            let contrast_dto = match contrast {
-                Some(alt) => {
-                    let alt_node = pearl::find_best(ctx.ir, alt)
-                        .ok_or_else(|| BackendError::NodeNotFound(alt.clone()))?;
-                    let alt_labels: std::collections::HashSet<String> =
-                        pearl::abduct_ctx(&ctx, alt_node.id)
-                            .into_iter()
-                            .map(|h| h.label)
-                            .collect();
-                    let mut distinctive = Vec::new();
-                    let mut shared = Vec::new();
-                    for h in &hypotheses {
-                        if alt_labels.contains(&h.label) {
-                            shared.push(h.label.clone());
-                        } else {
-                            distinctive.push(AbductionHypothesisDto {
-                                label: h.label.clone(),
-                                relation: serde_name(&h.relation),
-                                edge_confidence: h.edge_confidence,
-                                score: h.score,
-                                depth: h.depth,
-                            });
-                        }
-                    }
-                    shared.sort();
-                    shared.dedup();
-                    Some(AbductionContrastDto {
-                        alternative: alt_node.label.clone(),
-                        distinctive,
-                        shared,
-                    })
-                }
-                None => None,
-            };
-            Ok(QueryResult::Abduction {
-                effect: node.label.clone(),
-                hypotheses: hypotheses
-                    .iter()
-                    .map(|h| AbductionHypothesisDto {
-                        label: h.label.clone(),
-                        relation: serde_name(&h.relation),
-                        edge_confidence: h.edge_confidence,
-                        score: h.score,
-                        depth: h.depth,
-                    })
-                    .collect(),
-                contrast: contrast_dto,
-                by_agent: pearl::group_by_agent(ctx.ir, &hypotheses)
-                    .into_iter()
-                    .map(|(agent_type, hs)| AgentGroupDto {
-                        agent_type,
-                        hypotheses: hs
-                            .into_iter()
-                            .map(|h| AbductionHypothesisDto {
-                                label: h.label,
-                                relation: serde_name(&h.relation),
-                                edge_confidence: h.edge_confidence,
-                                score: h.score,
-                                depth: h.depth,
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            })
-        }
+        Query::Explain { effect, contrast } => execute_explain(&ctx, effect, contrast),
 
-        Query::Ask { label } => {
-            // Ph6b : fiche nœud (1 saut, sans traversée ni propagation).
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let (causes, effects) = pearl::direct_links_ctx(&ctx, node.id);
-            Ok(QueryResult::AskReport {
-                label: node.label.clone(),
-                node_type: serde_name(&node.node_type),
-                causes: causes.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                effects: effects.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-            })
-        }
+        Query::Ask { label } => execute_ask(&ctx, label),
 
         Query::WhyNot { from, to } => {
             // Ph6b : pourquoi aucun chemin causal (WHY-NOT = bloqueurs niés).
