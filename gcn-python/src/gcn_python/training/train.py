@@ -116,6 +116,213 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
     return reps
 
 
+def _train_init_seed(seed: int | None) -> int:
+    """S1 — R9 reproductibilité (seed numpy + torch si disponible)."""
+    _init_seed = seed if seed is not None else 42
+    if seed is not None:
+        np.random.seed(seed)
+        try:
+            import torch as _torch
+            _torch.manual_seed(seed)
+        except ImportError:
+            pass
+        click.echo(f"Seed : {seed}")
+    return _init_seed
+
+
+def _train_validate_cli(*, embedding_dim: int, fasttext, embedding_file,
+                        clause_pooling: str, subject_object_emb: bool,
+                        freeze_embeddings: bool, silver_weight: float,
+                        mlp_hidden: int, mlp_hidden2: int, qual_hidden: int,
+                        edge_hidden: str) -> tuple[bool, tuple]:
+    """S1 — préconditions A/B/C/F + parsing edge_hidden (lève ClickException).
+
+    Retourne (_dim_from_cli, _edge_hidden). `_dim_from_cli` distingue le défaut
+    d'une valeur passée explicitement (pour --fasttext/--embedding-file seuls).
+    """
+    try:
+        _dim_source = click.get_current_context().get_parameter_source("embedding_dim")
+        _dim_from_cli = _dim_source != click.core.ParameterSource.DEFAULT
+    except RuntimeError:  # appel direct de la fonction (tests) : pas de contexte click
+        _dim_from_cli = embedding_dim != 128
+
+    # Préconditions A/B/C/F (amelioration_v3)
+    _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
+    if fasttext is not None and embedding_file is not None:
+        raise click.ClickException("--fasttext et --embedding-file sont mutuellement exclusifs.")
+    if fasttext is not None and _dim_from_cli and embedding_dim not in (0, 300):
+        raise click.ClickException("--fasttext impose d_emb=300 (pas besoin de --embedding-dim).")
+    if clause_pooling != "root" and not _has_emb:
+        raise click.ClickException("--clause-pooling != root requiert --embedding-dim > 0.")
+    if subject_object_emb and not _has_emb:
+        raise click.ClickException("--subject-object-emb requiert --embedding-dim > 0.")
+    if freeze_embeddings and embedding_file is None:
+        raise click.ClickException("--freeze-embeddings requiert --embedding-file.")
+    if not (0.0 < silver_weight <= 1.0):
+        raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
+    if mlp_hidden < 1:
+        raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
+    if mlp_hidden2 < 1:
+        raise click.ClickException(f"--mlp-hidden2 doit être ≥ 1 (reçu {mlp_hidden2}).")
+    if qual_hidden < 1:
+        raise click.ClickException(f"--qual-hidden doit être ≥ 1 (reçu {qual_hidden}).")
+    _edge_parts = [h.strip() for h in edge_hidden.split(",")]
+    if (not _edge_parts or any(not h.isdigit() or int(h) < 1 for h in _edge_parts)):
+        raise click.ClickException(
+            f"--edge-hidden doit être une liste d'entiers ≥ 1 séparés par des virgules "
+            f"(reçu {edge_hidden!r}).")
+    _edge_hidden = tuple(int(h) for h in _edge_parts)
+    if not _has_emb:
+        raise click.ClickException(
+            "word_embedding obligatoire (D10 ETUDE). "
+            "Utilisez --embedding-dim 128 (défaut) ou --embedding-file chemin.bin"
+        )
+    return _dim_from_cli, _edge_hidden
+
+
+def _train_build_embeddings(*, fasttext, embedding_file, embedding_dim: int,
+                            _dim_from_cli: bool, freeze_embeddings: bool,
+                            _init_seed: int):
+    """S1 — word embeddings (S1/S2/S9 + Phase A fastText). Retourne (we|None, d_emb)."""
+    # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings activés par défaut
+    word_embedding = None
+    d_emb = 0
+    _fasttext_path: Path | None = fasttext
+    _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
+    if _has_emb:
+        from ..layer1.embedding import WordEmbedding
+        if _fasttext_path is not None:
+            # Phase A : d_emb=300 imposé, frozen=True par défaut.
+            # Les vecteurs sont remplis après build_vocab (lemmes connus).
+            d_emb = 300
+            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True, seed=_init_seed)
+            click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
+        elif embedding_file is not None and (embedding_dim == 0 or not _dim_from_cli):
+            # Détecter la dimension depuis la première ligne du fichier
+            # (cas --embedding-file seul : le défaut 128 ne doit pas écraser le fichier)
+            with open(embedding_file, encoding="utf-8") as ef:
+                for line in ef:
+                    parts = line.strip().split()
+                    if len(parts) > 2:
+                        d_emb = len(parts) - 1
+                        break
+        else:
+            d_emb = embedding_dim
+        if d_emb > 0:
+            word_embedding = WordEmbedding(d_emb=d_emb, seed=_init_seed)
+            if embedding_file is not None:
+                n_loaded = word_embedding.load_from_file(str(embedding_file))
+                click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
+            if freeze_embeddings:
+                # C : gel des pré-entraînés (spéciaux _absent toujours entraînables)
+                word_embedding.frozen = True
+                click.echo("Embeddings pré-entraînés gelés (--freeze-embeddings)")
+    return word_embedding, d_emb
+
+
+def _train_finalize(*, csv_file, val_loader, best_edge_epoch: int,
+                    best_edge_checkpoint_path: str, best_val_edge_f1: float,
+                    output: Path, pipeline, all_pairs: bool,
+                    epoch_edge_gold, epoch_edge_preds,
+                    val_edge_gold, val_edge_preds,
+                    epoch_sent_type_gold, epoch_sent_type_preds,
+                    epoch_sent_intent_gold,
+                    log_csv, recorder, history) -> None:
+    """S1 — restore best + T5-min + rapports (après try/finally, cf. protocole gelé)."""
+    # Protocole gelé : restore aligné sur val_edge_macro_f1 (même critère
+    # que best et patience — le checkpoint final EST le meilleur edge).
+    # Restauré dès qu'un val existe (même patience=0) : sinon le fichier
+    # final serait la dernière epoch, pas le best.
+    if val_loader is not None:
+        import shutil
+        if best_edge_epoch > 0:
+            _tmp = Path(str(output) + ".tmp.restore")
+            shutil.copy2(best_edge_checkpoint_path, str(_tmp))
+            Path(_tmp).replace(output)  # atomique POSIX
+            click.echo(f"Best checkpoint restauré (epoch {best_edge_epoch}, val_edge_macro_f1={best_val_edge_f1:.4f})")
+        else:
+            save_checkpoint(pipeline, output)
+            click.echo("Aucune amélioration val — checkpoint final sauvegardé")
+    else:
+        save_checkpoint(pipeline, output)
+
+    # T5-min : optimiser la température sur le val set si disponible (C5 fix)
+    # §2.7 ETUDE : chemin forward direct via reps (pas de passage str via le
+    # bridge — _cached_edge_logits restait vide et `except: pass` masquait tout).
+    if val_loader is not None:
+        try:
+            from ..evaluation.calibration import optimize_temperature
+            _val_logits, _val_labels, _t5_skipped = collect_val_logits_for_calibration(
+                val_loader, pipeline, all_pairs)
+            if _t5_skipped > 0:
+                click.echo(f"T5-min : {_t5_skipped} phrase(s) ignorée(s) (voir warnings).")
+            if not _val_logits:
+                click.echo("T5-min : aucun logit collecté — chemin forward incorrect ou val sans arêtes")
+            if _val_logits and len(_val_labels) >= 10:
+                import numpy as _np
+                _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
+                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=np.int64)
+                best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
+                pipeline.temperature = best_t
+                click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
+                # Fichier SÉPARÉ : `output` reste le best restauré, jamais réécrit.
+                save_checkpoint(pipeline, Path(str(output) + ".calibrated.npz"))
+                click.echo(f"Checkpoint calibré : {output}.calibrated.npz")
+        except Exception as _t5_err:  # noqa: BLE001
+            click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
+
+    click.echo(f"Checkpoint sauvegardé : {output}")
+    # B (dérive orphelins) : compteur module rendu visible — chaque token
+    # rattaché recalcule feat[11] (relative_depth) et le pooling lexical.
+    from ..data.loader import _ORPHAN_STATS as _ORPHAN_STATS_RUN
+    click.echo(
+        f"Orphelins rattachés : {_ORPHAN_STATS_RUN['attached']} tokens "
+        f"sur {_ORPHAN_STATS_RUN['sentences']} phrases (train+val)"
+    )
+    if val_loader is not None and best_edge_epoch > 0:
+        click.echo(
+            f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
+            f"→ {best_edge_checkpoint_path}"
+        )
+
+    # v5.6 : visibilité par classe — plus aucune classe en échec silencieux.
+    # Dernière epoch (pas best) : honnête sur l'état final, supports visibles.
+    if epoch_edge_gold:
+        click.echo("Rapport edge/train (dernière epoch) :\n"
+                   + per_class_report(epoch_edge_preds, epoch_edge_gold,
+                                      pipeline.relation_types))
+    if val_loader is not None and val_edge_gold:
+        click.echo("Rapport edge/val (dernière epoch) :\n"
+                   + per_class_report(val_edge_preds, val_edge_gold,
+                                      pipeline.relation_types))
+    # P4a/b : confusion type de phrase + co-occurrences gold (sentence × intent).
+    # Dernière epoch : matrice des relations supposées, pas des preuves.
+    if epoch_sent_type_gold:
+        click.echo("Confusion sentence/train (dernière epoch) :\n"
+                   + per_class_report(epoch_sent_type_preds, epoch_sent_type_gold,
+                                      SENTENCE_TYPES))
+    if epoch_sent_intent_gold:
+        from collections import Counter as _Counter
+        _co = _Counter(epoch_sent_intent_gold)
+        _rows = ["sentence × intent (gold, dernière epoch) :"]
+        for (_s, _i) in sorted(_co):
+            _rows.append(f"  {_s:<14s} × {_i:<14s} : {_co[(_s, _i)]}")
+        click.echo("\n".join(_rows))
+
+    if log_csv:
+        json_path = Path(log_csv).with_suffix(".json")
+        recorder.to_json(json_path)
+        click.echo(f"Courbe d'entraînement : {json_path}")
+
+    if len(history) >= 10:
+        first = sum(r["loss"] for r in history[:5]) / 5
+        last = sum(r["loss"] for r in history[-5:]) / 5
+        if last < first:
+            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
+        else:
+            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -312,6 +519,8 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
               help="Nombre minimum d'exemples par type fin pour promotion coarse→fine.")
 @click.option("--seed", default=None, type=int,
               help="Graine pour la reproductibilité (numpy + torch si disponible).")
+@click.option("--seed", default=None, type=int,
+              help="Graine pour la reproductibilité (numpy + torch si disponible).")
 def train_cmd(
     data_dir: Path,
     epochs: int,
@@ -390,92 +599,23 @@ def train_cmd(
     from ..data.verbalize_loader import VerbalizerDataLoader
     from ..verbalizer.trainable import TrainableDecoder
 
-    # R9 : reproductibilité — seed numpy + torch si disponible
-    _init_seed = seed if seed is not None else 42
-    if seed is not None:
-        np.random.seed(seed)
-        try:
-            import torch as _torch
-            _torch.manual_seed(seed)
-        except ImportError:
-            pass
-        click.echo(f"Seed : {seed}")
+    # S1 — phases extraites (helpers ci-dessus, ordre et valeurs inchangés).
+    _init_seed = _train_init_seed(seed)
 
     vocab = FeatureVocabulary()
 
-    # Embeddings NON OPTIONNELS (REMEDIATION-DIAGNOSTIC.md §2/§11) : activés par
-    # défaut (--embedding-dim 128). _dim_from_cli distingue le défaut d'une valeur
-    # passée explicitement (pour --fasttext/--embedding-file seuls).
-    try:
-        _dim_source = click.get_current_context().get_parameter_source("embedding_dim")
-        _dim_from_cli = _dim_source != click.core.ParameterSource.DEFAULT
-    except RuntimeError:  # appel direct de la fonction (tests) : pas de contexte click
-        _dim_from_cli = embedding_dim != 128
-
-    # Préconditions A/B/C/F (amelioration_v3)
-    _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
-    if fasttext is not None and embedding_file is not None:
-        raise click.ClickException("--fasttext et --embedding-file sont mutuellement exclusifs.")
-    if fasttext is not None and _dim_from_cli and embedding_dim not in (0, 300):
-        raise click.ClickException("--fasttext impose d_emb=300 (pas besoin de --embedding-dim).")
-    if clause_pooling != "root" and not _has_emb:
-        raise click.ClickException("--clause-pooling != root requiert --embedding-dim > 0.")
-    if subject_object_emb and not _has_emb:
-        raise click.ClickException("--subject-object-emb requiert --embedding-dim > 0.")
-    if freeze_embeddings and embedding_file is None:
-        raise click.ClickException("--freeze-embeddings requiert --embedding-file.")
-    if not (0.0 < silver_weight <= 1.0):
-        raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
-    if mlp_hidden < 1:
-        raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
-    if mlp_hidden2 < 1:
-        raise click.ClickException(f"--mlp-hidden2 doit être ≥ 1 (reçu {mlp_hidden2}).")
-    if qual_hidden < 1:
-        raise click.ClickException(f"--qual-hidden doit être ≥ 1 (reçu {qual_hidden}).")
-    _edge_parts = [h.strip() for h in edge_hidden.split(",")]
-    if (not _edge_parts or any(not h.isdigit() or int(h) < 1 for h in _edge_parts)):
-        raise click.ClickException(
-            f"--edge-hidden doit être une liste d'entiers ≥ 1 séparés par des virgules "
-            f"(reçu {edge_hidden!r}).")
-    _edge_hidden = tuple(int(h) for h in _edge_parts)
-    if not _has_emb:
-        raise click.ClickException(
-            "word_embedding obligatoire (D10 ETUDE). "
-            "Utilisez --embedding-dim 128 (défaut) ou --embedding-file chemin.bin"
-        )
-
-    # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings activés par défaut
-    word_embedding = None
-    d_emb = 0
-    _fasttext_path: Path | None = fasttext
-    if _has_emb:
-        from ..layer1.embedding import WordEmbedding
-        if _fasttext_path is not None:
-            # Phase A : d_emb=300 imposé, frozen=True par défaut.
-            # Les vecteurs sont remplis après build_vocab (lemmes connus).
-            d_emb = 300
-            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True, seed=_init_seed)
-            click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
-        elif embedding_file is not None and (embedding_dim == 0 or not _dim_from_cli):
-            # Détecter la dimension depuis la première ligne du fichier
-            # (cas --embedding-file seul : le défaut 128 ne doit pas écraser le fichier)
-            with open(embedding_file, encoding="utf-8") as ef:
-                for line in ef:
-                    parts = line.strip().split()
-                    if len(parts) > 2:
-                        d_emb = len(parts) - 1
-                        break
-        else:
-            d_emb = embedding_dim
-        if d_emb > 0:
-            word_embedding = WordEmbedding(d_emb=d_emb, seed=_init_seed)
-            if embedding_file is not None:
-                n_loaded = word_embedding.load_from_file(str(embedding_file))
-                click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
-            if freeze_embeddings:
-                # C : gel des pré-entraînés (spéciaux _absent toujours entraînables)
-                word_embedding.frozen = True
-                click.echo("Embeddings pré-entraînés gelés (--freeze-embeddings)")
+    _dim_from_cli, _edge_hidden = _train_validate_cli(
+        embedding_dim=embedding_dim, fasttext=fasttext,
+        embedding_file=embedding_file, clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb,
+        freeze_embeddings=freeze_embeddings, silver_weight=silver_weight,
+        mlp_hidden=mlp_hidden, mlp_hidden2=mlp_hidden2,
+        qual_hidden=qual_hidden, edge_hidden=edge_hidden)
+    word_embedding, d_emb = _train_build_embeddings(
+        fasttext=fasttext, embedding_file=embedding_file,
+        embedding_dim=embedding_dim, _dim_from_cli=_dim_from_cli,
+        freeze_embeddings=freeze_embeddings, _init_seed=_init_seed)
+    _fasttext_path: Path | None = fasttext  # S1 : conservé pour le remplissage différé (cf. build_vocab)
 
     # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
     # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
@@ -1042,6 +1182,10 @@ def train_cmd(
     best_edge_epoch = 0
     best_edge_checkpoint_path = str(output) + ".best_edge.npz"
     _patience_counter = 0
+    # S1 — défauts val (sans val_loader, la boucle ne les assigne jamais ;
+    # l'ancien code survivait par court-circuit `if val_loader is not None and ...`,
+    # l'appel explicite exige des noms liés : même valeur, sans UnboundLocalError).
+    val_edge_preds, val_edge_gold = [], []
 
     def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
         """Bascule TOUS les composants avec dropout en mode eval ou train."""
@@ -1717,95 +1861,15 @@ def train_cmd(
         if csv_file:
             csv_file.close()
 
-    # Protocole gelé : restore aligné sur val_edge_macro_f1 (même critère
-    # que best et patience — le checkpoint final EST le meilleur edge).
-    # Restauré dès qu'un val existe (même patience=0) : sinon le fichier
-    # final serait la dernière epoch, pas le best.
-    if val_loader is not None:
-        import shutil
-        if best_edge_epoch > 0:
-            _tmp = Path(str(output) + ".tmp.restore")
-            shutil.copy2(best_edge_checkpoint_path, str(_tmp))
-            Path(_tmp).replace(output)  # atomique POSIX
-            click.echo(f"Best checkpoint restauré (epoch {best_edge_epoch}, val_edge_macro_f1={best_val_edge_f1:.4f})")
-        else:
-            save_checkpoint(pipeline, output)
-            click.echo("Aucune amélioration val — checkpoint final sauvegardé")
-    else:
-        save_checkpoint(pipeline, output)
-
-    # T5-min : optimiser la température sur le val set si disponible (C5 fix)
-    # §2.7 ETUDE : chemin forward direct via reps (pas de passage str via le
-    # bridge — _cached_edge_logits restait vide et `except: pass` masquait tout).
-    if val_loader is not None:
-        try:
-            from ..evaluation.calibration import optimize_temperature
-            _val_logits, _val_labels, _t5_skipped = collect_val_logits_for_calibration(
-                val_loader, pipeline, all_pairs)
-            if _t5_skipped > 0:
-                click.echo(f"T5-min : {_t5_skipped} phrase(s) ignorée(s) (voir warnings).")
-            if not _val_logits:
-                click.echo("T5-min : aucun logit collecté — chemin forward incorrect ou val sans arêtes")
-            if _val_logits and len(_val_labels) >= 10:
-                import numpy as _np
-                _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
-                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=np.int64)
-                best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
-                pipeline.temperature = best_t
-                click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
-                # Fichier SÉPARÉ : `output` reste le best restauré, jamais réécrit.
-                save_checkpoint(pipeline, Path(str(output) + ".calibrated.npz"))
-                click.echo(f"Checkpoint calibré : {output}.calibrated.npz")
-        except Exception as _t5_err:  # noqa: BLE001
-            click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
-
-    click.echo(f"Checkpoint sauvegardé : {output}")
-    # B (dérive orphelins) : compteur module rendu visible — chaque token
-    # rattaché recalcule feat[11] (relative_depth) et le pooling lexical.
-    from ..data.loader import _ORPHAN_STATS as _ORPHAN_STATS_RUN
-    click.echo(
-        f"Orphelins rattachés : {_ORPHAN_STATS_RUN['attached']} tokens "
-        f"sur {_ORPHAN_STATS_RUN['sentences']} phrases (train+val)"
-    )
-    if val_loader is not None and best_edge_epoch > 0:
-        click.echo(
-            f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
-            f"→ {best_edge_checkpoint_path}"
-        )
-
-    # v5.6 : visibilité par classe — plus aucune classe en échec silencieux.
-    # Dernière epoch (pas best) : honnête sur l'état final, supports visibles.
-    if epoch_edge_gold:
-        click.echo("Rapport edge/train (dernière epoch) :\n"
-                   + per_class_report(epoch_edge_preds, epoch_edge_gold,
-                                      pipeline.relation_types))
-    if val_loader is not None and val_edge_gold:
-        click.echo("Rapport edge/val (dernière epoch) :\n"
-                   + per_class_report(val_edge_preds, val_edge_gold,
-                                      pipeline.relation_types))
-    # P4a/b : confusion type de phrase + co-occurrences gold (sentence × intent).
-    # Dernière epoch : matrice des relations supposées, pas des preuves.
-    if epoch_sent_type_gold:
-        click.echo("Confusion sentence/train (dernière epoch) :\n"
-                   + per_class_report(epoch_sent_type_preds, epoch_sent_type_gold,
-                                      SENTENCE_TYPES))
-    if epoch_sent_intent_gold:
-        from collections import Counter as _Counter
-        _co = _Counter(epoch_sent_intent_gold)
-        _rows = ["sentence × intent (gold, dernière epoch) :"]
-        for (_s, _i) in sorted(_co):
-            _rows.append(f"  {_s:<14s} × {_i:<14s} : {_co[(_s, _i)]}")
-        click.echo("\n".join(_rows))
-
-    if log_csv:
-        json_path = Path(log_csv).with_suffix(".json")
-        recorder.to_json(json_path)
-        click.echo(f"Courbe d'entraînement : {json_path}")
-
-    if len(history) >= 10:
-        first = sum(r["loss"] for r in history[:5]) / 5
-        last = sum(r["loss"] for r in history[-5:]) / 5
-        if last < first:
-            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
-        else:
-            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+    _train_finalize(
+        csv_file=csv_file, val_loader=val_loader,
+        best_edge_epoch=best_edge_epoch,
+        best_edge_checkpoint_path=best_edge_checkpoint_path,
+        best_val_edge_f1=best_val_edge_f1, output=output,
+        pipeline=pipeline, all_pairs=all_pairs,
+        epoch_edge_gold=epoch_edge_gold, epoch_edge_preds=epoch_edge_preds,
+        val_edge_gold=val_edge_gold, val_edge_preds=val_edge_preds,
+        epoch_sent_type_gold=epoch_sent_type_gold,
+        epoch_sent_type_preds=epoch_sent_type_preds,
+        epoch_sent_intent_gold=epoch_sent_intent_gold,
+        log_csv=log_csv, recorder=recorder, history=history)
