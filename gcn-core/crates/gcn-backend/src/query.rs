@@ -1613,6 +1613,486 @@ fn execute_delay(
     })
 }
 
+/// S1 — méta-rapports sans traversée : inventaires directs sur l'IR.
+fn execute_cycles(ctx: &pearl::GraphCtx<'_>) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    Ok(QueryResult::CycleList {
+        count: ir.cycles.len(),
+        cycles: ir.cycles.iter().map(cycle_to_dto(ir)).collect(),
+    })
+}
+
+/// S1 — lacunes temporelles (arêtes à `temporal_gap`).
+fn execute_gaps(ctx: &pearl::GraphCtx<'_>) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let gap_edges: Vec<GapDto> = ir
+        .edges
+        .iter()
+        .filter(|(_, _, e)| e.temporal_gap.is_some())
+        .map(|(s, d, e)| GapDto {
+            from: ctx.node_label(*s),
+            to: ctx.node_label(*d),
+            relation: serde_name(&e.relation),
+        })
+        .collect();
+    Ok(QueryResult::GapList {
+        gap_edges,
+        unresolved_nodes: ir.unresolved.len(),
+    })
+}
+
+/// S1 — ANALOGY : patterns similaires au patron, poids/seuil/HOPS [D3/6b].
+fn execute_analogy(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+    weights: [f32; 4],
+    min_score: f32,
+    hops: u32,
+) -> Result<QueryResult, BackendError> {
+    // Ph3 [D3] : poids/seuil paramétrables (défauts documentés).
+    // Ph6b : HOPS = profondeur de contexte (1 = mono-saut).
+    let matches = crate::analogy::find_analogies_hops(ctx.ir, from, to, min_score, weights, hops);
+    Ok(QueryResult::AnalogyReport {
+        pattern_from: from.to_string(),
+        pattern_to: to.to_string(),
+        matches: matches
+            .into_iter()
+            .map(|m| AnalogyMatchDto {
+                from_label: m.from_label,
+                to_label: m.to_label,
+                relation: serde_name(&m.relation),
+                confidence: m.confidence,
+                similarity_score: m.similarity_score,
+            })
+            .collect(),
+    })
+}
+
+/// S1 — ZOOM_IN : enfants hiérarchiques d'un nœud.
+fn execute_zoom_in(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let children: Vec<NodeSummaryDto> = ir
+        .nodes
+        .iter()
+        .filter(|n| n.parent == Some(node.id))
+        .map(|n| NodeSummaryDto {
+            label: n.label.clone(),
+            node_type: serde_name(&n.node_type),
+        })
+        .collect();
+    Ok(QueryResult::HierarchyZoomIn {
+        parent_label: node.label.clone(),
+        children,
+    })
+}
+
+/// S1 — ZOOM_OUT : parent hiérarchique d'un nœud (None = racine).
+fn execute_zoom_out(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let parent_label = node
+        .parent
+        .and_then(|pid| ir.nodes.iter().find(|n| n.id == pid))
+        .map(|n| n.label.clone());
+    Ok(QueryResult::HierarchyZoomOut {
+        child_label: node.label.clone(),
+        parent_label,
+    })
+}
+
+/// S1 — AGGREGATE : vue agrégée (enfants + sorties, témoins exclus) [Ph7e].
+fn execute_aggregate(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let child_ids: std::collections::HashSet<_> = ir
+        .nodes
+        .iter()
+        .filter(|n| n.parent == Some(node.id))
+        .map(|n| n.id)
+        .collect();
+    let child_count = child_ids.len();
+    // M4 : index partagé (plus de build local).
+    let nm = &ctx.nm;
+    // Ph7e : les liens témoins (cause existentielle/spécifique) ne sont
+    // jamais généralisés en agrégat — exclus ici.
+    let outgoing: Vec<LinkDto> = ir
+        .edges
+        .iter()
+        .filter(|(s, _, _)| child_ids.contains(s))
+        .filter(|(_, d, _)| !child_ids.contains(d))
+        .filter(|(s, _, _)| {
+            !nm.get(s).is_some_and(|n| {
+                matches!(
+                    n.scope,
+                    gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
+                )
+            })
+        })
+        .map(|(s, d, e)| LinkDto {
+            from: nm.get(s).map(|n| n.label.clone()).unwrap_or_default(),
+            to: nm.get(d).map(|n| n.label.clone()).unwrap_or_default(),
+            relation: serde_name(&e.relation),
+            confidence: e.confidence,
+            negated: e.negated,
+            joint_group_id: e.joint_group_id.clone(),
+            // P1-5 : même résolution que link_to_dto, depuis CausalEdge.third.
+            third_node_label: e.third.as_ref().and_then(|t| {
+                ir.nodes
+                    .iter()
+                    .find(|n| n.id.0 as u64 == t.node)
+                    .map(|n| n.label.clone())
+            }),
+            // Ph6b : dérivation D3 (même règle que link_to_dto).
+            derived_from: e.derivation.as_ref().map(|drv| {
+                drv.source_edges
+                    .iter()
+                    .map(|(s, d)| (ctx.node_label(*s), ctx.node_label(*d)))
+                    .collect()
+            }),
+            motif: None,
+            cycle_effect: None,
+            origin: nm.get(s).map(|n| serde_name(&n.origin)),
+            explicit: e.explicit,
+            extraction_method: None,
+            model_version: None,
+            span: None,
+            kind: None,
+            scope: nm.get(s).map(|n| serde_name(&n.scope)),
+            agent: nm.get(s).and_then(|n| n.attributes.agent.clone()),
+            patient: nm.get(d).and_then(|n| n.attributes.patient.clone()),
+            agent_type: nm
+                .get(s)
+                .and_then(|n| n.attributes.agent_type)
+                .map(|t| serde_name(&t)),
+            witness_only: false,
+        })
+        .collect();
+    let mean_confidence = if outgoing.is_empty() {
+        0.0
+    } else {
+        outgoing.iter().map(|l| l.confidence).sum::<f32>() / outgoing.len() as f32
+    };
+    Ok(QueryResult::HierarchyAggregate {
+        parent_label: node.label.clone(),
+        child_count,
+        outgoing_edges: outgoing,
+        mean_confidence,
+    })
+}
+
+/// S1 — CENTRALITY : degrés bruts + pondérés d'un nœud.
+fn execute_centrality(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let in_edges: Vec<f32> = ir
+        .edges
+        .iter()
+        .filter(|(_, d, _)| *d == node.id)
+        .map(|(_, _, e)| e.confidence)
+        .collect();
+    let out_edges: Vec<f32> = ir
+        .edges
+        .iter()
+        .filter(|(s, _, _)| *s == node.id)
+        .map(|(_, _, e)| e.confidence)
+        .collect();
+    let degree_in = in_edges.len();
+    let degree_out = out_edges.len();
+    let weighted_in: f32 = in_edges.iter().sum();
+    let weighted_out: f32 = out_edges.iter().sum();
+    let total_degree = degree_in + degree_out;
+    let centrality_score = if total_degree > 0 {
+        (weighted_in + weighted_out) / total_degree as f32
+    } else {
+        0.0
+    };
+    Ok(QueryResult::CentralityReport {
+        label: node.label.clone(),
+        degree_in,
+        degree_out,
+        weighted_in,
+        weighted_out,
+        centrality_score,
+    })
+}
+
+/// S1 — SPOF : paires coupées par nœud (garde taille, super-spof Éq.12).
+fn execute_spof(ctx: &pearl::GraphCtx<'_>) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    // Garde : constante unique pearl::SPOF_MAX_NODES (pas de doublon local).
+    if ir.nodes.len() > pearl::SPOF_MAX_NODES {
+        return Err(BackendError::QueryParseError(format!(
+            "SPOF: graph too large ({} nodes > {}). Use CENTRALITY on specific nodes instead.",
+            ir.nodes.len(),
+            pearl::SPOF_MAX_NODES
+        )));
+    }
+    let (total_pairs, scores) = pearl::spof_all_ctx(ctx)?;
+    let spof_nodes: Vec<SpofNodeDto> = scores
+        .into_iter()
+        .map(|s: SpofScore| {
+            let spof_score = if total_pairs > 0 {
+                s.score as f32 / total_pairs as f32
+            } else {
+                0.0
+            };
+            SpofNodeDto {
+                label: s.label,
+                paths_cut: s.score,
+                spof_score,
+            }
+        })
+        .collect();
+    Ok(QueryResult::SpofReport {
+        total_pairs,
+        nodes: spof_nodes,
+    })
+}
+
+/// S1 — DOUBTS : non-résolus bruts triés (nœud, champ) [Ph7b].
+fn execute_doubts(ctx: &pearl::GraphCtx<'_>) -> Result<QueryResult, BackendError> {
+    // Ph7b : liste brute des non-résolus (labels + champs + candidats).
+    let mut doubts: Vec<Caveat> = ctx
+        .ir
+        .unresolved
+        .iter()
+        .map(|amb| {
+            let node = ctx.node_label(amb.node_id);
+            Caveat {
+                node,
+                field: serde_name(&amb.field),
+                candidates: amb.candidates.iter().map(|c| c.value.clone()).collect(),
+                hint: amb
+                    .context_hint
+                    .clone()
+                    .unwrap_or_else(|| "levée d'ambiguïté requise".to_string()),
+            }
+        })
+        .collect();
+    doubts.sort_by(|a, b| a.node.cmp(&b.node).then(a.field.cmp(&b.field)));
+    Ok(QueryResult::Doubts {
+        count: doubts.len(),
+        doubts,
+    })
+}
+
+/// S1 — PROVENANCE : fiche des arêtes incidentes (qui/quand/comment) [Ph7f].
+fn execute_provenance(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    // Ph7f : fiche complète des arêtes incidentes (qui, quand, comment, span).
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let mut entries: Vec<ProvenanceEntryDto> = ir
+        .edges
+        .iter()
+        .filter(|(s, d, _)| *s == node.id || *d == node.id)
+        .map(|(s, d, e)| {
+            let (method, version, doc, at) =
+                e.provenance.as_ref().map_or((None, None, None, None), |p| {
+                    (
+                        Some(method_name(p.extraction_method).to_string()),
+                        Some(p.model_version.clone()),
+                        p.doc_ref.clone(),
+                        Some(p.extracted_at.clone()),
+                    )
+                });
+            let (span, kind) = e
+                .provenance
+                .as_ref()
+                .map_or((None, None), |p| span_text_kind(ir, &p.span));
+            ProvenanceEntryDto {
+                from: ctx.node_label(*s),
+                to: ctx.node_label(*d),
+                relation: serde_name(&e.relation),
+                explicit: e.explicit,
+                extraction_method: method,
+                model_version: version,
+                span,
+                kind,
+                doc_ref: doc,
+                extracted_at: at,
+            }
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        a.from
+            .cmp(&b.from)
+            .then(a.to.cmp(&b.to))
+            .then(a.relation.cmp(&b.relation))
+    });
+    Ok(QueryResult::ProvenanceReport {
+        label: node.label.clone(),
+        entries,
+    })
+}
+
+/// S1 — NORM_DIFF : écart au chemin idéal (confiance min vs 1.0).
+fn execute_norm_diff(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+) -> Result<QueryResult, BackendError> {
+    if pearl::find_best(ctx.ir, from).is_none() {
+        return Err(BackendError::NodeNotFound(from.to_string()));
+    }
+    if pearl::find_best(ctx.ir, to).is_none() {
+        return Err(BackendError::NodeNotFound(to.to_string()));
+    }
+    let links = pearl::chain_ctx(ctx, from, to);
+    let path_exists = links.is_some();
+    let path_links_dto: Vec<LinkDto> = links
+        .as_ref()
+        .map(|ls| ls.iter().map(|l| link_to_dto(ctx, l)).collect())
+        .unwrap_or_default();
+    let n_edges_on_path = path_links_dto.len();
+    let observed_confidence = links
+        .as_ref()
+        .and_then(|ls| ls.iter().map(|l| l.confidence).reduce(f32::min))
+        .unwrap_or(0.0);
+    let gap = if path_exists {
+        1.0 - observed_confidence
+    } else {
+        1.0
+    };
+    Ok(QueryResult::NormativeDiff {
+        from: from.to_string(),
+        to: to.to_string(),
+        path_exists,
+        n_edges_on_path,
+        observed_confidence,
+        gap,
+        gap_rate_pct: gap * 100.0,
+        path_links: path_links_dto,
+    })
+}
+
+/// S1 — DENSITY : globale + locale optionnelle.
+fn execute_density(
+    ctx: &pearl::GraphCtx<'_>,
+    label_opt: &Option<String>,
+) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let n_nodes = ir.nodes.len();
+    let n_edges = ir.edges.len();
+    let global_density = if n_nodes > 1 {
+        n_edges as f32 / (n_nodes * (n_nodes - 1)) as f32
+    } else {
+        0.0
+    };
+    if let Some(label) = label_opt {
+        let node =
+            pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
+        let local_degree = ir
+            .edges
+            .iter()
+            .filter(|(s, d, _)| *s == node.id || *d == node.id)
+            .count();
+        let local_density = if n_nodes > 1 {
+            Some(local_degree as f32 / (2 * (n_nodes - 1)) as f32)
+        } else {
+            None
+        };
+        Ok(QueryResult::DensityReport {
+            global_density,
+            n_nodes,
+            n_edges,
+            node_label: Some(node.label.clone()),
+            local_degree: Some(local_degree),
+            local_density,
+        })
+    } else {
+        Ok(QueryResult::DensityReport {
+            global_density,
+            n_nodes,
+            n_edges,
+            node_label: None,
+            local_degree: None,
+            local_density: None,
+        })
+    }
+}
+
+/// S1 — COVERAGE : degré + part prouvée d'un nœud.
+fn execute_coverage(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let incident: Vec<_> = ir
+        .edges
+        .iter()
+        .filter(|(s, d, _)| *s == node.id || *d == node.id)
+        .collect();
+    let degree = incident.len();
+    let n_with_provenance = incident
+        .iter()
+        .filter(|(_, _, e)| e.provenance.is_some())
+        .count();
+    let n_edges = ir.edges.len();
+    let coverage_score = if n_edges > 0 {
+        degree as f32 / n_edges as f32
+    } else {
+        0.0
+    };
+    let provenance_ratio = if degree > 0 {
+        n_with_provenance as f32 / degree as f32
+    } else {
+        1.0
+    };
+    Ok(QueryResult::CoverageReport {
+        label: node.label.clone(),
+        degree,
+        n_with_provenance,
+        coverage_score,
+        provenance_ratio,
+    })
+}
+
+/// S1 — RELIABILITY : confiance min/moyenne × part prouvée.
+fn execute_reliability(
+    ctx: &pearl::GraphCtx<'_>,
+    label: &str,
+) -> Result<QueryResult, BackendError> {
+    let ir = ctx.ir;
+    let node =
+        pearl::find_best(ir, label).ok_or_else(|| BackendError::NodeNotFound(label.to_string()))?;
+    let incident: Vec<_> = ir
+        .edges
+        .iter()
+        .filter(|(s, d, _)| *s == node.id || *d == node.id)
+        .map(|(_, _, e)| e)
+        .collect();
+    let degree = incident.len();
+    let (min_confidence, mean_confidence) = if degree > 0 {
+        let min = incident
+            .iter()
+            .map(|e| e.confidence)
+            .fold(f32::INFINITY, f32::min);
+        let mean = incident.iter().map(|e| e.confidence).sum::<f32>() / degree as f32;
+        (min, mean)
+    } else {
+        (0.0, 0.0)
+    };
+    let provenance_ratio = if degree > 0 {
+        incident.iter().filter(|e| e.provenance.is_some()).count() as f32 / degree as f32
+    } else {
+        1.0
+    };
+    let reliability_score = mean_confidence * provenance_ratio;
+    Ok(QueryResult::ReliabilityReport {
+        label: node.label.clone(),
+        min_confidence,
+        mean_confidence,
+        provenance_ratio,
+        reliability_score,
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1663,27 +2143,9 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             filter,
         } => execute_chain(&ctx, from, to, *topk, filter),
 
-        Query::Cycles => Ok(QueryResult::CycleList {
-            count: ir.cycles.len(),
-            cycles: ir.cycles.iter().map(cycle_to_dto(ir)).collect(),
-        }),
+        Query::Cycles => execute_cycles(&ctx),
 
-        Query::Gaps => {
-            let gap_edges: Vec<GapDto> = ir
-                .edges
-                .iter()
-                .filter(|(_, _, e)| e.temporal_gap.is_some())
-                .map(|(s, d, e)| GapDto {
-                    from: ctx.node_label(*s),
-                    to: ctx.node_label(*d),
-                    relation: serde_name(&e.relation),
-                })
-                .collect();
-            Ok(QueryResult::GapList {
-                gap_edges,
-                unresolved_nodes: ir.unresolved.len(),
-            })
-        }
+        Query::Gaps => execute_gaps(&ctx),
 
         Query::Intervene { label, filter } => execute_intervene(&ctx, label, filter),
 
@@ -1695,419 +2157,29 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
             weights,
             min_score,
             hops,
-        } => {
-            // Ph3 [D3] : poids/seuil paramétrables (défauts documentés).
-            // Ph6b : HOPS = profondeur de contexte (1 = mono-saut).
-            let matches =
-                crate::analogy::find_analogies_hops(ir, from, to, *min_score, *weights, *hops);
-            Ok(QueryResult::AnalogyReport {
-                pattern_from: from.clone(),
-                pattern_to: to.clone(),
-                matches: matches
-                    .into_iter()
-                    .map(|m| AnalogyMatchDto {
-                        from_label: m.from_label,
-                        to_label: m.to_label,
-                        relation: serde_name(&m.relation),
-                        confidence: m.confidence,
-                        similarity_score: m.similarity_score,
-                    })
-                    .collect(),
-            })
-        }
+        } => execute_analogy(&ctx, from, to, *weights, *min_score, *hops),
 
-        Query::ZoomIn(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let children: Vec<NodeSummaryDto> = ir
-                .nodes
-                .iter()
-                .filter(|n| n.parent == Some(node.id))
-                .map(|n| NodeSummaryDto {
-                    label: n.label.clone(),
-                    node_type: serde_name(&n.node_type),
-                })
-                .collect();
-            Ok(QueryResult::HierarchyZoomIn {
-                parent_label: node.label.clone(),
-                children,
-            })
-        }
+        Query::ZoomIn(label) => execute_zoom_in(&ctx, label),
 
-        Query::ZoomOut(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let parent_label = node
-                .parent
-                .and_then(|pid| ir.nodes.iter().find(|n| n.id == pid))
-                .map(|n| n.label.clone());
-            Ok(QueryResult::HierarchyZoomOut {
-                child_label: node.label.clone(),
-                parent_label,
-            })
-        }
+        Query::ZoomOut(label) => execute_zoom_out(&ctx, label),
 
-        Query::Aggregate(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let child_ids: std::collections::HashSet<_> = ir
-                .nodes
-                .iter()
-                .filter(|n| n.parent == Some(node.id))
-                .map(|n| n.id)
-                .collect();
-            let child_count = child_ids.len();
-            // M4 : index partagé (plus de build local).
-            let nm = &ctx.nm;
-            // Ph7e : les liens témoins (cause existentielle/spécifique) ne sont
-            // jamais généralisés en agrégat — exclus ici.
-            let outgoing: Vec<LinkDto> = ir
-                .edges
-                .iter()
-                .filter(|(s, _, _)| child_ids.contains(s))
-                .filter(|(_, d, _)| !child_ids.contains(d))
-                .filter(|(s, _, _)| {
-                    !nm.get(s).is_some_and(|n| {
-                        matches!(
-                            n.scope,
-                            gcn_ir::Scope::Existential | gcn_ir::Scope::Specific
-                        )
-                    })
-                })
-                .map(|(s, d, e)| LinkDto {
-                    from: nm.get(s).map(|n| n.label.clone()).unwrap_or_default(),
-                    to: nm.get(d).map(|n| n.label.clone()).unwrap_or_default(),
-                    relation: serde_name(&e.relation),
-                    confidence: e.confidence,
-                    negated: e.negated,
-                    joint_group_id: e.joint_group_id.clone(),
-                    // P1-5 : même résolution que link_to_dto, depuis CausalEdge.third.
-                    third_node_label: e.third.as_ref().and_then(|t| {
-                        ir.nodes
-                            .iter()
-                            .find(|n| n.id.0 as u64 == t.node)
-                            .map(|n| n.label.clone())
-                    }),
-                    // Ph6b : dérivation D3 (même règle que link_to_dto).
-                    derived_from: e.derivation.as_ref().map(|drv| {
-                        drv.source_edges
-                            .iter()
-                            .map(|(s, d)| (ctx.node_label(*s), ctx.node_label(*d)))
-                            .collect()
-                    }),
-                    motif: None,
-                    cycle_effect: None,
-                    origin: nm.get(s).map(|n| serde_name(&n.origin)),
-                    explicit: e.explicit,
-                    extraction_method: None,
-                    model_version: None,
-                    span: None,
-                    kind: None,
-                    scope: nm.get(s).map(|n| serde_name(&n.scope)),
-                    agent: nm.get(s).and_then(|n| n.attributes.agent.clone()),
-                    patient: nm.get(d).and_then(|n| n.attributes.patient.clone()),
-                    agent_type: nm
-                        .get(s)
-                        .and_then(|n| n.attributes.agent_type)
-                        .map(|t| serde_name(&t)),
-                    witness_only: false,
-                })
-                .collect();
-            let mean_confidence = if outgoing.is_empty() {
-                0.0
-            } else {
-                outgoing.iter().map(|l| l.confidence).sum::<f32>() / outgoing.len() as f32
-            };
-            Ok(QueryResult::HierarchyAggregate {
-                parent_label: node.label.clone(),
-                child_count,
-                outgoing_edges: outgoing,
-                mean_confidence,
-            })
-        }
+        Query::Aggregate(label) => execute_aggregate(&ctx, label),
 
-        Query::Centrality(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let in_edges: Vec<f32> = ir
-                .edges
-                .iter()
-                .filter(|(_, d, _)| *d == node.id)
-                .map(|(_, _, e)| e.confidence)
-                .collect();
-            let out_edges: Vec<f32> = ir
-                .edges
-                .iter()
-                .filter(|(s, _, _)| *s == node.id)
-                .map(|(_, _, e)| e.confidence)
-                .collect();
-            let degree_in = in_edges.len();
-            let degree_out = out_edges.len();
-            let weighted_in: f32 = in_edges.iter().sum();
-            let weighted_out: f32 = out_edges.iter().sum();
-            let total_degree = degree_in + degree_out;
-            let centrality_score = if total_degree > 0 {
-                (weighted_in + weighted_out) / total_degree as f32
-            } else {
-                0.0
-            };
-            Ok(QueryResult::CentralityReport {
-                label: node.label.clone(),
-                degree_in,
-                degree_out,
-                weighted_in,
-                weighted_out,
-                centrality_score,
-            })
-        }
+        Query::Centrality(label) => execute_centrality(&ctx, label),
 
-        Query::Spof => {
-            // Garde : constante unique pearl::SPOF_MAX_NODES (pas de doublon local).
-            if ir.nodes.len() > pearl::SPOF_MAX_NODES {
-                return Err(BackendError::QueryParseError(format!(
-                    "SPOF: graph too large ({} nodes > {}). Use CENTRALITY on specific nodes instead.",
-                    ir.nodes.len(),
-                    pearl::SPOF_MAX_NODES
-                )));
-            }
-            let (total_pairs, scores) = pearl::spof_all_ctx(&ctx)?;
-            let spof_nodes: Vec<SpofNodeDto> = scores
-                .into_iter()
-                .map(|s: SpofScore| {
-                    let spof_score = if total_pairs > 0 {
-                        s.score as f32 / total_pairs as f32
-                    } else {
-                        0.0
-                    };
-                    SpofNodeDto {
-                        label: s.label,
-                        paths_cut: s.score,
-                        spof_score,
-                    }
-                })
-                .collect();
-            Ok(QueryResult::SpofReport {
-                total_pairs,
-                nodes: spof_nodes,
-            })
-        }
+        Query::Spof => execute_spof(&ctx),
 
-        Query::Doubts => {
-            // Ph7b : liste brute des non-résolus (labels + champs + candidats).
-            let mut doubts: Vec<Caveat> = ir
-                .unresolved
-                .iter()
-                .map(|amb| {
-                    let node = ctx.node_label(amb.node_id);
-                    Caveat {
-                        node,
-                        field: serde_name(&amb.field),
-                        candidates: amb.candidates.iter().map(|c| c.value.clone()).collect(),
-                        hint: amb
-                            .context_hint
-                            .clone()
-                            .unwrap_or_else(|| "levée d'ambiguïté requise".to_string()),
-                    }
-                })
-                .collect();
-            doubts.sort_by(|a, b| a.node.cmp(&b.node).then(a.field.cmp(&b.field)));
-            Ok(QueryResult::Doubts {
-                count: doubts.len(),
-                doubts,
-            })
-        }
+        Query::Doubts => execute_doubts(&ctx),
 
-        Query::Provenance(label) => {
-            // Ph7f : fiche complète des arêtes incidentes (qui, quand, comment, span).
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let mut entries: Vec<ProvenanceEntryDto> = ir
-                .edges
-                .iter()
-                .filter(|(s, d, _)| *s == node.id || *d == node.id)
-                .map(|(s, d, e)| {
-                    let (method, version, doc, at) =
-                        e.provenance.as_ref().map_or((None, None, None, None), |p| {
-                            (
-                                Some(method_name(p.extraction_method).to_string()),
-                                Some(p.model_version.clone()),
-                                p.doc_ref.clone(),
-                                Some(p.extracted_at.clone()),
-                            )
-                        });
-                    let (span, kind) = e
-                        .provenance
-                        .as_ref()
-                        .map_or((None, None), |p| span_text_kind(ir, &p.span));
-                    ProvenanceEntryDto {
-                        from: ctx.node_label(*s),
-                        to: ctx.node_label(*d),
-                        relation: serde_name(&e.relation),
-                        explicit: e.explicit,
-                        extraction_method: method,
-                        model_version: version,
-                        span,
-                        kind,
-                        doc_ref: doc,
-                        extracted_at: at,
-                    }
-                })
-                .collect();
-            entries.sort_by(|a, b| {
-                a.from
-                    .cmp(&b.from)
-                    .then(a.to.cmp(&b.to))
-                    .then(a.relation.cmp(&b.relation))
-            });
-            Ok(QueryResult::ProvenanceReport {
-                label: node.label.clone(),
-                entries,
-            })
-        }
+        Query::Provenance(label) => execute_provenance(&ctx, label),
 
-        Query::NormDiff(from, to) => {
-            if pearl::find_best(ctx.ir, from).is_none() {
-                return Err(BackendError::NodeNotFound(from.clone()));
-            }
-            if pearl::find_best(ctx.ir, to).is_none() {
-                return Err(BackendError::NodeNotFound(to.clone()));
-            }
-            let links = pearl::chain_ctx(&ctx, from, to);
-            let path_exists = links.is_some();
-            let path_links_dto: Vec<LinkDto> = links
-                .as_ref()
-                .map(|ls| ls.iter().map(|l| link_to_dto(&ctx, l)).collect())
-                .unwrap_or_default();
-            let n_edges_on_path = path_links_dto.len();
-            let observed_confidence = links
-                .as_ref()
-                .and_then(|ls| ls.iter().map(|l| l.confidence).reduce(f32::min))
-                .unwrap_or(0.0);
-            let gap = if path_exists {
-                1.0 - observed_confidence
-            } else {
-                1.0
-            };
-            Ok(QueryResult::NormativeDiff {
-                from: from.clone(),
-                to: to.clone(),
-                path_exists,
-                n_edges_on_path,
-                observed_confidence,
-                gap,
-                gap_rate_pct: gap * 100.0,
-                path_links: path_links_dto,
-            })
-        }
+        Query::NormDiff(from, to) => execute_norm_diff(&ctx, from, to),
 
-        Query::Density(label_opt) => {
-            let n_nodes = ir.nodes.len();
-            let n_edges = ir.edges.len();
-            let global_density = if n_nodes > 1 {
-                n_edges as f32 / (n_nodes * (n_nodes - 1)) as f32
-            } else {
-                0.0
-            };
-            if let Some(label) = label_opt {
-                let node = pearl::find_best(ctx.ir, label)
-                    .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-                let local_degree = ir
-                    .edges
-                    .iter()
-                    .filter(|(s, d, _)| *s == node.id || *d == node.id)
-                    .count();
-                let local_density = if n_nodes > 1 {
-                    Some(local_degree as f32 / (2 * (n_nodes - 1)) as f32)
-                } else {
-                    None
-                };
-                Ok(QueryResult::DensityReport {
-                    global_density,
-                    n_nodes,
-                    n_edges,
-                    node_label: Some(node.label.clone()),
-                    local_degree: Some(local_degree),
-                    local_density,
-                })
-            } else {
-                Ok(QueryResult::DensityReport {
-                    global_density,
-                    n_nodes,
-                    n_edges,
-                    node_label: None,
-                    local_degree: None,
-                    local_density: None,
-                })
-            }
-        }
+        Query::Density(label_opt) => execute_density(&ctx, label_opt),
 
-        Query::Coverage(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let incident: Vec<_> = ir
-                .edges
-                .iter()
-                .filter(|(s, d, _)| *s == node.id || *d == node.id)
-                .collect();
-            let degree = incident.len();
-            let n_with_provenance = incident
-                .iter()
-                .filter(|(_, _, e)| e.provenance.is_some())
-                .count();
-            let n_edges = ir.edges.len();
-            let coverage_score = if n_edges > 0 {
-                degree as f32 / n_edges as f32
-            } else {
-                0.0
-            };
-            let provenance_ratio = if degree > 0 {
-                n_with_provenance as f32 / degree as f32
-            } else {
-                1.0
-            };
-            Ok(QueryResult::CoverageReport {
-                label: node.label.clone(),
-                degree,
-                n_with_provenance,
-                coverage_score,
-                provenance_ratio,
-            })
-        }
+        Query::Coverage(label) => execute_coverage(&ctx, label),
 
-        Query::Reliability(label) => {
-            let node = pearl::find_best(ctx.ir, label)
-                .ok_or_else(|| BackendError::NodeNotFound(label.clone()))?;
-            let incident: Vec<_> = ir
-                .edges
-                .iter()
-                .filter(|(s, d, _)| *s == node.id || *d == node.id)
-                .map(|(_, _, e)| e)
-                .collect();
-            let degree = incident.len();
-            let (min_confidence, mean_confidence) = if degree > 0 {
-                let min = incident
-                    .iter()
-                    .map(|e| e.confidence)
-                    .fold(f32::INFINITY, f32::min);
-                let mean = incident.iter().map(|e| e.confidence).sum::<f32>() / degree as f32;
-                (min, mean)
-            } else {
-                (0.0, 0.0)
-            };
-            let provenance_ratio = if degree > 0 {
-                incident.iter().filter(|e| e.provenance.is_some()).count() as f32 / degree as f32
-            } else {
-                1.0
-            };
-            let reliability_score = mean_confidence * provenance_ratio;
-            Ok(QueryResult::ReliabilityReport {
-                label: node.label.clone(),
-                min_confidence,
-                mean_confidence,
-                provenance_ratio,
-                reliability_score,
-            })
-        }
+        Query::Reliability(label) => execute_reliability(&ctx, label),
 
         Query::Explain { effect, contrast } => execute_explain(&ctx, effect, contrast),
 
