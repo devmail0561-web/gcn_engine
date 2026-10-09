@@ -7,6 +7,12 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Cleanup S6 audit — ménage disque sans risque code (2026-10-09)
+
+- Supprimés (disque 98 %) : doublon imbriqué `checkpoints/archive_v2/model_train_v2.npz` (md5 identique ×3, 2 copies restantes, aucune référence de chemin), dists périmées `gcn-python/dist` 1.0.2–2.5.0 (gardé 4.0.0, rebuildable), 29 `__pycache__` (~5 Mo). ~32 Mo libérés.
+- `dist/` des outils ignorés (`gcn-annotate`, `gcn-scraper`) — plus de `??` parasites.
+- Volontairement intacts : `target/` 13 Go (rebuild 10–20 min si `cargo clean` — à ne faire qu'en critique), doublons datasets restants (`A_*`/`B_*`, `*.best_edge`) et blobs 37 Mo en histoire (filter-repo = réécriture, décision owner).
+
 ### Cleanup S2 audit — surface M4 resserrée (2026-10-09)
 
 - Supprimés : `build_maps_pub` (0 usage, vérifié hors `target/`) et `proptest` (dev-dep inutilisée, 0 référence ; workspace + `gcn-ir`).

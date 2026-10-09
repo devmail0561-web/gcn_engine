@@ -68,6 +68,8 @@ gcn-datasets/corpus/
 # Outils gcn-tools — datasets et scripts externes au moteur
 gcn-tools/gcn-dataset/
 gcn-tools/gcn-datasets/
+gcn-tools/gcn-annotate/dist/
+gcn-tools/gcn-scraper/dist/
 gcn-tools/gcn-scraper/corpus/
 gcn-tools/gcn-scraper/*.csv
 
