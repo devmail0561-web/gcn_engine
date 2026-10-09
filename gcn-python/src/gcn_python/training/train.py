@@ -746,6 +746,215 @@ def _train_assemble_pipeline(*, encoder, graph, vocab, decoder, all_pairs: bool,
     return pipeline, link_pred_head
 
 
+def _train_build_masks(*, edge_counts, intent_counts, sentence_counts,
+                       qual_heads: bool, _edge_remap, encoder,
+                       _active_relation_types, min_class_count: int,
+                       n_intent_types: int, n_sentence_types: int,
+                       loader, pipeline):
+    """S1 — masques v3.0/Éq.6/P4a/P4 quals (classes vues seulement).
+
+    Retourne (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+    _qual_logit_masks, _active_edge_counts, n_edge_classes). Attache le
+    masque arête au pipeline. Lève ClickException si aucune classe ne survit.
+    """
+    from collections import Counter
+    _edge_logit_mask: np.ndarray | None = None
+    _active_edge_counts: dict[int, int] = {}
+    n_edge_classes: int = 0
+    if edge_counts:
+        # v5.8 (P3) : comptes en espace ACTIF (fines remappées si coarse).
+        _active_edge_counts: dict[int, int] = {}
+        if _edge_remap is not None:
+            for _fc, _n in edge_counts.items():
+                _ac = _edge_remap.get(int(_fc), int(_fc))
+                _active_edge_counts[_ac] = _active_edge_counts.get(_ac, 0) + _n
+        else:
+            _active_edge_counts = {int(c): int(n) for c, n in edge_counts.items()}
+        n_edge_classes = encoder.n_relation_types
+        assert n_edge_classes == len(_active_relation_types), (
+            f"encodeur {n_edge_classes} ≠ {len(_active_relation_types)} types actifs — "
+            "construction incohérente (P3).")
+        _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
+        for c in range(n_edge_classes):
+            if _active_edge_counts.get(c, 0) > 0:
+                _edge_logit_mask[c] = True
+        n_active = int(_edge_logit_mask.sum())
+        n_inactive = n_edge_classes - n_active
+        if n_inactive > 0:
+            click.echo(
+                f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
+                f"(N=0 dans le dataset) — masquées tant que N=0."
+            )
+        # v5 : coupe aux prouvées — 0 < N < N_min ni apprise ni prédite.
+        # Le moteur ne prédit que ce qu'il peut apprendre ; annotez jusqu'à
+        # N_min pour réactiver (0 = désactive la coupe, comportement historique).
+        if min_class_count > 0:
+            _rare = [(_active_relation_types[c], _active_edge_counts.get(c, 0))
+                     for c in range(n_edge_classes)
+                     if _edge_logit_mask[c] and _active_edge_counts.get(c, 0) < min_class_count]
+            for _rel, _n in _rare:
+                _edge_logit_mask[_active_relation_types.index(_rel)] = False
+            if _rare:
+                _names = ", ".join(f"{r} (N={n})" for r, n in _rare)
+                click.echo(
+                    f"  [v5] {len(_rare)} classe(s) sous N_min={min_class_count} "
+                    f"coupée(s) du softmax : {_names}."
+                )
+            if not _edge_logit_mask.any():
+                raise click.ClickException(
+                    "Aucune classe d'arête ne survit (vides + sous N_min="
+                    f"{min_class_count}) : annotez au moins {min_class_count} "
+                    "exemples d'une relation, ou baissez --min-class-count "
+                    "(0 = désactive la coupe)."
+                )
+        # Couverture marqueurs (guide réannotation v5) : gold annotés vs
+        # connecteurs retrouvés vs gaps sans connecteur.
+        _n_gold = _n_found = _n_gaps = 0
+        for _s in loader:
+            _rs, _, _cs = reps_from_sentence(_s.sentence)
+            _n_gaps += max(0, len(_rs) - 1)
+            _n_gold += sum(1 for _e in _s.sentence.edges
+                           if getattr(_e, "marker_token", None) is not None)
+            _n_found += sum(1 for _c in _cs if _c is not None)
+        click.echo(
+            f"  [v5] marqueurs : {_n_gold} gold annotés, {_n_found}/{_n_gaps} "
+            f"gaps avec connecteur."
+        )
+        # Masque forward+loss : le pipeline émet et apprend uniquement sur les
+        # classes vues (persisté au checkpoint, appliqué à l'inférence).
+        pipeline.edge_logit_mask = _edge_logit_mask
+    # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
+    _intent_logit_mask: np.ndarray | None = None
+    if n_intent_types > 0 and intent_counts:
+        _intent_logit_mask = np.zeros(n_intent_types, dtype=bool)
+        for c in range(n_intent_types):
+            if intent_counts.get(c, 0) > 0:
+                _intent_logit_mask[c] = True
+        n_active_intent = int(_intent_logit_mask.sum())
+        click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
+    # P4a — masque types de phrases (même logique que _intent_logit_mask ;
+    # N_min v5 s'applique aussi : pas d'apprentissage sous le seuil).
+    _sentence_logit_mask: np.ndarray | None = None
+    if n_sentence_types > 0 and sentence_counts:
+        _sentence_logit_mask = np.zeros(n_sentence_types, dtype=bool)
+        for c in range(n_sentence_types):
+            if sentence_counts.get(c, 0) > 0:
+                _sentence_logit_mask[c] = True
+        n_active_sent = int(_sentence_logit_mask.sum())
+        click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
+    # P4 quals — comptage par (qual, classe) et masques N_min.
+    # Sans annotations variées, tout est masqué : dortoir, pas de loss.
+    qual_counts: dict[str, Counter] = {q: Counter() for q in QUALIFIERS}
+    if qual_heads:
+        for _smp in loader:
+            for _qm in _smp.qual_map.values():
+                for _qn, _qi in _qm.items():
+                    if _qn in qual_counts:
+                        qual_counts[_qn][int(_qi)] += 1
+    _qual_logit_masks: dict[str, np.ndarray] | None = None
+    if qual_heads:
+        _qual_logit_masks = {}
+        for _qn, _classes in QUALIFIERS.items():
+            _m = np.zeros(len(_classes), dtype=bool)
+            for c in range(len(_classes)):
+                if qual_counts[_qn].get(c, 0) >= min_class_count > 0 or (min_class_count <= 0 and qual_counts[_qn].get(c, 0) > 0):
+                    _m[c] = True
+            _qual_logit_masks[_qn] = _m
+        click.echo("  [P4 quals] actives : " + ", ".join(
+            f"{_qn}={int(_qual_logit_masks[_qn].sum())}/{len(_c)}"
+            for _qn, _c in QUALIFIERS.items()))
+    return (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+            _qual_logit_masks, _active_edge_counts, n_edge_classes)
+
+
+def _train_build_weights_and_vocab(*, pipeline, _node_remap, _edge_remap,
+                                   coarse_phase: bool, coarse_n_min: int,
+                                   node_counts, edge_counts,
+                                   _active_edge_counts, n_edge_classes: int,
+                                   weighted_loss: bool, max_class_weight: float,
+                                   _active_node_types, _active_relation_types,
+                                   word_embedding, all_lemmas,
+                                   _fasttext_path):
+    """S1 — remaps exposés + poids de classes + vocab embeddings (+fastText).
+
+    Retourne (node_class_weights|None, edge_class_weights|None)."""
+    # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
+    # est dimensionné sur types actifs ; le masque suit en espace actif.
+    # Remaps exposés sur le pipeline pour la passe éval.)
+    pipeline._coarse_node_remap = _node_remap
+    pipeline._coarse_edge_remap = _edge_remap
+    pipeline._coarse_phase = bool(coarse_phase)
+    pipeline._coarse_n_min = int(coarse_n_min)
+
+    node_class_weights = None
+    edge_class_weights = None
+    if weighted_loss:
+        # v5.8 (P3) : poids en espace ACTIF (coarse remappé), noms actifs.
+        _active_node_counts: dict[int, int] = {}
+        if _node_remap is not None:
+            for _fc, _n in node_counts.items():
+                _ac = _node_remap.get(int(_fc), int(_fc))
+                _active_node_counts[_ac] = _active_node_counts.get(_ac, 0) + _n
+        else:
+            _active_node_counts = {int(c): int(n) for c, n in node_counts.items()}
+        if _active_node_counts:
+            total_nodes = sum(_active_node_counts.values())
+            n_node_classes = len(_active_node_types)
+            node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
+            for c in range(n_node_classes):
+                count = _active_node_counts.get(c, 1)
+                node_class_weights[c] = total_nodes / (n_node_classes * count)
+            if max_class_weight > 0:
+                node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
+            click.echo(f"Node class weights : {dict(zip(_active_node_types, node_class_weights.round(3), strict=False))}")
+        if edge_counts:
+            total_edges = sum(_active_edge_counts.values())
+            edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
+            for c in range(n_edge_classes):
+                count = _active_edge_counts.get(c, 0)
+                if count > 0:
+                    edge_class_weights[c] = total_edges / (n_edge_classes * count)
+            if max_class_weight > 0:
+                edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
+            click.echo(f"Edge class weights : {dict(zip(_active_relation_types, edge_class_weights.round(3), strict=False))}")
+    if word_embedding is not None and all_lemmas:
+        word_embedding.build_vocab(all_lemmas)
+        click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
+        if _fasttext_path is not None:
+            # Phase A : remplissage fastText après build_vocab (vocab connu).
+            # fastText subword → get_word_vector répond pour tout lemme.
+            try:
+                import fasttext as _ft
+                _ft_model = _ft.load_model(str(_fasttext_path))
+            except ImportError:
+                try:
+                    import fasttext_wheel as _ft
+                    _ft_model = _ft.load_model(str(_fasttext_path))
+                except ImportError as _e:
+                    raise click.ClickException(
+                        "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
+                        "pip install fasttext-wheel"
+                    ) from _e
+            _n_ft = 0
+            for _lemma in dict.fromkeys(all_lemmas):
+                _vec = np.asarray(
+                    _ft_model.get_word_vector(_lemma), dtype=np.float32)
+                if _vec.shape != (300,):
+                    continue
+                _idx = word_embedding._vocab.get(_lemma)
+                if _idx is not None:
+                    word_embedding._E[_idx] = _vec
+                    _n_ft += 1
+            # Plage pré-entraînée = tous les non-spéciaux (comme load_from_file
+            # appelé juste après __init__ : start=3). Spéciaux _absent (1-2)
+            # restent entraînables même avec frozen=True.
+            word_embedding._pretrained_start = 3
+            word_embedding._pretrained_end = len(word_embedding._lemmas)
+            word_embedding.frozen = True
+            click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
+    return node_class_weights, edge_class_weights
+
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -1150,184 +1359,30 @@ def train_cmd(
             UserWarning, stacklevel=2,
         )
 
-    # (Chargeurs déjà construits avant l'encodeur — v5.8 P3.)
-    # (Comptes déjà calculés avant construction — v5.8 P3. Le masque suit.)
-    if edge_counts:
-        # v5.8 (P3) : comptes en espace ACTIF (fines remappées si coarse).
-        _active_edge_counts: dict[int, int] = {}
-        if _edge_remap is not None:
-            for _fc, _n in edge_counts.items():
-                _ac = _edge_remap.get(int(_fc), int(_fc))
-                _active_edge_counts[_ac] = _active_edge_counts.get(_ac, 0) + _n
-        else:
-            _active_edge_counts = {int(c): int(n) for c, n in edge_counts.items()}
-        n_edge_classes = encoder.n_relation_types
-        assert n_edge_classes == len(_active_relation_types), (
-            f"encodeur {n_edge_classes} ≠ {len(_active_relation_types)} types actifs — "
-            "construction incohérente (P3).")
-        _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
-        for c in range(n_edge_classes):
-            if _active_edge_counts.get(c, 0) > 0:
-                _edge_logit_mask[c] = True
-        n_active = int(_edge_logit_mask.sum())
-        n_inactive = n_edge_classes - n_active
-        if n_inactive > 0:
-            click.echo(
-                f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
-                f"(N=0 dans le dataset) — masquées tant que N=0."
-            )
-        # v5 : coupe aux prouvées — 0 < N < N_min ni apprise ni prédite.
-        # Le moteur ne prédit que ce qu'il peut apprendre ; annotez jusqu'à
-        # N_min pour réactiver (0 = désactive la coupe, comportement historique).
-        if min_class_count > 0:
-            _rare = [(_active_relation_types[c], _active_edge_counts.get(c, 0))
-                     for c in range(n_edge_classes)
-                     if _edge_logit_mask[c] and _active_edge_counts.get(c, 0) < min_class_count]
-            for _rel, _n in _rare:
-                _edge_logit_mask[_active_relation_types.index(_rel)] = False
-            if _rare:
-                _names = ", ".join(f"{r} (N={n})" for r, n in _rare)
-                click.echo(
-                    f"  [v5] {len(_rare)} classe(s) sous N_min={min_class_count} "
-                    f"coupée(s) du softmax : {_names}."
-                )
-            if not _edge_logit_mask.any():
-                raise click.ClickException(
-                    "Aucune classe d'arête ne survit (vides + sous N_min="
-                    f"{min_class_count}) : annotez au moins {min_class_count} "
-                    "exemples d'une relation, ou baissez --min-class-count "
-                    "(0 = désactive la coupe)."
-                )
-        # Couverture marqueurs (guide réannotation v5) : gold annotés vs
-        # connecteurs retrouvés vs gaps sans connecteur.
-        _n_gold = _n_found = _n_gaps = 0
-        for _s in loader:
-            _rs, _, _cs = reps_from_sentence(_s.sentence)
-            _n_gaps += max(0, len(_rs) - 1)
-            _n_gold += sum(1 for _e in _s.sentence.edges
-                           if getattr(_e, "marker_token", None) is not None)
-            _n_found += sum(1 for _c in _cs if _c is not None)
-        click.echo(
-            f"  [v5] marqueurs : {_n_gold} gold annotés, {_n_found}/{_n_gaps} "
-            f"gaps avec connecteur."
-        )
-        # Masque forward+loss : le pipeline émet et apprend uniquement sur les
-        # classes vues (persisté au checkpoint, appliqué à l'inférence).
-        pipeline.edge_logit_mask = _edge_logit_mask
-    # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
-    _intent_logit_mask: np.ndarray | None = None
-    if n_intent_types > 0 and intent_counts:
-        _intent_logit_mask = np.zeros(n_intent_types, dtype=bool)
-        for c in range(n_intent_types):
-            if intent_counts.get(c, 0) > 0:
-                _intent_logit_mask[c] = True
-        n_active_intent = int(_intent_logit_mask.sum())
-        click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
-    # P4a — masque types de phrases (même logique que _intent_logit_mask ;
-    # N_min v5 s'applique aussi : pas d'apprentissage sous le seuil).
-    _sentence_logit_mask: np.ndarray | None = None
-    if n_sentence_types > 0 and sentence_counts:
-        _sentence_logit_mask = np.zeros(n_sentence_types, dtype=bool)
-        for c in range(n_sentence_types):
-            if sentence_counts.get(c, 0) > 0:
-                _sentence_logit_mask[c] = True
-        n_active_sent = int(_sentence_logit_mask.sum())
-        click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
-    # P4 quals — comptage par (qual, classe) et masques N_min.
-    # Sans annotations variées, tout est masqué : dortoir, pas de loss.
-    from collections import Counter
-    qual_counts: dict[str, Counter] = {q: Counter() for q in QUALIFIERS}
-    if qual_heads:
-        for _smp in loader:
-            for _qm in _smp.qual_map.values():
-                for _qn, _qi in _qm.items():
-                    if _qn in qual_counts:
-                        qual_counts[_qn][int(_qi)] += 1
-    _qual_logit_masks: dict[str, np.ndarray] | None = None
-    if qual_heads:
-        _qual_logit_masks = {}
-        for _qn, _classes in QUALIFIERS.items():
-            _m = np.zeros(len(_classes), dtype=bool)
-            for c in range(len(_classes)):
-                if qual_counts[_qn].get(c, 0) >= min_class_count > 0 or (min_class_count <= 0 and qual_counts[_qn].get(c, 0) > 0):
-                    _m[c] = True
-            _qual_logit_masks[_qn] = _m
-        click.echo("  [P4 quals] actives : " + ", ".join(
-            f"{_qn}={int(_qual_logit_masks[_qn].sum())}/{len(_c)}"
-            for _qn, _c in QUALIFIERS.items()))
+    # S1 — masques (helper ci-dessus : v3.0/Éq.6/P4a/P4 quals).
+    (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+     _qual_logit_masks, _active_edge_counts, n_edge_classes) = _train_build_masks(
+        edge_counts=edge_counts, intent_counts=intent_counts,
+        sentence_counts=sentence_counts, qual_heads=qual_heads,
+        _edge_remap=_edge_remap, encoder=encoder,
+        _active_relation_types=_active_relation_types,
+        min_class_count=min_class_count,
+        n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, loader=loader,
+        pipeline=pipeline)
 
-    # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
-    # est dimensionné sur types actifs ; le masque suit en espace actif.
-    # Remaps exposés sur le pipeline pour la passe éval.)
-    pipeline._coarse_node_remap = _node_remap
-    pipeline._coarse_edge_remap = _edge_remap
-    pipeline._coarse_phase = bool(coarse_phase)
-    pipeline._coarse_n_min = int(coarse_n_min)
-
-    if weighted_loss:
-        # v5.8 (P3) : poids en espace ACTIF (coarse remappé), noms actifs.
-        _active_node_counts: dict[int, int] = {}
-        if _node_remap is not None:
-            for _fc, _n in node_counts.items():
-                _ac = _node_remap.get(int(_fc), int(_fc))
-                _active_node_counts[_ac] = _active_node_counts.get(_ac, 0) + _n
-        else:
-            _active_node_counts = {int(c): int(n) for c, n in node_counts.items()}
-        if _active_node_counts:
-            total_nodes = sum(_active_node_counts.values())
-            n_node_classes = len(_active_node_types)
-            node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
-            for c in range(n_node_classes):
-                count = _active_node_counts.get(c, 1)
-                node_class_weights[c] = total_nodes / (n_node_classes * count)
-            if max_class_weight > 0:
-                node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
-            click.echo(f"Node class weights : {dict(zip(_active_node_types, node_class_weights.round(3), strict=False))}")
-        if edge_counts:
-            total_edges = sum(_active_edge_counts.values())
-            edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
-            for c in range(n_edge_classes):
-                count = _active_edge_counts.get(c, 0)
-                if count > 0:
-                    edge_class_weights[c] = total_edges / (n_edge_classes * count)
-            if max_class_weight > 0:
-                edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-            click.echo(f"Edge class weights : {dict(zip(_active_relation_types, edge_class_weights.round(3), strict=False))}")
-    if word_embedding is not None and all_lemmas:
-        word_embedding.build_vocab(all_lemmas)
-        click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
-        if _fasttext_path is not None:
-            # Phase A : remplissage fastText après build_vocab (vocab connu).
-            # fastText subword → get_word_vector répond pour tout lemme.
-            try:
-                import fasttext as _ft
-                _ft_model = _ft.load_model(str(_fasttext_path))
-            except ImportError:
-                try:
-                    import fasttext_wheel as _ft
-                    _ft_model = _ft.load_model(str(_fasttext_path))
-                except ImportError as _e:
-                    raise click.ClickException(
-                        "load_from_fasttext requiert fasttext-wheel (ou fasttext) : "
-                        "pip install fasttext-wheel"
-                    ) from _e
-            _n_ft = 0
-            for _lemma in dict.fromkeys(all_lemmas):
-                _vec = np.asarray(
-                    _ft_model.get_word_vector(_lemma), dtype=np.float32)
-                if _vec.shape != (300,):
-                    continue
-                _idx = word_embedding._vocab.get(_lemma)
-                if _idx is not None:
-                    word_embedding._E[_idx] = _vec
-                    _n_ft += 1
-            # Plage pré-entraînée = tous les non-spéciaux (comme load_from_file
-            # appelé juste après __init__ : start=3). Spéciaux _absent (1-2)
-            # restent entraînables même avec frozen=True.
-            word_embedding._pretrained_start = 3
-            word_embedding._pretrained_end = len(word_embedding._lemmas)
-            word_embedding.frozen = True
-            click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
+    # S1 — poids + vocab (helper ci-dessus : remap exposés, classes, fastText).
+    node_class_weights, edge_class_weights = _train_build_weights_and_vocab(
+        pipeline=pipeline, _node_remap=_node_remap, _edge_remap=_edge_remap,
+        coarse_phase=coarse_phase, coarse_n_min=coarse_n_min,
+        node_counts=node_counts, edge_counts=edge_counts,
+        _active_edge_counts=_active_edge_counts,
+        n_edge_classes=n_edge_classes, weighted_loss=weighted_loss,
+        max_class_weight=max_class_weight,
+        _active_node_types=_active_node_types,
+        _active_relation_types=_active_relation_types,
+        word_embedding=word_embedding, all_lemmas=all_lemmas,
+        _fasttext_path=_fasttext_path)
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 
