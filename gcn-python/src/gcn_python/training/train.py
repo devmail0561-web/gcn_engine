@@ -955,6 +955,162 @@ def _train_build_weights_and_vocab(*, pipeline, _node_remap, _edge_remap,
     return node_class_weights, edge_class_weights
 
 
+
+def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
+    """Bascule TOUS les composants avec dropout en mode eval ou train."""
+    def _toggle(obj, mode):
+        # nn.Module : appeler .train() pour propager récursivement aux sous-modules
+        if hasattr(obj, 'train') and callable(obj.train):
+            obj.train(mode)
+        elif hasattr(obj, 'training'):
+            obj.training = mode
+    _toggle(pipeline.encoder, training)
+    for layer in pipeline._graph_layers:
+        _toggle(layer, training)
+    # B9 : couvrir aussi decoder et link_predictor (omis avant)
+    if pipeline.decoder is not None:
+        _toggle(pipeline.decoder, training)
+    if getattr(pipeline, 'link_predictor', None) is not None:
+        _toggle(pipeline.link_predictor, training)
+
+
+def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
+                       epoch_edge_preds, epoch_edge_gold,
+                       epoch_sent_node_preds, epoch_sent_node_gold,
+                       epoch_sent_edge_preds, epoch_sent_edge_gold,
+                       _edge_logit_mask, all_pairs, edge_class_weights,
+                       edge_counts, edge_loss_weight, node_class_weights):
+    """Exécute un pass forward sur le val set et retourne les métriques."""
+    total_loss = 0.0
+    n = 0
+    n_skipped = 0
+    _n_cut_val = 0  # v5.1 : exemples val de classes coupées, hors mesure
+    for sample in loader:
+        if not sample.sentence.clauses:
+            n_skipped += 1
+            continue
+        try:
+            reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
+            if not reps:
+                n_skipped += 1
+                continue
+            # C2.3-doc : gold_edge_map intentionnellement absent ici —
+            # évaluation sans oracle (asymétrie teacher-forcing BUG-1).
+            # Ne pas symétriser par le gold : ferait passer le R-GCN val
+            # sur types réels → F1 val optimiste → early stopping biaisé.
+            pipeline.forward(
+                reps, sample.sentence.text,
+                clause_positions=valid_clause_idxs,
+                n_total_clauses=len(sample.sentence.clauses),
+                connector_reps=connector_reps,
+            )
+        except (ValueError, RuntimeError, IndexError, KeyError, TypeError) as _eval_exc:
+            n_skipped += 1
+            import warnings as _wv
+            _wv.warn(f"_run_eval_pass : phrase {sample.sentence.id!r} ignorée — {_eval_exc}",
+                     UserWarning, stacklevel=2)
+            continue
+
+        node_logits = pipeline._cached_node_logits
+        edge_logits = pipeline._cached_edge_logits
+        if node_logits is None or len(node_logits) == 0:
+            continue
+
+        if valid_clause_idxs:
+            gold_node = sample.gold_node_labels[
+                np.array(valid_clause_idxs, dtype=np.int64)
+            ]
+        else:
+            gold_node = sample.gold_node_labels
+        # v5.8 (P3) : remap coarse éval — mêmes tables que le train.
+        _ev_nremap = getattr(pipeline, '_coarse_node_remap', None)
+        if _ev_nremap is not None and gold_node is not None:
+            gold_node = np.array([_ev_nremap.get(int(i), int(i)) for i in gold_node],
+                                 dtype=np.int64)
+
+        gold_edge = None
+        edge_logits_arg = None
+        _val_edge_sw = None  # défaut si phrase sans paire supervisée (cf. boucle train)
+        if (valid_clause_idxs and len(valid_clause_idxs) >= 2
+                and sample.edge_map
+                and edge_logits is not None and len(edge_logits) > 0):
+            if all_pairs:
+                pairs = [
+                    (valid_clause_idxs[i], valid_clause_idxs[j])
+                    for i in range(len(valid_clause_idxs))
+                    for j in range(i + 1, len(valid_clause_idxs))
+                ]
+            else:
+                pairs = [
+                    (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                    for k in range(len(valid_clause_idxs) - 1)
+                ]
+            gold_edge_full = np.array(
+                [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
+            )
+            valid_edge_mask = gold_edge_full >= 0
+            if _edge_logit_mask is not None and valid_edge_mask.any():
+                # v5.1 : classes coupées hors supervision — ni apprises,
+                # ni prédites, ni punies (le masque seul punissait via -log(~0)).
+                _active = np.asarray(_edge_logit_mask, dtype=bool)
+                _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
+                _n_cut_val += int((valid_edge_mask & ~_keep).sum())
+                valid_edge_mask = valid_edge_mask & _keep
+            if valid_edge_mask.any():
+                valid_edge_idxs = np.where(valid_edge_mask)[0]
+                gold_edge = gold_edge_full[valid_edge_idxs]
+                _ev_eremap = getattr(pipeline, '_coarse_edge_remap', None)
+                if _ev_eremap is not None:
+                    gold_edge = np.array(
+                        [_ev_eremap.get(int(i), int(i)) for i in gold_edge],
+                        dtype=np.int64)
+                edge_logits_arg = edge_logits[valid_edge_idxs]
+                _val_edge_sw = (
+                    np.array([sample.edge_conf_map.get(pairs[i], 1.0)
+                              for i in valid_edge_idxs], dtype=np.float32)
+                    if sample.edge_conf_map else None
+                )
+            else:
+                _val_edge_sw = None
+
+        loss_val, _, _ = pipeline.loss(
+            node_logits, edge_logits_arg, gold_node, gold_edge,
+            edge_loss_weight=edge_loss_weight,
+            node_class_weights=node_class_weights,
+            edge_class_weights=edge_class_weights,
+            edge_logit_mask=_edge_logit_mask if edge_counts else None,
+            sample_weight=sample.sentence.weight,
+            edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
+        )
+        total_loss += loss_val
+        n += 1
+
+        node_pred_idxs = np.argmax(node_logits, axis=1)
+        epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+        epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node)
+
+        sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
+        sent_node_gold = [pipeline.node_types[i] for i in gold_node]
+        epoch_sent_node_preds.append(sent_node_pred)
+        epoch_sent_node_gold.append(sent_node_gold)
+
+        if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
+            edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
+            epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+            epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
+            epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
+            epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
+        else:
+            epoch_sent_edge_preds.append([])
+            epoch_sent_edge_gold.append([])
+
+    if n_skipped > 0:
+        import warnings as _wvs
+        _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
+                  f"val_f1 calculée sur {n} phrase(s) seulement.",
+                  UserWarning, stacklevel=3)
+    return total_loss / max(n, 1), _n_cut_val
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -1406,157 +1562,6 @@ def train_cmd(
     # l'appel explicite exige des noms liés : même valeur, sans UnboundLocalError).
     val_edge_preds, val_edge_gold = [], []
 
-    def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
-        """Bascule TOUS les composants avec dropout en mode eval ou train."""
-        def _toggle(obj, mode):
-            # nn.Module : appeler .train() pour propager récursivement aux sous-modules
-            if hasattr(obj, 'train') and callable(obj.train):
-                obj.train(mode)
-            elif hasattr(obj, 'training'):
-                obj.training = mode
-        _toggle(pipeline.encoder, training)
-        for layer in pipeline._graph_layers:
-            _toggle(layer, training)
-        # B9 : couvrir aussi decoder et link_predictor (omis avant)
-        if pipeline.decoder is not None:
-            _toggle(pipeline.decoder, training)
-        if getattr(pipeline, 'link_predictor', None) is not None:
-            _toggle(pipeline.link_predictor, training)
-
-    def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
-                       epoch_edge_preds, epoch_edge_gold,
-                       epoch_sent_node_preds, epoch_sent_node_gold,
-                       epoch_sent_edge_preds, epoch_sent_edge_gold):
-        """Exécute un pass forward sur le val set et retourne les métriques."""
-        total_loss = 0.0
-        n = 0
-        n_skipped = 0
-        _n_cut_val = 0  # v5.1 : exemples val de classes coupées, hors mesure
-        for sample in loader:
-            if not sample.sentence.clauses:
-                n_skipped += 1
-                continue
-            try:
-                reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
-                if not reps:
-                    n_skipped += 1
-                    continue
-                # C2.3-doc : gold_edge_map intentionnellement absent ici —
-                # évaluation sans oracle (asymétrie teacher-forcing BUG-1).
-                # Ne pas symétriser par le gold : ferait passer le R-GCN val
-                # sur types réels → F1 val optimiste → early stopping biaisé.
-                pipeline.forward(
-                    reps, sample.sentence.text,
-                    clause_positions=valid_clause_idxs,
-                    n_total_clauses=len(sample.sentence.clauses),
-                    connector_reps=connector_reps,
-                )
-            except (ValueError, RuntimeError, IndexError, KeyError, TypeError) as _eval_exc:
-                n_skipped += 1
-                import warnings as _wv
-                _wv.warn(f"_run_eval_pass : phrase {sample.sentence.id!r} ignorée — {_eval_exc}",
-                         UserWarning, stacklevel=2)
-                continue
-
-            node_logits = pipeline._cached_node_logits
-            edge_logits = pipeline._cached_edge_logits
-            if node_logits is None or len(node_logits) == 0:
-                continue
-
-            if valid_clause_idxs:
-                gold_node = sample.gold_node_labels[
-                    np.array(valid_clause_idxs, dtype=np.int64)
-                ]
-            else:
-                gold_node = sample.gold_node_labels
-            # v5.8 (P3) : remap coarse éval — mêmes tables que le train.
-            _ev_nremap = getattr(pipeline, '_coarse_node_remap', None)
-            if _ev_nremap is not None and gold_node is not None:
-                gold_node = np.array([_ev_nremap.get(int(i), int(i)) for i in gold_node],
-                                     dtype=np.int64)
-
-            gold_edge = None
-            edge_logits_arg = None
-            _val_edge_sw = None  # défaut si phrase sans paire supervisée (cf. boucle train)
-            if (valid_clause_idxs and len(valid_clause_idxs) >= 2
-                    and sample.edge_map
-                    and edge_logits is not None and len(edge_logits) > 0):
-                if all_pairs:
-                    pairs = [
-                        (valid_clause_idxs[i], valid_clause_idxs[j])
-                        for i in range(len(valid_clause_idxs))
-                        for j in range(i + 1, len(valid_clause_idxs))
-                    ]
-                else:
-                    pairs = [
-                        (valid_clause_idxs[k], valid_clause_idxs[k + 1])
-                        for k in range(len(valid_clause_idxs) - 1)
-                    ]
-                gold_edge_full = np.array(
-                    [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
-                )
-                valid_edge_mask = gold_edge_full >= 0
-                if _edge_logit_mask is not None and valid_edge_mask.any():
-                    # v5.1 : classes coupées hors supervision — ni apprises,
-                    # ni prédites, ni punies (le masque seul punissait via -log(~0)).
-                    _active = np.asarray(_edge_logit_mask, dtype=bool)
-                    _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
-                    _n_cut_val += int((valid_edge_mask & ~_keep).sum())
-                    valid_edge_mask = valid_edge_mask & _keep
-                if valid_edge_mask.any():
-                    valid_edge_idxs = np.where(valid_edge_mask)[0]
-                    gold_edge = gold_edge_full[valid_edge_idxs]
-                    _ev_eremap = getattr(pipeline, '_coarse_edge_remap', None)
-                    if _ev_eremap is not None:
-                        gold_edge = np.array(
-                            [_ev_eremap.get(int(i), int(i)) for i in gold_edge],
-                            dtype=np.int64)
-                    edge_logits_arg = edge_logits[valid_edge_idxs]
-                    _val_edge_sw = (
-                        np.array([sample.edge_conf_map.get(pairs[i], 1.0)
-                                  for i in valid_edge_idxs], dtype=np.float32)
-                        if sample.edge_conf_map else None
-                    )
-                else:
-                    _val_edge_sw = None
-
-            loss_val, _, _ = pipeline.loss(
-                node_logits, edge_logits_arg, gold_node, gold_edge,
-                edge_loss_weight=edge_loss_weight,
-                node_class_weights=node_class_weights,
-                edge_class_weights=edge_class_weights,
-                edge_logit_mask=_edge_logit_mask if edge_counts else None,
-                sample_weight=sample.sentence.weight,
-                edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
-            )
-            total_loss += loss_val
-            n += 1
-
-            node_pred_idxs = np.argmax(node_logits, axis=1)
-            epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
-            epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node)
-
-            sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
-            sent_node_gold = [pipeline.node_types[i] for i in gold_node]
-            epoch_sent_node_preds.append(sent_node_pred)
-            epoch_sent_node_gold.append(sent_node_gold)
-
-            if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
-                edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
-                epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
-                epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
-                epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
-                epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
-            else:
-                epoch_sent_edge_preds.append([])
-                epoch_sent_edge_gold.append([])
-
-        if n_skipped > 0:
-            import warnings as _wvs
-            _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
-                      f"val_f1 calculée sur {n} phrase(s) seulement.",
-                      UserWarning, stacklevel=3)
-        return total_loss / max(n, 1), _n_cut_val
 
     try:
         # B2 : ouverture du CSV ici (dans le try) pour garantir la fermeture
@@ -1972,6 +1977,8 @@ def train_cmd(
                 _fz_edge_preds, _fz_edge_gold,
                 _fz_sent_node_preds, _fz_sent_node_gold,
                 _fz_sent_edge_preds, _fz_sent_edge_gold,
+                _edge_logit_mask, all_pairs, edge_class_weights,
+                edge_counts, edge_loss_weight, node_class_weights,
             )
             _set_training_mode(pipeline, True)
             metrics = {
@@ -2025,6 +2032,8 @@ def train_cmd(
                     val_edge_preds, val_edge_gold,
                     val_sent_node_preds, val_sent_node_gold,
                     val_sent_edge_preds, val_sent_edge_gold,
+                    _edge_logit_mask, all_pairs, edge_class_weights,
+                    edge_counts, edge_loss_weight, node_class_weights,
                 )
                 metrics["edge_cut_val"] = _val_n_cut
                 _set_training_mode(pipeline, True)
