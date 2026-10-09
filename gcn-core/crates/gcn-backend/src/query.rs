@@ -1472,6 +1472,157 @@ fn execute_ask(ctx: &pearl::GraphCtx<'_>, label: &str) -> Result<QueryResult, Ba
     })
 }
 
+/// S1 — WHY-NOT sur contexte partagé : `chemin_existe` (pas de pourquoi pas),
+/// `aucun_lien` (voisins pour rebondir) ou `coupure_negation` (bloqueurs) [Ph6b].
+fn execute_why_not(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+) -> Result<QueryResult, BackendError> {
+    let from_node = pearl::find_best(ctx.ir, from)
+        .ok_or_else(|| BackendError::NodeNotFound(from.to_string()))?;
+    let to_node =
+        pearl::find_best(ctx.ir, to).ok_or_else(|| BackendError::NodeNotFound(to.to_string()))?;
+    let (paths, blocked) = pearl::chain_topk_ctx(ctx, from, to, 1);
+    if let Some(best) = paths.first() {
+        // Un chemin pur existe : pas de « pourquoi pas ».
+        return Ok(QueryResult::WhyNot {
+            from: from_node.label.clone(),
+            to: to_node.label.clone(),
+            verdict: "chemin_existe".to_string(),
+            links: best.links.iter().map(|l| link_to_dto(ctx, l)).collect(),
+            blocked_by: vec![],
+            proches: vec![],
+        });
+    }
+    if blocked.is_empty() {
+        // Vraiment aucun lien : voisins pour rebondir.
+        let mut proches_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (s, d, _) in &ctx.ir.edges {
+            if *s == from_node.id && *d != to_node.id {
+                proches_set.insert(ctx.node_label(*d));
+            }
+            if *d == to_node.id && *s != from_node.id {
+                proches_set.insert(ctx.node_label(*s));
+            }
+        }
+        let mut proches: Vec<String> = proches_set.into_iter().collect();
+        proches.sort();
+        proches.truncate(6);
+        return Ok(QueryResult::WhyNot {
+            from: from_node.label.clone(),
+            to: to_node.label.clone(),
+            verdict: "aucun_lien".to_string(),
+            links: vec![],
+            blocked_by: vec![],
+            proches,
+        });
+    }
+    Ok(QueryResult::WhyNot {
+        from: from_node.label.clone(),
+        to: to_node.label.clone(),
+        verdict: "coupure_negation".to_string(),
+        links: vec![],
+        blocked_by: blocked.iter().map(|l| link_to_dto(ctx, l)).collect(),
+        proches: vec![],
+    })
+}
+
+/// S1 — CHAIN_T temporel sur contexte partagé (ordonné + liens typés) [Ph7a].
+fn execute_chain_t(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+) -> Result<QueryResult, BackendError> {
+    if pearl::find_best(ctx.ir, from).is_none() {
+        return Err(BackendError::NodeNotFound(from.to_string()));
+    }
+    if pearl::find_best(ctx.ir, to).is_none() {
+        return Err(BackendError::NodeNotFound(to.to_string()));
+    }
+    let result = pearl::chain_temporal_ctx(ctx, from, to);
+    let found = result.links.is_some();
+    Ok(QueryResult::TemporalPath {
+        from: from.to_string(),
+        to: to.to_string(),
+        found,
+        temporally_ordered: result.temporally_ordered,
+        links: result
+            .links
+            .unwrap_or_default()
+            .iter()
+            .map(temporal_link_to_dto)
+            .collect(),
+    })
+}
+
+/// S1 — BEFORE temporel sur contexte partagé (index + chemin dirigé).
+fn execute_before(
+    ctx: &pearl::GraphCtx<'_>,
+    a: &str,
+    b: &str,
+) -> Result<QueryResult, BackendError> {
+    let node_a =
+        pearl::find_best(ctx.ir, a).ok_or_else(|| BackendError::NodeNotFound(a.to_string()))?;
+    let node_b =
+        pearl::find_best(ctx.ir, b).ok_or_else(|| BackendError::NodeNotFound(b.to_string()))?;
+    let a_index = node_a.temporal_index;
+    let b_index = node_b.temporal_index;
+    let path_exists = pearl::chain_ctx(ctx, a, b).is_some();
+    let a_before_b = match (a_index, b_index) {
+        (Some(ai), Some(bi)) => ai < bi && path_exists,
+        _ => path_exists,
+    };
+    Ok(QueryResult::TemporalOrder {
+        a: node_a.label.clone(),
+        b: node_b.label.clone(),
+        a_before_b,
+        a_index,
+        b_index,
+        path_exists,
+    })
+}
+
+/// S1 — DELAY temporel sur contexte partagé (sommes gaps + delta index).
+fn execute_delay(
+    ctx: &pearl::GraphCtx<'_>,
+    from: &str,
+    to: &str,
+) -> Result<QueryResult, BackendError> {
+    if pearl::find_best(ctx.ir, from).is_none() {
+        return Err(BackendError::NodeNotFound(from.to_string()));
+    }
+    if pearl::find_best(ctx.ir, to).is_none() {
+        return Err(BackendError::NodeNotFound(to.to_string()));
+    }
+    let result = pearl::chain_temporal_ctx(ctx, from, to);
+    let (gap_min_sum, gap_max_sum, index_delta) = if let Some(ref links) = result.links {
+        let min_sum: Option<i32> = links
+            .iter()
+            .map(|l| l.gap_min)
+            .try_fold(0i32, |acc, v| v.map(|x| acc + x));
+        let max_sum: Option<i32> = links
+            .iter()
+            .map(|l| l.gap_max)
+            .try_fold(0i32, |acc, v| v.map(|x| acc + x));
+        let idx_delta = links
+            .iter()
+            .filter_map(|l| l.index_delta)
+            .reduce(|a, b| a + b);
+        (min_sum, max_sum, idx_delta)
+    } else {
+        (None, None, None)
+    };
+    Ok(QueryResult::TemporalDelay {
+        from: from.to_string(),
+        to: to.to_string(),
+        found: result.links.is_some(),
+        gap_min_sum,
+        gap_max_sum,
+        index_delta,
+    })
+}
+
 pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError> {
     // Ph10-M4 : UN SEUL calcul de graphe par requête — contexte partagé
     // (petgraph + index) passé à toutes les fonctions d'analyse ci-dessous.
@@ -1976,137 +2127,13 @@ pub fn execute(query: &Query, ir: &CausalIR) -> Result<QueryResult, BackendError
 
         Query::Ask { label } => execute_ask(&ctx, label),
 
-        Query::WhyNot { from, to } => {
-            // Ph6b : pourquoi aucun chemin causal (WHY-NOT = bloqueurs niés).
-            let from_node = pearl::find_best(ctx.ir, from)
-                .ok_or_else(|| BackendError::NodeNotFound(from.clone()))?;
-            let to_node = pearl::find_best(ctx.ir, to)
-                .ok_or_else(|| BackendError::NodeNotFound(to.clone()))?;
-            let (paths, blocked) = pearl::chain_topk_ctx(&ctx, from, to, 1);
-            if let Some(best) = paths.first() {
-                // Un chemin pur existe : pas de « pourquoi pas ».
-                return Ok(QueryResult::WhyNot {
-                    from: from_node.label.clone(),
-                    to: to_node.label.clone(),
-                    verdict: "chemin_existe".to_string(),
-                    links: best.links.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                    blocked_by: vec![],
-                    proches: vec![],
-                });
-            }
-            if blocked.is_empty() {
-                // Vraiment aucun lien : voisins pour rebondir.
-                let mut proches_set: std::collections::HashSet<String> =
-                    std::collections::HashSet::new();
-                for (s, d, _) in &ir.edges {
-                    if *s == from_node.id && *d != to_node.id {
-                        proches_set.insert(ctx.node_label(*d));
-                    }
-                    if *d == to_node.id && *s != from_node.id {
-                        proches_set.insert(ctx.node_label(*s));
-                    }
-                }
-                let mut proches: Vec<String> = proches_set.into_iter().collect();
-                proches.sort();
-                proches.truncate(6);
-                return Ok(QueryResult::WhyNot {
-                    from: from_node.label.clone(),
-                    to: to_node.label.clone(),
-                    verdict: "aucun_lien".to_string(),
-                    links: vec![],
-                    blocked_by: vec![],
-                    proches,
-                });
-            }
-            Ok(QueryResult::WhyNot {
-                from: from_node.label.clone(),
-                to: to_node.label.clone(),
-                verdict: "coupure_negation".to_string(),
-                links: vec![],
-                blocked_by: blocked.iter().map(|l| link_to_dto(&ctx, l)).collect(),
-                proches: vec![],
-            })
-        }
+        Query::WhyNot { from, to } => execute_why_not(&ctx, from, to),
 
-        Query::ChainT(from, to) => {
-            if pearl::find_best(ctx.ir, from).is_none() {
-                return Err(BackendError::NodeNotFound(from.clone()));
-            }
-            if pearl::find_best(ctx.ir, to).is_none() {
-                return Err(BackendError::NodeNotFound(to.clone()));
-            }
-            let result = pearl::chain_temporal_ctx(&ctx, from, to);
-            let found = result.links.is_some();
-            Ok(QueryResult::TemporalPath {
-                from: from.clone(),
-                to: to.clone(),
-                found,
-                temporally_ordered: result.temporally_ordered,
-                links: result
-                    .links
-                    .unwrap_or_default()
-                    .iter()
-                    .map(temporal_link_to_dto)
-                    .collect(),
-            })
-        }
+        Query::ChainT(from, to) => execute_chain_t(&ctx, from, to),
 
-        Query::Before(a, b) => {
-            let node_a =
-                pearl::find_best(ctx.ir, a).ok_or_else(|| BackendError::NodeNotFound(a.clone()))?;
-            let node_b =
-                pearl::find_best(ctx.ir, b).ok_or_else(|| BackendError::NodeNotFound(b.clone()))?;
-            let a_index = node_a.temporal_index;
-            let b_index = node_b.temporal_index;
-            let path_exists = pearl::chain_ctx(&ctx, a, b).is_some();
-            let a_before_b = match (a_index, b_index) {
-                (Some(ai), Some(bi)) => ai < bi && path_exists,
-                _ => path_exists,
-            };
-            Ok(QueryResult::TemporalOrder {
-                a: node_a.label.clone(),
-                b: node_b.label.clone(),
-                a_before_b,
-                a_index,
-                b_index,
-                path_exists,
-            })
-        }
+        Query::Before(a, b) => execute_before(&ctx, a, b),
 
-        Query::Delay(from, to) => {
-            if pearl::find_best(ctx.ir, from).is_none() {
-                return Err(BackendError::NodeNotFound(from.clone()));
-            }
-            if pearl::find_best(ctx.ir, to).is_none() {
-                return Err(BackendError::NodeNotFound(to.clone()));
-            }
-            let result = pearl::chain_temporal_ctx(&ctx, from, to);
-            let (gap_min_sum, gap_max_sum, index_delta) = if let Some(ref links) = result.links {
-                let min_sum: Option<i32> = links
-                    .iter()
-                    .map(|l| l.gap_min)
-                    .try_fold(0i32, |acc, v| v.map(|x| acc + x));
-                let max_sum: Option<i32> = links
-                    .iter()
-                    .map(|l| l.gap_max)
-                    .try_fold(0i32, |acc, v| v.map(|x| acc + x));
-                let idx_delta = links
-                    .iter()
-                    .filter_map(|l| l.index_delta)
-                    .reduce(|a, b| a + b);
-                (min_sum, max_sum, idx_delta)
-            } else {
-                (None, None, None)
-            };
-            Ok(QueryResult::TemporalDelay {
-                from: from.clone(),
-                to: to.clone(),
-                found: result.links.is_some(),
-                gap_min_sum,
-                gap_max_sum,
-                index_delta,
-            })
-        }
+        Query::Delay(from, to) => execute_delay(&ctx, from, to),
     }
 }
 
