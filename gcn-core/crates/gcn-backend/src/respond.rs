@@ -322,7 +322,7 @@ pub fn respond(input: &str, ir: &CausalIR) -> UserResponse {
         return too_big(ir);
     }
     match execute(&query, ir) {
-        Ok(result) => ok_result(&query, ir, result),
+        Ok(result) => ok_result(ir, result),
         Err(e) => err_result(&query, ir, e),
     }
 }
@@ -417,7 +417,7 @@ fn caveat_strings(caveats: &[Caveat]) -> Vec<String> {
         .collect()
 }
 
-fn ok_result(_query: &Query, ir: &CausalIR, result: QueryResult) -> UserResponse {
+fn ok_result(ir: &CausalIR, result: QueryResult) -> UserResponse {
     match result {
         QueryResult::Causes {
             target,
