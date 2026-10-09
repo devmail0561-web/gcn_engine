@@ -399,6 +399,8 @@ def run_discuss(
                     summary=info["summary"], status=info["status"],
                     lang=info["lang"], added=info["added"],
                 )
+                if info.get("summarized") is not None:
+                    session.record_summary(info["summarized"])
                 session.save()
             _write_log(log_path, {
                 "event": "query",

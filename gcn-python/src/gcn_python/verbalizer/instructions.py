@@ -153,6 +153,9 @@ class CausalGraph:
         self.edges: list[tuple] = []                     # (src, dst, attrs, source_text)
         self.adjacency: dict  = defaultdict(list)        # src → [dst]
         self.reverse_adj: dict = defaultdict(list)       # dst → [src]
+        # M2b — compteurs de mutation (save incrémentale : log ssi purs ajouts).
+        self._adds = 0
+        self._dels = 0
 
     def add_cir(self, cir: dict, session_origin: str | None = None) -> None:
         """Fusionne un CIR en session avec origine 9a REQUISE (pas de défaut silencieux).
@@ -218,6 +221,7 @@ class CausalGraph:
             self.edges.append((src, dst, attrs, src_text))
             self.adjacency[src].append(dst)
             self.reverse_adj[dst].append(src)
+        self._adds += 1
 
     def add_discourse_block(self, merged_cir: dict, session_origin: str | None = None) -> None:
         """Ajoute un bloc de discours multi-phrases (ids pré-préfixés bNNNNN_nMMM).
@@ -239,6 +243,101 @@ class CausalGraph:
         self.edges.clear()
         self.adjacency.clear()
         self.reverse_adj.clear()
+        self._dels += 1  # M2b : destruction → prochaine save en photo
+
+    def _rebuild_adjacency(self) -> None:
+        """Reconstruit les index depuis self.edges (après fusion/suppression)."""
+        self.adjacency = defaultdict(list)
+        self.reverse_adj = defaultdict(list)
+        for s, d, _a, _t in self.edges:
+            self.adjacency[s].append(d)
+            self.reverse_adj[d].append(s)
+
+    def merge_duplicate_nodes(self) -> int:
+        """Fusionne les nœuds de même label normalisé (garde le plus petit id).
+
+        Recâble les arêtes vers le gardé ; origine fusionnée par précédence
+        (max, jamais de downgrade). Retourne le nombre de nœuds supprimés.
+        Déterministe (tri d'ids). M2a : première source de rangement.
+        """
+        groups: dict[str, list] = defaultdict(list)
+        for nid, nd in self.nodes.items():
+            norm = self._normalize(nd.get("label", nid))
+            if not norm:
+                continue  # sans label : jamais fusionnés (pas d'identité)
+            groups[norm].append(nid)
+        remap: dict[str, str] = {}
+        for key in sorted(groups):
+            ids = sorted(groups[key])
+            if len(ids) < 2:
+                continue
+            keeper = ids[0]
+            for other in ids[1:]:
+                remap[other] = keeper
+                oth = self.nodes[other]
+                cur = self.nodes[keeper]
+                if _SESSION_PRECEDENCE.get(oth.get("session_origin"), -1) > \
+                        _SESSION_PRECEDENCE.get(cur.get("session_origin"), -1):
+                    cur["session_origin"] = oth["session_origin"]
+        if not remap:
+            return 0
+        for rid in remap:
+            del self.nodes[rid]
+        self.edges = [
+            (remap.get(s, s), remap.get(d, d), a, t) for s, d, a, t in self.edges
+        ]
+        self._rebuild_adjacency()
+        self._dels += 1
+        return len(remap)
+
+    #: Clés d'attrs exclues de la dédup (métadonnées volatiles, pas le fait).
+    _DEDUP_VOLATILE = frozenset({"session_turn", "_match_level"})
+
+    @staticmethod
+    def _edge_key(attrs: dict) -> tuple:
+        """Clé de dédup d'arête : tout l'attrs sauf volatiles (repr acomptes)."""
+        items = []
+        for k in sorted(attrs):
+            if k in CausalGraph._DEDUP_VOLATILE:
+                continue
+            v = attrs[k]
+            try:
+                hash(v)
+            except TypeError:
+                v = repr(v)
+            items.append((k, v))
+        return tuple(items)
+
+    def merge_duplicate_edges(self) -> int:
+        """Déduplique les arêtes identiques (src, dst + attrs non volatiles).
+
+        Garde la première occurrence (ordre d'écriture). Retourne le nombre
+        d'arêtes supprimées. M2a : deuxième source de rangement.
+        """
+        seen: set = set()
+        keep = []
+        for s, d, a, t in self.edges:
+            key = (s, d, self._edge_key(a if isinstance(a, dict) else {}))
+            if key in seen:
+                continue
+            seen.add(key)
+            keep.append((s, d, a, t))
+        removed = len(self.edges) - len(keep)
+        if removed:
+            self.edges = keep
+            self._rebuild_adjacency()
+            self._dels += 1
+        return removed
+
+    def _merge_node_dict(self, nid: str, n: dict) -> None:
+        """Fusion brute last-wins (replay du journal M2b : l'ordre = écritures)."""
+        cur = self.nodes.get(nid)
+        if cur is None:
+            self.nodes[nid] = dict(n)
+        else:
+            for k, v in n.items():
+                if k != "id":
+                    cur[k] = v
 
     def drop_edges(self, pred) -> int:
         """Supprime les arêtes vérifiant pred(src, dst, attrs) ; reconstruit l'adjacence.
@@ -250,11 +349,8 @@ class CausalGraph:
         removed = len(self.edges) - len(keep)
         if removed:
             self.edges = keep
-            self.adjacency = defaultdict(list)
-            self.reverse_adj = defaultdict(list)
-            for s, d, _a, _t in self.edges:
-                self.adjacency[s].append(d)
-                self.reverse_adj[d].append(s)
+            self._rebuild_adjacency()
+            self._dels += 1
         return removed
 
     def save(self, path) -> None:

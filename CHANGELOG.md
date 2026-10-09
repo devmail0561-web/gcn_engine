@@ -157,6 +157,15 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (10 verts)** : répétition sans recalcul (compteur parseur), restauration NLU/vecs, copies indépendantes, invalidation par vrai `update`, isolation parseur, FIFO, bypass forward, dédup batch, pré-filtre identique.
 - **Vert Python : 819 passés (11 échecs pré-existants inchangés), README gcn-python documenté.**
 
+### Session Phase 10-M2 — compacter au lieu de refuser (2026-10-09, avec 9e)
+
+- **M2a plafonds + annonce** : `DialogueSession(max_nodes=500, max_edges=2000, max_turns=200)` — `merge_duplicate_nodes` (même label normalisé, recâblage, origine max, jamais de downgrade) puis `merge_duplicate_edges` (attrs hors volatiles `session_turn`), réponse quand même + `compacted: ...` (codes, moteur agnostic). Vieux tours repliés en entrée `summary` (sujets + numéros gardés, aplatissement imbriqué) ; `record_summary` persiste ; vecs FIFO 5000 (cache recomputable, silencieux) ; disque audit exempt (mémoire bornée).
+- **M2b save incrémentale** : photo + `graph_log.jsonl` (deltas nœuds/arêtes), cadence `snapshot_every=10`, photo forcée après destruction (compteurs `_adds/_dels` : revoke/fusion/clear détectés — sans quoi un revoke ressusciterait au replay). `load()` rejoue + re-snapshotte ; rapport +`replayed`/`resnapshotted`. Mesuré (800 nœuds/400 arêtes +croissance) : 8,3 ms → 0,3 ms (**~28×**).
+- **M2c paraphrases** : overlap trigrammes ≥ **0.75** (monté de 0.5 : `eau`⊂`bateau`=0.67 via `au#` — vérifié), min-longueur anti-bruit, après exact/partiel, jamais de `clarify` sur du flou (repli continuité). Variantes morphologiques OK (`fatigues`→`fatigue` 0.86) ; synonymes vrais = futur vecs.
+- **Test pré-existant adapté (pas affaibli)** : `test_discuss_block_counter_resumes_across_sessions` lisait `graph.json` brut — avec M2b la vérité = photo+journal : porté sur `SessionStore.load()` (F4c revérifié : 4 ids, pas d'écrasement).
+- **Tests (18 verts)** : fusions (+précédence, +confs distinctes, +volatiles), caps annoncés, silence sous caps, résumé (+persisté), vecs, photo/journal/cadence/destruction/équivalence, paraphrases (valeurs, exact-gagnant, repli).
+- **Vert Python : 837 passés (11 échecs pré-existants inchangés : eval/lot1/black-box).**
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

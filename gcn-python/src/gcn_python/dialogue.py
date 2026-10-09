@@ -38,11 +38,42 @@ from .verbalizer.instructions import (
 )
 from .verbalizer.query_report import QueryVerbalizer
 
-# Fenêtre de consultation du journal (résumé auto : Phase 10 avec M2).
-JOURNAL_KEEP_TURNS = 500
+# Fenêtre d'historique en mémoire (résumé automatique au-delà — jamais drop,
+# jamais de refus ; promis par 9e, livré ici avec M2a).
+JOURNAL_KEEP_TURNS = 200
+
+# Plafonds de session M2a (configurables par constructeur) : au dépassement,
+# rangement automatique ANNONCÉ (fusion doublons, résumé vieux échanges),
+# jamais de refus d'entrée.
+SESSION_MAX_NODES = 500
+SESSION_MAX_EDGES = 2000
 
 # Marques d'interrogation (ponctuation, pas du lexique).
 _QUESTION_MARKS = ("?", "؟")
+
+# M2c — paraphrases : coefficient d'overlap sur trigrammes (le petit contenu
+# dans le grand : "fatigues" ⊂ "fatigue"). Jaccard punirait les différences
+# de longueur, or une paraphrase change la longueur. Seuil FIGÉ à 0.75 :
+# variantes morphologiques (0.83+) passent, inclusions courtes ("eau" ⊂
+# "bateau" = 0.67 via "au#") non.
+PARAPHRASE_THRESHOLD = 0.75
+PARAPHRASE_MIN_LEN = 4
+
+
+def _trigrams(s: str) -> set[str]:
+    """Trigrammes bordés du normalisé (accents pliés, cf. CausalGraph)."""
+    t = f"#{CausalGraph._normalize(s)}#"
+    if len(t) < PARAPHRASE_MIN_LEN + 1:
+        return set()
+    return {t[i:i + 3] for i in range(len(t) - 2)}
+
+
+def paraphrase_overlap(a: str, b: str) -> float:
+    """Overlap |A∩B|/min(|A|,|B|) ∈ [0,1] ; 0 si trop court (bruit)."""
+    ga, gb = _trigrams(a), _trigrams(b)
+    if not ga or not gb:
+        return 0.0
+    return len(ga & gb) / min(len(ga), len(gb))
 
 # Ponctuation dépouillée pour les mots de contenu (mirroir nlu_routing + ¿؟).
 _STRIP = "?.,!()«»:;\"'¿؟"
@@ -180,9 +211,15 @@ _UNANSWERED_MARKERS = (
 class DialogueSession:
     """État de dialogue : sujets, clarification, langue, journal (9b-e)."""
 
-    def __init__(self, max_topics: int = 3, abandon_after: int = 3) -> None:
+    def __init__(self, max_topics: int = 3, abandon_after: int = 3,
+                 max_nodes: int = SESSION_MAX_NODES,
+                 max_edges: int = SESSION_MAX_EDGES,
+                 max_turns: int = JOURNAL_KEEP_TURNS) -> None:
         self.max_topics = max_topics
         self.abandon_after = abandon_after
+        self.max_nodes = max_nodes
+        self.max_edges = max_edges
+        self.max_turns = max_turns
         self.turn = 0
         self.topics: list[str] = []
         self.last_candidates: list[str] = []
@@ -224,6 +261,22 @@ class DialogueSession:
                         found.append(lbl)
         return found[0] if len(found) == 1 else None
 
+    def _paraphrase_label(self, graph: CausalGraph, text: str) -> str | None:
+        """M2c — un unique label en overlap paraphrase (≥ seuil), sinon None.
+
+        Plusieurs candidats → None (jamais de clarification sur du flou :
+        repli exact/continuité). Synonymes vrais hors portée (moteur+vecs).
+        """
+        found = []
+        for w in content_words(text):
+            for nid, nd in graph.nodes.items():
+                lbl = graph._label(nid)
+                if lbl in found:
+                    continue
+                if paraphrase_overlap(lbl, w) >= PARAPHRASE_THRESHOLD:
+                    found.append(lbl)
+        return found[0] if len(found) == 1 else None
+
     def resolve(self, text: str, graph: CausalGraph) -> str | None:
         """Sujet du message : chiffres → candidats ; exacts → sujet/ambigu ;
         partiel unique → sujet ; sinon continuité (sujet en cours) ou repli."""
@@ -240,6 +293,9 @@ class DialogueSession:
         partial = self._partial_label(graph, text)
         if partial is not None:
             return partial
+        paraphrase = self._paraphrase_label(graph, text)
+        if paraphrase is not None:
+            return paraphrase
         if self.topics:
             return self.topics[-1]  # continuité : aucun concept reconnu
         words = content_words(text)
@@ -272,7 +328,12 @@ class DialogueSession:
     # 9e — journal + révocation
     # ------------------------------------------------------------------
     def _record(self, question: str, subject: str | None, response: str,
-                status: str, added: int) -> dict:
+                status: str, added: int) -> tuple[dict, dict | None]:
+        """Enregistre un tour ; résume les plus vieux au-delà du plafond.
+
+        Retourne (entrée, résumé-ou-None). M2a : jamais drop, jamais de refus —
+        l'excédent est replié en UNE entrée `summary` (sujets conservés).
+        """
         first = next((ln for ln in response.splitlines() if ln.strip()), "")
         entry = {
             "n": self.turn,
@@ -285,9 +346,59 @@ class DialogueSession:
             "added": added,
         }
         self.journal.append(entry)
-        if len(self.journal) > JOURNAL_KEEP_TURNS:
-            del self.journal[: len(self.journal) - JOURNAL_KEEP_TURNS]
-        return entry
+        summarized = self._summarize_oldest()
+        return entry, summarized
+
+    def _summarize_oldest(self) -> dict | None:
+        """Replie les tours excédentaires en une entrée `summary` (sujets gardés)."""
+        if len(self.journal) <= self.max_turns:
+            return None
+        n_drop = len(self.journal) - self.max_turns + 1
+        dropped = self.journal[:n_drop]
+        # Aplatir (un résumé replié ne doit jamais en écraser un autre) :
+        # turns et subjects concaténés dans l'ordre.
+        dropped_turns: list = []
+        subjects = []
+        for e in dropped:
+            if e.get("event") == "summary":
+                dropped_turns.extend(e.get("turns", []))
+                subjects.extend(e.get("subjects", []))
+            else:
+                if e.get("n") is not None:
+                    dropped_turns.append(e["n"])
+                if e.get("subject"):
+                    subjects.append(e["subject"])
+        summary = {
+            "n": dropped_turns[0] if dropped_turns else 0,
+            "event": "summary",
+            "question": None,
+            "subject": None,
+            "summary": f"{len(dropped_turns)} turn(s)",
+            "status": "summarized",
+            "lang": self.effective_lang(),
+            "added": 0,
+            "turns": dropped_turns,
+            "subjects": subjects,
+        }
+        self.journal = [summary] + self.journal[n_drop:]
+        return summary
+
+    def _enforce_graph_caps(self, graph: CausalGraph) -> list[str]:
+        """Rangement M2a : fusion doublons au-delà des plafonds (jamais de refus).
+
+        Nœuds d'abord (le recâblage peut créer des arêtes doublons), puis arêtes.
+        Retourne les morceaux d'annonce (`compacted: ...` assemblé par l'appelant).
+        """
+        parts = []
+        if len(graph.nodes) > self.max_nodes:
+            n = graph.merge_duplicate_nodes()
+            if n:
+                parts.append(f"merged {n} node(s)")
+        if len(graph.edges) > self.max_edges:
+            n = graph.merge_duplicate_edges()
+            if n:
+                parts.append(f"merged {n} duplicate edge(s)")
+        return parts
 
     def _push_topic(self, subject: str | None) -> None:
         if subject and (not self.topics or self.topics[-1] != subject):
@@ -304,7 +415,7 @@ class DialogueSession:
         last_lang = turns[-1].get("lang")
         if last_lang:
             self.lang_thread = last_lang
-        self.journal = list(turns[-JOURNAL_KEEP_TURNS:])
+        self.journal = list(turns[-self.max_turns:])
 
     def revoke(self, graph: CausalGraph, turn: int | None = None) -> str:
         """Retire les apports utilisateur d'un tour (jamais le corpus)."""
@@ -351,7 +462,9 @@ class DialogueSession:
             else:
                 self.lang_override = code
                 resp = f"  lang: {code}"
-            info = self._record(text, None, resp, "ok", 0)
+            info, _summ = self._record(text, None, resp, "ok", 0)
+            if _summ is not None:
+                info["summarized"] = _summ
             return resp, info
         if cmd == "revoke":
             target = None
@@ -360,7 +473,9 @@ class DialogueSession:
                 if digits:
                     target = digits[0]
             resp = self.revoke(handler.graph, target)
-            info = self._record(text, None, resp, "corrected", 0)
+            info, _summ = self._record(text, None, resp, "corrected", 0)
+            if _summ is not None:
+                info["summarized"] = _summ
             return resp, info
 
         notes: list[str] = []
@@ -397,13 +512,17 @@ class DialogueSession:
                     resp = f"  clarify: {' | '.join(options)}"
                     if notes:  # bascule annoncée (abandon juste consommé)
                         resp = "\n".join(notes) + "\n" + resp
-                    info = self._record(text, None, resp, "clarification", 0)
+                    info, _summ = self._record(text, None, resp, "clarification", 0)
+                    if _summ is not None:
+                        info["summarized"] = _summ
                     return resp, info
                 # Une clarification est déjà en attente : rappel, pas de file
                 resp = f"  clarify: {' | '.join(self.pending['options'])}"
                 if notes:  # bascule annoncée conservée même sur le chemin précoce
                     resp = "\n".join(notes) + "\n" + resp
-                info = self._record(text, None, resp, "clarification", 0)
+                info, _summ = self._record(text, None, resp, "clarification", 0)
+                if _summ is not None:
+                    info["summarized"] = _summ
                 return resp, info
             subject = self.resolve(text, handler.graph)
 
@@ -422,6 +541,11 @@ class DialogueSession:
                     added = len(handler.graph.edges) - before
             except Exception:  # noqa: S110, BLE001  # enrichissement best-effort
                 pass
+
+        # M2a : rangement au-delà des plafonds — annoncé, jamais de refus.
+        cap_parts = self._enforce_graph_caps(handler.graph)
+        if cap_parts:
+            notes.append(f"  compacted: {', '.join(cap_parts)}")
 
         # Routage : commande formelle > NLU (tête apprise puis surface) > repli
         nlu_cmd = None
@@ -471,7 +595,9 @@ class DialogueSession:
             response = f"  topic: {subject}\n" + response
             self.last_candidates = [subject]
         self._push_topic(subject)
-        info = self._record(text, subject, response, status, added)
+        info, _summ = self._record(text, subject, response, status, added)
+        if _summ is not None:
+            info["summarized"] = _summ
         if notes:
             response = "\n".join(notes) + "\n" + response
             info["summary"] = next(

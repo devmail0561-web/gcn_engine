@@ -246,6 +246,24 @@ Origine 9a : `add_cir(cir, session_origin="document" | "affirmation_utilisateur"
 au `load`. Les questions (`?`/`؟`, hors commandes) enrichissent le graphe en
 `question_utilisateur` via `handle(..., engine=...)`.
 
+### Session bornée Ph10-M2 — compacter au lieu de refuser
+
+Plafonds configurables (`DialogueSession(max_nodes=500, max_edges=2000,
+max_turns=200)`, `SessionStore(max_vecs=5000, snapshot_every=10)`) : au
+dépassement, rangement automatique ANNONCÉ (`compacted: merged N node(s),
+...`) — fusion nœuds même label (recâblage, origine max) puis arêtes
+identiques (hors clés volatiles `session_turn`), résumé des vieux tours
+(entrée `summary`, sujets gardés). **Jamais de refus.** Journal disque
+(`history.jsonl`) = audit append-only, exempt de plafond (mémoire bornée,
+disque tracé).
+
+`SessionStore.save()` : photo complète (`graph.json`) à la 1re save puis
+toutes les `snapshot_every` (ou après destruction : revoke/fusion/clear
+détectée par compteurs), journal des ajouts (`graph_log.jsonl`) entre-temps ;
+`load()` rejoue puis re-snapshotte (toute lecture finit en photo propre).
+Paraphrases M2c : overlap trigrammes ≥ 0.75 (`resolve`, après exact/partiel,
+jamais de `clarify` sur du flou ; synonymes vrais = futur moteur+vecs).
+
 ---
 
 ## CGNPipeline — paramètres clés

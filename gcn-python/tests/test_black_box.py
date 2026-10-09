@@ -259,8 +259,11 @@ def _run_discuss_scripted(monkeypatch, checkpoint, sess_dir, script):
 
 
 def _session_node_ids(sess_dir: Path) -> set:
-    data = json.loads((sess_dir / "graph.json").read_text(encoding="utf-8"))
-    return set(data["nodes"].keys())
+    # M2b : la vérité = photo + journal (graph.json seul est périmé entre photos).
+    from gcn_python.cli.session import SessionStore
+    store = SessionStore(sess_dir)
+    store.load()
+    return set(store.graph.nodes)
 
 
 def test_discuss_block_counter_resumes_across_sessions(tmp_path: Path, monkeypatch):
