@@ -525,6 +525,233 @@ pub enum Query {
     Delay(String, String),
 }
 
+/// S1 — WHY/WHAT : label + options exact-puis-flou/TOPK/filtres [D2/6b/7].
+fn parse_why_what(s: &str) -> Option<Result<Query, BackendError>> {
+    if let Some(rest) = s.strip_prefix("WHY ") {
+        let (label, ambiguity_limit, topk, filter) = match split_why_options(rest, "WHY") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::Why {
+            label,
+            ambiguity_limit,
+            topk,
+            filter,
+        }));
+    }
+    if let Some(rest) = s.strip_prefix("WHAT ") {
+        let (label, ambiguity_limit, topk, filter) = match split_why_options(rest, "WHAT") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::What {
+            label,
+            ambiguity_limit,
+            topk,
+            filter,
+        }));
+    }
+    None
+}
+
+/// S1 — CHAIN/ANALOGY : paire + options chemins [D3/6b].
+fn parse_chain_analogy(s: &str) -> Option<Result<Query, BackendError>> {
+    if let Some(rest) = s.strip_prefix("CHAIN ") {
+        let (body, topk, filter) = match split_chain_options(rest) {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        let (from, to) = match split_pair(&body, "CHAIN") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::Chain {
+            from,
+            to,
+            topk,
+            filter,
+        }));
+    }
+    if let Some(rest) = s.strip_prefix("ANALOGY ") {
+        let (body, weights, min_score, hops) = match split_analogy_options_hops(rest) {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        let (from, to) = match split_pair(&body, "ANALOGY") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::Analogy {
+            from,
+            to,
+            weights,
+            min_score,
+            hops,
+        }));
+    }
+    None
+}
+
+/// S1 — DO : label + suffixes de filtre d'intervention [Ph7].
+fn parse_do(s: &str) -> Option<Result<Query, BackendError>> {
+    let rest = s.strip_prefix("DO ")?;
+    // Ph7 : suffixes de filtre (`AGENT=` en 7d), ordre libre.
+    let mut body = rest.trim().to_string();
+    let mut filter = LinkFilter::default();
+    while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
+        match consume_filter_suffix(tail, "DO", &mut filter) {
+            Ok(true) => body = head.trim().to_string(),
+            Ok(false) => break,
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    if is_lone_option(&body) {
+        return Some(Err(BackendError::QueryParseError(
+            "DO: label manquant".to_string(),
+        )));
+    }
+    Some(Ok(Query::Intervene {
+        label: body,
+        filter,
+    }))
+}
+
+/// S1 — EXPLAIN : effet + contraste optionnel [Ph6b].
+fn parse_explain(s: &str) -> Option<Result<Query, BackendError>> {
+    let rest = s.strip_prefix("EXPLAIN ")?;
+    // Ph6b : `EXPLAIN <effet> CONTRAST <alternative>` (insensible à la casse).
+    let up = rest.to_ascii_uppercase();
+    if let Some(pos) = up.find(" CONTRAST ") {
+        let effect = rest[..pos].trim().to_string();
+        let contrast = rest[pos + " CONTRAST ".len()..].trim().to_string();
+        if effect.is_empty() || contrast.is_empty() {
+            return Some(Err(BackendError::QueryParseError(
+                "EXPLAIN: effet et alternative requis (EXPLAIN <effet> CONTRAST <alternative>)"
+                    .to_string(),
+            )));
+        }
+        return Some(Ok(Query::Explain {
+            effect,
+            contrast: Some(contrast),
+        }));
+    }
+    let effect = rest.trim().to_string();
+    if effect.is_empty() {
+        return Some(Err(BackendError::QueryParseError(
+            "EXPLAIN: effet manquant".to_string(),
+        )));
+    }
+    Some(Ok(Query::Explain {
+        effect,
+        contrast: None,
+    }))
+}
+
+/// S1 — paires `A B` : WHY-NOT/DIFF/CHAIN_T/BEFORE?/DELAY.
+fn parse_pair_cmd(s: &str) -> Option<Result<Query, BackendError>> {
+    if let Some(rest) = s.strip_prefix("WHY-NOT ") {
+        // Ph6b : pourquoi aucun chemin causal ? (réutilise blocked_by).
+        let (from, to) = match split_pair(rest, "WHY-NOT") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::WhyNot { from, to }));
+    }
+    if let Some(rest) = s.strip_prefix("DIFF ") {
+        let (from, to) = match split_pair(rest, "DIFF") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::NormDiff(from, to)));
+    }
+    if let Some(rest) = s.strip_prefix("CHAIN_T ") {
+        let (from, to) = match split_pair(rest, "CHAIN_T") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::ChainT(from, to)));
+    }
+    if let Some(rest) = s.strip_prefix("BEFORE? ") {
+        let (a, b) = match split_pair(rest, "BEFORE?") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::Before(a, b)));
+    }
+    if let Some(rest) = s.strip_prefix("DELAY ") {
+        let (from, to) = match split_pair(rest, "DELAY") {
+            Ok(t) => t,
+            Err(e) => return Some(Err(e)),
+        };
+        return Some(Ok(Query::Delay(from, to)));
+    }
+    None
+}
+
+/// S1 — mots-clés nus + un label (ASK/PROVENANCE exigent un label) [Ph6b/7f].
+fn parse_simple(s: &str) -> Option<Result<Query, BackendError>> {
+    if s == "CYCLES" {
+        return Some(Ok(Query::Cycles));
+    }
+    if s == "GAPS" {
+        return Some(Ok(Query::Gaps));
+    }
+    if let Some(label) = s.strip_prefix("COUNTERFACTUAL ") {
+        return Some(Ok(Query::Counterfactual(label.trim().to_string())));
+    }
+    if let Some(label) = s.strip_prefix("ASK ") {
+        // Ph6b : fiche nœud (label requis, pas de match-all silencieux).
+        let label = label.trim().to_string();
+        if label.is_empty() {
+            return Some(Err(BackendError::QueryParseError(
+                "ASK: label manquant".to_string(),
+            )));
+        }
+        return Some(Ok(Query::Ask { label }));
+    }
+    if let Some(label) = s.strip_prefix("ZOOM_IN ") {
+        return Some(Ok(Query::ZoomIn(label.trim().to_string())));
+    }
+    if let Some(label) = s.strip_prefix("ZOOM_OUT ") {
+        return Some(Ok(Query::ZoomOut(label.trim().to_string())));
+    }
+    if let Some(label) = s.strip_prefix("AGGREGATE ") {
+        return Some(Ok(Query::Aggregate(label.trim().to_string())));
+    }
+    if let Some(label) = s.strip_prefix("CENTRALITY ") {
+        return Some(Ok(Query::Centrality(label.trim().to_string())));
+    }
+    if s == "SPOF" {
+        return Some(Ok(Query::Spof));
+    }
+    if s == "DOUBTS" {
+        return Some(Ok(Query::Doubts));
+    }
+    if let Some(label) = s.strip_prefix("PROVENANCE ") {
+        // Ph7f : fiche provenance (label requis).
+        let label = label.trim().to_string();
+        if label.is_empty() {
+            return Some(Err(BackendError::QueryParseError(
+                "PROVENANCE: label manquant".to_string(),
+            )));
+        }
+        return Some(Ok(Query::Provenance(label)));
+    }
+    if s == "DENSITY" {
+        return Some(Ok(Query::Density(None)));
+    }
+    if let Some(label) = s.strip_prefix("DENSITY ") {
+        return Some(Ok(Query::Density(Some(label.trim().to_string()))));
+    }
+    if let Some(label) = s.strip_prefix("COVERAGE ") {
+        return Some(Ok(Query::Coverage(label.trim().to_string())));
+    }
+    if let Some(label) = s.strip_prefix("RELIABILITY ") {
+        return Some(Ok(Query::Reliability(label.trim().to_string())));
+    }
+    None
+}
+
 impl Query {
     pub fn parse(input: &str) -> Result<Self, BackendError> {
         let trimmed = input.trim().trim_end_matches('?').trim();
@@ -535,173 +762,24 @@ impl Query {
         };
         let s = normalized.as_str();
 
-        if let Some(rest) = s.strip_prefix("WHY ") {
-            let (label, ambiguity_limit, topk, filter) = split_why_options(rest, "WHY")?;
-            return Ok(Query::Why {
-                label,
-                ambiguity_limit,
-                topk,
-                filter,
-            });
+        // S1 — dispatch par famille (helpers ci-dessus, matching inchangé).
+        if let Some(r) = parse_why_what(s) {
+            return r;
         }
-        if let Some(rest) = s.strip_prefix("WHAT ") {
-            let (label, ambiguity_limit, topk, filter) = split_why_options(rest, "WHAT")?;
-            return Ok(Query::What {
-                label,
-                ambiguity_limit,
-                topk,
-                filter,
-            });
+        if let Some(r) = parse_chain_analogy(s) {
+            return r;
         }
-        if let Some(rest) = s.strip_prefix("CHAIN ") {
-            let (body, topk, filter) = split_chain_options(rest)?;
-            let (from, to) = split_pair(&body, "CHAIN")?;
-            return Ok(Query::Chain {
-                from,
-                to,
-                topk,
-                filter,
-            });
+        if let Some(r) = parse_do(s) {
+            return r;
         }
-        if s == "CYCLES" {
-            return Ok(Query::Cycles);
+        if let Some(r) = parse_explain(s) {
+            return r;
         }
-        if s == "GAPS" {
-            return Ok(Query::Gaps);
+        if let Some(r) = parse_pair_cmd(s) {
+            return r;
         }
-        if let Some(rest) = s.strip_prefix("DO ") {
-            // Ph7 : suffixes de filtre (`AGENT=` en 7d), ordre libre.
-            let mut body = rest.trim().to_string();
-            let mut filter = LinkFilter::default();
-            while let Some((head, tail)) = body.rsplit_once(char::is_whitespace) {
-                if consume_filter_suffix(tail, "DO", &mut filter)? {
-                    body = head.trim().to_string();
-                } else {
-                    break;
-                }
-            }
-            if is_lone_option(&body) {
-                return Err(BackendError::QueryParseError(
-                    "DO: label manquant".to_string(),
-                ));
-            }
-            return Ok(Query::Intervene {
-                label: body,
-                filter,
-            });
-        }
-        if let Some(label) = s.strip_prefix("COUNTERFACTUAL ") {
-            return Ok(Query::Counterfactual(label.trim().to_string()));
-        }
-        if let Some(rest) = s.strip_prefix("EXPLAIN ") {
-            // Ph6b : `EXPLAIN <effet> CONTRAST <alternative>` (insensible à la casse).
-            let up = rest.to_ascii_uppercase();
-            if let Some(pos) = up.find(" CONTRAST ") {
-                let effect = rest[..pos].trim().to_string();
-                let contrast = rest[pos + " CONTRAST ".len()..].trim().to_string();
-                if effect.is_empty() || contrast.is_empty() {
-                    return Err(BackendError::QueryParseError(
-                        "EXPLAIN: effet et alternative requis (EXPLAIN <effet> CONTRAST <alternative>)"
-                            .to_string(),
-                    ));
-                }
-                return Ok(Query::Explain {
-                    effect,
-                    contrast: Some(contrast),
-                });
-            }
-            let effect = rest.trim().to_string();
-            if effect.is_empty() {
-                return Err(BackendError::QueryParseError(
-                    "EXPLAIN: effet manquant".to_string(),
-                ));
-            }
-            return Ok(Query::Explain {
-                effect,
-                contrast: None,
-            });
-        }
-        if let Some(rest) = s.strip_prefix("ANALOGY ") {
-            let (body, weights, min_score, hops) = split_analogy_options_hops(rest)?;
-            let (from, to) = split_pair(&body, "ANALOGY")?;
-            return Ok(Query::Analogy {
-                from,
-                to,
-                weights,
-                min_score,
-                hops,
-            });
-        }
-        if let Some(label) = s.strip_prefix("ASK ") {
-            // Ph6b : fiche nœud (label requis, pas de match-all silencieux).
-            let label = label.trim().to_string();
-            if label.is_empty() {
-                return Err(BackendError::QueryParseError(
-                    "ASK: label manquant".to_string(),
-                ));
-            }
-            return Ok(Query::Ask { label });
-        }
-        if let Some(rest) = s.strip_prefix("WHY-NOT ") {
-            // Ph6b : pourquoi aucun chemin causal ? (réutilise blocked_by).
-            let (from, to) = split_pair(rest, "WHY-NOT")?;
-            return Ok(Query::WhyNot { from, to });
-        }
-        if let Some(label) = s.strip_prefix("ZOOM_IN ") {
-            return Ok(Query::ZoomIn(label.trim().to_string()));
-        }
-        if let Some(label) = s.strip_prefix("ZOOM_OUT ") {
-            return Ok(Query::ZoomOut(label.trim().to_string()));
-        }
-        if let Some(label) = s.strip_prefix("AGGREGATE ") {
-            return Ok(Query::Aggregate(label.trim().to_string()));
-        }
-        if let Some(label) = s.strip_prefix("CENTRALITY ") {
-            return Ok(Query::Centrality(label.trim().to_string()));
-        }
-        if s == "SPOF" {
-            return Ok(Query::Spof);
-        }
-        if s == "DOUBTS" {
-            return Ok(Query::Doubts);
-        }
-        if let Some(label) = s.strip_prefix("PROVENANCE ") {
-            // Ph7f : fiche provenance (label requis).
-            let label = label.trim().to_string();
-            if label.is_empty() {
-                return Err(BackendError::QueryParseError(
-                    "PROVENANCE: label manquant".to_string(),
-                ));
-            }
-            return Ok(Query::Provenance(label));
-        }
-        if let Some(rest) = s.strip_prefix("DIFF ") {
-            let (from, to) = split_pair(rest, "DIFF")?;
-            return Ok(Query::NormDiff(from, to));
-        }
-        if s == "DENSITY" {
-            return Ok(Query::Density(None));
-        }
-        if let Some(label) = s.strip_prefix("DENSITY ") {
-            return Ok(Query::Density(Some(label.trim().to_string())));
-        }
-        if let Some(label) = s.strip_prefix("COVERAGE ") {
-            return Ok(Query::Coverage(label.trim().to_string()));
-        }
-        if let Some(label) = s.strip_prefix("RELIABILITY ") {
-            return Ok(Query::Reliability(label.trim().to_string()));
-        }
-        if let Some(rest) = s.strip_prefix("CHAIN_T ") {
-            let (from, to) = split_pair(rest, "CHAIN_T")?;
-            return Ok(Query::ChainT(from, to));
-        }
-        if let Some(rest) = s.strip_prefix("BEFORE? ") {
-            let (a, b) = split_pair(rest, "BEFORE?")?;
-            return Ok(Query::Before(a, b));
-        }
-        if let Some(rest) = s.strip_prefix("DELAY ") {
-            let (from, to) = split_pair(rest, "DELAY")?;
-            return Ok(Query::Delay(from, to));
+        if let Some(r) = parse_simple(s) {
+            return r;
         }
 
         let preview = {
