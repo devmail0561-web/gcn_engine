@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..constants import RELATION_TYPES, rgcn_n_relations
+from ..param_epoch import bump as _bump_param_epoch
 
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
@@ -46,6 +47,7 @@ class LayerNormNumPy:
         return [self.gamma, self.beta]
 
     def update(self, d_gamma: np.ndarray, d_beta: np.ndarray, lr: float) -> None:
+        _bump_param_epoch()  # M1a : invalide le cache analyze (sens sûr)
         self.gamma -= lr * d_gamma
         self.beta -= lr * d_beta
 
@@ -197,6 +199,7 @@ class RGCNLayer:
         return params
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
+        _bump_param_epoch()  # M1a : invalide le cache analyze (sens sûr)
         self.W_r -= lr * grads[0]
         self.W_0 -= lr * grads[1]
         if self.norm is not None and len(grads) >= 4:

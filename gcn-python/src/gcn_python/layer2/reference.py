@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
+from ..param_epoch import bump as _bump_param_epoch
 
 
 def _relu(x: np.ndarray) -> np.ndarray:
@@ -341,6 +342,7 @@ class MLPEncoder:
     ) -> None:
         if not np.isfinite(lr) or lr < 0:
             raise ValueError(f"lr doit être un nombre fini >= 0 (reçu {lr!r}).")
+        _bump_param_epoch()  # M1a : toute mutation invalide le cache analyze
         for layer, (dW, db) in zip(layers, grads, strict=False):
             if self.grad_clip is not None:
                 nW = float(np.linalg.norm(dW))
@@ -364,6 +366,7 @@ class MLPEncoder:
         self._apply_grads(self._edge_layers, grads, lr)
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
+        _bump_param_epoch()  # M1a : toute mutation invalide le cache analyze
         for p, g in zip(self.parameters(), grads, strict=False):
             p -= lr * g
 

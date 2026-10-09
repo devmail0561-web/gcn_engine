@@ -431,8 +431,21 @@ class GCNEngine:
 
         Chaque élément est une phrase individuelle (pas un paragraphe).
         La segmentation est la responsabilité de l'appelant.
+
+        M1b : dédup par lots — chaque texte distinct analysé une seule fois
+        (cache M1a inter-phrases), ordre préservé, copies indépendantes
+        (l'appelant peut muter chaque CIR sans contaminer les autres).
         """
-        return [self.analyze(t) for t in texts if t.strip()]
+        import copy as _copy
+        seen: dict[str, dict] = {}
+        out: list[dict] = []
+        for t in texts:
+            if not t.strip():
+                continue
+            if t not in seen:
+                seen[t] = self.analyze(t)
+            out.append(_copy.deepcopy(seen[t]))
+        return out
 
     def stream(self, source) -> Iterator[dict]:
         """

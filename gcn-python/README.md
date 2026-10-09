@@ -187,6 +187,20 @@ results = engine.analyze_batch([
 ])
 ```
 
+### Cache d'analyse Ph10-M1a — pas de recalcul des phrases vues
+
+`pipeline.analyze()` mémorise (clé = empreinte paramètres + parseur + texte) :
+répétition → parse ET forward sautés, état NLU/vecs restauré.
+`pipeline.cache_stats()` (hits/misses), `pipeline.clear_cache()`.
+Invalidation automatique : tout `update*` du forward, `backward`/`apply_*`,
+`load_checkpoint` bump `param_epoch` (recalcul du tag sinon O(1)).
+**Convention obligatoire : toute future méthode mutant des paramètres du
+forward DOIT appeler `param_epoch.bump()`.** Le train appelle `forward()`,
+jamais `analyze()` : aucun risque d'empoisonnement. Jamais de cache sur les
+graphes de session. `analyze_batch` déduplique (une analyse par texte distinct,
+ordre préservé). `predict_links(..., threshold/topk)` pré-filtre avant tri
+(ordre identique).
+
 ### Inférence via CLI
 
 ```bash

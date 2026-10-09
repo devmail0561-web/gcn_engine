@@ -6,6 +6,8 @@ import json
 
 import numpy as np
 
+from ..param_epoch import bump as _bump_param_epoch
+
 
 class WordEmbedding:
     """
@@ -101,6 +103,7 @@ class WordEmbedding:
         Si frozen, seules les lignes hors plage pré-entraînée sont mises à jour
         (_subj_absent/_obj_absent et lemmes ajoutés après le chargement).
         """
+        _bump_param_epoch()  # M1a : invalide le cache analyze (sens sûr)
         if self._grad_accum is not None:
             if not np.isfinite(self._grad_accum).all():
                 import warnings as _w_nan

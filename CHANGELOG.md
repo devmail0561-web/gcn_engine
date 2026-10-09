@@ -147,6 +147,16 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Mesure honnête (release, 3000 nœuds, 5 requêtes WHY/CHAIN/DO/CF/EXPLAIN)** : ~1140 ms avant → ~870 ms après (**~1,3×**, stable sur 3 runs ; inchangé avec filtres). Sous la cible 3-4× du plan : Dijkstra/BFS dominent, pas la construction des maps. M4 = invariant structurel + fondation M1/M2, pas un miracle.
 - **Vert workspace : 258 passés, 0 échoué, clippy 0, fmt propre.**
 
+### Pipeline Phase 10-M1 — ne pas recalculer les mots déjà vus (2026-10-09)
+
+- **M1a cache analyze (`cgnp.py`)** : clé = empreinte paramètres (sha256, via `checkpoint_hash`) + parseur (binaire résolu + mtime/taille : upgrade tokenizer détecté) + texte. Hit → parse ET forward sautés, état `_cached_*` d'inférence restauré (NLU/vecs OK), CIR en copie indépendante. FIFO 1024, `cache_stats()`/`clear_cache()`. Train-safe : le train appelle `forward()`, jamais `analyze()` ; snapshots backward exclus ; jamais de cache sur les graphes de session.
+- **Invalidation** : `param_epoch` global — bump dans tous les `update*` du forward (encodeur ×6 via `_apply_grads`+`update`, embeddings, R-GCN ×2, GAT), `backward`/`apply_*` (redondant, ceinture), `load_checkpoint`. Tag rehashé seulement si epoch bougé, sinon O(1) — sans quoi le hash (~10 ms) mangerait le gain. Convention documentée (README + module).
+- **Mesure honnête (répétition ×50, 6 clauses, d_emb=64)** : 6,19 ms → 0,74 ms/appel (**~8,4×**, 1 parse au lieu de 51). Trouvé en route : le tag plein coûtait 10 ms/appel — corrigé par l'epoch.
+- **M1b lots** : `analyze_batch` déduplique (une analyse par texte distinct, ordre préservé, copies indépendantes). Batching forward stacking écarté : RGCN par phrase (mélanger = faux), forward ~7 ms — risque/bénéfice contre.
+- **M1c paires** : `predict_links(threshold/topk)` — pré-filtre avant tri complet (ordre prouvé identique) + `nlargest` pour top-K. Mesuré : ~0 sur cette forme (le score domine le tri) — structurel, pas un miracle.
+- **Tests (10 verts)** : répétition sans recalcul (compteur parseur), restauration NLU/vecs, copies indépendantes, invalidation par vrai `update`, isolation parseur, FIFO, bypass forward, dédup batch, pré-filtre identique.
+- **Vert Python : 819 passés (11 échecs pré-existants inchangés), README gcn-python documenté.**
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

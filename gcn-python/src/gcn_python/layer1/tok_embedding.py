@@ -25,6 +25,7 @@ import json
 import numpy as np
 
 from ..layer0.tokenizer import RULES_VERSION, tokenizer_hash
+from ..param_epoch import bump as _bump_param_epoch
 
 #: Marqueur de format refacto ([R4] : s0 de base, s1/s2 apportent vocab + d_model).
 FORMAT_REFACTO = 20261007
@@ -129,6 +130,7 @@ class TokEmbedding:
 
     def update(self, lr: float) -> None:
         """Étape SGD ; vide les gradients (ignore les non-finis, vecteurs préservés)."""
+        _bump_param_epoch()  # M1a : invalide le cache analyze (sens sûr)
         if self._grad_accum is None:
             return
         if not np.isfinite(self._grad_accum).all():

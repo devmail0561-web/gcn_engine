@@ -189,6 +189,18 @@ class CGNPipeline:
                 )
         self.bfs_depth = bfs_depth
 
+        # Ph10-M1a — cache d'analyse inter-requêtes : phrase déjà vue (même
+        # modèle + même parseur) → aucun nouveau calcul (parse ET forward
+        # sautés, état `_cached_*` restauré pour NLU/vecs). Jamais de cache
+        # sur les graphes de session eux-mêmes (cf. DialogueSession).
+        # Train-safe : le train appelle forward(), jamais analyze().
+        self._analyze_cache: dict = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
+        # M1a — tag modèle paresseux (epoch : rehash plein seulement si bougé).
+        self._tag: str | None = None
+        self._tag_epoch = -1
+
         # S5/E4 : liste des couches R-GCN (≥0). Couche 0 = graph passé en paramètre.
         # n_rgcn_layers=0 : pipeline MLP-seul (message passing ignoré).
         # E4 : les couches supplémentaires sont du même type que graph
@@ -812,11 +824,19 @@ class CGNPipeline:
         self,
         candidate_pairs: list[tuple[int, int]],
         node_vecs: np.ndarray | None = None,
+        threshold: float | None = None,
+        topk: int | None = None,
     ) -> list[tuple[int, int, float]]:
         """Score des paires candidates via link_predictor.
 
         Retourne [(src, dst, score)] trié par score décroissant.
         Lève RuntimeError si aucune tête attachée (pas de fallback silencieux).
+
+        M1c : présélection AVANT tri complet — les paires sous `threshold`
+        sont écartées avant le tri (ordre des survivants inchangé : le filtre
+        préserve l'ordre, sortie strictement identique au tri-puis-filtre).
+        `topk` = K meilleurs via partition (O(P) au lieu de O(P log P)),
+        None = tous les survivants triés.
         """
         if not hasattr(self, "link_predictor") or self.link_predictor is None:
             raise RuntimeError(
@@ -830,9 +850,133 @@ class CGNPipeline:
         for src, dst in candidate_pairs:
             if src >= len(vecs) or dst >= len(vecs):
                 continue
-            scored.append((src, dst, float(self.link_predictor.score(vecs[src], vecs[dst]))))
-        scored.sort(key=lambda t: (-t[2], t[0], t[1]))
+            s = float(self.link_predictor.score(vecs[src], vecs[dst]))
+            if threshold is not None and s < threshold:
+                continue
+            scored.append((src, dst, s))
+        if topk is not None and 0 < topk < len(scored):
+            import heapq as _hq
+            scored = _hq.nlargest(topk, scored, key=lambda t: (t[2], -t[0], -t[1]))
+            scored.sort(key=lambda t: (-t[2], t[0], t[1]))
+        else:
+            scored.sort(key=lambda t: (-t[2], t[0], t[1]))
         return scored
+
+    # ------------------------------------------------------------------
+    # Ph10-M1a — cache d'analyse inter-requêtes
+    # ------------------------------------------------------------------
+
+    #: Cap d'entrées (FIFO) — borne mémoire (une entrée ≈ une phrase).
+    ANALYZE_CACHE_MAX = 1024
+
+    #: État `_cached_*` exclu du snapshot (train-only : snapshots backward ;
+    #: le train appelle forward(), jamais analyze()).
+    _CACHE_SKIP = frozenset({
+        "_cached_node_snapshots", "_cached_edge_snapshots",
+        "_cached_decode_gradient",
+    })
+
+    def _model_tag(self) -> str:
+        """Empreinte des paramètres du forward (morceau de clé de cache).
+
+        Rehash plein uniquement quand l'epoch global a bougé (tout update
+        dense change les poids → tag différent → invalidation automatique,
+        prouvée par test) ; sinon tag réutilisé en O(1). Sans ce short-circuit,
+        le hash (~ms) mangerait le gain du cache sur petits modèles.
+        """
+        from .. import param_epoch as _pe
+        from ..data.graph_vecs import checkpoint_hash
+        if self._tag is not None and self._tag_epoch == _pe.current():
+            return self._tag
+        params: dict = {}
+
+        def _grab(prefix: str, obj) -> None:
+            if obj is None or not hasattr(obj, "parameters"):
+                return
+            try:
+                for i, p in enumerate(obj.parameters()):
+                    params[f"{prefix}_{i}"] = np.asarray(p)
+            except Exception:  # noqa: S110, BLE001  # paramètres illisibles : tag partiel
+                pass
+
+        _grab("encoder", getattr(self, "encoder", None))
+        for li, layer in enumerate(getattr(self, "_graph_layers", []) or []):
+            _grab(f"graph_{li}", layer)
+        _grab("wordemb", getattr(self, "word_embedding", None))
+        self._tag = checkpoint_hash(params)
+        self._tag_epoch = _pe.current()
+        return self._tag
+
+    @staticmethod
+    def _parser_tag(parser_name: str, gcn_bin: str, subcommand: str,
+                    parser=None) -> tuple:
+        """Identité du parseur + version observable du tokenizer (clé de cache).
+
+        Lattice subprocess : (classe, binaire résolu, sous-commande,
+        mtime+taille) — une mise à jour du binaire invalide le cache ;
+        binaire injouable → tag dégradé (le parse lèvera comme avant).
+        Autres parseurs : (classe, id instance) — pas de version observable.
+        """
+        if parser_name != "GCNLatticeParser":
+            return (parser_name, id(parser))
+        try:
+            from pathlib import Path as _P
+
+            from ..frontend.bridge import _resolve_gcn_bin
+            p = _P(_resolve_gcn_bin(gcn_bin or "gcn"))
+            st = p.stat()
+            return (parser_name, str(p), subcommand, st.st_mtime_ns, st.st_size)
+        except Exception:  # noqa: BLE001
+            return (parser_name, gcn_bin, subcommand, "unresolved")
+
+    @staticmethod
+    def _copy_cached(v):
+        """Copie d'une valeur d'état (jamais d'alias cache ↔ appelant)."""
+        import copy as _copy
+        if isinstance(v, np.ndarray):
+            return v.copy()
+        if isinstance(v, dict):
+            return {k: CGNPipeline._copy_cached(x) for k, x in v.items()}
+        if isinstance(v, (list, tuple)):
+            return type(v)(CGNPipeline._copy_cached(x) for x in v)
+        try:
+            return _copy.deepcopy(v)
+        except Exception:  # noqa: BLE001  # non-copiable : partagé tel quel
+            return v
+
+    def _snapshot_state(self) -> dict:
+        """État `_cached_*` d'inférence (restauré à chaque hit)."""
+        return {
+            k: self._copy_cached(v)
+            for k, v in self.__dict__.items()
+            if k.startswith("_cached_") and k not in self._CACHE_SKIP
+        }
+
+    def _restore_snapshot(self, snap: dict) -> None:
+        for k, v in snap.items():
+            setattr(self, k, self._copy_cached(v))
+
+    def _store_analyze(self, key: tuple, cir: dict) -> None:
+        """Mémorise (état + copie CIR). FIFO au-delà du cap."""
+        import copy as _copy
+        try:
+            cir_copy = _copy.deepcopy(cir)
+        except Exception:  # noqa: BLE001  # CIR non-copiable : non caché
+            return
+        if len(self._analyze_cache) >= self.ANALYZE_CACHE_MAX:
+            self._analyze_cache.pop(next(iter(self._analyze_cache)))
+        self._analyze_cache[key] = {"cir": cir_copy, "state": self._snapshot_state()}
+
+    def cache_stats(self) -> dict:
+        """Compteurs du cache (vérification M1 : hit ⇒ zéro nouveau calcul)."""
+        return {"hits": self._cache_hits, "misses": self._cache_misses,
+                "size": len(self._analyze_cache), "max": self.ANALYZE_CACHE_MAX}
+
+    def clear_cache(self) -> None:
+        """Vide le cache (ex. upgrade tokenizer hors binaire)."""
+        self._analyze_cache.clear()
+        self._cache_hits = 0
+        self._cache_misses = 0
 
     def analyze(
         self,
@@ -852,6 +996,19 @@ class CGNPipeline:
         from ..frontend.bridge import GCNLatticeParser
         if text_parser is None:
             text_parser = GCNLatticeParser(gcn_bin, subcommand)
+        # M1a : phrase déjà vue (même modèle + même parseur) → hit, zéro calcul.
+        _key = (self._model_tag(),
+                self._parser_tag(type(text_parser).__name__,
+                                 getattr(text_parser, "gcn_bin", gcn_bin),
+                                 getattr(text_parser, "subcommand", subcommand),
+                                 text_parser),
+                text)
+        _hit = self._analyze_cache.get(_key)
+        if _hit is not None:
+            import copy as _copy
+            self._cache_hits += 1
+            self._restore_snapshot(_hit["state"])
+            return _copy.deepcopy(_hit["cir"])
         reps, connector_reps = text_parser.parse(text)
         # Désactiver training le temps du forward (dropout actif sinon → non-déterministe)
         _layers_tr = [(self.encoder, getattr(self.encoder, 'training', False))]
@@ -861,11 +1018,14 @@ class CGNPipeline:
             if _was and hasattr(_obj, 'training'):
                 _obj.training = False
         try:
-            return self.forward(reps, text, connector_reps=connector_reps)
+            cir = self.forward(reps, text, connector_reps=connector_reps)
         finally:
             for _obj, _was in _layers_tr:
                 if hasattr(_obj, 'training'):
                     _obj.training = _was
+        self._cache_misses += 1
+        self._store_analyze(_key, cir)
+        return cir
 
     def analyze_or_skip(
         self,
@@ -896,14 +1056,28 @@ class CGNPipeline:
                       for _obj in _to_toggle if _obj is not None and hasattr(_obj, 'training')]
         for _obj, _ in _layers_tr:
             _obj.training = False
+        # M1a : même cache que analyze() (clé modèle + parseur + texte).
+        _key = (self._model_tag(),
+                self._parser_tag("GCNLatticeParser", gcn_bin, subcommand),
+                text)
+        _hit = self._analyze_cache.get(_key)
+        if _hit is not None:
+            import copy as _copy
+            self._cache_hits += 1
+            self._restore_snapshot(_hit["state"])
+            return _copy.deepcopy(_hit["cir"])
         try:
             reps, connector_reps = GCNLatticeParser(gcn_bin, subcommand).parse(text)
-            return self.forward(reps, text, connector_reps=connector_reps)
+            cir = self.forward(reps, text, connector_reps=connector_reps)
         except GCNBridgeError:
             return None
         finally:
             for _obj, _was in _layers_tr:
-                _obj.training = _was
+                if hasattr(_obj, 'training'):
+                    _obj.training = _was
+        self._cache_misses += 1
+        self._store_analyze(_key, cir)
+        return cir
 
     def loss(
         self,

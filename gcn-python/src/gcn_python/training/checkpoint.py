@@ -801,3 +801,6 @@ def load_checkpoint(
                 else:
                     p[:] = data[key]
         pipeline.link_predictor = head
+
+    from ..param_epoch import bump as _bump_param_epoch
+    _bump_param_epoch()  # M1a : poids restaurés → cache analyze invalide
