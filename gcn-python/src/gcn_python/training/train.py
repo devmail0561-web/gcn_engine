@@ -499,6 +499,253 @@ def _train_coarse_and_dims(*, node_counts, edge_counts, coarse_phase: bool,
             d_edge_closed, _intent_conditioned)
 
 
+def _train_build_models(*, d_effective: int, d_edge_closed: int,
+                        n_node_types: int, n_relation_types: int,
+                        _intent_conditioned: bool, weight_decay: float,
+                        mlp_hidden: int, mlp_hidden2: int, _edge_hidden,
+                        qual_hidden: int, decoupled_wd: bool,
+                        edge_dropout: float, global_attention: bool,
+                        mha_heads: int, use_attention: bool,
+                        pairnorm: bool, drop_edge: float, use_compgcn: bool,
+                        d_rel_emb: int, rgcn_dropout: float,
+                        rgcn_activation: str, rgcn_layernorm: bool,
+                        n_gat_heads: int, gat_layernorm: bool,
+                        bidirectional: bool,
+                        n_sentence_types: int, n_intent_types: int,
+                        qual_heads: bool,
+                        _init_seed: int, connectors_file, verbalize_dir,
+                        verbalize_source_dir, data_dir: Path,
+                        legacy_decoder: bool, decoder_only: bool,
+                        scheduled_sampling: bool, two_pass_val: bool,
+                        ss_final_epoch: int, patience: int, val_dir,
+                        n_rgcn_layers: int, bfs_depth):
+    """S1 — encodeur (Phase C) + graphe (couche 3) + verbalize + validations.
+
+    Retourne (encoder, graph, decoder, assembler, verb_loader,
+    verb_source_map, verbalize_mode). Lève ClickException (options incohérentes).
+    """
+    from ..data.verbalize_loader import VerbalizerDataLoader
+    from ..verbalizer.trainable import TrainableDecoder
+    # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
+    # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
+    if global_attention:
+        from ..layer2.reference import TransformerMLPEncoder
+        try:
+            encoder = TransformerMLPEncoder(
+                d_clause=d_effective, d_edge=d_edge_closed,
+                weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+                edge_dropout=edge_dropout,
+                n_node_types=n_node_types,
+                n_relation_types=n_relation_types,
+                n_sentence_types=n_sentence_types,
+                n_intent_types=n_intent_types,
+                intent_conditioned=_intent_conditioned,
+                qual_heads=qual_heads,
+                n_heads=mha_heads, seed=_init_seed)
+        except ValueError as _e:
+            raise click.ClickException(str(_e)) from _e
+        click.echo(f"MHA globale : n_heads={mha_heads} (TransformerMLPEncoder, poids fixes)")
+    else:
+        if mha_heads != 4:
+            raise click.ClickException("--mha-heads requiert --global-attention.")
+        encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
+                             weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                             qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+                             edge_dropout=edge_dropout,
+                             n_node_types=n_node_types,
+                             n_relation_types=n_relation_types,
+                             n_sentence_types=n_sentence_types,
+                             n_intent_types=n_intent_types,
+                             intent_conditioned=_intent_conditioned,
+                             qual_heads=qual_heads,
+                             seed=_init_seed)
+
+    # Couche 3 : choix du graph selon les flags
+    # Phase B/D : PairNorm/DropEdge/CompGCN vivent dans RGCNLayerPT uniquement.
+    if use_attention and (pairnorm or drop_edge > 0.0 or use_compgcn):
+        raise click.ClickException(
+            "--pairnorm/--drop-edge/--use-compgcn requièrent le backend RGCNLayerPT "
+            "(incompatibles avec --use-attention/GAT).")
+    if not (0.0 <= drop_edge < 1.0):
+        raise click.ClickException(f"--drop-edge doit être dans [0, 1[ (reçu {drop_edge}).")
+    if d_rel_emb < 1:
+        raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
+    # v5.2 : +1 type no-edge R-GCN (jamais prédit, message passing seul).
+    # v5.8 (P3) : sur types actifs (coarse) — pas 19/8 figés.
+    # Anciens checkpoints (38/19) refusés bruyamment au chargement (triplet).
+    n_rel = rgcn_n_relations(n_relation_types, bidirectional)  # L-6
+    if use_attention:
+        from ..layer3.gat import RGCNLayerGAT
+        graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                             dropout=rgcn_dropout, n_heads=n_gat_heads,
+                             use_layernorm=gat_layernorm, seed=_init_seed)
+        # output_activation=sigmoid par défaut ; le pipeline passe les
+        # intermédiaires en relu quand n_rgcn_layers > 1 (E4)
+        click.echo(f"GAT : n_heads={n_gat_heads} layernorm={gat_layernorm}")
+    else:
+        if n_gat_heads != 1:
+            raise click.ClickException("--n-gat-heads requiert --use-attention.")
+        if gat_layernorm:
+            raise click.ClickException("--gat-layernorm requiert --use-attention.")
+        if pairnorm or drop_edge > 0.0 or use_compgcn:
+            # Phase B/D : backend PyTorch (seul à supporter ces options).
+            from ..layer3.pytorch_rgcn import RGCNLayerPT
+            graph = RGCNLayerPT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                                pairnorm=pairnorm, drop_edge=drop_edge,
+                                use_compgcn=use_compgcn, d_rel_emb=d_rel_emb,
+                                seed=_init_seed)
+            click.echo(f"RGCNLayerPT : pairnorm={pairnorm} drop_edge={drop_edge} "
+                       f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
+            if not hasattr(graph, "backward_message_pass"):
+                raise click.ClickException(
+                    "RGCNLayerPT : backward_message_pass absent — matrices W_r/E_r/W_comp "
+                    "seraient gelées à l'initialisation (seul le MLP serait entraîné). "
+                    "Pour entraîner le R-GCN, utiliser un optimizer PyTorch externe via "
+                    "graph.torch_parameters()."
+                )
+        else:
+            graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
+                              dropout=rgcn_dropout, output_activation=rgcn_activation,
+                              use_layernorm=rgcn_layernorm, seed=_init_seed)
+
+    verb_loader: VerbalizerDataLoader | None = None
+    verb_source_map: dict[str, list] = {}
+    decoder: TrainableDecoder | None = None
+    assembler = None
+    verbalize_mode = "legacy"
+    connector_vocab: list[str] | None = None
+    if connectors_file is not None:
+        _conn_doc = json.loads(Path(connectors_file).read_text(encoding="utf-8"))
+        connector_vocab = list(_conn_doc.get("connectors", []))
+        if not connector_vocab:
+            raise click.ClickException(f"Aucun connecteur dans {connectors_file}")
+    if verbalize_dir is not None:
+        _verb_source = verbalize_source_dir if verbalize_source_dir is not None else data_dir
+        verb_loader = VerbalizerDataLoader(verbalize_dir, source_json_dir=_verb_source,
+                                           connector_vocab=connector_vocab)
+        if len(verb_loader) == 0:
+            raise click.ClickException(f"Aucune paire verbalize dans {verbalize_dir}")
+        decoder = TrainableDecoder(verb_loader.vocab)
+        verb_source_map = verb_loader.source_text_map()
+        click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
+        if connector_vocab is not None:
+            from ..verbalizer.trainable import LexicalConnectorAssembler
+            assembler = LexicalConnectorAssembler(connector_vocab, n_relations=len(RELATION_TYPES))
+            verbalize_mode = "lexical"
+            click.echo(f"Assembleur lexical : {len(connector_vocab)} connecteurs (mode lexical)")
+        elif legacy_decoder:
+            click.echo("Décodeur legacy explicite (--legacy-decoder)")
+
+    if decoder_only and decoder is None:
+        raise click.ClickException("--decoder-only requiert --verbalize-dir")
+
+    if scheduled_sampling and not two_pass_val:
+        raise click.ClickException(
+            "--scheduled-sampling requiert --two-pass-val (actif par défaut). "
+            "Sans two-pass, l'inférence utilise des types 0 partout."
+        )
+    if ss_final_epoch < 1:
+        raise click.ClickException(f"--ss-final-epoch doit être ≥ 1 (reçu {ss_final_epoch}).")
+
+    if patience > 0 and val_dir is None:
+        raise click.ClickException("--patience requiert --val-dir")
+    if val_dir is not None and patience == 0:
+        click.echo("Avertissement : --val-dir sans --patience — pas d'early stopping. "
+                   "Ajoutez --patience 15 pour activer l'arrêt anticipé.")
+
+    # B4 : validation --n-rgcn-layers (restriction GAT levée — E4)
+    if n_rgcn_layers < 0:
+        raise click.ClickException(f"--n-rgcn-layers doit être ≥ 0 (reçu {n_rgcn_layers}).")
+    if n_rgcn_layers == 0:
+        click.echo("R-GCN désactivé (--n-rgcn-layers 0) — pipeline MLP seul.")
+    if bfs_depth is not None and bfs_depth < 1:
+        raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
+    return encoder, graph, decoder, assembler, verb_loader, verb_source_map, verbalize_mode
+
+
+def _train_assemble_pipeline(*, encoder, graph, vocab, decoder, all_pairs: bool,
+                             word_embedding, bidirectional: bool,
+                             n_rgcn_layers: int, edge_threshold: float,
+                             drop_morph: bool, theta_ambiguity: float,
+                             temperature: float, bfs_depth,
+                             clause_pooling: str, subject_object_emb: bool,
+                             _active_node_types, _active_relation_types,
+                             gat_residual: bool, assembler, coarse_phase: bool,
+                             no_mood_flag: bool, no_tense_flag: bool,
+                             no_positional: bool, no_ternary: bool,
+                             n_intent_types: int, n_sentence_types: int,
+                             _init_seed: int, silver_weight: float,
+                             verbalize_mode: str, global_attention: bool,
+                             mha_heads: int, pairnorm: bool, drop_edge: float,
+                             use_compgcn: bool, d_rel_emb: int,
+                             two_pass_val: bool, link_pred: bool,
+                             d_effective: int, src_aggregation: str,
+                             neg_ratio: float, encoder_checkpoint,
+                             data_dir: Path, epochs: int):
+    """S1 — assemblage CGNPipeline + arch + linkpred + checkpoint + provenance.
+
+    Retourne (pipeline, link_pred_head)."""
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
+                           bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
+                           edge_threshold=edge_threshold, drop_morph=drop_morph,
+                           theta_ambiguity=theta_ambiguity,
+                           temperature=temperature,
+                           bfs_depth=bfs_depth, clause_pooling=clause_pooling,
+                           subject_object_emb=subject_object_emb,
+                           node_types=_active_node_types,
+                           relation_types=_active_relation_types,
+                            gat_residual=gat_residual, assembler=assembler,
+                            no_mood=(coarse_phase or no_mood_flag),
+                            no_tense=(coarse_phase or no_tense_flag),
+                            no_positional=no_positional,
+                            no_ternary=no_ternary,
+                           n_intent_types=n_intent_types,
+                           n_sentence_types=n_sentence_types, seed=_init_seed)
+    # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
+    pipeline.silver_weight = silver_weight
+    pipeline.verbalize_mode = verbalize_mode
+    # Phases B/C/D : flags d'arch persistés dans _arch_json (checkpoint.py).
+    pipeline.global_attention = global_attention
+    pipeline.mha_heads = mha_heads
+    pipeline.pairnorm = pairnorm
+    pipeline.drop_edge = drop_edge
+    pipeline.use_compgcn = use_compgcn
+    pipeline.d_rel_emb = d_rel_emb
+    pipeline.two_pass_val = two_pass_val
+
+    link_pred_head = None
+    if link_pred:
+        from ..layer3.link_pred import LinkPredHead
+        link_pred_head = LinkPredHead(d_in=d_effective, seed=_init_seed,
+                                      src_aggregation=src_aggregation)
+        pipeline.link_predictor = link_pred_head
+        click.echo(f"LinkPredHead : d_in={d_effective} src_agg={src_aggregation} "
+                   f"neg_ratio={neg_ratio} bfs_depth={bfs_depth}")
+
+    if encoder_checkpoint is not None:
+        from .checkpoint import load_checkpoint
+        load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
+        click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
+
+    # (Chargeur déjà construit avant l'encodeur — v5.8 P3 : le remap coarse
+    # doit précéder le dimensionnement.)
+    # Provenance — enregistrée dans _arch_json pour traçabilité complète.
+    import datetime as _dt
+    import hashlib as _hl
+    _h = _hl.sha256()
+    for _p in sorted(data_dir.glob("*.json")):
+        _h.update(_p.read_bytes())
+    pipeline.training_seed = _init_seed
+    pipeline.training_data_hash = _h.hexdigest()[:16]
+    pipeline.training_n_epochs = epochs
+    pipeline.training_timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    return pipeline, link_pred_head
+
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -772,9 +1019,6 @@ def train_cmd(
     coarse_n_min: int,
 ) -> None:
     """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
-    from ..data.verbalize_loader import VerbalizerDataLoader
-    from ..verbalizer.trainable import TrainableDecoder
-
     # S1 — phases extraites (helpers ci-dessus, ordre et valeurs inchangés).
     _init_seed = _train_init_seed(seed)
 
@@ -819,199 +1063,56 @@ def train_cmd(
         n_sentence_types=n_sentence_types,
         edge_dropout=edge_dropout, theta_ambiguity=theta_ambiguity,
         temperature=temperature)
-    # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
-    # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
-    if global_attention:
-        from ..layer2.reference import TransformerMLPEncoder
-        try:
-            encoder = TransformerMLPEncoder(
-                d_clause=d_effective, d_edge=d_edge_closed,
-                weight_decay=weight_decay, mlp_hidden=mlp_hidden,
-                mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
-                qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
-                edge_dropout=edge_dropout,
-                n_node_types=n_node_types,
-                n_relation_types=n_relation_types,
-                n_sentence_types=n_sentence_types,
-                n_intent_types=n_intent_types,
-                intent_conditioned=_intent_conditioned,
-                qual_heads=qual_heads,
-                n_heads=mha_heads, seed=_init_seed)
-        except ValueError as _e:
-            raise click.ClickException(str(_e)) from _e
-        click.echo(f"MHA globale : n_heads={mha_heads} (TransformerMLPEncoder, poids fixes)")
-    else:
-        if mha_heads != 4:
-            raise click.ClickException("--mha-heads requiert --global-attention.")
-        encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
-                             weight_decay=weight_decay, mlp_hidden=mlp_hidden,
-                             mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
-                             qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
-                             edge_dropout=edge_dropout,
-                             n_node_types=n_node_types,
-                             n_relation_types=n_relation_types,
-                             n_sentence_types=n_sentence_types,
-                             n_intent_types=n_intent_types,
-                             intent_conditioned=_intent_conditioned,
-                             qual_heads=qual_heads,
-                             seed=_init_seed)
+    # S1 — modèles (helper ci-dessus : encodeur + graphe + verbalize + validations).
+    (encoder, graph, decoder, assembler, verb_loader, verb_source_map,
+     verbalize_mode) = _train_build_models(
+        d_effective=d_effective, d_edge_closed=d_edge_closed,
+        n_node_types=n_node_types, n_relation_types=n_relation_types,
+        _intent_conditioned=_intent_conditioned,
+        weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+        mlp_hidden2=mlp_hidden2, _edge_hidden=_edge_hidden,
+        qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+        edge_dropout=edge_dropout, global_attention=global_attention,
+        mha_heads=mha_heads, use_attention=use_attention,
+        pairnorm=pairnorm, drop_edge=drop_edge, use_compgcn=use_compgcn,
+        d_rel_emb=d_rel_emb, rgcn_dropout=rgcn_dropout,
+        rgcn_activation=rgcn_activation, rgcn_layernorm=rgcn_layernorm,
+        n_gat_heads=n_gat_heads, gat_layernorm=gat_layernorm,
+        bidirectional=bidirectional,
+        n_sentence_types=n_sentence_types,
+        n_intent_types=n_intent_types, qual_heads=qual_heads,
+        _init_seed=_init_seed, connectors_file=connectors_file,
+        verbalize_dir=verbalize_dir,
+        verbalize_source_dir=verbalize_source_dir, data_dir=data_dir,
+        legacy_decoder=legacy_decoder, decoder_only=decoder_only,
+        scheduled_sampling=scheduled_sampling, two_pass_val=two_pass_val,
+        ss_final_epoch=ss_final_epoch, patience=patience, val_dir=val_dir,
+        n_rgcn_layers=n_rgcn_layers, bfs_depth=bfs_depth)
 
-    # Couche 3 : choix du graph selon les flags
-    # Phase B/D : PairNorm/DropEdge/CompGCN vivent dans RGCNLayerPT uniquement.
-    if use_attention and (pairnorm or drop_edge > 0.0 or use_compgcn):
-        raise click.ClickException(
-            "--pairnorm/--drop-edge/--use-compgcn requièrent le backend RGCNLayerPT "
-            "(incompatibles avec --use-attention/GAT).")
-    if not (0.0 <= drop_edge < 1.0):
-        raise click.ClickException(f"--drop-edge doit être dans [0, 1[ (reçu {drop_edge}).")
-    if d_rel_emb < 1:
-        raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
-    # v5.2 : +1 type no-edge R-GCN (jamais prédit, message passing seul).
-    # v5.8 (P3) : sur types actifs (coarse) — pas 19/8 figés.
-    # Anciens checkpoints (38/19) refusés bruyamment au chargement (triplet).
-    n_rel = rgcn_n_relations(n_relation_types, bidirectional)  # L-6
-    if use_attention:
-        from ..layer3.gat import RGCNLayerGAT
-        graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                             dropout=rgcn_dropout, n_heads=n_gat_heads,
-                             use_layernorm=gat_layernorm, seed=_init_seed)
-        # output_activation=sigmoid par défaut ; le pipeline passe les
-        # intermédiaires en relu quand n_rgcn_layers > 1 (E4)
-        click.echo(f"GAT : n_heads={n_gat_heads} layernorm={gat_layernorm}")
-    else:
-        if n_gat_heads != 1:
-            raise click.ClickException("--n-gat-heads requiert --use-attention.")
-        if gat_layernorm:
-            raise click.ClickException("--gat-layernorm requiert --use-attention.")
-        if pairnorm or drop_edge > 0.0 or use_compgcn:
-            # Phase B/D : backend PyTorch (seul à supporter ces options).
-            from ..layer3.pytorch_rgcn import RGCNLayerPT
-            graph = RGCNLayerPT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                                pairnorm=pairnorm, drop_edge=drop_edge,
-                                use_compgcn=use_compgcn, d_rel_emb=d_rel_emb,
-                                seed=_init_seed)
-            click.echo(f"RGCNLayerPT : pairnorm={pairnorm} drop_edge={drop_edge} "
-                       f"use_compgcn={use_compgcn} d_rel_emb={d_rel_emb}")
-            if not hasattr(graph, "backward_message_pass"):
-                raise click.ClickException(
-                    "RGCNLayerPT : backward_message_pass absent — matrices W_r/E_r/W_comp "
-                    "seraient gelées à l'initialisation (seul le MLP serait entraîné). "
-                    "Pour entraîner le R-GCN, utiliser un optimizer PyTorch externe via "
-                    "graph.torch_parameters()."
-                )
-        else:
-            graph = RGCNLayer(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
-                              dropout=rgcn_dropout, output_activation=rgcn_activation,
-                              use_layernorm=rgcn_layernorm, seed=_init_seed)
-
-    verb_loader: VerbalizerDataLoader | None = None
-    verb_source_map: dict[str, list] = {}
-    decoder: TrainableDecoder | None = None
-    assembler = None
-    verbalize_mode = "legacy"
-    connector_vocab: list[str] | None = None
-    if connectors_file is not None:
-        _conn_doc = json.loads(Path(connectors_file).read_text(encoding="utf-8"))
-        connector_vocab = list(_conn_doc.get("connectors", []))
-        if not connector_vocab:
-            raise click.ClickException(f"Aucun connecteur dans {connectors_file}")
-    if verbalize_dir is not None:
-        _verb_source = verbalize_source_dir if verbalize_source_dir is not None else data_dir
-        verb_loader = VerbalizerDataLoader(verbalize_dir, source_json_dir=_verb_source,
-                                           connector_vocab=connector_vocab)
-        if len(verb_loader) == 0:
-            raise click.ClickException(f"Aucune paire verbalize dans {verbalize_dir}")
-        decoder = TrainableDecoder(verb_loader.vocab)
-        verb_source_map = verb_loader.source_text_map()
-        click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
-        if connector_vocab is not None:
-            from ..verbalizer.trainable import LexicalConnectorAssembler
-            assembler = LexicalConnectorAssembler(connector_vocab, n_relations=len(RELATION_TYPES))
-            verbalize_mode = "lexical"
-            click.echo(f"Assembleur lexical : {len(connector_vocab)} connecteurs (mode lexical)")
-        elif legacy_decoder:
-            click.echo("Décodeur legacy explicite (--legacy-decoder)")
-
-    if decoder_only and decoder is None:
-        raise click.ClickException("--decoder-only requiert --verbalize-dir")
-
-    if scheduled_sampling and not two_pass_val:
-        raise click.ClickException(
-            "--scheduled-sampling requiert --two-pass-val (actif par défaut). "
-            "Sans two-pass, l'inférence utilise des types 0 partout."
-        )
-    if ss_final_epoch < 1:
-        raise click.ClickException(f"--ss-final-epoch doit être ≥ 1 (reçu {ss_final_epoch}).")
-
-    if patience > 0 and val_dir is None:
-        raise click.ClickException("--patience requiert --val-dir")
-    if val_dir is not None and patience == 0:
-        click.echo("Avertissement : --val-dir sans --patience — pas d'early stopping. "
-                   "Ajoutez --patience 15 pour activer l'arrêt anticipé.")
-
-    # B4 : validation --n-rgcn-layers (restriction GAT levée — E4)
-    if n_rgcn_layers < 0:
-        raise click.ClickException(f"--n-rgcn-layers doit être ≥ 0 (reçu {n_rgcn_layers}).")
-    if n_rgcn_layers == 0:
-        click.echo("R-GCN désactivé (--n-rgcn-layers 0) — pipeline MLP seul.")
-    if bfs_depth is not None and bfs_depth < 1:
-        raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
-
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
-                           decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
-                           bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
-                           edge_threshold=edge_threshold, drop_morph=drop_morph,
-                           theta_ambiguity=theta_ambiguity,
-                           temperature=temperature,
-                           bfs_depth=bfs_depth, clause_pooling=clause_pooling,
-                           subject_object_emb=subject_object_emb,
-                           node_types=_active_node_types,
-                           relation_types=_active_relation_types,
-                            gat_residual=gat_residual, assembler=assembler,
-                            no_mood=(coarse_phase or no_mood_flag),
-                            no_tense=(coarse_phase or no_tense_flag),
-                            no_positional=no_positional,
-                            no_ternary=no_ternary,
-                           n_intent_types=n_intent_types,
-                           n_sentence_types=n_sentence_types, seed=_init_seed)
-    # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
-    pipeline.silver_weight = silver_weight
-    pipeline.verbalize_mode = verbalize_mode
-    # Phases B/C/D : flags d'arch persistés dans _arch_json (checkpoint.py).
-    pipeline.global_attention = global_attention
-    pipeline.mha_heads = mha_heads
-    pipeline.pairnorm = pairnorm
-    pipeline.drop_edge = drop_edge
-    pipeline.use_compgcn = use_compgcn
-    pipeline.d_rel_emb = d_rel_emb
-    pipeline.two_pass_val = two_pass_val
-
-    link_pred_head = None
-    if link_pred:
-        from ..layer3.link_pred import LinkPredHead
-        link_pred_head = LinkPredHead(d_in=d_effective, seed=_init_seed,
-                                      src_aggregation=src_aggregation)
-        pipeline.link_predictor = link_pred_head
-        click.echo(f"LinkPredHead : d_in={d_effective} src_agg={src_aggregation} "
-                   f"neg_ratio={neg_ratio} bfs_depth={bfs_depth}")
-
-    if encoder_checkpoint is not None:
-        from .checkpoint import load_checkpoint
-        load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
-        click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
-
-    # (Chargeur déjà construit avant l'encodeur — v5.8 P3 : le remap coarse
-    # doit précéder le dimensionnement.)
-    # Provenance — enregistrée dans _arch_json pour traçabilité complète.
-    import datetime as _dt
-    import hashlib as _hl
-    _h = _hl.sha256()
-    for _p in sorted(data_dir.glob("*.json")):
-        _h.update(_p.read_bytes())
-    pipeline.training_seed = _init_seed
-    pipeline.training_data_hash = _h.hexdigest()[:16]
-    pipeline.training_n_epochs = epochs
-    pipeline.training_timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    # S1 — assemblage pipeline + arch + linkpred + checkpoint + provenance.
+    pipeline, link_pred_head = _train_assemble_pipeline(
+        encoder=encoder, graph=graph, vocab=vocab, decoder=decoder,
+        all_pairs=all_pairs, word_embedding=word_embedding,
+        bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
+        edge_threshold=edge_threshold, drop_morph=drop_morph,
+        theta_ambiguity=theta_ambiguity, temperature=temperature,
+        bfs_depth=bfs_depth, clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb,
+        _active_node_types=_active_node_types,
+        _active_relation_types=_active_relation_types,
+        gat_residual=gat_residual, assembler=assembler,
+        coarse_phase=coarse_phase, no_mood_flag=no_mood_flag,
+        no_tense_flag=no_tense_flag, no_positional=no_positional,
+        no_ternary=no_ternary, n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, _init_seed=_init_seed,
+        silver_weight=silver_weight, verbalize_mode=verbalize_mode,
+        global_attention=global_attention, mha_heads=mha_heads,
+        pairnorm=pairnorm, drop_edge=drop_edge, use_compgcn=use_compgcn,
+        d_rel_emb=d_rel_emb, two_pass_val=two_pass_val,
+        link_pred=link_pred, d_effective=d_effective,
+        src_aggregation=src_aggregation, neg_ratio=neg_ratio,
+        encoder_checkpoint=encoder_checkpoint, data_dir=data_dir,
+        epochs=epochs)
     # Provenance CSV (protocole §1+§3) : constantes du run, une valeur par ligne.
     try:
         from gcn_python import __version__ as _gcn_ver
