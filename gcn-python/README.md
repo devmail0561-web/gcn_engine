@@ -201,6 +201,21 @@ graphes de session. `analyze_batch` déduplique (une analyse par texte distinct,
 ordre préservé). `predict_links(..., threshold/topk)` pré-filtre avant tri
 (ordre identique).
 
+### Mémoire Ph10-M3 — mesuré d'abord (garde-fou chiffré)
+
+Audit : processus ~54 Mo, forward ~7 ms, pic tracemalloc 481 Ko/50 forwards,
+float32 de bout en bout (zéro fuite float64 — gate testé). D'où :
+- **Fait (M3a)** : `add_lemma` O(n²) → `_add_lemmas_bulk` O(n) (RNG
+  bit-identique, dernier doublon gagne comme avant) : vec-file 22k lignes
+  150 s → 1,2 s (~125×). `load_from_file(only={...})` : passe streaming,
+  parse sauté hors vocabulaire (fichier 58 Mo → utile). `SessionStore.load`
+  en mmap (copie par clé, fermeture sûre).
+- **Écarté, documenté** : float16 (déjà float32 partout : gain nul, risque
+  qualité) ; pré-allocation des zones (temporaires à l'échelle du Ko :
+  gain < 1 %) ; mmap du checkpoint (partage `torch.as_tensor` → use-after-free
+  à la fermeture — refusé définitivement) ; copie intégrale de l'index vecs
+  (scan sémantique = tout toucher de toute façon).
+
 ### Inférence via CLI
 
 ```bash

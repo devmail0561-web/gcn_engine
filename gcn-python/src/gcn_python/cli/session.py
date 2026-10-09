@@ -269,7 +269,9 @@ class SessionStore:
         if vpath.exists():
             try:
                 import numpy as _np
-                handle = _np.load(vpath, allow_pickle=False)
+                # M3a : mmap (pages à l'usage ; `np.array` copie par clé —
+                # rien ne s'échappe du handle, fermeture sûre).
+                handle = _np.load(vpath, allow_pickle=False, mmap_mode="r")
                 for k in handle.files:
                     self.vecs[k] = _np.array(handle[k])
                 report["vecs"] = len(self.vecs)

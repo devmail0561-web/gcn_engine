@@ -166,6 +166,15 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Tests (18 verts)** : fusions (+précédence, +confs distinctes, +volatiles), caps annoncés, silence sous caps, résumé (+persisté), vecs, photo/journal/cadence/destruction/équivalence, paraphrases (valeurs, exact-gagnant, repli).
 - **Vert Python : 837 passés (11 échecs pré-existants inchangés : eval/lot1/black-box).**
 
+### Mémoire Phase 10-M3 — alléger avec garde-fou (2026-10-09, en dernier)
+
+- **Audit d'abord** : processus ~54 Mo stables (forwards sans fuite), pic tracemalloc 481 Ko/50 forwards, float32 de bout en bout (zéro fuite float64). La RAM n'est pas le goulot (cf. plan) — M3 dimensionné en conséquence.
+- **M3a fait** : `add_lemma` faisait un `vstack` O(n²) par lemme → `_add_lemmas_bulk` O(n) (RNG bit-identique prouvé, dernier doublon gagne, écrasement existants conservé ; `build_vocab`/`from_json` migrés). Vec-file 22k lignes : **150 s → 1,2 s (~125×)**. `load_from_file(only=...)` : subset streaming (58 Mo → utile, gel contigu inchangé). `SessionStore.load` en mmap (copie par clé).
+- **M3b gate** : test discipline float32 (poids + états forward) — float16 écarté (déjà float32 : gain nul, risque qualité). Qualité : suite verte inchangée, gold existants intacts.
+- **M3c no-op acté** : temporaires à l'échelle du Ko — pré-allocation : gain < 1 %, non fait (nombres ci-dessus). Checkpoint mmap refusé (partage torch = use-after-free).
+- **Tests (7 verts)** : bulk identique, subset, mmap roundtrip, float32.
+- **Vert Python : 844 passés (11 échecs pré-existants inchangés).**
+
 ### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
 - **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
 - **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).

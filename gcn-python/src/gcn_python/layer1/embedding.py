@@ -58,9 +58,51 @@ class WordEmbedding:
         return self._vocab[lemma]
 
     def build_vocab(self, lemmas: list[str]) -> None:
-        """Ajoute tous les lemmes de la liste."""
-        for lemma in lemmas:
-            self.add_lemma(lemma)
+        """Ajoute tous les lemmes de la liste (un seul vstack, M3a)."""
+        self._add_lemmas_bulk(list(lemmas))
+
+    def _add_lemmas_bulk(self, lemmas: list[str],
+                         vecs: list[np.ndarray] | None = None) -> None:
+        """Ajoute en UN seul vstack — O(n) au lieu d'O(n²) (M3a).
+
+        vecs None → tirage RNG strictement identique à `add_lemma` (même
+        séquence d'appels `(1, d_emb)`, valeurs bit-identiques) ; sinon les
+        vecteurs fournis (dernière occurrence gagne, comme l'écrasement
+        historique de `load_from_file` ; tirage dans l'ordre de 1re rencontre).
+        """
+        if vecs is not None and len(vecs) != len(lemmas):
+            raise ValueError(
+                f"bulk : {len(lemmas)} lemmes pour {len(vecs)} vecteurs.")
+        order: list = []
+        last_vec: dict = {}
+        seen: set[str] = set(self._vocab)
+        for i, lemma in enumerate(lemmas):
+            if lemma in self._vocab:
+                # Déjà présent : écrasement historique (load_from_file), sans tirage.
+                if vecs is not None:
+                    self._E[self._vocab[lemma]] = np.asarray(
+                        vecs[i], dtype=np.float32).reshape(self.d_emb)
+                continue
+            if lemma not in seen:
+                seen.add(lemma)
+                order.append(lemma)
+            if vecs is not None:
+                last_vec[lemma] = vecs[i]
+        pairs = [(lemma, last_vec.get(lemma)) for lemma in order]
+        if not pairs:
+            return
+        base = len(self._lemmas)
+        for i, (lemma, _v) in enumerate(pairs):
+            self._vocab[lemma] = base + i
+            self._lemmas.append(lemma)
+        rows = np.empty((len(pairs), self.d_emb), dtype=np.float32)
+        _scale = np.sqrt(1.0 / self.d_emb)
+        for i, (_lemma, v) in enumerate(pairs):
+            if v is None:
+                rows[i] = self._rng.normal(0, _scale, (1, self.d_emb)).astype(np.float32)
+            else:
+                rows[i] = np.asarray(v, dtype=np.float32).reshape(self.d_emb)
+        self._E = np.vstack([self._E, rows])
 
     # ── forward / backward ───────────────────────────────────────────
 
@@ -124,7 +166,8 @@ class WordEmbedding:
 
     # ── chargement pré-entraîné (S9) ─────────────────────────────────
 
-    def load_from_file(self, path: str, encoding: str = "utf-8") -> int:
+    def load_from_file(self, path: str, encoding: str = "utf-8",
+                       only: set[str] | None = None) -> int:
         """
         Charge des embeddings pré-entraînés format GloVe/FastText (texte).
 
@@ -132,14 +175,18 @@ class WordEmbedding:
         La première ligne peut être un en-tête 'V d_emb' — ignorée automatiquement.
         Ne charge que les vecteurs dont la dimension correspond à self.d_emb.
 
+        only : si fourni, seuls ces lemmes sont chargés (M3a : passe streaming
+        unique, parse float sauté pour les autres — fichier 58 Mo → vocabulaire
+        utile). Sémantique gel inchangée (plage = chargés, contigus).
+
         Retourne le nombre de vecteurs chargés avec succès.
         La plage d'indices chargés est mémorisée : avec frozen=True, seuls
         ces indices sont gelés (les spéciaux _subj_absent/_obj_absent et les
         lemmes ajoutés ensuite restent entraînables).
         """
-        loaded = 0
+        words: list[str] = []
+        vecs: list = []
         self._pretrained_start = len(self._lemmas)
-        loaded = 0
         _first_real_dim: int | None = None
         with open(path, encoding=encoding) as f:
             for line in f:
@@ -159,15 +206,17 @@ class WordEmbedding:
                 if dim != self.d_emb:
                     continue  # dimension incompatible (ne devrait pas arriver après la vérif)
                 word = parts[0]
+                if only is not None and word not in only:
+                    continue  # M3a : lemme hors vocabulaire — parse sauté
                 try:
                     vec = np.array(parts[1:], dtype=np.float32)
                 except ValueError:
                     continue
-                idx = self.add_lemma(word)
-                self._E[idx] = vec
-                loaded += 1
+                words.append(word)
+                vecs.append(vec)
+        self._add_lemmas_bulk(words, vecs)
         self._pretrained_end = len(self._lemmas)
-        return loaded
+        return len(words)
 
     @classmethod
     def load_from_fasttext(cls, ft_model, vocab: list[str], d_emb: int = 300,
@@ -240,8 +289,7 @@ class WordEmbedding:
         data = json.loads(s)
         # Compatibilité : ancien format = liste de lemmes directement
         lemmas = data if isinstance(data, list) else data.get("lemmas", [])
-        for lemma in lemmas[1:]:  # index 0 = _unk, déjà présent
-            obj.add_lemma(lemma)
+        obj._add_lemmas_bulk([l for l in lemmas[1:] if l != "_unk"])  # index 0 = _unk, déjà présent
         if isinstance(data, dict):
             obj._pretrained_start = data.get("__pretrained_start")
             obj._pretrained_end = data.get("__pretrained_end")
