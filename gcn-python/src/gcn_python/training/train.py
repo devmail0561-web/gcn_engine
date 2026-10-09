@@ -323,6 +323,182 @@ def _train_finalize(*, csv_file, val_loader, best_edge_epoch: int,
             click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
 
 
+    if len(history) >= 10:
+        first = sum(r["loss"] for r in history[:5]) / 5
+        last = sum(r["loss"] for r in history[-5:]) / 5
+        if last < first:
+            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
+        else:
+            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+
+
+def _train_load_and_count(*, data_dir: Path, val_dir, all_pairs: bool,
+                          silver_weight: float, strict_directions: bool,
+                          _init_seed: int, n_intent_types: int,
+                          n_sentence_types: int, word_embedding,
+                          clause_pooling: str, subject_object_emb: bool):
+    """S1 — chargeur + passe unique de comptage (v5.8 P3 : avant dimensionnement).
+
+    Retourne (loader, val_loader, node_counts, edge_counts, intent_counts,
+    sentence_counts, all_lemmas). Lève ClickException si corpus vide.
+    """
+    # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
+    # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
+                           silver_weight=silver_weight, seed=_init_seed,
+                           strict_directions=strict_directions)
+    if len(loader) == 0:
+        raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    val_loader = None
+    if val_dir is not None:
+        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
+                                   silver_weight=silver_weight,
+                                   strict_directions=strict_directions)
+        if len(val_loader) == 0:
+            raise click.ClickException(f"Aucune sentence dans {val_dir}")
+        click.echo(f"Val : {len(val_loader)} sentences")
+
+    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
+    from collections import Counter
+    node_counts: Counter = Counter()
+    edge_counts: Counter = Counter()
+    intent_counts: Counter = Counter()
+    sentence_counts: Counter = Counter()
+    all_lemmas: list[str] = []
+    for sample in loader:
+        for rel in sample.edge_map.values():
+            edge_counts[int(rel)] += 1
+        # v5.8 (P3) : node_counts toujours rempli — le gate weighted_loss
+        # laissait _promoted_node vide et basculait tout en coarse.
+        for label in sample.gold_node_labels:
+            node_counts[int(label)] += 1
+        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
+        if n_intent_types > 0 and sample.sentence.intent:
+            with contextlib.suppress(ValueError):
+                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
+        # P4a : comptage des types de phrases (annotés ou règle bootstrap).
+        if n_sentence_types > 0 and sample.sentence_type:
+            with contextlib.suppress(ValueError):
+                sentence_counts[SENTENCE_TYPES.index(sample.sentence_type)] += 1
+        if word_embedding is not None:
+            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
+            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
+            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
+            if clause_pooling == "root" and not subject_object_emb:
+                all_lemmas.extend(r.root_lemma for r in reps_s)
+            else:
+                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
+                for r in reps_s:
+                    if clause_pooling == "root":
+                        all_lemmas.append(r.root_lemma)
+                    else:
+                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
+                    if subject_object_emb:
+                        all_lemmas.extend(_find_subj_obj_lemmas(r))
+            # P4a : marques illocutoires "?" / "!" au vocabulaire — sinon
+            # le pooling mean de la tête phrase les résout en zéros OOV et
+            # l'interrogative reste invisible (vecteurs figés à l'init si le
+            # routage embeddings est en mode root : séparables mais non appris —
+            # même statut assumé que les connecteurs orphelins, cf. garde).
+            from ..layer1.features import SENTENCE_MARK_FORMS as _SENT_MARKS
+            all_lemmas.extend(
+                t.get("lemma", "") for r in reps_s for t in r.tokens
+                if t.get("form") in _SENT_MARKS and t.get("lemma")
+            )
+            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
+            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
+            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
+            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
+            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
+            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
+            _conn_lemmas = [
+                _c.root_lemma for _c in conn_s
+                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
+            ]
+            all_lemmas.extend(_conn_lemmas)
+            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
+            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
+            if _orphans:
+                import warnings as _w_orph
+                _w_orph.warn(
+                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
+                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
+                    UserWarning, stacklevel=2,
+                )
+    return (loader, val_loader, node_counts, edge_counts, intent_counts,
+            sentence_counts, all_lemmas)
+
+
+def _train_coarse_and_dims(*, node_counts, edge_counts, coarse_phase: bool,
+                           coarse_n_min: int, vocab, d_emb: int,
+                           subject_object_emb: bool,
+                           n_intent_types: int, n_sentence_types: int,
+                           edge_dropout: float, theta_ambiguity: float,
+                           temperature: float):
+    """S1 — remap coarse (D4) + point de vérité des dims (B) + validations seuils.
+
+    Retourne (_active_node_types, _active_relation_types, _node_remap,
+    _edge_remap, d_effective, n_node_types, n_relation_types, d_edge_closed,
+    _intent_conditioned). Lève ClickException (seuils).
+    """
+    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min.
+    # v5.8 (P3) : calculé ici (comptes connus) pour dimensionner encodeur/graphe.
+    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
+    _active_node_types = NODE_TYPES
+    _active_relation_types = RELATION_TYPES
+    _node_remap: dict[int, int] | None = None
+    _edge_remap: dict[int, int] | None = None
+    if coarse_phase:
+        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
+        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
+        # Types actifs = promoted (fine) + groupes coarse des non-promoted
+        _fine_to_active_rel: dict[str, str] = {}
+        _fine_to_active_node: dict[str, str] = {}
+        for r in RELATION_TYPES:
+            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
+        for n in NODE_TYPES:
+            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
+        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
+                                        key=lambda x: (x not in RELATION_TYPES, x))
+        _active_node_types = sorted(set(_fine_to_active_node.values()),
+                                    key=lambda x: (x not in NODE_TYPES, x))
+        # Tables de remapping (index fin → index actif)
+        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
+        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
+        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
+                       for i, r in enumerate(RELATION_TYPES)}
+        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
+                       for i, n in enumerate(NODE_TYPES)}
+        click.echo(
+            f"  [coarse] {len(_active_relation_types)} relations actives, "
+            f"{len(_active_node_types)} nœuds actifs. "
+            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
+        )
+
+    # B : point unique de vérité pour la dimension effective
+    d_effective = vocab.d_clause_effective(d_emb, subject_object_emb)
+    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs.
+    # v5.8 (P3) : dims sur types ACTIFS (post-remap), pas sur 19/8.
+    n_node_types = len(_active_node_types)
+    n_relation_types = len(_active_relation_types)
+    d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
+                                                 subject_object_emb)
+    # P4b : couplage intent←sentence automatique quand les deux têtes sont
+    # actives (distribution détachée en entrée intent). Persisté en arch.
+    _intent_conditioned = bool(n_intent_types > 0 and n_sentence_types > 0)
+    if _intent_conditioned:
+        click.echo("  [P4b] intent conditionnée par sentence_type (concat distribution).")
+    if not (0.0 <= edge_dropout < 1.0):
+        raise click.ClickException(f"--edge-dropout doit être dans [0, 1[ (reçu {edge_dropout}).")
+    if not (0.0 <= theta_ambiguity <= 1.0):
+        raise click.ClickException(f"--theta-ambiguity doit être dans [0, 1] (reçu {theta_ambiguity}).")
+    if not (temperature > 0):
+        raise click.ClickException(f"--temperature doit être > 0 (reçu {temperature}).")
+    return (_active_node_types, _active_relation_types, _node_remap,
+            _edge_remap, d_effective, n_node_types, n_relation_types,
+            d_edge_closed, _intent_conditioned)
+
+
 @click.command("gcn-train")
 @click.option("--data-dir", required=True, type=click.Path(path_type=Path),
               help="Répertoire contenant les fichiers JSON d'entraînement")
@@ -617,148 +793,34 @@ def train_cmd(
         freeze_embeddings=freeze_embeddings, _init_seed=_init_seed)
     _fasttext_path: Path | None = fasttext  # S1 : conservé pour le remplissage différé (cf. build_vocab)
 
-    # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
-    # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
-    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
-                           silver_weight=silver_weight, seed=_init_seed,
-                           strict_directions=strict_directions)
-    if len(loader) == 0:
-        raise click.ClickException(f"Aucune sentence dans {data_dir}")
-    val_loader = None
-    if val_dir is not None:
-        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
-                                   silver_weight=silver_weight,
-                                   strict_directions=strict_directions)
-        if len(val_loader) == 0:
-            raise click.ClickException(f"Aucune sentence dans {val_dir}")
-        click.echo(f"Val : {len(val_loader)} sentences")
-
-    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
+    # S1 — chargeur + comptes (helper ci-dessus, avant dimensionnement).
+    (loader, val_loader, node_counts, edge_counts, intent_counts,
+     sentence_counts, all_lemmas) = _train_load_and_count(
+        data_dir=data_dir, val_dir=val_dir, all_pairs=all_pairs,
+        silver_weight=silver_weight, strict_directions=strict_directions,
+        _init_seed=_init_seed, n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, word_embedding=word_embedding,
+        clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb)
+    # S1 — défauts poids de classes (assignés plus loin sous conditions ;
+    # l'ancien code les initalisait ici : même valeur, sans UnboundLocalError).
     node_class_weights = None
     edge_class_weights = None
-    _edge_logit_mask: np.ndarray | None = None
-    from collections import Counter
-    node_counts: Counter = Counter()
-    edge_counts: Counter = Counter()
-    intent_counts: Counter = Counter()
-    sentence_counts: Counter = Counter()
-    all_lemmas: list[str] = []
-    for sample in loader:
-        for rel in sample.edge_map.values():
-            edge_counts[int(rel)] += 1
-        # v5.8 (P3) : node_counts toujours rempli — le gate weighted_loss
-        # laissait _promoted_node vide et basculait tout en coarse.
-        for label in sample.gold_node_labels:
-            node_counts[int(label)] += 1
-        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
-        if n_intent_types > 0 and sample.sentence.intent:
-            with contextlib.suppress(ValueError):
-                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
-        # P4a : comptage des types de phrases (annotés ou règle bootstrap).
-        if n_sentence_types > 0 and sample.sentence_type:
-            with contextlib.suppress(ValueError):
-                sentence_counts[SENTENCE_TYPES.index(sample.sentence_type)] += 1
-        if word_embedding is not None:
-            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
-            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
-            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
-            if clause_pooling == "root" and not subject_object_emb:
-                all_lemmas.extend(r.root_lemma for r in reps_s)
-            else:
-                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
-                for r in reps_s:
-                    if clause_pooling == "root":
-                        all_lemmas.append(r.root_lemma)
-                    else:
-                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
-                    if subject_object_emb:
-                        all_lemmas.extend(_find_subj_obj_lemmas(r))
-            # P4a : marques illocutoires "?" / "!" au vocabulaire — sinon
-            # le pooling mean de la tête phrase les résout en zéros OOV et
-            # l'interrogative reste invisible (vecteurs figés à l'init si le
-            # routage embeddings est en mode root : séparables mais non appris —
-            # même statut assumé que les connecteurs orphelins, cf. garde).
-            from ..layer1.features import SENTENCE_MARK_FORMS as _SENT_MARKS
-            all_lemmas.extend(
-                t.get("lemma", "") for r in reps_s for t in r.tokens
-                if t.get("form") in _SENT_MARKS and t.get("lemma")
-            )
-            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
-            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
-            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
-            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
-            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
-            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
-            _conn_lemmas = [
-                _c.root_lemma for _c in conn_s
-                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
-            ]
-            all_lemmas.extend(_conn_lemmas)
-            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
-            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
-            if _orphans:
-                import warnings as _w_orph
-                _w_orph.warn(
-                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
-                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
-                    UserWarning, stacklevel=2,
-                )
 
-    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min.
-    # v5.8 (P3) : calculé ici (comptes connus) pour dimensionner encodeur/graphe.
-    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
-    _active_node_types = NODE_TYPES
-    _active_relation_types = RELATION_TYPES
-    _node_remap: dict[int, int] | None = None
-    _edge_remap: dict[int, int] | None = None
-    if coarse_phase:
-        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
-        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
-        # Types actifs = promoted (fine) + groupes coarse des non-promoted
-        _fine_to_active_rel: dict[str, str] = {}
-        _fine_to_active_node: dict[str, str] = {}
-        for r in RELATION_TYPES:
-            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
-        for n in NODE_TYPES:
-            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
-        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
-                                        key=lambda x: (x not in RELATION_TYPES, x))
-        _active_node_types = sorted(set(_fine_to_active_node.values()),
-                                    key=lambda x: (x not in NODE_TYPES, x))
-        # Tables de remapping (index fin → index actif)
-        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
-        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
-        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
-                       for i, r in enumerate(RELATION_TYPES)}
-        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
-                       for i, n in enumerate(NODE_TYPES)}
-        click.echo(
-            f"  [coarse] {len(_active_relation_types)} relations actives, "
-            f"{len(_active_node_types)} nœuds actifs. "
-            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
-        )
-
-    # B : point unique de vérité pour la dimension effective
-    d_effective = vocab.d_clause_effective(d_emb, subject_object_emb)
-    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs.
-    # v5.8 (P3) : dims sur types ACTIFS (post-remap), pas sur 19/8.
-    n_node_types = len(_active_node_types)
-    n_relation_types = len(_active_relation_types)
-    d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
-                                                 subject_object_emb)
-    # P4b : couplage intent←sentence automatique quand les deux têtes sont
-    # actives (distribution détachée en entrée intent). Persisté en arch.
-    _intent_conditioned = bool(n_intent_types > 0 and n_sentence_types > 0)
-    if _intent_conditioned:
-        click.echo("  [P4b] intent conditionnée par sentence_type (concat distribution).")
+    # S1 — coarse + dims (helper ci-dessus, avant construction).
+    (_active_node_types, _active_relation_types, _node_remap,
+     _edge_remap, d_effective, n_node_types, n_relation_types,
+     d_edge_closed, _intent_conditioned) = _train_coarse_and_dims(
+        node_counts=node_counts, edge_counts=edge_counts,
+        coarse_phase=coarse_phase, coarse_n_min=coarse_n_min,
+        vocab=vocab, d_emb=d_emb,
+        subject_object_emb=subject_object_emb,
+        n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types,
+        edge_dropout=edge_dropout, theta_ambiguity=theta_ambiguity,
+        temperature=temperature)
     # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
     # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
-    if not (0.0 <= edge_dropout < 1.0):
-        raise click.ClickException(f"--edge-dropout doit être dans [0, 1[ (reçu {edge_dropout}).")
-    if not (0.0 <= theta_ambiguity <= 1.0):
-        raise click.ClickException(f"--theta-ambiguity doit être dans [0, 1] (reçu {theta_ambiguity}).")
-    if not (temperature > 0):
-        raise click.ClickException(f"--temperature doit être > 0 (reçu {temperature}).")
     if global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         try:
@@ -1072,6 +1134,7 @@ def train_cmd(
         click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
     # P4 quals — comptage par (qual, classe) et masques N_min.
     # Sans annotations variées, tout est masqué : dortoir, pas de loss.
+    from collections import Counter
     qual_counts: dict[str, Counter] = {q: Counter() for q in QUALIFIERS}
     if qual_heads:
         for _smp in loader:
