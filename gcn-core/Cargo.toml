@@ -32,4 +32,3 @@ petgraph = "0.8"
 thiserror = "2.0"
 clap = { version = "4.6", features = ["derive", "env"] }
 smallvec = { version = "1.13", features = ["serde"] }
-proptest = "1.11"

@@ -7,8 +7,13 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
-### Fix F2 audit — save/detect asymétrie R4 (2026-10-09)
+### Cleanup S2 audit — surface M4 resserrée (2026-10-09)
 
+- Supprimés : `build_maps_pub` (0 usage, vérifié hors `target/`) et `proptest` (dev-dep inutilisée, 0 référence ; workspace + `gcn-ir`).
+- Convention documentée (README crate) : cœurs `*_ctx` en `pub(crate)`, API publique = variantes `ir` + `execute`/`chain_strict`/`filter_links`/`caveats_for` (wrappers fins, tests inchangés).
+- **Vert workspace : 258 passés, 0 échoué, clippy 0, fmt propre.**
+
+### Fix F2 audit — save/detect asymétrie R4 (2026-10-09)
 - **Cause racine des 11 échecs pré-existants** : `save_checkpoint` n'écrivait jamais `format_refacto`, donc le détecteur classait ses propres sorties en legacy-UD et `run_eval` (R4, `allow_legacy=False`) les refusait toutes (`LegacyUDError`).
 - **Fix** : `save_checkpoint` écrit `format_refacto=20261007` (constante `FORMAT_REFACTO` partagée). Détecteur inchangé : les vrais legacy (sans marqueur) restent refusés.
 - **Vert Python : 855 passés, 3 xfailed, 0 échoué** (11 pré-existants résorbés, aucune régression).

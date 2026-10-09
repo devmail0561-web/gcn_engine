@@ -280,10 +280,6 @@ pub(crate) fn what_scoped_ctx(
 type NodeMap<'a> = HashMap<NodeId, &'a gcn_ir::CausalNode>;
 type EdgeMap<'a> = HashMap<(u32, u32), &'a gcn_ir::CausalEdge>;
 
-pub fn build_maps_pub(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
-    build_maps(ir)
-}
-
 fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
     let nm: NodeMap = ir.nodes.iter().map(|n| (n.id, n)).collect();
     // or_insert keeps the first occurrence for duplicate (src, dst) pairs;

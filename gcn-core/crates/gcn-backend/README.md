@@ -155,6 +155,11 @@ Mesuré (release, 3000 nœuds, 5 requêtes) : ~1140 ms avant → ~870 ms après
 (~1,3× ; sous la cible 3-4× du plan car Dijkstra/BFS dominent, pas les builds —
 le vrai goulot reste M1 côté Python).
 
+Convention S2 : les cœurs `*_ctx` sont `pub(crate)` (usage interne `execute()`
+uniquement) ; l'API publique reste les variantes `ir` + `execute()` +
+`chain_strict` + `filter_links`/`caveats_for`. `build_maps_pub` supprimé
+(0 usage) ; `proptest` retiré des dev-deps (inutilisé).
+
 ### Éq.12 — Comportement ternaire Pearl
 
 - **WHY/CHAIN** : `CausalLink.joint_group_id` propagé pour identifier les co-sources
