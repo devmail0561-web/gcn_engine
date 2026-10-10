@@ -294,19 +294,31 @@ class CausalGraph:
     _DEDUP_VOLATILE = frozenset({"session_turn", "_match_level"})
 
     @staticmethod
+    def _freeze(v):
+        """Forme canonique hachable (récursive, ordre stable).
+
+        dict → tuple trié par clé (le repr() brut dépend de l'ordre
+        d'insertion → dedup manquée) ; list/tuple → tuple ; scalaire
+        hachable tel quel ; sinon repr().
+        """
+        if isinstance(v, dict):
+            return tuple((k, CausalGraph._freeze(v[k])) for k in sorted(v))
+        if isinstance(v, (list, tuple)):
+            return tuple(CausalGraph._freeze(x) for x in v)
+        try:
+            hash(v)
+            return v
+        except TypeError:
+            return repr(v)
+
+    @staticmethod
     def _edge_key(attrs: dict) -> tuple:
-        """Clé de dédup d'arête : tout l'attrs sauf volatiles (repr acomptes)."""
-        items = []
-        for k in sorted(attrs):
-            if k in CausalGraph._DEDUP_VOLATILE:
-                continue
-            v = attrs[k]
-            try:
-                hash(v)
-            except TypeError:
-                v = repr(v)
-            items.append((k, v))
-        return tuple(items)
+        """Clé de dédup d'arête : tout l'attrs sauf volatiles (canonique)."""
+        return tuple(
+            (k, CausalGraph._freeze(attrs[k]))
+            for k in sorted(attrs)
+            if k not in CausalGraph._DEDUP_VOLATILE
+        )
 
     def merge_duplicate_edges(self) -> int:
         """Déduplique les arêtes identiques (src, dst + attrs non volatiles).

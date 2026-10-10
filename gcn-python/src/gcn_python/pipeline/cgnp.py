@@ -1039,6 +1039,13 @@ class CGNPipeline:
         dense change les poids → tag différent → invalidation automatique,
         prouvée par test) ; sinon tag réutilisé en O(1). Sans ce short-circuit,
         le hash (~ms) mangerait le gain du cache sur petits modèles.
+
+        Couvre encoder + couches graph + word_embedding : exactement les
+        paramètres qui déterminent le CIR. decoder et link_predictor exclus
+        à dessein (post-forward : decode scoring / predict_links, jamais
+        le CIR) — leurs update() ne bumpent pas l'epoch, c'est correct.
+        Limite connue : mutations via optimizer PyTorch externe
+        (torch_parameters().step()) invisibles → appeler clear_cache().
         """
         from .. import param_epoch as _pe
         from ..data.graph_vecs import checkpoint_hash
@@ -1072,6 +1079,9 @@ class CGNPipeline:
         mtime+taille) — une mise à jour du binaire invalide le cache ;
         binaire injouable → tag dégradé (le parse lèvera comme avant).
         Autres parseurs : (classe, id instance) — pas de version observable.
+        Anti-collision GC : l'entrée de cache garde une ref forte vers le
+        parseur (cf. _store_analyze) ; tant que l'entrée vit, l'objet vit,
+        donc son id ne peut être réutilisé — pas de faux hit.
         """
         if parser_name != "GCNLatticeParser":
             return (parser_name, id(parser))
@@ -1114,8 +1124,13 @@ class CGNPipeline:
         for k, v in snap.items():
             setattr(self, k, self._copy_cached(v))
 
-    def _store_analyze(self, key: tuple, cir: dict) -> None:
-        """Mémorise (état + copie CIR). FIFO au-delà du cap."""
+    def _store_analyze(self, key: tuple, cir: dict, parser=None) -> None:
+        """Mémorise (état + copie CIR). FIFO au-delà du cap.
+
+        parser : ref forte optionnelle — garde l'instance vivante pour que
+        l'id du _parser_tag custom ne soit jamais réutilisé (anti faux hit
+        après GC). Le parseur lattice (clé par binaire) n'en a pas besoin.
+        """
         import copy as _copy
 
         try:
@@ -1124,7 +1139,8 @@ class CGNPipeline:
             return
         if len(self._analyze_cache) >= self.ANALYZE_CACHE_MAX:
             self._analyze_cache.pop(next(iter(self._analyze_cache)))
-        self._analyze_cache[key] = {"cir": cir_copy, "state": self._snapshot_state()}
+        self._analyze_cache[key] = {"cir": cir_copy, "state": self._snapshot_state(),
+                                    "parser": parser}
 
     def cache_stats(self) -> dict:
         """Compteurs du cache (vérification M1 : hit ⇒ zéro nouveau calcul)."""
@@ -1194,7 +1210,7 @@ class CGNPipeline:
                 if hasattr(_obj, "training"):
                     _obj.training = _was
         self._cache_misses += 1
-        self._store_analyze(_key, cir)
+        self._store_analyze(_key, cir, parser=text_parser)
         return cir
 
     def analyze_or_skip(

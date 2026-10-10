@@ -417,6 +417,19 @@ class DialogueSession:
             self.lang_thread = last_lang
         self.journal = list(turns[-self.max_turns:])
 
+    def reseed_qblocks(self, node_ids) -> None:
+        """Reprend la numérotation qNNNNN_ après les blocs déjà présents.
+
+        Miroir du reseed d-blocs F4c (discuss.py) pour les questions 9a :
+        sans lui, une session restaurée réutilise q00001_ et écrase les
+        nœuds question précédents (mêmes ids) en dupliquant les arêtes.
+        """
+        import re as _re
+        for nid in node_ids:
+            _m = _re.match(r"^q(\d+)_", str(nid))
+            if _m:
+                self._qblocks = max(self._qblocks, int(_m.group(1)))
+
     def revoke(self, graph: CausalGraph, turn: int | None = None) -> str:
         """Retire les apports utilisateur d'un tour (jamais le corpus)."""
         if turn is None:

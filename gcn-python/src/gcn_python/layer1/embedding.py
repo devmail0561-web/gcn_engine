@@ -216,6 +216,8 @@ class WordEmbedding:
                 vecs.append(vec)
         self._add_lemmas_bulk(words, vecs)
         self._pretrained_end = len(self._lemmas)
+        if words:
+            _bump_param_epoch()  # M1a : vecteurs d'entrée du CIR mutés → cache invalide
         return len(words)
 
     @classmethod

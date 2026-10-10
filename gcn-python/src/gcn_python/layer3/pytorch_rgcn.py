@@ -38,6 +38,8 @@ except ImportError as e:  # pragma: no cover
 
 import numpy as np
 
+from ..param_epoch import bump as _bump_param_epoch
+
 from ..constants import RELATION_TYPES, rgcn_n_relations
 
 
@@ -233,6 +235,7 @@ class RGCNLayerPT(nn.Module):
         """Mise à jour manuelle des poids (gradient descent numpy).
         Les utilisateurs PyTorch préféreront optimizer.step() via torch_parameters().
         """
+        _bump_param_epoch()  # M1a : couche du forward → cache analyze invalide
         with torch.no_grad():
             if self.use_compgcn:
                 self.E_r    -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
@@ -284,6 +287,7 @@ class RGCNLayerPT(nn.Module):
                 self.E_r.copy_(torch.as_tensor(e_r, dtype=torch.float32, device=self._device))
                 self.W_comp.copy_(torch.as_tensor(w_c, dtype=torch.float32, device=self._device))
                 self.W_0.copy_(torch.as_tensor(w0, dtype=torch.float32, device=self._device))
+            _bump_param_epoch()  # M1a : poids restaurés → cache analyze invalide
             return
         if arrays[0].shape != (self.n_relations, self.d_out, self.d_in):
             raise ValueError(
@@ -301,6 +305,7 @@ class RGCNLayerPT(nn.Module):
         with torch.no_grad():
             self.W_r.copy_(torch.as_tensor(arrays[0], dtype=torch.float32, device=self._device))
             self.W_0.copy_(torch.as_tensor(w0, dtype=torch.float32, device=self._device))
+        _bump_param_epoch()  # M1a : poids restaurés → cache analyze invalide
 
     # ------------------------------------------------------------------
     # API PyTorch native

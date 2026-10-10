@@ -223,6 +223,9 @@ def run_discuss(
     # État de dialogue 9b-e (sujets, clarification, langue, journal).
     # Reconstruit depuis l'historique persisté si la session est restaurée.
     dialogue = DialogueSession()
+    # q-blocks 9a : même reseed que F4c — sinon q00001_ réutilisé, nœuds
+    # question écrasés + arêtes dupliquées après restauration.
+    dialogue.reseed_qblocks(handler.graph.nodes)
     if restored["history"]:
         dialogue.from_history(session.history)
 

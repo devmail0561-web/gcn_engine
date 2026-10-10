@@ -32,6 +32,19 @@ GRAPH_LOG_NAME = "graph_log.jsonl"
 #: par ré-analyse — pas d'annonce, cf. M2a).
 SESSION_MAX_VECS = 5000
 
+#: Plafond d'entrées d'historique conservées en mémoire (déjà persistées).
+#: Le disque (history.jsonl, audit) garde tout ; la liste mémoire est
+#: élaguée des entrées `_saved` au-delà du cap à chaque save().
+HISTORY_KEEP_SAVED = 1000
+
+
+def _node_hash(node: dict) -> str:
+    """Empreinte canonique d'un nœud (détection de mise à jour M2b)."""
+    import hashlib
+    return hashlib.sha1(
+        json.dumps(node, sort_keys=True, ensure_ascii=False, default=str
+                   ).encode("utf-8")).hexdigest()
+
 
 class SessionStore:
     """Graphe + vecs + historique d'une session de discussion."""
@@ -48,6 +61,7 @@ class SessionStore:
         self.snapshot_every = max(1, int(snapshot_every))
         self._saves = 0
         self._photo_nodes: set[str] = set()
+        self._photo_nodes_data: dict[str, str] = {}
         self._photo_edges = 0
         self._photo_adds = 0
         self._photo_dels = 0
@@ -156,6 +170,9 @@ class SessionStore:
         """Photo complète (graphe) + troncature du journal. Converge tout."""
         self.graph.save(self.session_dir / GRAPH_NAME)
         self._photo_nodes = set(self.graph.nodes)
+        self._photo_nodes_data = {
+            nid: _node_hash(nd) for nid, nd in self.graph.nodes.items()
+            if isinstance(nd, dict)}
         self._photo_edges = len(self.graph.edges)
         self._photo_adds = self.graph._adds
         self._photo_dels = self.graph._dels
@@ -164,17 +181,29 @@ class SessionStore:
             log.unlink()
 
     def _append_log(self) -> None:
-        """Journal des ajouts depuis la photo (nœuds nouveaux + arêtes)."""
+        """Journal des ajouts depuis la photo (nœuds nouveaux + modifiés + arêtes).
+
+        Les mises à jour de nœuds existants (add_cir upgrade-only, fusions)
+        étaient silencieuses → perdues sur crash avant la prochaine photo.
+        """
         new_nodes = {nid: nd for nid, nd in self.graph.nodes.items()
                      if nid not in self._photo_nodes}
+        changed = {nid: nd for nid, nd in self.graph.nodes.items()
+                   if isinstance(nd, dict)
+                   and nid in self._photo_nodes
+                   and _node_hash(nd) != self._photo_nodes_data.get(nid)}
+        logged_nodes = {**new_nodes, **changed}
         new_edges = self.graph.edges[self._photo_edges:]
-        if not new_nodes and not new_edges:
+        if not logged_nodes and not new_edges:
             return
         with open(self.session_dir / GRAPH_LOG_NAME, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"nodes": new_nodes, "edges": [
+            f.write(json.dumps({"nodes": logged_nodes, "edges": [
                 {"src": s, "dst": d, "attrs": a, "text": t}
                 for s, d, a, t in new_edges]}, ensure_ascii=False) + "\n")
         self._photo_nodes.update(new_nodes)
+        for nid, nd in logged_nodes.items():
+            if isinstance(nd, dict):
+                self._photo_nodes_data[nid] = _node_hash(nd)
         self._photo_edges = len(self.graph.edges)
         self._photo_adds = self.graph._adds
 
@@ -214,6 +243,12 @@ class SessionStore:
                 if not entry.get("_saved"):
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
                     entry["_saved"] = True
+        # Cap mémoire : le disque garde tout (audit), la liste ne retient
+        # que les non-sauvées + les HISTORY_KEEP_SAVED dernières sauvées.
+        if len(self.history) > HISTORY_KEEP_SAVED:
+            _unsaved = [e for e in self.history if not e.get("_saved")]
+            _saved = [e for e in self.history if e.get("_saved")]
+            self.history = _unsaved + _saved[-HISTORY_KEEP_SAVED:]
         return self.session_dir
 
     def load(self) -> dict:
@@ -239,6 +274,16 @@ class SessionStore:
         lpath = self.session_dir / GRAPH_LOG_NAME
         if lpath.exists():
             try:
+                # Fenêtre de crash photo→unlink : la photo peut déjà contenir
+                # des arêtes du journal → doublons au rejouement. Déduplique
+                # exacte (clé complète, volatiles inclus : même objet = sauté,
+                # ré-ajout légitime à un autre tour = rejoué).
+                def _full_key(s, d, a, t):
+                    return (s, d, json.dumps(a, sort_keys=True,
+                                            ensure_ascii=False, default=str)
+                            if isinstance(a, dict) else repr(a), t)
+                _seen = {_full_key(s, d, a, t)
+                         for s, d, a, t in self.graph.edges}
                 with open(lpath, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
@@ -250,7 +295,12 @@ class SessionStore:
                                 self.graph._merge_node_dict(str(nid), nd)
                         for e in delta.get("edges", []) or []:
                             s, d = str(e["src"]), str(e["dst"])
-                            self.graph.edges.append((s, d, e["attrs"], e.get("text", "")))
+                            _t = e.get("text", "")
+                            _k = _full_key(s, d, e["attrs"], _t)
+                            if _k in _seen:
+                                continue
+                            _seen.add(_k)
+                            self.graph.edges.append((s, d, e["attrs"], _t))
                             self.graph.adjacency[s].append(d)
                             self.graph.reverse_adj[d].append(s)
                             report["replayed"] += 1
@@ -261,6 +311,9 @@ class SessionStore:
                 warnings.warn(f"session : journal illisible ({exc}) — photo seule.",
                               UserWarning, stacklevel=2)
         self._photo_nodes = set(self.graph.nodes)
+        self._photo_nodes_data = {
+            nid: _node_hash(nd) for nid, nd in self.graph.nodes.items()
+            if isinstance(nd, dict)}
         self._photo_edges = len(self.graph.edges)
         self._photo_adds = self.graph._adds
         self._photo_dels = self.graph._dels
