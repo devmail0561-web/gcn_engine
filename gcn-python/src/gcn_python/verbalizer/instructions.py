@@ -256,6 +256,9 @@ class CausalGraph:
     def merge_duplicate_nodes(self) -> int:
         """Fusionne les nœuds de même label normalisé (garde le plus petit id).
 
+        Tri lexicographique d'ids (ordre string : '10' < '9') — déterministe
+        mais pas numérique ; les ids préfixés (bNNNNN_, qNNNNN_) sont à largeur
+        fixe donc l'ordre y est chronologique, les ids moteur bruts non.
         Recâble les arêtes vers le gardé ; origine fusionnée par précédence
         (max, jamais de downgrade). Retourne le nombre de nœuds supprimés.
         Déterministe (tri d'ids). M2a : première source de rangement.
