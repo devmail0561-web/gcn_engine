@@ -12,6 +12,7 @@ use gcn_frontend_fr::parse_lattice as parse_lattice_fr;
 use gcn_frontend_graph::parse_stix_bundle_with_report;
 use gcn_frontend_table::{TableSchema, parse_table};
 use gcn_ir::CausalIR;
+use gcn_ir::EXCHANGE_SCHEMA_VERSION;
 use gcn_middleend::process as middleend_process;
 
 mod extract;
@@ -449,6 +450,19 @@ fn load_ir(path: &Path) -> Result<CausalIR, Box<dyn std::error::Error>> {
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let ir = serde_json::from_str(&content)
         .map_err(|e| format!("invalid CausalIR JSON in {}: {e}", path.display()))?;
+    let ir: CausalIR = ir;
+    // Version décorative sinon : un IR v1 se parse sans un mot. Avertir
+    // (stderr) et poursuivre — même politique que json_reader côté Python.
+    if !ir.metadata.schema_version.is_empty()
+        && ir.metadata.schema_version != EXCHANGE_SCHEMA_VERSION
+    {
+        eprintln!(
+            "warning: {} : schema_version='{}' (attendu '{}') — champs legacy absorbés silencieusement",
+            path.display(),
+            ir.metadata.schema_version,
+            EXCHANGE_SCHEMA_VERSION
+        );
+    }
     Ok(ir)
 }
 
@@ -476,5 +490,22 @@ mod cli_tests {
         }
         assert!(detect_code_lang(&PathBuf::from("x.html")).is_err());
         assert!(detect_code_lang(&PathBuf::from("sans_extension")).is_err());
+    }
+
+    // Version décorative sinon silencieuse : un IR legacy se charge (warn
+    // stderr) au lieu de casser — politique miroir de json_reader Python.
+    #[test]
+    fn load_ir_legacy_version_warns_and_proceeds() {
+        let dir = std::env::temp_dir().join("gcn_cli_version_probe");
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("legacy.json");
+        std::fs::write(
+            &p,
+            r#"{"source_lang":{"natural":{"lang":"french"}},"source_text":"","nodes":[],"edges":[],"cycles":[],"unresolved":[],"metadata":{"schema_version":"1.0"}}"#,
+        )
+        .unwrap();
+        let ir = load_ir(&p).expect("legacy 1.0 doit charger (warn, pas d'erreur)");
+        assert_eq!(ir.metadata.schema_version, "1.0");
+        std::fs::remove_file(&p).unwrap();
     }
 }

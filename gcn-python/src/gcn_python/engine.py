@@ -435,6 +435,7 @@ class GCNEngine:
         M1b : dédup par lots — chaque texte distinct analysé une seule fois
         (cache M1a inter-phrases), ordre préservé, copies indépendantes
         (l'appelant peut muter chaque CIR sans contaminer les autres).
+        Textes vides/blancs sautés (pas de slot — len(out) ≤ len(texts)).
         """
         import copy as _copy
         seen: dict[str, dict] = {}
