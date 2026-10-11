@@ -167,7 +167,13 @@ class CausalGraph:
           poids 9a (FIGÉ D-ORIG) ; arête déjà stampée = premier stamp conservé
           (jamais de double multiplication).
         Lève ValueError si session_origin absente ou inconnue.
+        P2 (rigidité) : relation inconnue (hors 19 types, None accepté) →
+        ValueError ; extrémité ni dans le CIR ni dans le graphe (références
+        inter-CIR via from_cirs acceptées) → ValueError nommant les manquants.
+        Formes d'arêtes hétérogènes (non 3-tuple/dict, sans src/dst) : sautées
+        comme avant (tolérance de format, pas de validation).
         """
+        from ..constants import RELATION_TYPES as _REL19
         if session_origin not in SESSION_WEIGHTS:
             raise ValueError(
                 f"add_cir : session_origin requise parmi {list(SESSION_ORIGINS)} "
@@ -196,6 +202,8 @@ class CausalGraph:
                     ):
                         cur["session_origin"] = session_origin
         src_text = cir.get("source_text", "")
+        _cir_ids = {str(n.get("id")) for n in cir.get("nodes", [])
+                    if isinstance(n, dict) and n.get("id") is not None}
         for e in cir.get("edges", []):
             if isinstance(e, (list, tuple)) and len(e) == 3:
                 src, dst, attrs = e
@@ -211,13 +219,24 @@ class CausalGraph:
             if not isinstance(attrs, dict):
                 continue
             attrs = dict(attrs)  # copie : le stamp ne doit jamais fuiter dans le CIR appelant
+            _rel = attrs.get("relation")
+            if _rel is not None and _rel not in _REL19:
+                raise ValueError(
+                    f"add_cir : relation inconnue {_rel!r} "
+                    f"(19 types : {', '.join(_REL19)}).")
+            src, dst = str(src), str(dst)
+            _missing = [x for x in (src, dst)
+                        if x not in _cir_ids and x not in self.nodes]
+            if _missing:
+                raise ValueError(
+                    f"add_cir : extrémité(s) pendante(s) {_missing} "
+                    "(ni dans le CIR ni dans le graphe).")
             if "session_origin" not in attrs:
                 attrs["session_origin"] = session_origin
                 attrs["session_weight"] = weight
                 raw = attrs.get("confidence")
                 if isinstance(raw, (int, float)) and _m.isfinite(raw):
                     attrs["confidence"] = max(0.0, min(1.0, float(raw) * weight))
-            src, dst = str(src), str(dst)
             self.edges.append((src, dst, attrs, src_text))
             self.adjacency[src].append(dst)
             self.reverse_adj[dst].append(src)

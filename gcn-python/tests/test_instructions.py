@@ -315,3 +315,38 @@ class TestSessionOrigin:
         assert g.nodes["n1"]["migrated"] is True
         assert g.edges[0][2]["session_origin"] == "document"
         assert g.edges[0][2]["confidence"] == 0.7  # poids document = 1.0 : intact
+
+
+class TestAddCirStrict:
+    def test_unknown_relation_rejected(self):
+        import pytest
+        g = CausalGraph()
+        with pytest.raises(ValueError, match="relation inconnue"):
+            g.add_cir({"nodes": [{"id": "a", "label": "a"}, {"id": "b", "label": "b"}],
+                       "edges": [["a", "b", {"relation": "telepathy", "confidence": 0.9}]],
+                       "source_text": "t"}, session_origin="document")
+        assert len(g.edges) == 0  # rien stocké
+
+    def test_dangling_endpoint_rejected(self):
+        import pytest
+        g = CausalGraph()
+        with pytest.raises(ValueError, match="pendante.*zz"):
+            g.add_cir({"nodes": [{"id": "a", "label": "a"}],
+                       "edges": [["a", "zz", {"relation": "cause", "confidence": 0.9}]],
+                       "source_text": "t"}, session_origin="document")
+
+    def test_cross_cir_reference_accepted(self):
+        g = CausalGraph()
+        g.add_cir({"nodes": [{"id": "a", "label": "a"}],
+                   "edges": [], "source_text": "t"}, session_origin="document")
+        g.add_cir({"nodes": [{"id": "b", "label": "b"}],
+                   "edges": [["a", "b", {"relation": "cause", "confidence": 0.9}]],
+                   "source_text": "t2"}, session_origin="document")
+        assert len(g.edges) == 1
+
+    def test_untyped_relation_accepted(self):
+        g = CausalGraph()
+        g.add_cir({"nodes": [{"id": "a", "label": "a"}, {"id": "b", "label": "b"}],
+                   "edges": [["a", "b", {"confidence": 0.9}]],
+                   "source_text": "t"}, session_origin="document")
+        assert len(g.edges) == 1
