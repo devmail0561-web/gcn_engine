@@ -272,3 +272,18 @@ def test_call_gcn_lattice_subcommand_charset():
     for bad in ["analyze;rm", "analyze|x", "a b", "analyze`id`", "analyze$(x)"]:
         with pytest.raises(GCNBridgeError):
             _call_gcn_lattice("x", "gcn", bad)
+
+
+@patch("gcn_python.frontend.bridge._resolve_gcn_bin", return_value="/usr/bin/gcn")
+@patch("gcn_python.frontend.bridge.subprocess.run")
+def test_lattice_oversize_stdout_rejected(mock_run, _resolve, monkeypatch):
+    """Stdout démesuré → refus avant json.loads (borne mémoire)."""
+    import gcn_python.frontend.bridge as _b
+    monkeypatch.setattr(_b, "LATTICE_MAX_BYTES", 10)
+    mock = MagicMock()
+    mock.returncode = 0
+    mock.stdout = "x" * 11
+    mock.stderr = ""
+    mock_run.return_value = mock
+    with pytest.raises(GCNBridgeError, match="démesurée"):
+        _call_gcn_lattice("x", "gcn", "analyze")

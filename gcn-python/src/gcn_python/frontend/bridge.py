@@ -81,6 +81,10 @@ def _validate_gcn_bin(gcn_bin: str) -> None:
         )
 
 
+#: Cap stdout lattice (octets, même ordre que MAX_IR_FILE_SIZE Rust).
+LATTICE_MAX_BYTES = 50 * 1024 * 1024
+
+
 def _call_gcn_lattice(text: str, gcn_bin: str, subcommand: str = "analyze") -> dict:
     """Appelle `gcn <subcommand> -- <text>` (lattice par défaut, sans --data-dir).
 
@@ -116,6 +120,12 @@ def _call_gcn_lattice(text: str, gcn_bin: str, subcommand: str = "analyze") -> d
         raise GCNBridgeError(
             f"`{gcn_bin} {subcommand} -- <text>` a échoué "
             f"(code {proc.returncode}) :\n{proc.stderr.strip()[:300]}"
+        )
+    # Cap stdout (même ordre que MAX_IR_FILE_SIZE Rust : 50 Mo) — un binaire
+    # compromis/remplacé ne doit pas faire gonfler json.loads sans borne.
+    if len(proc.stdout.encode("utf-8", "ignore")) > LATTICE_MAX_BYTES:
+        raise GCNBridgeError(
+            f"Sortie lattice démesurée ({len(proc.stdout)} caractères) — refusée."
         )
     try:
         return json.loads(proc.stdout)

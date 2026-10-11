@@ -11,6 +11,7 @@ plusieurs étapes peuvent partager un tour ; ne jamais l'indexer comme un id).
 """
 from __future__ import annotations
 
+import re as _re
 import warnings as _warnings
 
 from .steps import (
@@ -319,12 +320,10 @@ def reason_question(text: str, graph, budget: int = 16,
     raw = arg
     if cmd == "text":
         # Forme nue `chain A B` (canonique : `chain: A -> B`).
-        import re as _re0
-        _m = _re0.match(r"(?i)^chain\s+(.+)$", text)
+        _m = _re.match(r"(?i)^chain\s+(.+)$", text)
         if _m:
             raw = _m.group(1)
     if raw:
-        import re as _re
         parts = [p for p in _re.split(r"->|,|\s+", raw) if p]
         if len(parts) >= 2:
             kw_from, kw_to = parts[0], parts[-1]
