@@ -23,6 +23,9 @@ from ..layer3.interface import CausalGraph
 from .ir_emitter import _infer_temporal_ref, emit
 from .label_builder import build_label
 
+#: Garde warn-once du tag partiel (_grab) — un seul avertissement par processus.
+_MODEL_TAG_PARTIAL_WARNED = False
+
 
 class CGNPipeline:
     """
@@ -1061,6 +1064,14 @@ class CGNPipeline:
                 for i, p in enumerate(obj.parameters()):
                     params[f"{prefix}_{i}"] = np.asarray(p)
             except Exception:  # noqa: S110, BLE001  # paramètres illisibles : tag partiel
+                global _MODEL_TAG_PARTIAL_WARNED
+                if not _MODEL_TAG_PARTIAL_WARNED:
+                    import warnings as _w
+                    _w.warn(
+                        f"_model_tag : paramètres illisibles ({type(obj).__name__}) — "
+                        "tag partiel, collisions de cache possibles entre modèles "
+                        "défaillants identiques.", UserWarning, stacklevel=2)
+                    _MODEL_TAG_PARTIAL_WARNED = True
                 pass
 
         _grab("encoder", getattr(self, "encoder", None))

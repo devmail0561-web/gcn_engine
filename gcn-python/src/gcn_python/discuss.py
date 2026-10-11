@@ -22,11 +22,9 @@ from pathlib import Path
 import click
 
 from .dialogue import DialogueSession
-from .dialogue import format_response as _format_response  # re-export (compat)
-from .pipeline.nlu_routing import nlu_route
+from .dialogue import format_response as _format_response  # noqa: F401  # re-export (compat)
 from .verbalizer.decoder import ReferenceDecoder
-from .verbalizer.instructions import CausalGraph, InstructionHandler, parse_command
-from .verbalizer.query_report import QueryVerbalizer
+from .verbalizer.instructions import CausalGraph, InstructionHandler
 
 # ---------------------------------------------------------------------------
 # Lecture des fichiers texte (raw text — pas de JSON annoté)
