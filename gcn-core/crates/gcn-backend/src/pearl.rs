@@ -284,6 +284,9 @@ fn build_maps(ir: &CausalIR) -> (NodeMap<'_>, EdgeMap<'_>) {
     let nm: NodeMap = ir.nodes.iter().map(|n| (n.id, n)).collect();
     // or_insert keeps the first occurrence for duplicate (src, dst) pairs;
     // collect() would silently keep the last (non-deterministic HashMap ordering).
+    // Limite actée : multigraphe aplati — une seule arête par paire (la première).
+    // Les doublons parallèles (relations/confiances divergentes, négation) sont
+    // invisibles au ranking ; la dédup/fusion relève de l'appelant (cf. M2a côté SA).
     let mut em: EdgeMap = HashMap::new();
     for (s, d, e) in &ir.edges {
         em.entry((s.0, d.0)).or_insert(e);
@@ -445,6 +448,12 @@ impl Ord for Cost {
 type HeapEntry = (std::cmp::Reverse<(Cost, u32, u64)>, NodeIndex);
 
 /// Ph3 [D3] — chemin classé : liens + confiance produit.
+///
+/// `confidence` = produit BRUT des confiances (sans poids d'origine), tandis
+/// que le classement (Dijkstra/Yen) minimise le coût pondéré
+/// `−ln(conf × poids_origine)`. Un chemin affiché « 0.60 » peut donc devancer
+/// un « 0.73 » : l'ordre reflète la confiance + l'attestation, l'affichage
+/// la confiance seule. Limite actée (transparence d'affichage).
 #[derive(Debug, Clone)]
 pub struct ScoredPath {
     pub links: Vec<CausalLink>,

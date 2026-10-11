@@ -6,7 +6,8 @@ Lit le graphe seul (primitives pures `find_causes` / `find_effects` /
 `find_path`), n'écrit jamais dedans : les `derived` sont retournés dans la
 trace, pas ingérés. R1 : un but = une paire (from, to), profondeur ≤ 2
 (direct + 1 maillon transitif), top-k=5 par requête, budget=16 par défaut
-(1 `query:` / 1 `infer:` = 1 étape).
+(1 `query:` / 1 `infer:` = 1 étape). `tour` = phase logique (pas un index :
+plusieurs étapes peuvent partager un tour ; ne jamais l'indexer comme un id).
 """
 from __future__ import annotations
 
@@ -147,6 +148,8 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
                                extra={"op": "find_effects+find_causes"}))
         cands = _quiet_find(graph, "find_effects", _label(graph, u_ids[0]))
         cands += _quiet_find(graph, "find_causes", _label(graph, v_ids[0]))
+        trace.append(make_step("observe:", tour, extra={
+            "candidates": [f"{s}->{d}" for s, d, _a, _t in cands]}))
         seen: set = set()
         for s, d, attrs, _text in cands:
             if (s, d) in seen:

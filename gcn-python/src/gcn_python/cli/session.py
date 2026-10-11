@@ -259,7 +259,8 @@ class SessionStore:
         Clés ajoutées : `replayed` (arêtes rejouées), `resnapshotted`.
         """
         report = {"graph_edges": 0, "vecs": 0, "history": 0,
-                  "replayed": 0, "resnapshotted": False}
+                  "replayed": 0, "resnapshotted": False,
+                  "skipped": 0, "skipped_history": 0}
         if self.session_dir is None or not self.session_dir.exists():
             return report
         gpath = self.session_dir / GRAPH_NAME
@@ -284,30 +285,44 @@ class SessionStore:
                             if isinstance(a, dict) else repr(a), t)
                 _seen = {_full_key(s, d, a, t)
                          for s, d, a, t in self.graph.edges}
+                _skipped = 0
                 with open(lpath, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line:
                             continue
-                        delta = json.loads(line)
-                        for nid, nd in (delta.get("nodes", {}) or {}).items():
-                            if isinstance(nd, dict):
-                                self.graph._merge_node_dict(str(nid), nd)
-                        for e in delta.get("edges", []) or []:
-                            s, d = str(e["src"]), str(e["dst"])
-                            _t = e.get("text", "")
-                            _k = _full_key(s, d, e["attrs"], _t)
-                            if _k in _seen:
-                                continue
-                            _seen.add(_k)
-                            self.graph.edges.append((s, d, e["attrs"], _t))
-                            self.graph.adjacency[s].append(d)
-                            self.graph.reverse_adj[d].append(s)
-                            report["replayed"] += 1
+                        try:
+                            delta = json.loads(line)
+                        except json.JSONDecodeError:
+                            _skipped += 1  # une ligne pourrie ne jette pas le journal
+                            continue
+                        try:
+                            for nid, nd in (delta.get("nodes", {}) or {}).items():
+                                if isinstance(nd, dict):
+                                    self.graph._merge_node_dict(str(nid), nd)
+                            for e in delta.get("edges", []) or []:
+                                s, d = str(e["src"]), str(e["dst"])
+                                _t = e.get("text", "")
+                                _k = _full_key(s, d, e["attrs"], _t)
+                                if _k in _seen:
+                                    continue
+                                _seen.add(_k)
+                                self.graph.edges.append((s, d, e["attrs"], _t))
+                                self.graph.adjacency[s].append(d)
+                                self.graph.reverse_adj[d].append(s)
+                                report["replayed"] += 1
+                        except (KeyError, TypeError, AttributeError):
+                            _skipped += 1  # entrée malformée : sautée, journal préservé
+                            continue
+                if _skipped:
+                    warnings.warn(
+                        f"session : {_skipped} entrée(s) de journal sautée(s) "
+                        "(malformées) — reste rejoué.", UserWarning, stacklevel=2)
+                    report["skipped"] = _skipped
                 report["graph_edges"] = len(self.graph.edges)
                 self._write_photo()
                 report["resnapshotted"] = True
-            except Exception as exc:  # noqa: BLE001  # journal corrompu : warn + photo seule
+            except Exception as exc:  # noqa: BLE001  # journal illisible : warn + photo seule
                 warnings.warn(f"session : journal illisible ({exc}) — photo seule.",
                               UserWarning, stacklevel=2)
         self._photo_nodes = set(self.graph.nodes)
@@ -340,15 +355,26 @@ class SessionStore:
         hpath = self.session_dir / HISTORY_NAME
         if hpath.exists():
             try:
+                _hskipped = 0
                 with open(hpath, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line:
+                        if not line:
+                            continue
+                        try:
                             self.history.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            _hskipped += 1  # une ligne pourrie ne jette pas la queue
+                            continue
+                if _hskipped:
+                    warnings.warn(
+                        f"session : {_hskipped} entrée(s) d'historique sautée(s) "
+                        "(malformées) — reste chargé.", UserWarning, stacklevel=2)
+                    report["skipped_history"] = _hskipped
                 for e in self.history:
                     e["_saved"] = True
                 report["history"] = len(self.history)
-            except Exception as exc:  # noqa: BLE001  # jsonl corrompu : warn + historique ignoré
+            except Exception as exc:  # noqa: BLE001  # fichier illisible : warn + historique ignoré
                 warnings.warn(f"session : historique illisible ({exc}) — ignoré.",
                               UserWarning, stacklevel=2)
         return report

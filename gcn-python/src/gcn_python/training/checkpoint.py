@@ -830,6 +830,11 @@ def load_checkpoint(
 
     Symlinks : refusés par défaut (R4 — vecteur de substitution silencieuse).
     Passez `allow_symlink=True` si vous êtes sûr de la cible.
+
+    Limite actée : `trusted=True` n'immunise pas contre un checkpoint
+    malveillant côté ressources — les numériques d'architecture (d_emb,
+    vocab_size…) sont castés sans plafond et dimensionnent des allocations.
+    Ne chargez en trusted que vos propres checkpoints (outil local).
     """
     # S1 — gardes mutualisées (_ckpt_load_guarded, avant toute mutation).
     data = _ckpt_load_guarded(path, trusted, allow_symlink,

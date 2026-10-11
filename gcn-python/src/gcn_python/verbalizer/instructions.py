@@ -369,7 +369,11 @@ class CausalGraph:
         return removed
 
     def save(self, path) -> None:
-        """Persiste le graphe en JSON."""
+        """Persiste le graphe en JSON (écriture atomique tmp+replace).
+
+        Sans atomicité, un crash mid-write corrompt graph.json et la session
+        suivante repart vide (seul le journal post-photo serait rejoué).
+        """
         import json
         data = {
             "nodes": self.nodes,
@@ -379,7 +383,10 @@ class CausalGraph:
             ],
         }
         from pathlib import Path as _P
-        _P(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _p = _P(path)
+        _tmp = _p.with_suffix(".tmp.json")
+        _tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _tmp.replace(_p)
 
     @classmethod
     def load(cls, path) -> CausalGraph:

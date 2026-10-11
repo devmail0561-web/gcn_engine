@@ -20,6 +20,7 @@ Limites honnêtes (couche B : parseur UD) :
 from __future__ import annotations
 
 import json
+import re as _re
 import subprocess
 
 from ..layer1.representation import UDRepresentation
@@ -89,6 +90,12 @@ def _call_gcn_lattice(text: str, gcn_bin: str, subcommand: str = "analyze") -> d
     """
     if not subcommand or not subcommand.strip():
         raise GCNBridgeError("subcommand vide — nom de sous-commande invalide.")
+    _validate_gcn_bin(gcn_bin)  # mort avant : désormais branchée (défense en profondeur)
+    if _re.search(r"[^A-Za-z0-9_-]", subcommand):
+        raise GCNBridgeError(
+            f"subcommand {subcommand!r} : seuls [A-Za-z0-9_-] autorisés "
+            "(ex. analyze, analyze-en)."
+        )
     gcn_bin = _resolve_gcn_bin(gcn_bin)
     # analyze/analyze-en émettent le lattice par défaut (zéro dictionnaire).
     cmd = [gcn_bin, subcommand, "--", text]

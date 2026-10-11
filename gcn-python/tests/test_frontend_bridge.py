@@ -265,3 +265,10 @@ def test_lattice_parser_default_subcommand():
     """Défaut analyze, pas de littéral de langue stocké."""
     assert GCNLatticeParser().subcommand == "analyze"
     assert GCNLatticeParser(subcommand="analyze-en").subcommand == "analyze-en"
+
+
+def test_call_gcn_lattice_subcommand_charset():
+    """Métacaractères / espaces en subcommand → refus avant tout appel."""
+    for bad in ["analyze;rm", "analyze|x", "a b", "analyze`id`", "analyze$(x)"]:
+        with pytest.raises(GCNBridgeError):
+            _call_gcn_lattice("x", "gcn", bad)

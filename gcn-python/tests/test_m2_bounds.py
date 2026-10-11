@@ -9,6 +9,8 @@ M2c : paraphrases (overlap trigrammes + seuil + repli exact).
 """
 from __future__ import annotations
 
+import pytest
+
 from gcn_python.cli.session import SessionStore
 from gcn_python.dialogue import DialogueSession, paraphrase_overlap
 from gcn_python.verbalizer.instructions import CausalGraph, InstructionHandler
@@ -241,3 +243,44 @@ class TestParaphrase:
         # "astres" sous le seuil pour les 2 (0.5 < 0.75) → pas de clarify
         # sur du flou : repli mot (continuité vide, topics vides).
         assert s.resolve("astres", h.graph) == "astres"
+
+
+class TestCorruptTolerance:
+    def _cir(self, tag):
+        return {"nodes": [{"id": f"{tag}s", "label": "a"}, {"id": f"{tag}d", "label": "b"}],
+                "edges": [[f"{tag}s", f"{tag}d",
+                           {"relation": "cause", "confidence": 0.9}]],
+                "source_text": tag}
+
+    def test_corrupt_history_line_keeps_tail(self, tmp_path):
+        import json
+        d = tmp_path / "s"
+        s = SessionStore(d)
+        s.history.append({"event": "turn", "n": 1})
+        s.history.append({"event": "turn", "n": 2})
+        s.save()
+        with open(d / "history.jsonl", "a", encoding="utf-8") as f:
+            f.write("{corrompu\n")
+            f.write(json.dumps({"event": "turn", "n": 3}) + "\n")
+        s2 = SessionStore(d)
+        with pytest.warns(UserWarning):
+            rep = s2.load()
+        assert rep["history"] == 3  # queue préservée malgré la ligne pourrie
+        assert rep["skipped_history"] == 1
+        assert [e["n"] for e in s2.history if e.get("event") == "turn"] == [1, 2, 3]
+
+    def test_corrupt_log_line_keeps_rest(self, tmp_path):
+        d = tmp_path / "s"
+        s = SessionStore(d, snapshot_every=100)
+        s.graph.add_cir(self._cir("1"), session_origin="document")
+        s.save()  # photo
+        s.graph.add_cir(self._cir("2"), session_origin="document")
+        s.save()  # journal : 1 entrée
+        with open(d / "graph_log.jsonl", "a", encoding="utf-8") as f:
+            f.write("{corrompu\n")
+        s2 = SessionStore(d)
+        with pytest.warns(UserWarning):
+            rep = s2.load()
+        assert rep["graph_edges"] == 2
+        assert rep["replayed"] == 1
+        assert rep["skipped"] == 1
