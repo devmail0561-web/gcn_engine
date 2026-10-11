@@ -160,6 +160,14 @@ class CGNPipeline:
                     f"MLPEncoder.d_edge={_got_edge} ≠ d_edge_closed={_need_edge} "
                     f"(construisez avec d_edge=vocab.d_edge_closed_loop(...))."
                 )
+        _got_tedge = getattr(encoder, "d_edge", None)
+        if _got_tedge is not None and int(_got_tedge) != _need_edge:
+            # Encodeurs non-MLP (torch…) : même garde, échec bruyant ici
+            # plutôt que matmul cryptique au premier forward_edge.
+            raise ValueError(
+                f"{type(encoder).__name__}.d_edge={_got_tedge} ≠ d_edge_closed={_need_edge} "
+                f"(construisez avec d_edge=vocab.d_edge_closed_loop(...))."
+            )
         _need_rel = rgcn_n_relations(len(self.relation_types), bool(bidirectional))
         for _layer in [graph] if not isinstance(graph, (list, tuple)) else list(graph):
             _got_rel = getattr(_layer, "n_relations", None)
