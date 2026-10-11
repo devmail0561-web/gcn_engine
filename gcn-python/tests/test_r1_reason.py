@@ -166,3 +166,49 @@ def test_fallback_bridge_without_path():
     assert r["status"] == "ok"
     assert r["answer"]["path"] == ["a", "c", "b"]
     assert any(s["code"] == "subgoal:" for s in r["trace"])
+
+
+class TestR2Strict:
+    def test_non_causal_path_rejected_then_optout(self):
+        g = _g(["a", "b"],
+               [("a", "b", {"relation": "sequence", "confidence": 0.9})])
+        r = reason("a", "b", g)
+        assert r["status"] == "degrade"
+        assert any((s.get("motif") or "").startswith("non-causal:")
+                   for s in r["trace"])
+        assert reason("a", "b", g, causal_only=False)["status"] == "ok"
+
+    def test_untyped_edge_accepted_under_strict(self):
+        g = _g(["a", "b"], [("a", "b", {"confidence": 0.9})])
+        assert reason("a", "b", g)["status"] == "ok"
+
+    def test_low_conf_premise_filtered(self):
+        g = _g(["a", "b", "c"],
+               [("a", "b", {"relation": "cause", "confidence": 0.9, "negated": True}),
+                ("a", "c", {"relation": "cause", "confidence": 0.05}),
+                ("c", "b", {"relation": "cause", "confidence": 0.9})])
+        assert reason("a", "b", g)["status"] == "ok"  # R1 : 0.0 par défaut
+        r = reason("a", "b", g, min_premise_conf=0.5)
+        assert r["status"] == "degrade"
+        assert not [s for s in r["trace"] if s["code"] == "infer:"]
+
+    def test_opposite_prevent_contradiction(self):
+        g = _g(["a", "b"],
+               [("a", "b", {"relation": "cause", "confidence": 0.9}),
+                ("a", "b", {"relation": "prevent", "confidence": 0.8})])
+        r = reason("a", "b", g)
+        assert r["status"] == "degrade"
+        assert any("cause vs prevent" in (s.get("motif") or "")
+                   for s in r["trace"])
+
+    def test_opposition_relation_contradiction(self):
+        g = _g(["a", "b"],
+               [("a", "b", {"relation": "enable", "confidence": 0.9}),
+                ("a", "b", {"relation": "opposition", "confidence": 0.8})])
+        r = reason("a", "b", g)
+        assert r["status"] == "degrade"
+
+    def test_causal_group_content(self):
+        from gcn_python.reasoning import CAUSAL_STRICT
+        assert {"cause", "enable", "mediated_cause"} <= set(CAUSAL_STRICT)
+        assert "sequence" not in CAUSAL_STRICT and "prevent" not in CAUSAL_STRICT

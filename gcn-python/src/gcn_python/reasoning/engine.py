@@ -20,6 +20,49 @@ from .steps import (
     reason_response,
 )
 
+try:
+    from ..constants import COARSE_RELATION_GROUPS as _GROUPS
+    from ..constants import NEGATION_PREVENT_MAP as _NEGMAP
+except ImportError:  # raisonnement testable sans le paquet complet
+    _GROUPS, _NEGMAP = {}, {}
+
+#: R2 — filtre causal strict : groupe §15 (fondé taxonomie, pas intuition).
+#: Relation absente (None) = acceptée (fail-open sur l'inconnu, refus sur le
+#: connu-non-causal). `causal_only=False` restaure le comportement R1.
+CAUSAL_STRICT = frozenset((_GROUPS or {}).get("causale", ()))
+#: R2 — opposés sémantiques (§9.4 + inverse) : contradiction sans `negated`.
+_OPPOSITES = frozenset(
+    [(a, b) for a, b in (_NEGMAP or {}).items()]
+    + [(b, a) for a, b in (_NEGMAP or {}).items()]
+)
+
+
+def _is_causal(rel, causal_only: bool) -> bool:
+    if not causal_only:
+        return True
+    return rel is None or rel in CAUSAL_STRICT
+
+
+def _pair_edges(graph, a: str, b: str) -> list:
+    """Toutes les arêtes (a, b) — au-delà du first-match (détection d'opposés)."""
+    return [attrs for s, d, attrs, _t in graph.edges if s == a and d == b]
+
+
+def _companion_ok(graph, a: str, b: str, causal_only: bool, min_conf: float) -> bool:
+    """Maillon de pont utilisable : présent, confiance et causalité au seuil.
+
+    Le nié passe (verify: tranche avec motif `contradiction:`) ; le
+    sous-seuil/non-causal est écarté avant pont (jamais d'infer: condamné
+    pour ces motifs — économie de budget, trace propre).
+    """
+    edge = graph._edge_between(a, b)
+    if edge is None:
+        return False
+    if isinstance(edge, dict) and bool(edge.get("negated")):
+        return True
+    rel = edge.get("relation") if isinstance(edge, dict) else None
+    return _edge_conf(edge) >= min_conf and _is_causal(rel, causal_only)
+
 #: Caps session (même ordre que M2a : 500 nœuds / 2000 arêtes).
 MAX_NODES = 500
 MAX_EDGES = 2000
@@ -63,14 +106,31 @@ def _resolve(graph, keyword: str) -> list:
     return out
 
 
-def verify_path(path: list, graph) -> tuple[bool, str]:
-    """Chaque maillon = arête présente et non `negated` (Ph1)."""
+def verify_path(path: list, graph, causal_only: bool = True,
+                min_conf: float = 0.0) -> tuple[bool, str]:
+    """Chaque maillon = arête présente, non `negated`, sans opposée (R2).
+
+    R2 : relation hors CAUSAL_STRICT → rejet `non-causal:` (None accepté) ;
+    confiance < min_conf → rejet `low-conf:` ; opposée sémantique (§9.4,
+    dans les deux sens, `opposition` = opposée à tout) → `contradiction:`.
+    """
     for a, b in zip(path, path[1:]):
         edge = graph._edge_between(a, b)
         if edge is None:
             return False, f"missing-link: {a} -> {b}"
-        if isinstance(edge, dict) and edge.get("negated"):
-            return False, f"contradiction: {a} -> {b} [negated]"
+        rel = edge.get("relation") if isinstance(edge, dict) else None
+        if not _is_causal(rel, causal_only):
+            return False, f"non-causal: {a} -> {b} [{rel}]"
+        if _edge_conf(edge) < min_conf:
+            return False, f"low-conf: {a} -> {b}"
+        for other in _pair_edges(graph, a, b):
+            if not isinstance(other, dict):
+                continue
+            if other.get("negated"):
+                return False, f"contradiction: {a} -> {b} [negated]"
+            orel = other.get("relation")
+            if (rel, orel) in _OPPOSITES or "opposition" in (rel, orel):
+                return False, f"contradiction: {a} -> {b} [{rel} vs {orel}]"
     return True, "verified"
 
 
@@ -85,14 +145,25 @@ def _chain_answer(path: list, graph, derived: list) -> dict:
     }
 
 
-def _bad_edge(graph, a: str, b: str) -> bool:
-    """Maillon inutilisable : absent ou `negated`."""
+def _bad_edge(graph, a: str, b: str, causal_only: bool = True,
+              min_conf: float = 0.0) -> bool:
+    """Maillon inutilisable : absent, `negated`, non-causal ou sous-seuil."""
     edge = graph._edge_between(a, b)
-    return edge is None or (isinstance(edge, dict) and bool(edge.get("negated")))
+    if edge is None:
+        return True
+    if isinstance(edge, dict) and bool(edge.get("negated")):
+        return True
+    rel = edge.get("relation") if isinstance(edge, dict) else None
+    return not _is_causal(rel, causal_only) or _edge_conf(edge) < min_conf
 
 
-def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
-    """But (from → to) sur le graphe donné. Pur, borné, déterministe."""
+def reason(kw_from: str, kw_to: str, graph, budget: int = 16,
+           causal_only: bool = True, min_premise_conf: float = 0.0) -> dict:
+    """But (from → to) sur le graphe donné. Pur, borné, déterministe.
+
+    R2 : `causal_only` (défaut True — groupe §15, None accepté),
+    `min_premise_conf` (défaut 0.0 = comportement R1).
+    """
     trace: list = []
     tour = 0
     spent = 0
@@ -126,14 +197,15 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
         # conf 1.0 serait une preuve sans preuve. Degrade explicite.
         return _degrade("trivial:", "goal: trivial (no link to prove)")
     if path:
-        ok, detail = verify_path(path, graph)
+        ok, detail = verify_path(path, graph, causal_only, min_premise_conf)
         trace.append(make_step("verify:", tour, motif=None if ok else detail))
         if ok:
             trace.append(make_step("answer:", tour, premises=tuple(path),
                                     conf=_chain_answer(path, graph, [])["confidence"]))
             return reason_response(STATUS_OK, _chain_answer(path, graph, []), trace)
         missing = [(path[i], path[i + 1]) for i in range(len(path) - 1)
-                   if _bad_edge(graph, path[i], path[i + 1])][:MAX_SUBGOALS]
+                   if _bad_edge(graph, path[i], path[i + 1],
+                                causal_only, min_premise_conf)][:MAX_SUBGOALS]
     else:
         missing = []
 
@@ -159,28 +231,42 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
             if (s, d) in seen:
                 continue
             seen.add((s, d))
+            # R2 : prémisse sous le seuil ou non-causale = écartée avant pont
+            # (économise le budget, trace propre — jamais d'infer: condamné).
+            _arel = attrs.get("relation") if isinstance(attrs, dict) else None
+            if _edge_conf(attrs) < min_premise_conf or \
+                    not _is_causal(_arel, causal_only):
+                continue
             bridges = []
             # Pont A : s côté u, puis d → v (direct ou chemin court vérifié).
             if s in u_ids:
                 for v2 in v_ids:
-                    if graph._edge_between(d, v2) is not None:
+                    if graph._edge_between(d, v2) is not None and \
+                            _companion_ok(graph, d, v2, causal_only, min_premise_conf):
                         bridges.append([s, d, v2])
                     elif _spend():
                         trace.append(make_step(
                             "query:", tour, extra={"op": "find_path"}))
                         p = graph.find_path(_label(graph, d), _label(graph, v2))
-                        if len(p) >= 2 and p[0] == d and len(p) <= 3:
+                        if len(p) >= 2 and p[0] == d and len(p) <= 3 and all(
+                                _companion_ok(graph, p[i], p[i + 1],
+                                              causal_only, min_premise_conf)
+                                for i in range(len(p) - 1)):
                             bridges.append([s] + p)
             # Pont B : d côté v, précédé de u → s.
             if d in v_ids:
                 for u2 in u_ids:
-                    if graph._edge_between(u2, s) is not None:
+                    if graph._edge_between(u2, s) is not None and \
+                            _companion_ok(graph, u2, s, causal_only, min_premise_conf):
                         bridges.append([u2, s, d])
                     elif _spend():
                         trace.append(make_step(
                             "query:", tour, extra={"op": "find_path"}))
                         p = graph.find_path(_label(graph, u2), _label(graph, s))
-                        if len(p) >= 2 and p[-1] == s and len(p) <= 3:
+                        if len(p) >= 2 and p[-1] == s and len(p) <= 3 and all(
+                                _companion_ok(graph, p[i], p[i + 1],
+                                              causal_only, min_premise_conf)
+                                for i in range(len(p) - 1)):
                             bridges.append(p + [d])
             for bridge in bridges:
                 if not _spend():
@@ -195,7 +281,7 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
                                        premises=tuple(f"{a}->{b}" for a, b
                                                       in zip(bridge, bridge[1:])),
                                        conf=conf, extra={"rel": rels}))
-                ok, detail = verify_path(bridge, graph)
+                ok, detail = verify_path(bridge, graph, causal_only, min_premise_conf)
                 trace.append(make_step("verify:", tour, motif=None if ok else detail))
                 if ok:
                     derived = [{"path": bridge, "derivation": "derived",
@@ -213,7 +299,8 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
                     else "chain: no causal path")
 
 
-def reason_question(text: str, graph, budget: int = 16) -> dict:
+def reason_question(text: str, graph, budget: int = 16,
+                    causal_only: bool = True, min_premise_conf: float = 0.0) -> dict:
     """Texte → but (from, to) via `parse_command` existant, puis `reason()`.
 
     Comprend `chain A B` / `chain A -> B` (séparateurs `->`, `,`, espaces).
@@ -245,4 +332,5 @@ def reason_question(text: str, graph, budget: int = 16) -> dict:
         trace = [make_step("goal:", 0, extra={"from": text, "to": ""}),
                  make_step("abandoned:", 1, motif="unparsed-goal")]
         return reason_response(STATUS_DEGRADE, {"summary": "goal: unparsed"}, trace)
-    return reason(kw_from, kw_to, graph, budget=budget)
+    return reason(kw_from, kw_to, graph, budget=budget,
+                  causal_only=causal_only, min_premise_conf=min_premise_conf)
