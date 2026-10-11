@@ -328,6 +328,10 @@ class CausalGraph:
 
         Garde la première occurrence (ordre d'écriture). Retourne le nombre
         d'arêtes supprimées. M2a : deuxième source de rangement.
+        Limite actée : `session_turn` est volatile donc deux faits identiques
+        de tours distincts fusionnent — `revoke(tour)` ultérieur peut ne rien
+        trouver (tour absorbé) ou retirer le survivant (tour gardé). Ne se
+        produit que passé les plafonds (seul déclencheur du merge).
         """
         seen: set = set()
         keep = []

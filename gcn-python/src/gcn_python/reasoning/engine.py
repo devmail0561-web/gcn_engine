@@ -185,12 +185,12 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
             for bridge in bridges:
                 if not _spend():
                     return _degrade("budget:", "budget: exhausted")
-                confs = [_edge_conf(graph._edge_between(a, b))
-                         for a, b in zip(bridge, bridge[1:])]
+                _links = [graph._edge_between(a, b)
+                          for a, b in zip(bridge, bridge[1:])]
+                confs = [_edge_conf(e) for e in _links]
                 conf = min(confs) if confs else 0.5
-                rels = [graph._edge_between(a, b).get("relation")
-                        if isinstance(graph._edge_between(a, b), dict) else None
-                        for a, b in zip(bridge, bridge[1:])]
+                rels = [e.get("relation") if isinstance(e, dict) else None
+                        for e in _links]
                 trace.append(make_step("infer:", tour,
                                        premises=tuple(f"{a}->{b}" for a, b
                                                       in zip(bridge, bridge[1:])),
