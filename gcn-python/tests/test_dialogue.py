@@ -338,3 +338,21 @@ def test_giant_input_echo_capped():
     r, _ = d.handle("x" * 20000, h)
     assert len(r) < 3 * ECHO_SUBJECT_MAX
     assert ("x" * (ECHO_SUBJECT_MAX + 1)) not in r  # jamais de plage non tronquée
+
+
+def test_nlu_failure_counted_not_silent(monkeypatch):
+    """NLU cassé → repli intact + compteur (plus de silence)."""
+    import gcn_python.pipeline.nlu_routing as _nr
+    from gcn_python.dialogue import nlu_fallback_counts
+    from types import SimpleNamespace
+    monkeypatch.setattr(_nr, "nlu_route", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    before = nlu_fallback_counts()["nlu_route"]
+    h = _graph()
+    eng = SimpleNamespace(analyze=lambda t: {"edges": []},
+                          _pipeline=SimpleNamespace(_cached_reps=None,
+                                                    _cached_enriched_vecs=None))
+    d = DialogueSession()
+    r, info = d.handle("parle-moi d'insomnie", h, engine=eng)
+    assert "fatigue" in r  # repli format_response intact
+    assert nlu_fallback_counts()["nlu_route"] == before + 1
+    assert info["nlu_fallbacks"]["nlu_route"] == before + 1

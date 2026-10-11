@@ -207,6 +207,16 @@ _UNANSWERED_MARKERS = (
     "no causal path", "not found", "not connected",
 )
 
+#: Compteurs best-effort NLU/enrichissement (modèle _ETAT engine_b).
+#: Un NLU cassé dégradait en silence vers format_response ; le compteur rend
+#: la dégradation observable (seuil d'alerte documenté, pas de warn par appel).
+_NLU_FALLBACKS = {"nlu_route": 0, "semantic_resolve": 0, "enrichment": 0}
+
+
+def nlu_fallback_counts() -> dict:
+    """Compteurs best-effort (un NLU cassé = compteur qui monte, pas de silence)."""
+    return dict(_NLU_FALLBACKS)
+
 #: Plafond d'écho d'un sujet/label utilisateur dans les réponses et logs.
 #: Sans cap, une entrée de 20k caractères est répercutée 2× (topic: + message)
 #: → flood stdout + logs (amplification). Le sujet de recherche reste intact.
@@ -567,6 +577,7 @@ class DialogueSession:
                         e[2]["session_turn"] = n
                     added = len(handler.graph.edges) - before
             except Exception:  # noqa: S110, BLE001  # enrichissement best-effort
+                _NLU_FALLBACKS["enrichment"] += 1
                 pass
 
         # M2a : rangement au-delà des plafonds — annoncé, jamais de refus.
@@ -607,8 +618,10 @@ class DialogueSession:
                                     if len(_parts) == 2:
                                         nlu_cmd = f"{_parts[0]}: {_resolved}"
                         except Exception:  # noqa: S110, BLE001
+                            _NLU_FALLBACKS["semantic_resolve"] += 1
                             pass
                 except Exception:  # noqa: S110, BLE001
+                    _NLU_FALLBACKS["nlu_route"] += 1
                     pass
             if nlu_cmd:
                 response = handler.execute(nlu_cmd) or format_response(
@@ -623,6 +636,8 @@ class DialogueSession:
             self.last_candidates = [subject]
         self._push_topic(subject)
         info, _summ = self._record(text, subject, response, status, added)
+        if any(_NLU_FALLBACKS.values()):
+            info["nlu_fallbacks"] = dict(_NLU_FALLBACKS)
         if _summ is not None:
             info["summarized"] = _summ
         if notes:
