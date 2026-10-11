@@ -212,3 +212,16 @@ class TestR2Strict:
         from gcn_python.reasoning import CAUSAL_STRICT
         assert {"cause", "enable", "mediated_cause"} <= set(CAUSAL_STRICT)
         assert "sequence" not in CAUSAL_STRICT and "prevent" not in CAUSAL_STRICT
+
+
+class TestP3GoalTraceability:
+    def test_bare_multword_without_sep_ambiguous(self):
+        r = reason_question("chain a b c", _chain3())
+        assert r["status"] == "degrade"
+        assert r["trace"][-1]["motif"] == "ambiguous-goal:"
+        assert r["trace"][0]["dropped"] == ["b"]
+
+    def test_explicit_sep_drops_traced(self):
+        r = reason_question("chain: pluie -> inondation -> degats", _chain3())
+        assert r["status"] == "ok"
+        assert r["trace"][0]["dropped"] == ["inondation"]

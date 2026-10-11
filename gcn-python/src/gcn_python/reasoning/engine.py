@@ -318,18 +318,32 @@ def reason_question(text: str, graph, budget: int = 16,
     cmd, arg = parse_command(text)
     kw_from = kw_to = ""
     raw = arg
+    explicit_sep = False
     if cmd == "text":
         # Forme nue `chain A B` (canonique : `chain: A -> B`).
         _m = _re.match(r"(?i)^chain\s+(.+)$", text)
         if _m:
             raw = _m.group(1)
     if raw:
-        parts = [p for p in _re.split(r"->|,|\s+", raw) if p]
+        explicit_sep = bool(_re.search(r"->|,|:", raw))
+        parts = [p for p in _re.split(r"->|,|:|\s+", raw) if p]
         if len(parts) >= 2:
             kw_from, kw_to = parts[0], parts[-1]
     if not kw_from or not kw_to:
         trace = [make_step("goal:", 0, extra={"from": text, "to": ""}),
                  make_step("abandoned:", 1, motif="unparsed-goal")]
         return reason_response(STATUS_DEGRADE, {"summary": "goal: unparsed"}, trace)
-    return reason(kw_from, kw_to, graph, budget=budget,
+    if len(parts) > 2 and not explicit_sep:
+        # Plusieurs mots sans séparateur : deviner (premier, dernier) serait
+        # répondre à côté en silence → Degrade explicite.
+        trace = [make_step("goal:", 0, extra={"from": kw_from, "to": kw_to,
+                                             "raw": raw, "dropped": parts[1:-1]}),
+                 make_step("abandoned:", 1, motif="ambiguous-goal:")]
+        return reason_response(STATUS_DEGRADE, {"summary": "goal: ambiguous"}, trace)
+    resp = reason(kw_from, kw_to, graph, budget=budget,
                   causal_only=causal_only, min_premise_conf=min_premise_conf)
+    # Mots écartés visibles en trace (jamais silencieux), même en succès.
+    if len(parts) > 2 and resp.get("trace"):
+        resp["trace"][0]["dropped"] = parts[1:-1]
+        resp["trace"][0]["raw"] = raw
+    return resp
