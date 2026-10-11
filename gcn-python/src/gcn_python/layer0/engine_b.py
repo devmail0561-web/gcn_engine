@@ -72,6 +72,8 @@ class EngineBOutput(NamedTuple):
 
 _VERROU = threading.Lock()
 _NLP_CACHE: dict[str, Any] = {}
+#: Executor unique (un par appel = churn de threads + workers orphelins).
+_EXECUTEUR = ThreadPoolExecutor(max_workers=1)
 #: Compteur d'appels (dict mutable : pas de ``global``).
 _ETAT = {"total": 0, "fallbacks": 0}
 
@@ -113,16 +115,12 @@ def _with_timeout(fn, timeout_s: float):
     """Exécute ``fn()`` avec ``timeout_s`` (le thread orphelin est abandonné)."""
     if timeout_s <= 0:
         raise TimeoutError(f"moteur B : délai dépassé ({timeout_s}s)")
-    ex = ThreadPoolExecutor(max_workers=1)
+    futur = _EXECUTEUR.submit(fn)
     try:
-        futur = ex.submit(fn)
-        try:
-            return futur.result(timeout=timeout_s)
-        except FuturesTimeoutError:
-            futur.cancel()
-            raise TimeoutError(f"moteur B : délai dépassé ({timeout_s}s)") from None
-    finally:
-        ex.shutdown(wait=False, cancel_futures=True)
+        return futur.result(timeout=timeout_s)
+    except FuturesTimeoutError:
+        futur.cancel()
+        raise TimeoutError(f"moteur B : délai dépassé ({timeout_s}s)") from None
 
 
 def _import_spacy():

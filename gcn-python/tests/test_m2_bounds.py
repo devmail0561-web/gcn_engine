@@ -284,3 +284,13 @@ class TestCorruptTolerance:
         assert rep["graph_edges"] == 2
         assert rep["replayed"] == 1
         assert rep["skipped"] == 1
+
+
+class TestHistoryMemoryBound:
+    def test_memory_capped_without_session_dir(self):
+        from gcn_python.cli.session import HISTORY_KEEP_SAVED
+        s = SessionStore(None)
+        for i in range(2 * HISTORY_KEEP_SAVED + 500):
+            s.record_exchange(f"q{i}", True, turn=i)
+        assert len(s.history) <= 2 * HISTORY_KEEP_SAVED
+        assert s.history[-1]["n"] == 2 * HISTORY_KEEP_SAVED + 499  # récents gardés

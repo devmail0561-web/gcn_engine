@@ -126,11 +126,30 @@ class SessionStore:
             "n_nodes": len(nodes),
             "n_vecs": n,
         })
+        self._prune_memory()
         return n
 
     def lookup(self, text: str, pos: int) -> np.ndarray | None:
         """Retrouve un vecteur collecté par (texte, position). None si absent."""
         return self.vecs.get(stable_key(text, pos))
+
+    def _prune_memory(self) -> None:
+        """Borne mémoire de l'historique entre deux save().
+
+        Sans session_dir, save() part tôt et rien ne purge : usage pure-mémoire
+        (bibliothèque, REPL) croissait sans borne (3000+ entrées mesurées).
+        Règle : au-delà de 2×HISTORY_KEEP_SAVED, éjecter les plus vieilles
+        `_saved` d'abord, puis les plus vieilles tout court. Le disque
+        (audit) garde tout ; la RAM n'est pas la piste d'audit.
+        """
+        cap = 2 * HISTORY_KEEP_SAVED
+        while len(self.history) > cap:
+            for i, e in enumerate(self.history):
+                if e.get("_saved"):
+                    del self.history[i]
+                    break
+            else:
+                del self.history[0]
 
     def record_exchange(self, question: str, answered: bool, *,
                           turn: int | None = None, subject: str | None = None,
@@ -156,12 +175,14 @@ class SessionStore:
                 "added": added,
             })
         self.history.append(entry)
+        self._prune_memory()
 
     def record_summary(self, summary: dict) -> None:
         """Persiste une entrée `summary` M2a (vieux tours repliés, audit)."""
         entry = dict(summary)
         entry["ts"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat()
         self.history.append(entry)
+        self._prune_memory()
 
     # ------------------------------------------------------------------
     # Persistance (M2b : photo périodique + journal des ajouts)
