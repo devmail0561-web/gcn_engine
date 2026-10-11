@@ -426,3 +426,28 @@ fn caveats_propagated_to_envelope() {
     assert!(!r.caveats.is_empty(), "caveats propagées : {:?}", r.caveats);
     assert!(r.caveats.iter().all(|c| c.contains('—')));
 }
+
+#[test]
+fn invalid_ir_errors_refuse_response() {
+    // P1-rigidité : arête pendante (nœud 99 absent) → diagnostic Error →
+    // respond_validated refuse (Degrade invalid_ir), respond() historique répond.
+    use gcn_backend::respond_validated;
+    use gcn_middleend::error::DiagnosticSeverity;
+    let ir = make_ir(
+        vec![node(0, "Alpha"), node(1, "Beta")],
+        vec![edge(0, 99, RelationType::Cause, false)],
+    );
+    let processed = process(ir).expect("process ne refuse pas (diagnostics)");
+    assert!(
+        processed.diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Error),
+        "pendante doit être Error"
+    );
+    let r = respond_validated("WHY Beta", &processed.ir, &processed.diagnostics);
+    assert_envelope(&r);
+    assert_eq!(r.status, Status::Degrade);
+    assert!(r.phrase.contains("invalide"), "motif nommé : {}", r.phrase);
+    // Warnings seuls : réponse normale.
+    let clean = process(jouet_propre()).expect("propre");
+    let r2 = respond_validated("WHY Gamma", &clean.ir, &clean.diagnostics);
+    assert_eq!(r2.status, Status::Ok);
+}

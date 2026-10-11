@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use gcn_backend::{Query, respond, to_dot, to_json};
+use gcn_backend::{Query, respond_validated, to_dot, to_json};
 use gcn_frontend_code::{parse_js_with_report, parse_python_with_report, parse_rust_with_report};
 use gcn_frontend_en::parse_lattice as parse_lattice_en;
 use gcn_frontend_fr::parse_lattice as parse_lattice_fr;
@@ -137,6 +137,9 @@ enum Commands {
         /// Output format (txt = surface via gcn-verbalize, needs gcn-verbalize in PATH)
         #[arg(long, default_value = "dot")]
         format: ExportFormat,
+        /// P1-rigidité : exporter malgré des diagnostics Error (opérateur conscient).
+        #[arg(long)]
+        force: bool,
     },
     /// Retirée : le binaire `gcn-forward` n'existe plus (utilisez l'API Python
     /// `GCNEngine` ou `gcn-discuss`). Conservée pour un message d'erreur clair.
@@ -377,6 +380,18 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("[{:?}] {:?}", d.severity, d.kind);
             }
             let parsed = Query::parse(&query);
+            // P1-rigidité : --strict refuse aussi tout IR invalide (diagnostics
+            // Error), quelle que soit la requête — pas de demi-mesure par commande.
+            if strict
+                && processed.diagnostics.iter().any(|d| {
+                    matches!(
+                        d.severity,
+                        gcn_middleend::error::DiagnosticSeverity::Error
+                    )
+                })
+            {
+                return Err("IR invalide (diagnostics Error) en mode --strict".into());
+            }
             // P0-2 : --strict route CHAIN vers chain_strict() (Err NoPath
             // si pas de chemin) au lieu de Path{found:false}.
             if strict {
@@ -387,7 +402,7 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 eprintln!("warning: --strict ne s'applique qu'à CHAIN, ignoré ici");
             }
-            let result = respond(&query, &processed.ir);
+            let result = respond_validated(&query, &processed.ir, &processed.diagnostics);
             // Ph8 [R-ALWAYS] : enveloppe always-answer sur stdout (jamais d'Err nue).
             // Batch/CI : degrade → sortie non-zéro (contrat batch préservé).
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -396,11 +411,22 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        Commands::Export { ir, format } => {
+        Commands::Export { ir, format, force } => {
             let raw = load_ir(&ir)?;
             let processed = middleend_process(raw)?;
             for d in &processed.diagnostics {
                 eprintln!("[{:?}] {:?}", d.severity, d.kind);
+            }
+            // P1-rigidité : pas de rendu sur IR invalide sans --force explicite.
+            if !force
+                && processed.diagnostics.iter().any(|d| {
+                    matches!(
+                        d.severity,
+                        gcn_middleend::error::DiagnosticSeverity::Error
+                    )
+                })
+            {
+                return Err("IR invalide (diagnostics Error) — relancez avec --force".into());
             }
             let output = render(&format, &processed.ir)?;
             println!("{output}");

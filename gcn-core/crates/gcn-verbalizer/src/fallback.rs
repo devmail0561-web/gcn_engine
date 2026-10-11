@@ -57,6 +57,8 @@ pub enum SpeechKind {
     BadQuery { hint: Option<String> },
     /// Graphe vide.
     EmptyIr,
+    /// IR structurellement invalide (diagnostics Error : pendantes, boucles).
+    InvalidIr { detail: String },
     /// Incident interne (erreur non mappable).
     Incident { detail: String },
 }
@@ -139,6 +141,10 @@ pub fn say(_status: Status, lang: &str, kind: &SpeechKind) -> String {
         }
         SpeechKind::EmptyIr => String::from(
             "Aucune donnée chargée (graphe vide). Chargez un graphe puis relancez la requête.",
+        ),
+        SpeechKind::InvalidIr { detail } => format!(
+            "Graphe invalide : impossible de répondre ({detail}). Corrigez le CIR \
+             (arêtes pendantes, boucles réflexives) puis relancez."
         ),
         SpeechKind::Incident { detail } => format!(
             "Incident interne : impossible de répondre ({detail}). Réessayez ; \

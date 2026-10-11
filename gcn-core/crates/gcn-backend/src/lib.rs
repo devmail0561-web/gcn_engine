@@ -17,4 +17,4 @@ pub use query::{
     AbductionContrastDto, AbductionHypothesisDto, Caveat, LinkFilter, ProvenanceEntryDto, Query,
     QueryResult, RankedPathDto, SpofNodeDto, TemporalLinkDto, chain_strict, execute,
 };
-pub use respond::{UserResponse, respond};
+pub use respond::{UserResponse, respond, respond_validated};

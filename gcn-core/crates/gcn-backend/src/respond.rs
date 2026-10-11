@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use gcn_ir::CausalIR;
+use gcn_middleend::error::{Diagnostic, DiagnosticSeverity};
 use gcn_verbalizer::fallback::{SpeechKind, Status, say};
 use serde::{Deserialize, Serialize};
 
@@ -328,6 +329,41 @@ pub fn respond(input: &str, ir: &CausalIR) -> UserResponse {
     }
 }
 
+/// P1-rigidité — variante branchée sur les diagnostics middleend : tout
+/// diagnostic `Error` (pendantes, boucles réflexives) refuse la réponse
+/// (`Degrade` motif `invalid_ir:`) au lieu de répondre sur l'IR invalide.
+/// `Warning` seuls : réponse normale. `respond()` historique = sans diagnostics.
+pub fn respond_validated(
+    input: &str,
+    ir: &CausalIR,
+    diagnostics: &[Diagnostic],
+) -> UserResponse {
+    let errors: Vec<String> = diagnostics
+        .iter()
+        .filter(|d| d.severity == DiagnosticSeverity::Error)
+        .map(|d| format!("{:?}", d.kind))
+        .collect();
+    if !errors.is_empty() {
+        return invalid_ir(&errors);
+    }
+    respond(input, ir)
+}
+
+/// IR structurellement invalide : Degrade explicite (jamais de réponse dessus).
+fn invalid_ir(errors: &[String]) -> UserResponse {
+    let detail = errors.join("; ");
+    let phrase = say(Status::Degrade, "fr", &SpeechKind::InvalidIr { detail });
+    UserResponse {
+        status: Status::Degrade,
+        phrase,
+        lang: phrase_lang(),
+        result: None,
+        caveats: vec![],
+        suggestions: vec![
+            "Corrigez le CIR (arêtes pendantes, boucles réflexives) puis relancez.".to_string(),
+        ],
+    }
+}
 fn err_result(query: &Query, ir: &CausalIR, err: BackendError) -> UserResponse {
     match err {
         BackendError::NodeNotFound(label) => not_found(&label),
