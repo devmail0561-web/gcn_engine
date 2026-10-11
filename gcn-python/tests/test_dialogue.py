@@ -328,3 +328,13 @@ class TestHelpers:
         assert "fatigue" in out
         out2 = format_response(h, "et ses effets fatigue")
         assert "fatigue" in out2  # repli dernier mot
+
+
+def test_giant_input_echo_capped():
+    """20k d'entrée → réponse bornée (pas d'amplification 2x)."""
+    from gcn_python.dialogue import ECHO_SUBJECT_MAX
+    h = _graph()
+    d = DialogueSession()
+    r, _ = d.handle("x" * 20000, h)
+    assert len(r) < 3 * ECHO_SUBJECT_MAX
+    assert ("x" * (ECHO_SUBJECT_MAX + 1)) not in r  # jamais de plage non tronquée

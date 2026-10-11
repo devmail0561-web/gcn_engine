@@ -197,7 +197,7 @@ def format_response(handler: InstructionHandler, question: str,
 
     # Rien trouvé
     return (
-        f"  No causal structure found for {subject!r} in the submitted corpus.\n"
+        f"  No causal structure found for {short_subject(subject)!r} in the submitted corpus.\n"
         f"  Use /analyze <file> to add documents."
     )
 
@@ -206,6 +206,20 @@ _UNANSWERED_MARKERS = (
     "No causal structure", "no causes found", "no effects found",
     "no causal path", "not found", "not connected",
 )
+
+#: Plafond d'écho d'un sujet/label utilisateur dans les réponses et logs.
+#: Sans cap, une entrée de 20k caractères est répercutée 2× (topic: + message)
+#: → flood stdout + logs (amplification). Le sujet de recherche reste intact.
+ECHO_SUBJECT_MAX = 200
+
+
+def short_subject(subject: str | None) -> str:
+    """Tronque un sujet pour affichage (recherche non affectée)."""
+    if not subject:
+        return ""
+    if len(subject) > ECHO_SUBJECT_MAX:
+        return subject[:ECHO_SUBJECT_MAX] + "…"
+    return subject
 
 
 class DialogueSession:
@@ -453,7 +467,7 @@ class DialogueSession:
                engine=None, vec_index: list | None = None) -> tuple[str, dict]:
         """Traite un message ; retourne (réponse, info journal).
 
-        info = {turn, subject, summary, status, lang, added} pour
+        info = {n, subject, summary, status, lang, added} pour
         SessionStore.record_exchange() et le log.
         """
         text = (text or "").strip()
@@ -605,7 +619,7 @@ class DialogueSession:
         status = "clarified" if clarified else (
             "unanswered" if any(m in response for m in _UNANSWERED_MARKERS) else "ok")
         if subject is not None:
-            response = f"  topic: {subject}\n" + response
+            response = f"  topic: {short_subject(subject)}\n" + response
             self.last_candidates = [subject]
         self._push_topic(subject)
         info, _summ = self._record(text, subject, response, status, added)

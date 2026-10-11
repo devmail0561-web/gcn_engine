@@ -407,7 +407,7 @@ def run_discuss(
                 session.save()
             _write_log(log_path, {
                 "event": "query",
-                "question": user_input,
+                "question": user_input[:500],
                 "session_relations": len(handler.graph.edges),
                 "answered": _answered,
             })

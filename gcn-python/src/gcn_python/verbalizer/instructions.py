@@ -399,17 +399,44 @@ class CausalGraph:
         import json
         from pathlib import Path as _P
         data = json.loads(_P(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"CausalGraph.load : {path} n'est pas un graphe "
+                f"(racine {type(data).__name__}, objet JSON attendu).")
         g = cls()
+        _nodes = data.get("nodes", {})
+        if _nodes is None:
+            _nodes = {}
+        if not isinstance(_nodes, dict):
+            raise ValueError(
+                f"CausalGraph.load : {path} a des nœuds invalides "
+                f"({type(_nodes).__name__}, objet attendu).")
         # Clés re-stringifiées (vieux fichiers avec clés entières -> str, cf add_cir).
-        g.nodes = {str(k): v for k, v in (data.get("nodes", {}) or {}).items()}
+        g.nodes = {str(k): v for k, v in _nodes.items()}
         for nid, nd in g.nodes.items():
             if isinstance(nd, dict) and "session_origin" not in nd:
                 nd["session_origin"] = "document"
                 nd["migrated"] = True
-        for e in data.get("edges", []):
-            src  = str(e["src"])
-            dst  = str(e["dst"])
-            attrs = e["attrs"]
+        _edges = data.get("edges", [])
+        if _edges is None:
+            _edges = []
+        if not isinstance(_edges, list):
+            raise ValueError(
+                f"CausalGraph.load : {path} a des arêtes invalides "
+                f"({type(_edges).__name__}, liste attendue).")
+        for i, e in enumerate(_edges):
+            if not isinstance(e, dict):
+                raise ValueError(
+                    f"CausalGraph.load : {path} arête #{i} invalide "
+                    f"({type(e).__name__}, objet attendu).")
+            try:
+                src = str(e["src"])
+                dst = str(e["dst"])
+                attrs = e["attrs"]
+            except KeyError as exc:
+                raise ValueError(
+                    f"CausalGraph.load : {path} arête #{i} incomplète "
+                    f"(clé {exc} manquante).") from exc
             if isinstance(attrs, dict) and "session_origin" not in attrs:
                 attrs["session_origin"] = "document"
                 attrs["session_weight"] = 1.0

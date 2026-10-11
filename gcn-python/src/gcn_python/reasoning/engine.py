@@ -121,6 +121,10 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16) -> dict:
     trace.append(make_step("query:", tour, extra={"op": "find_path"}))
     path = graph.find_path(kw_from, kw_to)
     trace.append(make_step("observe:", tour, extra={"path": path}))
+    if path and len(path) < 2:
+        # But trivial (a → a) : aucun maillon, aucune prémisse — répondre ok
+        # conf 1.0 serait une preuve sans preuve. Degrade explicite.
+        return _degrade("trivial:", "goal: trivial (no link to prove)")
     if path:
         ok, detail = verify_path(path, graph)
         trace.append(make_step("verify:", tour, motif=None if ok else detail))

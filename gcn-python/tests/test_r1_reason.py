@@ -124,7 +124,45 @@ def test_infer_always_sourced_property():
                     assert s["premises"], "infer: sans prémisse = hallucination"
 
 
+def test_trivial_self_goal_degrades():
+    g = _g(["a"], [("a", "a", {"relation": "cause", "confidence": 0.9})])
+    r = reason("a", "a", g)
+    assert r["status"] == "degrade"
+    assert r["trace"][-1]["motif"] == "trivial:"
+
+
+def test_load_rejects_non_graph(tmp_path):
+    import json
+    for content, exc in [("[1,2,3]", ValueError), ('{"nodes": [1]}', ValueError),
+                         ('{"edges": {}}', ValueError),
+                         ('{"edges": [42]}', ValueError),
+                         ('{"edges": [{"src": "a"}]}', ValueError)]:
+        p = tmp_path / "g.json"
+        p.write_text(content)
+        with pytest.raises(exc):
+            CausalGraph.load(p)
+
+
 def test_trace_roundtrip(tmp_path):
     r = reason("pluie", "degats", _chain3())
     p = dump_trace(r["trace"], tmp_path / "t.jsonl")
     assert load_trace(p) == r["trace"]
+
+
+class _NoPathGraph(CausalGraph):
+    """Simule une divergence de matchers : arêtes présentes, find_path aveugle."""
+
+    def find_path(self, kw_from, kw_to):
+        return []
+
+
+def test_fallback_bridge_without_path():
+    g = _NoPathGraph()
+    g.add_cir({"nodes": [{"id": n, "label": n} for n in ["a", "c", "b"]],
+               "edges": [["a", "c", {"relation": "cause", "confidence": 0.8}],
+                         ["c", "b", {"relation": "cause", "confidence": 0.6}]],
+               "source_text": "t"}, session_origin="document")
+    r = reason("a", "b", g)
+    assert r["status"] == "ok"
+    assert r["answer"]["path"] == ["a", "c", "b"]
+    assert any(s["code"] == "subgoal:" for s in r["trace"])
