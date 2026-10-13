@@ -52,18 +52,19 @@ def parse_text(text: str, lang: str = "fr") -> dict:
 
 
 def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
-    """Texte brut → CIR dict (segmentation B + runtime tok pur).
+    """Texte brut → CIR dict (segmentation socle + runtime tok pur + cache).
 
     ``tok_engine`` : ``TokForwardEngine`` avec vocabulaire construit
     (gate capacitaire dans ``forward_from_spans``). Texte vide →
-    CIR vide (pas d'appel B inutile).
+    CIR vide (pas d'appel socle inutile). Répétition → hit cache M1a
+    (zéro recalcul, copies indépendantes).
     """
     segments = parse_text(text, lang=lang)
     if not segments["clause_spans"]:
         from ..pipeline.ir_emitter import emit
 
         return emit(text, [], [], [], [], [])
-    return tok_engine.forward_from_spans(
+    return tok_engine.forward_cached(
         text,
         segments["ids"],
         segments["offsets"],

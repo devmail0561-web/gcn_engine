@@ -212,6 +212,56 @@ def test_frontend_analyze_tok_text():
     assert analyze_tok_text(eng, "   ")["nodes"] == []
 
 
+class TestCacheTok:
+    """Cache M1a du chemin tok : hit = zéro calcul, invalidation au bump."""
+
+    def test_repetition_sans_recalcul(self, monkeypatch):
+        eng = _moteur()
+        appels = {"n": 0}
+        origine = eng._forward_parts
+
+        def _compte(*args, **kwargs):
+            appels["n"] += 1
+            return origine(*args, **kwargs)
+
+        monkeypatch.setattr(eng, "_forward_parts", _compte)
+        c1 = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        c2 = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        assert appels["n"] == 1  # 2e appel servi par le cache
+        assert c1 == c2
+        assert eng.cache_stats() == {"hits": 1, "misses": 1, "size": 1, "max": 1024}
+
+    def test_copies_independantes(self):
+        eng = _moteur()
+        c1 = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        c1["edges"] = []
+        c2 = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        assert c2["edges"] != []
+
+    def test_mutation_poids_invalide(self):
+        eng = _moteur()
+        analyze_tok_text(eng, TEXTE_2_PHRASES)
+        assert eng.cache_stats()["misses"] == 1
+        eng.emb.update(0.01)  # bump epoch → invalidation (sens sûr)
+        analyze_tok_text(eng, TEXTE_2_PHRASES)
+        assert eng.cache_stats()["misses"] == 2
+
+    def test_fifo_et_clear(self):
+        eng = _moteur(textes=(TEXTE_2_PHRASES, TEXTE_1_PHRASE))
+        import gcn_python.pipeline.forward_ids as _mod
+
+        ancien = _mod.TOK_CACHE_MAX
+        _mod.TOK_CACHE_MAX = 1
+        try:
+            analyze_tok_text(eng, TEXTE_2_PHRASES)
+            analyze_tok_text(eng, TEXTE_1_PHRASE)
+            assert eng.cache_stats()["size"] == 1
+            eng.clear_cache()
+            assert eng.cache_stats() == {"hits": 0, "misses": 0, "size": 0, "max": 1}
+        finally:
+            _mod.TOK_CACHE_MAX = ancien
+
+
 class TestEngineUseTok:
     """Câblage GCNEngine.analyze(use_tok) — défaut legacy inchangé, gate capacitaire."""
 

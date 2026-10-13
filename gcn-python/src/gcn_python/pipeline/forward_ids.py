@@ -70,6 +70,8 @@ WINDOW_K = 2
 D_MODEL_DEFAULT = 128
 #: Seuil d'alerte OOV prod (R5 : raise en train/val, warn en prod).
 OOV_WARN_RATE = 0.05
+#: Cap FIFO du cache analyze tok (miroir M1a : 1024).
+TOK_CACHE_MAX = 1024
 
 
 def _edge_base_dim(d_model: int) -> int:
@@ -136,6 +138,13 @@ class TokForwardEngine:
         )
         self._no_edge = rgcn_no_edge_idx(len(RELATION_TYPES))
         self.last_oov_rate: float = 0.0
+        # Cache analyze (miroir M1a) : clé (epoch params, texte) — toute
+        # mutation (update → bump) invalide. Copies profondes aux deux bouts
+        # (jamais d'alias cache ↔ appelant). Tokenizer supposé stable dans
+        # le processus (upgrade = nouveau moteur/vocab — documenté, pas deviné).
+        self._tok_cache: dict = {}
+        self._tok_hits = 0
+        self._tok_misses = 0
 
     # ── persistance s1+ ──────────────────────────────────────────
 
@@ -434,6 +443,60 @@ class TokForwardEngine:
             "ids": list(ids),
             "source_b": source_b,
         }
+
+    def cache_stats(self) -> dict:
+        """Compteurs du cache tok (miroir M1a)."""
+        return {
+            "hits": self._tok_hits,
+            "misses": self._tok_misses,
+            "size": len(self._tok_cache),
+            "max": TOK_CACHE_MAX,
+        }
+
+    def clear_cache(self) -> None:
+        """Vide le cache (ex. upgrade tokenizer hors vocab)."""
+        self._tok_cache.clear()
+        self._tok_hits = 0
+        self._tok_misses = 0
+
+    def forward_cached(
+        self,
+        text: str,
+        ids: list,
+        offsets: list,
+        clause_spans: list,
+        clause_textes: list,
+        connecteurs: list | None = None,
+        source_b: str = "tok",
+    ) -> dict:
+        """Comme ``forward_from_spans`` + cache FIFO (hit ⇒ zéro calcul).
+
+        Clé (epoch params, texte, spans) : les spans participent (même texte,
+        segmentation différente = entrée différente — pas de faux hit B).
+        """
+        from ..param_epoch import current as _epoch
+
+        if not isinstance(text, str):
+            raise TypeError(f"text doit être str, reçu {type(text).__name__}")
+        if not clause_spans:
+            return emit(text, [], [], [], [], [])
+        cle = (_epoch(), text, tuple(tuple(s) for s in clause_spans))
+        present = self._tok_cache.get(cle)
+        if present is not None:
+            import copy as _copy
+
+            self._tok_hits += 1
+            return _copy.deepcopy(present)
+        cir = self.forward_from_spans(
+            text, ids, offsets, clause_spans, clause_textes, connecteurs, source_b
+        )
+        import copy as _copy
+
+        self._tok_misses += 1
+        if len(self._tok_cache) >= TOK_CACHE_MAX:
+            self._tok_cache.pop(next(iter(self._tok_cache)))
+        self._tok_cache[cle] = _copy.deepcopy(cir)
+        return cir
 
     def forward_from_spans(
         self,
