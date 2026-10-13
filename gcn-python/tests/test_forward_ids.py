@@ -261,3 +261,63 @@ class TestEngineUseTok:
         engine = GCNEngine(pipe, tok_engine=tok)
         cir = engine.analyze(TEXTE_2_PHRASES, use_tok=True)
         _valide_structure(cir, TEXTE_2_PHRASES, 2)
+
+
+class TestCheckpointS1:
+    """Persistance s1+ : roundtrip exact, refus fail-fast (jamais partiel)."""
+
+    def test_roundtrip_identique(self, tmp_path):
+        from gcn_python.nlu.tok import parse_text
+
+        eng = TokForwardEngine(seed=5)
+        eng.build_vocab([TEXTE_2_PHRASES])
+        seg = parse_text(TEXTE_2_PHRASES)
+        kwargs = {
+            "text": TEXTE_2_PHRASES,
+            "ids": seg["ids"],
+            "offsets": seg["offsets"],
+            "clause_spans": seg["clause_spans"],
+            "clause_textes": seg["clause_textes"],
+        }
+        # Mutation des poids (sinon le roundtrip ne prouve rien).
+        parts = eng.forward_supervise(**kwargs)
+        from gcn_python.training.train_tok import backward_tok
+
+        backward_tok(eng, parts, [0, 1], {(0, 1): 2}, lr=0.01)
+        ref = _sans_horodates(eng.forward_from_spans(**kwargs))
+        chemin = str(tmp_path / "tok.npz")
+        assert eng.save_npz(chemin) == chemin
+        charge = TokForwardEngine.load_npz(chemin)
+        assert charge.d_model == eng.d_model and charge.seed == eng.seed
+        assert charge.vocab_size == eng.vocab_size
+        assert _sans_horodates(charge.forward_from_spans(**kwargs)) == ref
+
+    def test_refus_garbage_et_legacy(self, tmp_path):
+        import numpy as np
+
+        faux = tmp_path / "faux.npz"
+        np.savez(str(faux), autre=np.asarray([1]))
+        with pytest.raises(ValueError):
+            TokForwardEngine.load_npz(str(faux))
+        legacy = tmp_path / "legacy.npz"
+        np.savez(str(legacy), E=np.zeros((1, 1), dtype=np.float32))
+        with pytest.raises(ValueError):
+            TokForwardEngine.load_npz(str(legacy))
+
+    def test_refus_d_model_incoherent(self, tmp_path):
+        import numpy as np
+
+        from gcn_python.layer1.tok_embedding import FORMAT_REFACTO
+
+        eng = TokForwardEngine(d_model=8, seed=1)
+        eng.build_vocab([TEXTE_2_PHRASES])
+        chemin = str(tmp_path / "tok.npz")
+        eng.save_npz(chemin)
+        with np.load(chemin, allow_pickle=False) as z:
+            tables = {k: z[k] for k in z.files}
+        tables["d_model"] = np.asarray(999, dtype=np.int64)
+        corrompu = str(tmp_path / "corrompu.npz")
+        np.savez(corrompu, **tables)
+        with pytest.raises(ValueError):
+            TokForwardEngine.load_npz(corrompu)
+        assert FORMAT_REFACTO == 20261007

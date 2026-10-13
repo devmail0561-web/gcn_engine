@@ -51,9 +51,10 @@ from ..constants import (
     rgcn_n_relations,
     rgcn_no_edge_idx,
 )
+from ..layer0.tokenizer import RULES_VERSION, tokenizer_hash
 from ..layer0.tokenizer import split as tok_split
 from ..layer1.l1_forward import align_spans, forward_ids, pool_clauses
-from ..layer1.tok_embedding import TokEmbedding
+from ..layer1.tok_embedding import FORMAT_REFACTO, TokEmbedding
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from .ir_emitter import emit
@@ -136,6 +137,118 @@ class TokForwardEngine:
         self._no_edge = rgcn_no_edge_idx(len(RELATION_TYPES))
         self.last_oov_rate: float = 0.0
 
+    # ── persistance s1+ ──────────────────────────────────────────
+
+    def save_npz(self, path: str) -> str:
+        """Sauvegarde s1+ : E_tok + vocab + hash + d_model + têtes + arch.
+
+        ``allow_pickle=False`` partout (aucun vecteur RCE — même doctrine
+        que ``TokEmbedding.save_npz``). Tout chargement d'un autre format
+        est refusé (legacy-UD : convertir ou ré-entraîner).
+        """
+        import numpy as _np
+
+        vocab = self.emb.tok_vocab
+        tables: dict = {
+            "format_refacto": _np.asarray(FORMAT_REFACTO, dtype=_np.int64),
+            "d_model": _np.asarray(self.d_model, dtype=_np.int64),
+            "seed": _np.asarray(self.seed, dtype=_np.int64),
+            "temperature": _np.asarray(self.temperature, dtype=_np.float64),
+            "edge_threshold": _np.asarray(self.edge_threshold, dtype=_np.float64),
+            "theta_ambiguity": _np.asarray(self.theta_ambiguity, dtype=_np.float64),
+            "bidirectional": _np.asarray(int(self.bidirectional), dtype=_np.int64),
+            "window_k": _np.asarray(WINDOW_K, dtype=_np.int64),
+            "tok_vocab": _np.asarray(vocab, dtype=_np.uint64),
+            "tokenizer_hash": _np.asarray(tokenizer_hash(RULES_VERSION, [str(v) for v in vocab])),
+            "rules": _np.asarray(RULES_VERSION),
+            "E": np.asarray(self.emb._E, dtype=np.float32),
+            "n_node_types": _np.asarray(len(NODE_TYPES), dtype=_np.int64),
+            "n_relation_types": _np.asarray(len(RELATION_TYPES), dtype=_np.int64),
+        }
+        for i, couche in enumerate(self.encoder._node_layers):
+            tables[f"node_L{i}_W"] = np.asarray(couche.W, dtype=np.float32)
+            tables[f"node_L{i}_b"] = np.asarray(couche.b, dtype=np.float32)
+        for i, couche in enumerate(self.encoder._edge_layers):
+            tables[f"edge_L{i}_W"] = np.asarray(couche.W, dtype=np.float32)
+            tables[f"edge_L{i}_b"] = np.asarray(couche.b, dtype=np.float32)
+        tables["rgcn_Wr"] = np.asarray(self.rgcn.W_r, dtype=np.float32)
+        tables["rgcn_W0"] = np.asarray(self.rgcn.W_0, dtype=np.float32)
+        tables["rgcn_norm"] = _np.asarray(int(self.rgcn.norm is not None), dtype=_np.int64)
+        if self.rgcn.norm is not None:
+            tables["rgcn_gamma"] = np.asarray(self.rgcn.norm.gamma, dtype=np.float32)
+            tables["rgcn_beta"] = np.asarray(self.rgcn.norm.beta, dtype=np.float32)
+        np.savez(path, **tables)
+        return path
+
+    @classmethod
+    def load_npz(cls, path: str) -> TokForwardEngine:
+        """Charge un `.npz` s1+ (fail-fast : format, hash, dims, formes).
+
+        Toute incohérence → ``ValueError`` (jamais de chargement partiel
+        silencieux). Legacy-UD (sans ``format_refacto``) → refus explicite.
+        """
+        import numpy as _np
+
+        with _np.load(path, allow_pickle=False) as z:
+            cles = set(z.files)
+            if "format_refacto" not in cles or int(z["format_refacto"]) != FORMAT_REFACTO:
+                raise ValueError("npz legacy-UD ou étranger : convertir ou ré-entraîner.")
+            d_model = int(z["d_model"])
+            if d_model < 1:
+                raise ValueError(f"d_model invalide : {d_model!r}.")
+            vocab = [int(v) for v in z["tok_vocab"].tolist()]
+            if str(z["tokenizer_hash"]) != tokenizer_hash(str(z["rules"]), [str(v) for v in vocab]):
+                raise ValueError("tokenizer_hash incohérent — re-geler le vocab.")
+            if int(z["n_node_types"]) != len(NODE_TYPES):
+                raise ValueError("ontologie nœuds divergente — ré-entraîner.")
+            if int(z["n_relation_types"]) != len(RELATION_TYPES):
+                raise ValueError("ontologie relations divergente — ré-entraîner.")
+            obj = cls(
+                d_model=d_model,
+                seed=int(z["seed"]),
+                temperature=float(z["temperature"]),
+                edge_threshold=float(z["edge_threshold"]),
+                theta_ambiguity=float(z["theta_ambiguity"]),
+                bidirectional=bool(int(z["bidirectional"])),
+            )
+            if int(z["window_k"]) != WINDOW_K:
+                raise ValueError("window_k divergent — version incompatible.")
+            obj.emb.build_vocab(vocab)
+            lignes = _np.asarray(z["E"], dtype=_np.float32)
+            if lignes.shape != (len(vocab), d_model):
+                raise ValueError(f"E de forme {lignes.shape}, incohérente avec le vocab.")
+            obj.emb._E = lignes
+            for i, couche in enumerate(obj.encoder._node_layers):
+                w = _np.asarray(z[f"node_L{i}_W"], dtype=_np.float32)
+                b = _np.asarray(z[f"node_L{i}_b"], dtype=_np.float32)
+                if couche.W.shape != w.shape or couche.b.shape != b.shape:
+                    raise ValueError(f"tête nœuds L{i} : forme incompatible.")
+                couche.W[:] = w
+                couche.b[:] = b
+            for i, couche in enumerate(obj.encoder._edge_layers):
+                w = _np.asarray(z[f"edge_L{i}_W"], dtype=_np.float32)
+                b = _np.asarray(z[f"edge_L{i}_b"], dtype=_np.float32)
+                if couche.W.shape != w.shape or couche.b.shape != b.shape:
+                    raise ValueError(f"tête arêtes L{i} : forme incompatible.")
+                couche.W[:] = w
+                couche.b[:] = b
+            for nom, attr in (("rgcn_Wr", "W_r"), ("rgcn_W0", "W_0")):
+                w = _np.asarray(z[nom], dtype=_np.float32)
+                cible = getattr(obj.rgcn, attr)
+                if cible.shape != w.shape:
+                    raise ValueError(f"R-GCN {attr} : forme incompatible.")
+                cible[:] = w
+            if int(z["rgcn_norm"]) != int(obj.rgcn.norm is not None):
+                raise ValueError("R-GCN layernorm divergent.")
+            if obj.rgcn.norm is not None:
+                for nom, attr in (("rgcn_gamma", "gamma"), ("rgcn_beta", "beta")):
+                    w = _np.asarray(z[nom], dtype=_np.float32)
+                    cible = getattr(obj.rgcn.norm, attr)
+                    if cible.shape != w.shape:
+                        raise ValueError(f"R-GCN {attr} : forme incompatible.")
+                    cible[:] = w
+            return obj
+
     # ── vocabulaire ──────────────────────────────────────────────
 
     @property
@@ -172,7 +285,7 @@ class TokForwardEngine:
                 return i
         return None
 
-    def forward_from_spans(
+    def _forward_parts(
         self,
         text: str,
         ids: list,
@@ -182,13 +295,13 @@ class TokForwardEngine:
         connecteurs: list | None = None,
         source_b: str = "tok",
     ) -> dict:
-        """Pré-segmenté → CIR dict (runtime pur — aucune entrée B/texte ici).
+        """Cœur commun inférence + supervision : mêmes nombres, deux usages.
 
-        ``clause_spans`` : spans caractères (socle B) ; ``clause_textes`` :
-        libellés ; ``connecteurs`` : dicts B avec ``span`` (marqueurs) ;
-        ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref``.
-        La segmentation (socle + split) vit dans ``nlu/tok.py`` — ce module
-        ne segmente jamais (garde du runtime).
+        Retourne les intermédiaires (logits, paires, vecs edge pour re-run
+        déterministe au backward, alignements pour le backward pool) + les
+        triples prêts pour ``emit()``. ``forward_from_spans`` émet ;
+        ``forward_supervise`` supervise. Toute divergence numérique entre
+        les deux = bug (test de parité).
 
         Gate capacitaire : vocabulaire vide → ``ValueError`` (prédire sur
         E vide/OOV-total est refusé — la vérité graphe ne se brade pas).
@@ -204,8 +317,6 @@ class TokForwardEngine:
                 "vocabulaire est refusée (CIR non fondé)."
             )
         clauses = list(zip(clause_spans, clause_textes, strict=False))
-        if not clauses:
-            return emit(text, [], [], [], [], [])
         self.emb.reset_oov()
         matrice = forward_ids(self.emb, ids)
         self.last_oov_rate = self.emb.oov_rate
@@ -248,6 +359,8 @@ class TokForwardEngine:
         # Connecteurs B observés (span → token) pour les marqueurs.
         connecteurs = connecteurs or []
         triples = []
+        edge_logits: list = []
+        edge_vecs: list = []
         for i, j in paires:
             gap = float(j - i)
             base = np.concatenate(
@@ -259,6 +372,8 @@ class TokForwardEngine:
             )
             vec = np.concatenate([base, enriched[i], enriched[j], node_probs[i], node_probs[j]])
             logit = self.encoder.forward_edge(vec)
+            edge_logits.append(logit.copy())
+            edge_vecs.append(vec.copy())
             probs = _softmax_rows((logit / self.temperature).reshape(1, -1))[0]
             rel_idx = int(np.argmax(probs))
             conf = float(probs[rel_idx])
@@ -301,13 +416,79 @@ class TokForwardEngine:
                     candidates,
                 )
             )
+        return {
+            "node_logits": node_logits,
+            "node_probs": node_probs,
+            "node_types": node_types,
+            "node_labels": node_labels,
+            "token_spans": token_spans,
+            "scopes": scopes,
+            "origins": origins,
+            "pooled": pooled,
+            "enriched": enriched,
+            "paires": paires,
+            "edge_logits": edge_logits,
+            "edge_vecs": edge_vecs,
+            "triples": triples,
+            "alignes": alignes,
+            "ids": list(ids),
+            "source_b": source_b,
+        }
+
+    def forward_from_spans(
+        self,
+        text: str,
+        ids: list,
+        offsets: list,
+        clause_spans: list,
+        clause_textes: list,
+        connecteurs: list | None = None,
+        source_b: str = "tok",
+    ) -> dict:
+        """Pré-segmenté → CIR dict (runtime pur — aucune entrée B/texte ici).
+
+        ``clause_spans`` : spans caractères (socle B) ; ``clause_textes`` :
+        libellés ; ``connecteurs`` : dicts avec ``span`` (marqueurs) ;
+        ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref``.
+        La segmentation (socle + split) vit dans ``nlu/tok.py`` — ce module
+        ne segmente jamais (garde du runtime).
+        """
+        if not isinstance(text, str):
+            raise TypeError(f"text doit être str, reçu {type(text).__name__}")
+        if not clause_spans:
+            return emit(text, [], [], [], [], [])
+        parts = self._forward_parts(
+            text, ids, offsets, clause_spans, clause_textes, connecteurs, source_b
+        )
         return emit(
             text,
-            node_types,
-            node_labels,
-            token_spans,
-            scopes,
-            triples,
-            node_origins=origins,
-            doc_ref=f"tok:{source_b}",
+            parts["node_types"],
+            parts["node_labels"],
+            parts["token_spans"],
+            parts["scopes"],
+            parts["triples"],
+            node_origins=parts["origins"],
+            doc_ref=f"tok:{parts['source_b']}",
         )
+
+    def forward_supervise(
+        self,
+        text: str,
+        ids: list,
+        offsets: list,
+        clause_spans: list,
+        clause_textes: list,
+    ) -> dict:
+        """Pré-segmenté gold → intermédiaires + caches chauds pour le train.
+
+        Mêmes nombres que ``forward_from_spans`` (parité testée) + caches
+        MLP/R-GCN prêts pour le backward : appeler backward AVANT tout autre
+        forward sur ce moteur (caches par tête écrasés à chaque appel —
+        même contrat que le legacy). Pas d'émission ici (l'éval F1 lit les
+        logits, pas le CIR).
+        """
+        parts = self._forward_parts(text, ids, offsets, clause_spans, clause_textes, None, "gold")
+        parts["d_base"] = _edge_base_dim(self.d_model)
+        parts["d_pooled"] = self.d_model
+        parts["n_node_types"] = len(NODE_TYPES)
+        return parts
