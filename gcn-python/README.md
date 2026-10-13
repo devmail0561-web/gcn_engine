@@ -187,6 +187,43 @@ results = engine.analyze_batch([
 ])
 ```
 
+### Chemin tok in-process — sans binaire, sans UD (T6 : zéro frontend)
+
+Le chemin cible refacto : texte → `tokenizer.split` → socle B (clauses +
+source) → E_tok → pooling fixe → têtes MLP/R-GCN → CIR. Zéro lexique
+dans le chemin (vérifiable par grep) : l'association texte→CIR est apprise
+(E_tok + têtes), jamais codée. Ajouter une langue = ajouter des DONNÉES (D2).
+
+```python
+from gcn_python.engine import GCNEngine
+from gcn_python.pipeline.forward_ids import TokForwardEngine
+
+# 1. Construire le vocabulaire (ids stables, ordre indifférent)
+tok = TokForwardEngine(d_model=128, seed=42)
+tok.build_vocab(["Les ventes baissent. On reduit les couts."])
+
+# 2. Inférence (gate capacitaire : E_tok vide → ValueError)
+engine = GCNEngine(pipeline_legacy, tok_engine=tok)
+cir = engine.analyze("Les ventes baissent. On reduit les couts.", use_tok=True)
+
+# 3. Persister / recharger (s1+, allow_pickle=False, fail-fast)
+tok.save_npz("tok.npz")
+engine2 = GCNEngine.from_pretrained("tok.npz", trusted=True)  # moteur tok-only
+cir = engine2.analyze("Les ventes baissent. On reduit les couts.", use_tok=True)
+```
+
+Gates et limites (doctrine 6b — pas de chiffres présentés comme mesure) :
+- Têtes **non entraînées** par défaut (aléatoires seedées) : CIR structurels,
+  non calibrés. Entraînement : `training/train_tok.py` sur paires gold
+  (actuellement GELÉ R8 : 3 types de nœuds à 0 — fail-fast, pas d'acharnement).
+- `scope="unknown"`, `origin="explicit"`, `negated=False` (aucun signal sur ce
+  chemin v0) ; paires en fenêtre k=2 (R7) ; nœuds = phrases du socle
+  (granularité bloc — en batch, une ligne = un CIR).
+- Cache M1a : hit 0,18 ms vs miss ~10 ms (epoch-tag, FIFO 1024, copies).
+  `tok.cache_stats()`, `tok.clear_cache()`.
+- Legacy inchangé par défaut (`use_tok=False`) ; `--use-tok` sur
+  `gcn-discuss`/`gcn-index` (auto-activé sur checkpoint s1+).
+
 ### Cache d'analyse Ph10-M1a — pas de recalcul des phrases vues
 
 `pipeline.analyze()` mémorise (clé = empreinte paramètres + parseur + texte) :
@@ -222,8 +259,14 @@ float32 de bout en bout (zéro fuite float64 — gate testé). D'où :
 # Session interactive
 gcn-discuss --checkpoint model.npz
 
+# Session sur checkpoint tok (auto-détecté, --use-tok explicite possible)
+gcn-discuss --checkpoint tok.npz --use-tok
+
 # Indexation batch
 gcn-index --corpus rapports/ --checkpoint model.npz --output graph.json
+
+# Indexation tok (granularité bloc : une ligne = un CIR multi-phrases)
+gcn-index --corpus rapports/ --checkpoint tok.npz --output graph.json --use-tok
 
 # Évaluation
 gcn-eval --data-dir gcn-datasets/real/val/ --model-path model.npz

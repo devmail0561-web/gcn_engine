@@ -34,6 +34,21 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
   par le binaire Rust : `gcn query "WHY couts?"` → enveloppe `UserResponse`
   (match flou, causes citées, exit 0). Zéro glue neuve — le même `emit()`.
 
+### Lot CLI --use-tok (2026-10-13)
+
+- `cli/tok_flags.resolve_use_tok` : auto-force tok-only, gate E_tok vide
+  (`ClickException` propagée) ; `--use-tok`/`--lang` sur `gcn-discuss` et
+  `gcn-index` (défaut legacy inchangé) ; passthrough `dialogue.handle`.
+- Granularité tok = bloc : `gcn-index` analyse la ligne entière en mode tok
+  (les clauses du socle sont des phrases — sous-segmenter viderait k=2,
+  prouvé par l'échec initial du test e2e).
+- Pattern branché pour moteurs factices (régression `test_black_box` F4c
+  attrapée et réparée en cours) ; extras pipeline (discours, vecs) ignorés
+  avec une info unique en tok-only.
+- README `gcn-python` : section chemin tok (usage vérifié exécutable) + CLI.
+- **Vert : 939 Python, guards 0, ruff propre** (9 lints `dialogue.py`
+  pré-existants intacts, vérifiés par stash-comparaison).
+
 ### Cleanup S5 audit — garde lints partagée (2026-10-09)
 
 - `[workspace.lints.clippy]` : `uninlined_format_args`, `redundant_closure_for_method_calls`, `format_push_string`, `map_unwrap_or` (hérité par les 10 crates). Reste de pedantic exclu : casts (revue sémantique), docs FR (bruit), `must_use` (51 sites, bruit), bras identiques voulus.
