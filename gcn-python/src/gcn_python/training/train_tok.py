@@ -23,7 +23,14 @@ import warnings
 
 import numpy as np
 
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import (
+    COARSE_NODE_TYPES,
+    COARSE_RELATION_TYPES,
+    FINE_TO_COARSE_NODE,
+    FINE_TO_COARSE_RELATION,
+    NODE_TYPES,
+    RELATION_TYPES,
+)
 from ..data.tok_loader import couverture_vocab
 from ..evaluation.metrics import edge_macro_f1, node_macro_f1
 from ..pipeline.forward_ids import OOV_WARN_RATE, TokForwardEngine
@@ -257,11 +264,23 @@ def _restaurer(eng: TokForwardEngine, snap: dict) -> None:
     eng.rgcn.W_0[:] = snap["rgcn"][1]
 
 
-def evaluer(eng: TokForwardEngine, samples: list, node_mask=None, edge_mask=None) -> dict:
+def evaluer(
+    eng: TokForwardEngine,
+    samples: list,
+    node_mask=None,
+    edge_mask=None,
+    node_types: list[str] | None = None,
+    relation_types: list[str] | None = None,
+) -> dict:
     """Passe éval (sans grad) : argmax → F1 macro (NaN si vide, jamais 0.0).
 
     Arêtes : paires SUPERVISÉES seulement (ce qu'on a demandé au modèle).
+    ``node_types`` : espace de labels du moteur (défaut canonique) — la F1
+    est calculée dans cet espace et étiquetée comme telle (jamais comparée
+    entre espaces).
     """
+    noms_noeuds = list(node_types) if node_types else list(NODE_TYPES)
+    noms_rels = list(relation_types) if relation_types else list(RELATION_TYPES)
     pred_n, gold_n, pred_e, gold_e = [], [], [], []
     perte = 0.0
     for s in samples:
@@ -270,20 +289,20 @@ def evaluer(eng: TokForwardEngine, samples: list, node_mask=None, edge_mask=None
         )
         node_gold = np.asarray(s["node_gold"], dtype=np.int64)
         perte += ce_loss(np.asarray(parts["node_logits"]), node_gold, class_mask=node_mask)
-        pred_n += [NODE_TYPES[int(i)] for i in np.argmax(parts["node_logits"], axis=1)]
-        gold_n += [NODE_TYPES[int(i)] for i in node_gold]
+        pred_n += [noms_noeuds[int(i)] for i in np.argmax(parts["node_logits"], axis=1)]
+        gold_n += [noms_noeuds[int(i)] for i in node_gold]
         mat = np.stack(parts["edge_logits"], axis=0) if parts["edge_logits"] else None
         for k, p in enumerate(parts["paires"]):
             if p not in s["edge_gold"]:
                 continue
             g = s["edge_gold"][p]
             perte += ce_loss(mat[k : k + 1], np.asarray([g]), class_mask=edge_mask)
-            pred_e.append(RELATION_TYPES[int(np.argmax(mat[k]))])
-            gold_e.append(RELATION_TYPES[int(g)])
+            pred_e.append(noms_rels[int(np.argmax(mat[k]))])
+            gold_e.append(noms_rels[int(g)])
     return {
         "loss": perte / max(1, len(samples)),
-        "node_f1": node_macro_f1(pred_n, gold_n),
-        "edge_f1": edge_macro_f1(pred_e, gold_e),
+        "node_f1": node_macro_f1(pred_n, gold_n, class_subset=noms_noeuds),
+        "edge_f1": edge_macro_f1(pred_e, gold_e, class_subset=noms_rels),
         "n_node": len(gold_n),
         "n_edge": len(gold_e),
     }
@@ -299,27 +318,50 @@ def entrainer(
     patience: int = 10,
     d_model: int = 128,
     csv_out: str | None = None,
+    espace: str = "fin",
 ) -> dict:
     """Boucle SGD tok (ordre fixe, seedée — reproductible, protocole §5).
 
     1. Charge splits (rejet > 5 % → ValueError STOP).
     2. Vocabulaire sur train (+sanity OOV train = 0) ; OOV val publié + warn
        (écart documenté à R5 : la val mesure, elle n'avorte pas).
-    3. Masques R8 + ``require_min_counts`` (``GelError`` fail-fast).
-    4. Epochs : forward_supervise → backward_tok → update par phrase ;
+    3. Espace : ``fin`` (8 nœuds + 19 relations — GEL R8 actuel) ou
+       ``coarse`` D4 (4 groupes nœuds + 5 groupes relations — R8 franchi
+       sur v4/final2, gates prod intacts) ; remap gold fin→coarse, F1
+       étiquetée dans l'espace mesuré (jamais comparée entre espaces).
+    4. Masques R8 + ``require_min_counts`` (``GelError`` fail-fast).
+    5. Epochs : forward_supervise → backward_tok → update par phrase ;
        éval val ; best sur ``val_edge_macro_f1`` (NaN jamais best) ;
        patience puis restore best (early-stopping unifié edge, §6).
     Retourne le résumé (le moteur porte les poids best).
     """
     if epochs < 1:
         raise ValueError(f"epochs doit être ≥ 1 (reçu {epochs!r}).")
+    if espace not in ("fin", "coarse"):
+        raise ValueError(f"espace doit être 'fin' ou 'coarse' (reçu {espace!r}).")
+    noms_noeuds = list(COARSE_NODE_TYPES) if espace == "coarse" else list(NODE_TYPES)
+    noms_rels = list(COARSE_RELATION_TYPES) if espace == "coarse" else list(RELATION_TYPES)
     train, st_tr = charger_split(train_path)
     val, st_val = charger_split(val_path)
     for nom, stats in (("train", st_tr), ("val", st_val)):
         taux = len(stats["rejetees"]) / max(1, stats["phrases"])
         if taux > SEUIL_REJET:
             raise ValueError(f"{nom} : rejet alignement {taux:.1%} > 5 % — STOP (données).")
-    eng = TokForwardEngine(d_model=d_model, seed=seed)
+    if espace == "coarse":
+        for s in train + val:
+            try:
+                s["node_gold"] = [
+                    noms_noeuds.index(FINE_TO_COARSE_NODE[NODE_TYPES[g]]) for g in s["node_gold"]
+                ]
+                s["edge_gold"] = {
+                    p: noms_rels.index(FINE_TO_COARSE_RELATION[RELATION_TYPES[g]])
+                    for p, g in s["edge_gold"].items()
+                }
+            except KeyError as exc:
+                raise ValueError(f"label fin hors table coarse : {exc} — données.") from exc
+    eng = TokForwardEngine(
+        d_model=d_model, seed=seed, node_types=noms_noeuds, relation_types=noms_rels
+    )
     eng.build_vocab([s["text"] for s in train])
 
     def _dans_vocab(i) -> bool:
@@ -338,8 +380,8 @@ def entrainer(
             stacklevel=2,
         )
     # Masques + gate R8 (fail-fast — GelError = sortie écrite, pas acharnement).
-    n_counts = np.zeros(len(NODE_TYPES), dtype=np.int64)
-    e_counts = np.zeros(len(RELATION_TYPES), dtype=np.int64)
+    n_counts = np.zeros(len(noms_noeuds), dtype=np.int64)
+    e_counts = np.zeros(len(noms_rels), dtype=np.int64)
     for s in train:
         for g in s["node_gold"]:
             n_counts[g] += 1
@@ -365,7 +407,9 @@ def entrainer(
             parts["edge_mask"] = edge_mask
             res = backward_tok(eng, parts, s["node_gold"], s["edge_gold"], lr)
             perte_tr += res["node"] + res["edge"]
-        met = evaluer(eng, val, node_mask, edge_mask)
+        met = evaluer(
+            eng, val, node_mask, edge_mask, node_types=noms_noeuds, relation_types=noms_rels
+        )
         f1 = met["edge_f1"]
         if np.isfinite(f1) and f1 > best_f1:
             best_f1 = float(f1)
@@ -397,6 +441,9 @@ def entrainer(
         "data_hash": sha_donnees,
         "git_sha": _git_sha(),
         "seed": seed,
+        "espace": espace,
+        "node_types": noms_noeuds,
+        "relation_types": noms_rels,
     }
     if csv_out:
         cols = [
@@ -430,6 +477,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--patience", type=int, default=10)
     ap.add_argument("--d-model", type=int, default=128)
+    ap.add_argument(
+        "--espace",
+        choices=["fin", "coarse"],
+        default="fin",
+        help="Espace de labels : fin (8+19, GEL R8 actuel) ou coarse "
+        "D4 (4+5, R8 franchi sur v4/final2 — F1 étiquetée).",
+    )
     ap.add_argument("--csv-out", default=None)
     args = ap.parse_args(argv)
     try:
@@ -442,6 +496,7 @@ def main(argv: list[str] | None = None) -> int:
             patience=args.patience,
             d_model=args.d_model,
             csv_out=args.csv_out,
+            espace=args.espace,
         )
     except GelError as exc:
         print(f"GELÉ (R8) : {exc}", flush=True)

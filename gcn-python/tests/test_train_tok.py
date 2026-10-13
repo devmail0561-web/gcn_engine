@@ -128,8 +128,7 @@ def test_gel_rare_classe(tmp_path):
         entrainer(f, f, epochs=1)
 
 
-def test_pas_sgd_une_clause_sans_arete():
-    # E=0 : boucle arêtes + R-GCN sautés, nœuds + E_tok mis à jour, fini.
+def test_pas_sgd_une_clause_sans_arete():  # E=0 : boucle arêtes + R-GCN sautés, nœuds + E_tok mis à jour, fini.
     import numpy as np
 
     eng = TokForwardEngine(d_model=8, seed=1)
@@ -187,3 +186,105 @@ def test_determinisme_meme_seed():
     e1, w1 = _tour()
     e2, w2 = _tour()
     assert np.array_equal(e1, e2) and np.array_equal(w1, w2)
+
+
+def _corpus_equilibre(tmp_path, repetitions=8):
+    """160 phrases 2-clauses : 4 fins x 5 groupes coarse-relations x 8.
+
+    Groupes couverts (un représentant fin chacun) : causale=cause,
+    restrictive=filter, negative=prevent, sequentielle=sequence,
+    systemique=data_dependency → 32 occurrences/groupe (≥ N_min 30).
+    Nœuds coarse : 40/groupe (≥ 30). GERME déterministe (pas de RNG).
+    """
+    fins = ["processus", "entite", "etat_local", "condition"]
+    rels = ["cause", "filter", "prevent", "sequence", "data_dependency"]
+    phrases = []
+    k = 0
+    for _ in range(repetitions):
+        for rel in rels:
+            for nt in fins:
+                texte = f"Phrase{k} sujet. Suite{k} objet."
+                toks = [{"id": i + 1, "form": m} for i, m in enumerate(texte.split(" "))]
+                phrases.append(
+                    {
+                        "id": f"s{k}",
+                        "text": texte,
+                        "tokens": toks,
+                        "cir": {
+                            "nodes": [
+                                {
+                                    "id": "n1",
+                                    "type": nt,
+                                    "label": "n1",
+                                    "token_span": [1, 2],
+                                    "scope": "s",
+                                    "origin": "e",
+                                },
+                                {
+                                    "id": "n2",
+                                    "type": "entite",
+                                    "label": "n2",
+                                    "token_span": [3, 4],
+                                    "scope": "s",
+                                    "origin": "e",
+                                },
+                            ],
+                            "edges": [{"sources": ["n1"], "target": "n2", "relation": rel}],
+                        },
+                    }
+                )
+                k += 1
+    f = tmp_path / "equilibre.json"
+    f.write_text(
+        json.dumps({"document": {"id": "d", "lang": "fr", "sentences": phrases}}), encoding="utf-8"
+    )
+    return str(f)
+
+
+def test_coarse_debloque_sans_toucher_r8(tmp_path):
+    f = _corpus_equilibre(tmp_path)
+    resume = entrainer(f, f, epochs=2, lr=0.01, seed=7, patience=5, d_model=8, espace="coarse")
+    assert resume["espace"] == "coarse"
+    assert resume["node_types"] == [
+        "action_coarse",
+        "nominal_coarse",
+        "evenement_coarse",
+        "condition_coarse",
+    ]
+    assert np.isfinite(resume["best_val_edge_f1"])
+    assert resume["epochs"] >= 1
+
+
+def test_fin_gel_meme_donnees(tmp_path):
+    # Espace fin : 8 relations + 4 types fins à 0 → GelError (gate intacte).
+    f = _corpus_equilibre(tmp_path)
+    with pytest.raises(GelError):
+        entrainer(f, f, epochs=1, espace="fin")
+
+
+def test_espace_invalide_refuse():
+    with pytest.raises(ValueError):
+        entrainer("x", "y", espace="moyen")
+
+
+def test_moteur_espaces_custom_et_persistance(tmp_path):
+    from gcn_python.constants import COARSE_NODE_TYPES, COARSE_RELATION_TYPES
+    from gcn_python.pipeline.forward_ids import TokForwardEngine as _TE
+
+    eng = _TE(
+        d_model=8,
+        seed=2,
+        node_types=list(COARSE_NODE_TYPES),
+        relation_types=list(COARSE_RELATION_TYPES),
+    )
+    assert eng.encoder is not None and eng.rgcn.n_relations == 6  # 5 + no-edge
+    with pytest.raises(ValueError):
+        _TE(node_types=[])
+    with pytest.raises(ValueError):
+        _TE(node_types=["a", "a"])
+    eng.build_vocab([TEXTE])
+    chemin = str(tmp_path / "coarse.npz")
+    eng.save_npz(chemin)
+    charge = _TE.load_npz(chemin)
+    assert charge.node_types == list(COARSE_NODE_TYPES)
+    assert charge.relation_types == list(COARSE_RELATION_TYPES)

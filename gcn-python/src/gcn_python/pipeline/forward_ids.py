@@ -109,6 +109,8 @@ class TokForwardEngine:
         edge_threshold: float = 0.0,
         theta_ambiguity: float = THETA_AMBIGUITY_DEFAULT,
         bidirectional: bool = False,
+        node_types: list[str] | None = None,
+        relation_types: list[str] | None = None,
     ) -> None:
         if d_model < 1:
             raise ValueError(f"d_model doit être ≥ 1 (reçu {d_model!r}).")
@@ -116,27 +118,36 @@ class TokForwardEngine:
             raise ValueError(f"temperature doit être > 0 (reçue {temperature!r}).")
         if not (0.0 <= float(edge_threshold) < 1.0):
             raise ValueError(f"edge_threshold doit être dans [0, 1[ (reçu {edge_threshold!r}).")
+        for nom, vals in (("node_types", node_types), ("relation_types", relation_types)):
+            if vals is not None and (not vals or len(set(vals)) != len(vals)):
+                raise ValueError(f"{nom} doit être une liste non vide sans doublons.")
         self.d_model = int(d_model)
         self.seed = int(seed)
         self.temperature = float(temperature)
         self.edge_threshold = float(edge_threshold)
         self.theta_ambiguity = float(theta_ambiguity)
         self.bidirectional = bool(bidirectional)
+        # Espaces de labels (défaut : ontologies canoniques ; coarse D4 :
+        # COARSE_NODE_TYPES — R8 franchissable sans toucher aux gates prod).
+        self.node_types = list(node_types) if node_types else list(NODE_TYPES)
+        self.relation_types = list(relation_types) if relation_types else list(RELATION_TYPES)
         self.emb = TokEmbedding(d_model=self.d_model, seed=self.seed)
         self.encoder = MLPEncoder(
             d_clause=self.d_model,
-            d_edge=_edge_full_dim(self.d_model),
+            d_edge=_edge_full_dim(self.d_model, len(self.node_types)),
             seed=self.seed + 1,
             edge_dropout=0.0,
+            n_node_types=len(self.node_types),
+            n_relation_types=len(self.relation_types),
         )
         self.rgcn = RGCNLayer(
             d_in=self.d_model,
             d_out=self.d_model,
-            n_relations=rgcn_n_relations(len(RELATION_TYPES), self.bidirectional),
+            n_relations=rgcn_n_relations(len(self.relation_types), self.bidirectional),
             seed=self.seed + 2,
             dropout=0.0,
         )
-        self._no_edge = rgcn_no_edge_idx(len(RELATION_TYPES))
+        self._no_edge = rgcn_no_edge_idx(len(self.relation_types))
         self.last_oov_rate: float = 0.0
         # Cache analyze (miroir M1a) : clé (epoch params, texte) — toute
         # mutation (update → bump) invalide. Copies profondes aux deux bouts
@@ -171,8 +182,10 @@ class TokForwardEngine:
             "tokenizer_hash": _np.asarray(tokenizer_hash(RULES_VERSION, [str(v) for v in vocab])),
             "rules": _np.asarray(RULES_VERSION),
             "E": np.asarray(self.emb._E, dtype=np.float32),
-            "n_node_types": _np.asarray(len(NODE_TYPES), dtype=_np.int64),
-            "n_relation_types": _np.asarray(len(RELATION_TYPES), dtype=_np.int64),
+            "n_node_types": _np.asarray(len(self.node_types), dtype=_np.int64),
+            "n_relation_types": _np.asarray(len(self.relation_types), dtype=_np.int64),
+            "node_types": _np.asarray(self.node_types),
+            "relation_types": _np.asarray(self.relation_types),
         }
         for i, couche in enumerate(self.encoder._node_layers):
             tables[f"node_L{i}_W"] = np.asarray(couche.W, dtype=np.float32)
@@ -208,10 +221,24 @@ class TokForwardEngine:
             vocab = [int(v) for v in z["tok_vocab"].tolist()]
             if str(z["tokenizer_hash"]) != tokenizer_hash(str(z["rules"]), [str(v) for v in vocab]):
                 raise ValueError("tokenizer_hash incohérent — re-geler le vocab.")
-            if int(z["n_node_types"]) != len(NODE_TYPES):
+            if int(z["n_node_types"]) != len(NODE_TYPES) and "node_types" not in cles:
                 raise ValueError("ontologie nœuds divergente — ré-entraîner.")
-            if int(z["n_relation_types"]) != len(RELATION_TYPES):
+            if int(z["n_relation_types"]) != len(RELATION_TYPES) and "relation_types" not in cles:
                 raise ValueError("ontologie relations divergente — ré-entraîner.")
+            # Espaces de labels persistés (s1+ récent) ou canoniques (compat
+            # fichiers pré-espaces — mêmes valeurs, pas de migration silencieuse).
+            nt = (
+                [str(v) for v in z["node_types"].tolist()]
+                if "node_types" in cles
+                else list(NODE_TYPES)
+            )
+            rt = (
+                [str(v) for v in z["relation_types"].tolist()]
+                if "relation_types" in cles
+                else list(RELATION_TYPES)
+            )
+            if int(z["n_node_types"]) != len(nt) or int(z["n_relation_types"]) != len(rt):
+                raise ValueError("espaces de labels incohérents — ré-entraîner.")
             obj = cls(
                 d_model=d_model,
                 seed=int(z["seed"]),
@@ -219,6 +246,8 @@ class TokForwardEngine:
                 edge_threshold=float(z["edge_threshold"]),
                 theta_ambiguity=float(z["theta_ambiguity"]),
                 bidirectional=bool(int(z["bidirectional"])),
+                node_types=nt,
+                relation_types=rt,
             )
             if int(z["window_k"]) != WINDOW_K:
                 raise ValueError("window_k divergent — version incompatible.")
@@ -331,7 +360,7 @@ class TokForwardEngine:
         self.last_oov_rate = self.emb.oov_rate
         if self.last_oov_rate > OOV_WARN_RATE:
             warnings.warn(
-                f"forward_from_spans : taux OOV {self.last_oov_rate:.2%} > 5 % "
+                f"tok : taux OOV {self.last_oov_rate:.2%} > 5 % "
                 f"(source B : {source_b}) — vecteurs zéro, CIR dégradé.",
                 UserWarning,
                 stacklevel=2,
@@ -346,7 +375,7 @@ class TokForwardEngine:
         else:
             node_logits = np.stack([self.encoder.forward_node(v) for v in pooled])
         node_probs = _softmax_rows(node_logits)
-        node_types = [NODE_TYPES[int(i)] for i in np.argmax(node_logits, axis=1)]
+        node_types = [self.node_types[int(i)] for i in np.argmax(node_logits, axis=1)]
         node_labels = [
             (texte or "").strip() or f"clause_{k}" for k, (_span, texte) in enumerate(clauses)
         ]
@@ -389,7 +418,7 @@ class TokForwardEngine:
             conf = 0.0 if not np.isfinite(conf) else min(1.0, max(0.0, conf))
             if conf < self.theta_ambiguity and conf >= self.edge_threshold:
                 top2 = np.argsort(probs)[-2:][::-1]
-                candidates = [(RELATION_TYPES[int(k)], float(probs[k])) for k in top2]
+                candidates = [(self.relation_types[int(k)], float(probs[k])) for k in top2]
                 ambiguous = True
             else:
                 candidates = None
@@ -416,7 +445,7 @@ class TokForwardEngine:
                 (
                     i,
                     j,
-                    RELATION_TYPES[rel_idx],
+                    self.relation_types[rel_idx],
                     conf,
                     False,
                     marker,
@@ -560,6 +589,6 @@ class TokForwardEngine:
         parts = self._forward_parts(text, ids, offsets, clause_spans, clause_textes, None, "gold")
         parts["d_base"] = _edge_base_dim(self.d_model)
         parts["d_pooled"] = self.d_model
-        parts["n_node_types"] = len(NODE_TYPES)
+        parts["n_node_types"] = len(self.node_types)
         parts["intent"] = intent
         return parts
