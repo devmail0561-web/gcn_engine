@@ -408,7 +408,11 @@ class GCNEngine:
                     "use_tok=True avec E_tok vide : appelez build_vocab(textes) "
                     "d'abord — l'inférence sans vocabulaire est refusée."
                 )
-            return tok.analyze_tok(text, lang=lang)
+            # Segmentation via le frontend (le runtime appris n'importe
+            # jamais le socle — garde du runtime, voir tests du socle).
+            from .frontend.tok import analyze_tok_text
+
+            return analyze_tok_text(tok, text, lang=lang)
         return self._pipeline.analyze(
             text,
             text_parser=self._text_parser,

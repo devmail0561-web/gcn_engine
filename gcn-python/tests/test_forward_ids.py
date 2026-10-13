@@ -1,12 +1,15 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
-"""Tests du chemin tok in-process (pipeline/forward_ids.py).
+"""Tests du chemin tok in-process (pipeline/forward_ids.py + frontend/tok.py).
 
 Doctrine : parité STRUCTURELLE (schéma serde Rust), jamais parité de
 valeurs avec le legacy (features différentes — assumé). Têtes non
 entraînées : aucun test ne lit une classe ou une confiance comme mesure.
 Déterminisme : octets identiques hors horodates wall-clock
 (``extracted_at`` / ``created_at``, design legacy de ``emit()``).
+Séparation : le runtime (``pipeline/``) n'importe jamais B — la
+segmentation vit dans ``frontend/tok.py`` (garde
+``test_runtime_appris_n_importe_jamais_moteur_b``).
 """
 
 import json
@@ -16,9 +19,12 @@ import sys
 import pytest
 
 sys.path.insert(0, "gcn-python/tests")
+
 from conftest import make_test_pipeline
 from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 from gcn_python.engine import GCNEngine
+from gcn_python.frontend.tok import analyze_tok_text, parse_text
+from gcn_python.layer0.tokenizer import split as tok_split
 from gcn_python.pipeline.forward_ids import (
     D_MODEL_DEFAULT,
     WINDOW_K,
@@ -36,6 +42,11 @@ def _moteur(textes=(TEXTE_2_PHRASES,), **kwargs):
     return eng
 
 
+def _segments(texte, lang="fr"):
+    seg = parse_text(texte, lang=lang)
+    return seg
+
+
 def _sans_horodates(cir: dict) -> str:
     s = json.dumps(cir, sort_keys=True)
     s = _re.sub(r'"extracted_at": "[^"]*"', '"extracted_at": "T"', s)
@@ -51,10 +62,8 @@ def _valide_structure(cir: dict, texte: str, n_clauses: int) -> None:
         assert noeud["id"] == i
         assert noeud["node_type"] in NODE_TYPES
         assert isinstance(noeud["label"], str) and noeud["label"]
-        debut, fin = (
-            noeud["source_span"]["token_span"]["start"],
-            noeud["source_span"]["token_span"]["end"],
-        )
+        debut = noeud["source_span"]["token_span"]["start"]
+        fin = noeud["source_span"]["token_span"]["end"]
         assert 0 <= debut <= fin
         assert noeud["scope"] == "unknown"
         assert noeud["origin"] == "explicit"
@@ -69,67 +78,98 @@ def _valide_structure(cir: dict, texte: str, n_clauses: int) -> None:
     assert cir["metadata"]["schema_version"] == "2.0"
 
 
+def _forward(eng, texte, lang="fr"):
+    seg = _segments(texte, lang=lang)
+    return eng.forward_from_spans(
+        texte,
+        seg["ids"],
+        seg["offsets"],
+        seg["clause_spans"],
+        seg["clause_textes"],
+        connecteurs=seg["connecteurs"],
+        source_b=seg["source"],
+    )
+
+
 def test_gate_vocab_vide():
     eng = TokForwardEngine()
     assert eng.vocab_size == 0
+    seg = _segments(TEXTE_2_PHRASES)
     with pytest.raises(ValueError):
-        eng.analyze_tok(TEXTE_2_PHRASES)
+        eng.forward_from_spans(
+            TEXTE_2_PHRASES,
+            seg["ids"],
+            seg["offsets"],
+            seg["clause_spans"],
+            seg["clause_textes"],
+        )
 
 
 def test_gate_texte_non_str():
     eng = _moteur()
     with pytest.raises(TypeError):
-        eng.analyze_tok(42)
+        eng.forward_from_spans(42, [], [], [], [])
 
 
 def test_gate_langue_hors_budget():
     eng = TokForwardEngine()
     with pytest.raises(ValueError):
         eng.build_vocab([TEXTE_2_PHRASES], lang="xx")
+    with pytest.raises(ValueError):
+        parse_text(TEXTE_2_PHRASES, lang="xx")
 
 
-def test_texte_vide_sans_erreur():
+def test_clauses_vides_sans_erreur():
     eng = _moteur()
-    cir = eng.analyze_tok("   ")
+    cir = eng.forward_from_spans("   ", [], [], [], [], source_b="vide")
     assert cir["nodes"] == [] and cir["edges"] == []
 
 
 def test_structure_deux_phrases():
     eng = _moteur()
-    cir = eng.analyze_tok(TEXTE_2_PHRASES)
+    cir = _forward(eng, TEXTE_2_PHRASES)
     _valide_structure(cir, TEXTE_2_PHRASES, 2)
     assert len(cir["edges"]) == 1  # paire (0,1) dans la fenêtre
 
 
 def test_structure_une_phrase():
     eng = _moteur(textes=(TEXTE_1_PHRASE,))
-    cir = eng.analyze_tok(TEXTE_1_PHRASE)
+    cir = _forward(eng, TEXTE_1_PHRASE)
     _valide_structure(cir, TEXTE_1_PHRASE, 1)
     assert cir["edges"] == []
 
 
 def test_determinisme_hors_horodates():
     eng = _moteur()
-    a = _sans_horodates(eng.analyze_tok(TEXTE_2_PHRASES))
-    b = _sans_horodates(eng.analyze_tok(TEXTE_2_PHRASES))
+    a = _sans_horodates(_forward(eng, TEXTE_2_PHRASES))
+    b = _sans_horodates(_forward(eng, TEXTE_2_PHRASES))
     assert a == b
 
 
 def test_determinisme_inter_instances_meme_seed():
     kwargs = {"seed": 7}
-    a = _sans_horodates(_moteur(**kwargs).analyze_tok(TEXTE_2_PHRASES))
-    b = _sans_horodates(_moteur(**kwargs).analyze_tok(TEXTE_2_PHRASES))
+    a = _sans_horodates(_forward(_moteur(**kwargs), TEXTE_2_PHRASES))
+    b = _sans_horodates(_forward(_moteur(**kwargs), TEXTE_2_PHRASES))
     assert a == b
 
 
 def test_oov_warn_et_taux_expose():
     eng = TokForwardEngine()
     eng.build_vocab(["Bonjour le monde."])
+    texte = "Zyxwv qwerty azerty. Paragraphe deuxieme."
+    seg = _segments(texte)
     with pytest.warns(UserWarning):
-        cir = eng.analyze_tok("Zyxwv qwerty azerty. Paragraphe deuxieme.")
+        cir = eng.forward_from_spans(
+            texte,
+            seg["ids"],
+            seg["offsets"],
+            seg["clause_spans"],
+            seg["clause_textes"],
+            source_b=seg["source"],
+        )
     assert eng.last_oov_rate > 0.05
     # Dégradé mais valide : la segmentation B fait foi (pas de compte supposé).
-    _valide_structure(cir, "Zyxwv qwerty azerty. Paragraphe deuxieme.", len(cir["nodes"]))
+    _valide_structure(cir, texte, len(cir["nodes"]))
     assert len(cir["nodes"]) >= 1
 
 
@@ -150,8 +190,26 @@ def test_sans_binaire_ni_subprocess(monkeypatch):
 
     monkeypatch.setattr(_sp, "run", _interdit)
     eng = _moteur()
-    cir = eng.analyze_tok(TEXTE_2_PHRASES)
+    cir = _forward(eng, TEXTE_2_PHRASES)
     _valide_structure(cir, TEXTE_2_PHRASES, 2)
+
+
+def test_frontend_parse_text():
+    seg = parse_text(TEXTE_2_PHRASES)
+    assert seg["source"] in ("silver-B", "fallback")
+    assert len(seg["clause_spans"]) == len(seg["clause_textes"]) == 2
+    ids, offsets, _tokens = tok_split(TEXTE_2_PHRASES)
+    assert seg["ids"] == ids and seg["offsets"] == offsets
+    assert parse_text("   ")["clause_spans"] == []
+    with pytest.raises(TypeError):
+        parse_text(42)
+
+
+def test_frontend_analyze_tok_text():
+    eng = _moteur()
+    cir = analyze_tok_text(eng, TEXTE_2_PHRASES)
+    _valide_structure(cir, TEXTE_2_PHRASES, 2)
+    assert analyze_tok_text(eng, "   ")["nodes"] == []
 
 
 class TestEngineUseTok:

@@ -11,14 +11,21 @@ Périmètre STRICT — inférence seule : aucun ``backward``, aucun entraînemen
 (câblage ultérieur avec ``refacto_loss`` + masques R8). Lecture seule du
 pipeline legacy : ``forward()`` / ``vectorize_*`` intacts, zéro modification.
 
+Séparation imposée par la garde ``test_runtime_appris_n_importe_jamais_moteur_b`` :
+le runtime appris (``pipeline/``, ``training/``, ``engine.py``) n'importe
+JAMAIS le moteur B — la segmentation B vit dans ``frontend/tok.py`` (même
+couche que le bridge legacy, même précédent que ``nlu/infer.py``). Ce module
+reçoit du PRÉ-SEGMENTÉ (spans + textes + connecteurs) et ne connaît que des
+ids stables.
+
 Honnêteté (doctrine Ph5 NO-GO → 6b) : les têtes (E_tok + MLP + R-GCN) sont
 NON ENTRAÎNÉES par défaut (aléatoires seedées) — les CIR produits sont
 STRUCTURELLEMENT valides (schéma serde Rust) mais NON CALIBRÉS. Aucun
 chiffre issu de ce chemin ne doit être présenté comme mesure.
 
 Différences assumées vs chemin legacy (documentées, pas silencieuses) :
-- segmentation = B (``engine_b`` : clauses ``{id, texte, span}`` + ``source``
-  ``silver-B|fallback``), jamais de lattice subprocess ;
+- segmentation = socle B (clauses ``{id, texte, span}`` + ``source``), jamais
+  de lattice subprocess ;
 - pas de features UD : base d'arête = ``[src|dst|gap]`` explicite
   (2·d_model + 1), pas de ``vectorize_edge`` ;
 - ``negated=False`` partout (aucun signal de négation sur ce chemin v0) ;
@@ -45,13 +52,17 @@ from ..constants import (
     rgcn_n_relations,
     rgcn_no_edge_idx,
 )
-from ..layer0 import engine_b
 from ..layer0.tokenizer import split as tok_split
 from ..layer1.l1_forward import align_spans, forward_ids, pool_clauses
 from ..layer1.tok_embedding import TokEmbedding
 from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from .ir_emitter import emit
+
+#: Budget langues B — MIROIR du budget du socle (duplication forcée : ce
+#: module n'a pas le droit d'importer le socle — garde moteur-B du runtime).
+#: Toute divergence = bug (détecté par les tests frontend qui comparent).
+LANGS_BUDGET = ("fr", "en", "es", "de", "pt", "it")
 
 #: Fenêtre de paires (R7 — all_pairs interdit) : 1 ≤ j-i ≤ WINDOW_K.
 WINDOW_K = 2
@@ -136,11 +147,11 @@ class TokForwardEngine:
     def build_vocab(self, texts, lang: str = "fr") -> int:
         """Ajoute les ids stables des textes (ordre indifférent — triés).
 
-        ``lang`` accepté pour symétrie avec B (le tokenizer est agnostique,
-        T6) ; validé contre le budget B pour refuser tôt les langues hors
-        support au lieu de produire des CIR vides silencieux.
+        ``lang`` validé contre le budget B (miroir — voir LANGS_BUDGET) pour
+        refuser tôt les langues hors support au lieu de produire des CIR
+        vides silencieux. Le tokenizer lui-même est agnostique (T6).
         """
-        if lang not in engine_b.SUPPORTED_LANGS:
+        if lang not in LANGS_BUDGET:
             raise ValueError(f"langue hors budget fr/en/es/de/pt/it : {lang!r}")
         for _t in texts:
             if not isinstance(_t, str):
@@ -162,8 +173,23 @@ class TokForwardEngine:
                 return i
         return None
 
-    def analyze_tok(self, text: str, lang: str = "fr") -> dict:
-        """Texte brut → CIR dict (chemin tok, sans binaire, sans UD).
+    def forward_from_spans(
+        self,
+        text: str,
+        ids: list,
+        offsets: list,
+        clause_spans: list,
+        clause_textes: list,
+        connecteurs: list | None = None,
+        source_b: str = "tok",
+    ) -> dict:
+        """Pré-segmenté → CIR dict (runtime pur — aucune entrée B/texte ici).
+
+        ``clause_spans`` : spans caractères (sortie B) ; ``clause_textes`` :
+        libellés ; ``connecteurs`` : dicts B avec ``span`` (marqueurs) ;
+        ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref``.
+        La segmentation (B + split) vit dans ``frontend/tok.py`` — ce module
+        ne segmente jamais (garde ``test_runtime_appris_n_importe_jamais_moteur_b``).
 
         Gate capacitaire : vocabulaire vide → ``ValueError`` (prédire sur
         E vide/OOV-total est refusé — la vérité graphe ne se brade pas).
@@ -175,28 +201,23 @@ class TokForwardEngine:
         if self.emb.vocab_size == 0:
             raise ValueError(
                 "E_tok vide : appelez build_vocab(textes) ou chargez un "
-                "checkpoint s1+ avant analyze_tok — l'inférence sans vocabulaire "
-                "est refusée (CIR non fondé)."
+                "checkpoint s1+ avant forward_from_spans — l'inférence sans "
+                "vocabulaire est refusée (CIR non fondé)."
             )
-        if not text.strip():
-            return emit(text, [], [], [], [], [])
-        sortie_b = engine_b.analyze(text, lang=lang)
-        clauses = sortie_b.clauses
-        source_b = sortie_b.source
+        clauses = list(zip(clause_spans, clause_textes, strict=False))
         if not clauses:
             return emit(text, [], [], [], [], [])
-        ids, offsets, _tokens = tok_split(text)
         self.emb.reset_oov()
         matrice = forward_ids(self.emb, ids)
         self.last_oov_rate = self.emb.oov_rate
         if self.last_oov_rate > OOV_WARN_RATE:
             warnings.warn(
-                f"analyze_tok : taux OOV {self.last_oov_rate:.2%} > 5 % "
+                f"forward_from_spans : taux OOV {self.last_oov_rate:.2%} > 5 % "
                 f"(source B : {source_b}) — vecteurs zéro, CIR dégradé.",
                 UserWarning,
                 stacklevel=2,
             )
-        spans = [list(c["span"]) for c in clauses]
+        spans = [list(span) for span, _texte in clauses]
         alignes = align_spans(offsets, spans)
         pooled, _miroir = pool_clauses(matrice, alignes)
 
@@ -208,7 +229,7 @@ class TokForwardEngine:
         node_probs = _softmax_rows(node_logits)
         node_types = [NODE_TYPES[int(i)] for i in np.argmax(node_logits, axis=1)]
         node_labels = [
-            (c.get("texte") or "").strip() or f"clause_{k}" for k, c in enumerate(clauses)
+            (texte or "").strip() or f"clause_{k}" for k, (_span, texte) in enumerate(clauses)
         ]
         token_spans = [(min(aligne), max(aligne)) if aligne else (0, 0) for aligne in alignes]
         scopes = ["unknown"] * len(clauses)
@@ -226,7 +247,7 @@ class TokForwardEngine:
             enriched = pooled
 
         # Connecteurs B observés (span → token) pour les marqueurs.
-        connecteurs = getattr(sortie_b, "connecteurs", None) or []
+        connecteurs = connecteurs or []
         triples = []
         for i, j in paires:
             gap = float(j - i)
