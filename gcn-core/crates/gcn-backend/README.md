@@ -5,7 +5,14 @@ Version: 4.0.0
 [![Crates.io](https://img.shields.io/crates/v/gcn-backend)](https://crates.io/crates/gcn-backend)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-Backend de raisonnement du moteur **GCN-Core**. Implémente les trois niveaux de causalité de Judea Pearl, le langage de requête GCN-QL, et l'export du graphe causal en JSON ou DOT (Graphviz).
+Backend de raisonnement du moteur **GCN-Core**. Implémente les requêtes causales sur graphe
+(association, chirurgie de graphe, contrefactuel sur assertions), le langage de requête GCN-QL,
+et l'export du graphe causal en JSON ou DOT (Graphviz).
+
+> **Portée (borné 2026-10-11).** Le graphe stocke des **assertions sourcées, pas des faits**.
+> `intervene()` (coupe les entrantes, propage) et `counterfactual()` (monde-sans-X) sont des
+> calculs sur assertions citées — **sans contrôle de confondeurs ni modèle structurel**,
+> donc pas du do-calculus identifié au sens statistique. Voir `docs/refactory/ETUDE_SA.md §2.1`.
 
 ---
 

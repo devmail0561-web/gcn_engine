@@ -11,7 +11,10 @@ build-release:
 
 test:
 	cd gcn-core && cargo test --workspace
-	python3 -m pytest gcn-python/tests/ -q
+	PYTHONPATH=gcn-python/src python3 -m pytest gcn-python/tests/ -q
+	# NOTE : PYTHONPATH obligatoire — sans lui, pytest résout gcn_python via
+	# le paquet installé (potentiellement un checkout stale) au lieu de la source locale,
+	# et test_engine_b/test_nlu_infer échouent sur des chemins relatifs.
 
 gates: guards
 	for f in gcn-datasets/DATA/supervision/v4/annotated/lot*.json; do \

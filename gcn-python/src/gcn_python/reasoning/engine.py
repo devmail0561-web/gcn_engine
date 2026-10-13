@@ -164,6 +164,12 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16,
 
     R2 : `causal_only` (défaut True — groupe §15, None accepté),
     `min_premise_conf` (défaut 0.0 = comportement R1).
+
+    Ordre filtre-puis-pont (pas traverse-puis-filtre) : les maillons
+    non-causaux / sous-seuil sont écartés AVANT tout `infer:` (compagnons
+    pré-filtrés, `verify_path` causal) — jamais d'inférence transitive via
+    `sequence` / `analogy` / `opposition` sauf opt-out explicite
+    (`causal_only=False`, tracé dans l'appelant).
     """
     trace: list = []
     tour = 0
