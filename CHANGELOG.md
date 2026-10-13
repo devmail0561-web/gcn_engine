@@ -7,6 +7,33 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Lot tok in-process P0+P1 (2026-10-13, 11 commits)
+
+- **P0 vitrine** : README borné assertions sourcées (ETUDE_SA §2.1), perf unifiée
+  v4 gold-only quota64 moy 0.239±0.04 (0.468/0.1867 archivés, incomparables),
+  badges/tests 260/887, bandeaux pré-refacto SAD/ANALYSIS, `reason()` ordre
+  filtre-puis-pont documenté. Makefile `test` : PYTHONPATH obligatoire + note
+  (editable repointé vers source locale 4.0.0 — `make test` testait le checkout
+  stale actions-runner avant).
+- **P1-V5/V3** : garde subprocess transition-safe (git autorisé, bridge connu,
+  compteur lattice → 0) ; import mort `_LABEL_RE` supprimé (comportement identique).
+- **V6 chemin tok** : `pipeline/forward_ids.py` (TokForwardEngine d_model=128,
+  seeds seed/+1/+2, fenêtre k=2, base [src|dst|gap], R-GCN no-edge, negated=False,
+  scope unknown, inférence seule non calibrée) + `nlu/tok.py` (segmentation socle,
+  T6 : zéro frontend, zéro lexique) + `engine.analyze(use_tok)` + gate capacitaire
+  + `from_pretrained` s1+ → moteur tok-only + cache M1a (hit 0,18 ms vs miss ~10 ms).
+- **Training** : `data/gold_spans.py` (SpanError, parité oracle), `training/train_tok.py`
+  (SGD phrase, R8/GelError, best-edge + patience, CSV provenance) ;
+  `scripts/audit_spans_tok.py` rejouable (v4/final2 : rejet 0 %, 0 erreur structurelle).
+- **Premier run v4/final2** : GELÉ R8 correct (3 types nœuds à 0 — fail-fast, exit 2),
+  OOV val 23,7 % publié (écart R5 documenté). Persistance s1+ (roundtrip prouvé).
+- **Vert : 932 Python + 260 Rust, guards 0, ruff propre.** Legacy intact (opt-in),
+  pin SA inchangé (dérive à traiter côté SA).
+- **Preuve d'échange M1** : CIR produit par le chemin tok (3 nœuds, 3 arêtes,
+  têtes non entraînées — `prevent` partout à ~0.55, non calibré assumé) accepté
+  par le binaire Rust : `gcn query "WHY couts?"` → enveloppe `UserResponse`
+  (match flou, causes citées, exit 0). Zéro glue neuve — le même `emit()`.
+
 ### Cleanup S5 audit — garde lints partagée (2026-10-09)
 
 - `[workspace.lints.clippy]` : `uninlined_format_args`, `redundant_closure_for_method_calls`, `format_push_string`, `map_unwrap_or` (hérité par les 10 crates). Reste de pedantic exclu : casts (revue sémantique), docs FR (bruit), `must_use` (51 sites, bruit), bras identiques voulus.
