@@ -312,6 +312,46 @@ class TestEngineUseTok:
         cir = engine.analyze(TEXTE_2_PHRASES, use_tok=True)
         _valide_structure(cir, TEXTE_2_PHRASES, 2)
 
+    def test_moteur_vide_refuse(self):
+        with pytest.raises(TypeError):
+            GCNEngine(None, tok_engine=None)
+
+    def test_tok_only_legacy_refuse_avec_conseil(self):
+        from gcn_python.pipeline.forward_ids import TokForwardEngine as _T
+
+        tok = _T()
+        tok.build_vocab([TEXTE_2_PHRASES])
+        engine = GCNEngine(None, tok_engine=tok)
+        with pytest.raises(ValueError):
+            engine.analyze(TEXTE_2_PHRASES)
+        with pytest.raises(ValueError):
+            engine.verbalize(TEXTE_2_PHRASES)
+        # analyze_or_skip : contrat None-safe (warn + None, jamais raise).
+        with pytest.warns(UserWarning):
+            assert engine.analyze_or_skip(TEXTE_2_PHRASES) is None
+        out = engine.analyze_batch([TEXTE_2_PHRASES, TEXTE_2_PHRASES, "  "], use_tok=True)
+        assert len(out) == 2
+        _valide_structure(out[0], TEXTE_2_PHRASES, 2)
+
+    def test_from_pretrained_tok(self, tmp_path):
+        tok = TokForwardEngine(seed=9)
+        tok.build_vocab([TEXTE_2_PHRASES])
+        chemin = str(tmp_path / "tok.npz")
+        tok.save_npz(chemin)
+        engine = GCNEngine.from_pretrained(chemin, trusted=True)
+        assert engine._pipeline is None and engine._tok_engine is not None
+        _valide_structure(engine.analyze(TEXTE_2_PHRASES, use_tok=True), TEXTE_2_PHRASES, 2)
+
+    def test_from_pretrained_tok_exige_trusted(self, tmp_path):
+        tok = TokForwardEngine()
+        tok.build_vocab([TEXTE_2_PHRASES])
+        chemin = str(tmp_path / "tok.npz")
+        tok.save_npz(chemin)
+        with pytest.raises(RuntimeError):
+            GCNEngine.from_pretrained(chemin)
+        with pytest.raises(FileNotFoundError):
+            GCNEngine.from_pretrained(str(tmp_path / "absent.npz"), trusted=True)
+
 
 class TestCheckpointS1:
     """Persistance s1+ : roundtrip exact, refus fail-fast (jamais partiel)."""

@@ -56,12 +56,17 @@ class GCNEngine:
     >>> cirs = engine.analyze_batch(open("corpus.txt").readlines())
     """
 
-    def __init__(self, pipeline, text_parser=None, tok_engine=None):
+    def __init__(self, pipeline=None, text_parser=None, tok_engine=None):
         self._pipeline = pipeline
         self._text_parser = text_parser
         # Moteur tok in-process (pipeline/forward_ids.py, opt-in use_tok) —
         # None par défaut : le chemin legacy reste le comportement par défaut.
+        # pipeline=None + tok_engine : moteur tok-only (checkpoint s1+).
         self._tok_engine = tok_engine
+        if pipeline is None and tok_engine is None:
+            raise TypeError("GCNEngine vide : fournissez pipeline et/ou tok_engine.")
+        if pipeline is None:
+            return
         self._pipeline.encoder.training = False
         for layer in getattr(self._pipeline, "_graph_layers", []):
             if hasattr(layer, "training"):
@@ -94,6 +99,8 @@ class GCNEngine:
         Parameters
         ----------
         checkpoint : chemin vers un fichier .npz produit par gcn-train
+            (legacy) ou par TokForwardEngine.save_npz (s1+ → moteur tok-only,
+            utilisable avec use_tok=True uniquement)
         gcn_bin    : chemin vers le binaire gcn-cli Rust (pour le parsing UD)
         device     : "cpu" ou "cuda" (pour RGCNLayerGAT PyTorch)
         trusted    : opt-in explicite pour un fichier local de confiance
@@ -115,6 +122,20 @@ class GCNEngine:
                 "(allow_pickle requis → exécution de pickle). Relancez avec trusted=True "
                 "pour un fichier local de confiance."
             )
+
+        # Checkpoint tok s1+ : détection SANS désérialisation (liste zip —
+        # même règle que checkpoint_format_kind) puis chargement fail-fast
+        # (allow_pickle=False). Retourne un moteur tok-only (pipeline None).
+        import zipfile as _zf
+
+        try:
+            _noms = {n[:-4] for n in _zf.ZipFile(checkpoint).namelist() if n.endswith(".npy")}
+        except Exception as exc:
+            raise ValueError(f"Checkpoint illisible : {checkpoint} ({exc}).") from exc
+        if {"format_refacto", "tok_vocab", "E"} <= _noms and "_arch_json" not in _noms:
+            from .pipeline.forward_ids import TokForwardEngine
+
+            return cls(None, tok_engine=TokForwardEngine.load_npz(str(checkpoint)))
 
         # Garde anti-RCE : audit pickle (allowlist numpy) AVANT toute
         # désérialisation, même quand l'appelant a posé trusted=True.
@@ -378,13 +399,15 @@ class GCNEngine:
         une phrase et produit un CIR.
 
         use_tok=False (défaut) : chemin legacy (lattice gcn-cli via
-        text_parser) — comportement inchangé.
+        text_parser) — comportement inchangé. Moteur tok-only (pipeline
+        None) : use_tok=False est refusé (rien d'autre à appeler).
         use_tok=True : chemin tok in-process (pipeline/forward_ids.py :
-        split + B + E_tok, sans binaire, sans UD). Gate capacitaire :
-        exige un moteur tok attaché (constructeur ``tok_engine=``) avec
-        vocabulaire non vide, sinon ValueError — prédire sans E_tok
-        fondé est refusé (vérité graphe). Têtes non entraînées par
-        défaut : CIR structurels, non calibrés (doctrine 6b).
+        split + socle + E_tok, sans binaire, sans UD). Gate capacitaire :
+        exige un moteur tok attaché (constructeur ``tok_engine=`` ou
+        checkpoint s1+ via ``from_pretrained``) avec vocabulaire non vide,
+        sinon ValueError — prédire sans E_tok fondé est refusé (vérité
+        graphe). Têtes non entraînées par défaut : CIR structurels,
+        non calibrés (doctrine 6b).
 
         Returns
         -------
@@ -400,19 +423,23 @@ class GCNEngine:
             if tok is None:
                 raise ValueError(
                     "use_tok=True sans moteur tok : passez tok_engine=TokForwardEngine "
-                    "au constructeur (vocabulaire construit via build_vocab, ou "
-                    "checkpoint s1+ quand l'intégration checkpoint sera livrée)."
+                    "au constructeur ou chargez un checkpoint s1+ via from_pretrained."
                 )
             if getattr(tok, "vocab_size", 0) == 0:
                 raise ValueError(
                     "use_tok=True avec E_tok vide : appelez build_vocab(textes) "
                     "d'abord — l'inférence sans vocabulaire est refusée."
                 )
-            # Segmentation via le frontend (le runtime appris n'importe
+            # Segmentation via NLU (le runtime appris n'importe
             # jamais le socle — garde du runtime, voir tests du socle).
             from .nlu.tok import analyze_tok_text
 
             return analyze_tok_text(tok, text, lang=lang)
+        if self._pipeline is None:
+            raise ValueError(
+                "Moteur tok-only : le chemin legacy est indisponible "
+                "(aucun pipeline) — utilisez use_tok=True."
+            )
         return self._pipeline.analyze(
             text,
             text_parser=self._text_parser,
@@ -456,6 +483,10 @@ class GCNEngine:
         Note : le TrainableDecoder est un RNN piloté par pooling attentionnel des nœuds
         sans réinjection de tokens — qualité de génération limitée (vrai teacher forcing = Phase 3).
         """
+        if self._pipeline is None:
+            raise ValueError(
+                "verbalize indisponible sur moteur tok-only (décodeur couplé au pipeline legacy)."
+            )
         cir = self._pipeline.analyze(text, text_parser=self._text_parser)
         if use_neural and self._pipeline.decoder is not None:
             enriched = self._pipeline.get_enriched_vectors()
@@ -475,6 +506,11 @@ class GCNEngine:
         None = valeur du pipeline (config d'entraînement via --bfs-depth),
         elle-même None = tous les candidats (illimité).
         """
+        if self._pipeline is None:
+            raise ValueError(
+                "predict_links indisponible sur moteur tok-only "
+                "(tête LinkPredHead du pipeline legacy)."
+            )
         if bfs_depth is None:
             bfs_depth = getattr(self._pipeline, "bfs_depth", None)
         cir = self.analyze(text)
@@ -505,7 +541,9 @@ class GCNEngine:
         scored = self._pipeline.predict_links(candidates, vecs)
         return [(s, d, c) for s, d, c in scored if c >= threshold]
 
-    def analyze_batch(self, texts: list[str]) -> list[dict]:
+    def analyze_batch(
+        self, texts: list[str], *, use_tok: bool = False, lang: str = "fr"
+    ) -> list[dict]:
         """
         Liste de phrases pré-segmentées → liste de CausalIR.
 
@@ -516,6 +554,7 @@ class GCNEngine:
         (cache M1a inter-phrases), ordre préservé, copies indépendantes
         (l'appelant peut muter chaque CIR sans contaminer les autres).
         Textes vides/blancs sautés (pas de slot — len(out) ≤ len(texts)).
+        use_tok/lang : transmis à analyze() (chemin tok in-process).
         """
         import copy as _copy
 
@@ -525,7 +564,7 @@ class GCNEngine:
             if not t.strip():
                 continue
             if t not in seen:
-                seen[t] = self.analyze(t)
+                seen[t] = self.analyze(t, use_tok=use_tok, lang=lang)
             out.append(_copy.deepcopy(seen[t]))
         return out
 
