@@ -49,6 +49,30 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 - **Vert : 939 Python, guards 0, ruff propre** (9 lints `dialogue.py`
   pré-existants intacts, vérifiés par stash-comparaison).
 
+### Lot tok suite — persistance, entraînement, intent, loader (2026-10-13)
+
+- **s1+** (`TokForwardEngine.save_npz/load_npz`) : E_tok + vocab + hash +
+  d_model + têtes + arch, `allow_pickle=False`, fail-fast
+  (format/hash/dims/formes/ontologies), legacy refusé, roundtrip prouvé.
+- **Boucle fermée** : `from_pretrained` détecte le s1+ sans désérialisation
+  → moteur tok-only (`pipeline=None`, legacy refusé avec conseil,
+  `analyze_batch`/`or_skip`/`stream` cohérents, properties 8/19) ; legacy intact.
+- **Cache M1a tok** : clé (epoch, texte, lang) au-dessus du socle —
+  hit 0,18 ms vs miss ~10 ms (≈55×), invalidation au bump, FIFO, copies.
+- **Training** (`train_tok.py` + `data/gold_spans.py` + `data/tok_loader.py`) :
+  supervision gold pure (char-spans validés, `SpanError`), SGD phrase
+  (chaîne dx complète, bump M1a), R8/`GelError` fail-fast, best-edge +
+  patience + restore, CSV provenance, CLI (exit 2 = GELÉ).
+- **Premier run v4/final2** : GELÉ R8 correct (3 types nœuds à 0),
+  OOV val 23,7 % publié ; `scripts/audit_spans_tok.py` rejouable
+  (rejet 0 %, 0 erreur structurelle, 46/9/9 × 11 relations).
+- **Intent T4 règles v0** : `emit(intent=)` additif (legacy byte-identique),
+  `detect_act` propagé (assert/question/request + bascule `lang: wo`),
+  `route_intent` fonctionnel (store/filed), échange Rust prouvé (exit 0).
+- **Vert : 952 Python + 260 Rust, guards 0, ruff propre.** Têtes non
+  entraînées (structurel, non calibré — doctrine 6b) ; training bloqué
+  données (voir « Reporté » dans PROGRESS.md).
+
 ### Cleanup S5 audit — garde lints partagée (2026-10-09)
 
 - `[workspace.lints.clippy]` : `uninlined_format_args`, `redundant_closure_for_method_calls`, `format_push_string`, `map_unwrap_or` (hérité par les 10 crates). Reste de pedantic exclu : casts (revue sémantique), docs FR (bruit), `must_use` (51 sites, bruit), bras identiques voulus.
