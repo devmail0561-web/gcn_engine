@@ -11,10 +11,14 @@ Déterminisme : octets identiques hors horodates wall-clock
 
 import json
 import re as _re
+import sys
 
 import pytest
 
+sys.path.insert(0, "gcn-python/tests")
+from conftest import make_test_pipeline
 from gcn_python.constants import NODE_TYPES, RELATION_TYPES
+from gcn_python.engine import GCNEngine
 from gcn_python.pipeline.forward_ids import (
     D_MODEL_DEFAULT,
     WINDOW_K,
@@ -148,3 +152,54 @@ def test_sans_binaire_ni_subprocess(monkeypatch):
     eng = _moteur()
     cir = eng.analyze_tok(TEXTE_2_PHRASES)
     _valide_structure(cir, TEXTE_2_PHRASES, 2)
+
+
+class TestEngineUseTok:
+    """Câblage GCNEngine.analyze(use_tok) — défaut legacy inchangé, gate capacitaire."""
+
+    def test_defaut_legacy_inchange(self):
+        from gcn_python.layer1.representation import UDRepresentation
+
+        pipe = make_test_pipeline(d_emb=8)
+        engine = GCNEngine(pipe)
+
+        class _Parser:
+            def parse(self, text):
+                rep = UDRepresentation(
+                    tokens=[{"lemma": "w", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+                    root_lemma="w",
+                    root_pos="VERB",
+                    root_dep_rel="root",
+                    root_morph={},
+                    subject_pos=None,
+                    has_object=False,
+                    has_advcl=False,
+                    has_temporal_obl=False,
+                    token_span=(0, 1),
+                )
+                return [rep], []
+
+        engine._text_parser = _Parser()
+        cir = engine.analyze("phrase vue")
+        assert cir["source_text"] == "phrase vue"
+        assert len(cir["nodes"]) == 1
+
+    def test_use_tok_sans_moteur_refuse(self):
+        pipe = make_test_pipeline(d_emb=8)
+        engine = GCNEngine(pipe)
+        with pytest.raises(ValueError):
+            engine.analyze(TEXTE_2_PHRASES, use_tok=True)
+
+    def test_use_tok_vocab_vide_refuse(self):
+        pipe = make_test_pipeline(d_emb=8)
+        engine = GCNEngine(pipe, tok_engine=TokForwardEngine())
+        with pytest.raises(ValueError):
+            engine.analyze(TEXTE_2_PHRASES, use_tok=True)
+
+    def test_use_tok_cir_valide(self):
+        pipe = make_test_pipeline(d_emb=8)
+        tok = TokForwardEngine()
+        tok.build_vocab([TEXTE_2_PHRASES])
+        engine = GCNEngine(pipe, tok_engine=tok)
+        cir = engine.analyze(TEXTE_2_PHRASES, use_tok=True)
+        _valide_structure(cir, TEXTE_2_PHRASES, 2)

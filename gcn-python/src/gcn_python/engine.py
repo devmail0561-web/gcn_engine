@@ -28,6 +28,7 @@ Usage :
     cirs = engine.analyze_batch(corpus_lines)
     graph = CausalGraph.from_cirs(cirs, session_origin="document")
 """
+
 from __future__ import annotations
 
 import json
@@ -55,9 +56,12 @@ class GCNEngine:
     >>> cirs = engine.analyze_batch(open("corpus.txt").readlines())
     """
 
-    def __init__(self, pipeline, text_parser=None):
+    def __init__(self, pipeline, text_parser=None, tok_engine=None):
         self._pipeline = pipeline
         self._text_parser = text_parser
+        # Moteur tok in-process (pipeline/forward_ids.py, opt-in use_tok) —
+        # None par défaut : le chemin legacy reste le comportement par défaut.
+        self._tok_engine = tok_engine
         self._pipeline.encoder.training = False
         for layer in getattr(self._pipeline, "_graph_layers", []):
             if hasattr(layer, "training"):
@@ -131,13 +135,13 @@ class GCNEngine:
             # M5 : checkpoints .npz = artefacts locaux de confiance (allow_pickle requis
             # pour _arch_json/_vocab_json). Ne jamais charger un .npz non fiable.
             arch = json.loads(str(data["_arch_json"][0]))
-        d_eff         = int(arch.get("d_eff", FeatureVocabulary().d_clause))
-        d_emb         = int(arch.get("d_emb", 0))
-        n_rel         = int(arch.get("n_relations", len(RELATION_TYPES)))
+        d_eff = int(arch.get("d_eff", FeatureVocabulary().d_clause))
+        d_emb = int(arch.get("d_emb", 0))
+        n_rel = int(arch.get("n_relations", len(RELATION_TYPES)))
         bidirectional = bool(arch.get("bidirectional", arch.get("bidi_flag", False)))
         all_pairs = bool(arch.get("all_pairs", False))
         n_rgcn_layers = int(arch.get("n_rgcn_layers", 1))
-        graph_class  = arch.get("graph_class", "RGCNLayer")
+        graph_class = arch.get("graph_class", "RGCNLayer")
         # §1 (amelioration_v3) — défauts = comportement historique
         clause_pooling = str(arch.get("clause_pooling", "root"))
         subject_object_emb = bool(arch.get("subject_object_emb", False))
@@ -157,8 +161,7 @@ class GCNEngine:
         # v5.8 (P3) : types actifs coarse — absents = fin (19/8 historiques).
         _active_nodes = list(arch.get("active_node_types") or list(NODE_TYPES))
         _active_rels = list(arch.get("active_relation_types") or list(RELATION_TYPES))
-        d_edge = vocab.d_edge_closed_loop(d_eff, len(_active_nodes), d_emb,
-                                          subject_object_emb)
+        d_edge = vocab.d_edge_closed_loop(d_eff, len(_active_nodes), d_emb, subject_object_emb)
 
         # Éq.6 : restaurer la tête intent depuis ses métas — sans elle,
         # les poids intent_layer_* sauvegardés ne seraient jamais rechargés
@@ -166,16 +169,18 @@ class GCNEngine:
         _n_intent = 0
         if "_intent_meta_json" in data:
             try:
-                _n_intent = int(json.loads(str(data["_intent_meta_json"][0])).get(
-                    "n_intent_types", 0))
+                _n_intent = int(
+                    json.loads(str(data["_intent_meta_json"][0])).get("n_intent_types", 0)
+                )
             except (ValueError, TypeError, AttributeError):
                 _n_intent = 0
         # P4a : idem tête type de phrase — reconstruite depuis ses métas.
         _n_sentence = 0
         if "_sentence_meta_json" in data:
             try:
-                _n_sentence = int(json.loads(str(data["_sentence_meta_json"][0])).get(
-                    "n_sentence_types", 0))
+                _n_sentence = int(
+                    json.loads(str(data["_sentence_meta_json"][0])).get("n_sentence_types", 0)
+                )
             except (ValueError, TypeError, AttributeError):
                 _n_sentence = 0
         # Phase C : substitution pour from_pretrained — TransformerMLPEncoder
@@ -185,24 +190,31 @@ class GCNEngine:
         _mha_heads = int(arch.get("n_gat_heads_mha", 4))
         if _global_attention:
             from .layer2.reference import TransformerMLPEncoder
-            encoder = TransformerMLPEncoder(d_clause=d_eff, d_edge=d_edge,
-                                            mlp_hidden=mlp_hidden,
-                                            n_heads=_mha_heads,
-                                            n_node_types=len(_active_nodes),
-                                            n_relation_types=len(_active_rels),
-                                            n_intent_types=_n_intent,
-                                            n_sentence_types=_n_sentence,
-                                            intent_conditioned=bool(arch.get("intent_conditioned", False)),
-                                            qual_heads=bool(arch.get("qual_heads", False)))
-        else:
-            encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge, mlp_hidden=mlp_hidden,
-                                 n_node_types=len(_active_nodes),
-                                 n_relation_types=len(_active_rels),
-                                 n_intent_types=_n_intent,
-                                 n_sentence_types=_n_sentence,
-                                 intent_conditioned=bool(arch.get("intent_conditioned", False)),
-                                 qual_heads=bool(arch.get("qual_heads", False)))
 
+            encoder = TransformerMLPEncoder(
+                d_clause=d_eff,
+                d_edge=d_edge,
+                mlp_hidden=mlp_hidden,
+                n_heads=_mha_heads,
+                n_node_types=len(_active_nodes),
+                n_relation_types=len(_active_rels),
+                n_intent_types=_n_intent,
+                n_sentence_types=_n_sentence,
+                intent_conditioned=bool(arch.get("intent_conditioned", False)),
+                qual_heads=bool(arch.get("qual_heads", False)),
+            )
+        else:
+            encoder = MLPEncoder(
+                d_clause=d_eff,
+                d_edge=d_edge,
+                mlp_hidden=mlp_hidden,
+                n_node_types=len(_active_nodes),
+                n_relation_types=len(_active_rels),
+                n_intent_types=_n_intent,
+                n_sentence_types=_n_sentence,
+                intent_conditioned=bool(arch.get("intent_conditioned", False)),
+                qual_heads=bool(arch.get("qual_heads", False)),
+            )
 
         # Phases B/D : flags RGCNLayerPT persistés (défauts = comportement historique).
         _pairnorm = bool(arch.get("pairnorm", False))
@@ -213,32 +225,55 @@ class GCNEngine:
         # M5 : RGCNLayerPT accepte aussi device (comme GAT).
         try:
             from .layer3.pytorch_rgcn import RGCNLayerPT
+
             _has_pt = True
         except ImportError:
             _has_pt = False
         if graph_class == "RGCNLayerGAT":
             try:
                 from .layer3.gat import RGCNLayerGAT
-                graph = RGCNLayerGAT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                                     device=device, n_heads=n_gat_heads,
-                                     output_activation=gat_output_activation,
-                                     use_layernorm=gat_layernorm)
+
+                graph = RGCNLayerGAT(
+                    d_in=d_eff,
+                    d_out=d_eff,
+                    n_relations=n_rel,
+                    device=device,
+                    n_heads=n_gat_heads,
+                    output_activation=gat_output_activation,
+                    use_layernorm=gat_layernorm,
+                )
             except ImportError:
-                warnings.warn("PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning,
-                              stacklevel=2)
-                graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                                  output_activation=rgcn_output_activation,
-                                  use_layernorm=rgcn_layernorm)
+                warnings.warn(
+                    "PyTorch absent — repli sur RGCNLayer (NumPy).", UserWarning, stacklevel=2
+                )
+                graph = RGCNLayer(
+                    d_in=d_eff,
+                    d_out=d_eff,
+                    n_relations=n_rel,
+                    output_activation=rgcn_output_activation,
+                    use_layernorm=rgcn_layernorm,
+                )
         elif graph_class == "RGCNLayerPT" and _has_pt:
             from .layer3.pytorch_rgcn import RGCNLayerPT
-            graph = RGCNLayerPT(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                                device=device, pairnorm=_pairnorm,
-                                drop_edge=_drop_edge,
-                                use_compgcn=_use_compgcn, d_rel_emb=_d_rel_emb)
+
+            graph = RGCNLayerPT(
+                d_in=d_eff,
+                d_out=d_eff,
+                n_relations=n_rel,
+                device=device,
+                pairnorm=_pairnorm,
+                drop_edge=_drop_edge,
+                use_compgcn=_use_compgcn,
+                d_rel_emb=_d_rel_emb,
+            )
         else:
-            graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=n_rel,
-                              output_activation=rgcn_output_activation,
-                              use_layernorm=rgcn_layernorm)
+            graph = RGCNLayer(
+                d_in=d_eff,
+                d_out=d_eff,
+                n_relations=n_rel,
+                output_activation=rgcn_output_activation,
+                use_layernorm=rgcn_layernorm,
+            )
 
         if d_emb <= 0:
             raise ValueError(
@@ -246,6 +281,7 @@ class GCNEngine:
                 "Réentraîner avec --embedding-dim 128 (D10 ETUDE — obligatoire)."
             )
         from .layer1.embedding import WordEmbedding
+
         word_embedding = WordEmbedding(d_emb=d_emb)
         if freeze_embeddings:
             word_embedding.frozen = True
@@ -254,27 +290,35 @@ class GCNEngine:
         # analyze() utilise les défauts (seuil 0.0, morph actif, temp 1.0) même
         # si le modèle a été entraîné avec d'autres valeurs.
         edge_threshold = float(arch.get("edge_threshold", 0.0))
-        drop_morph     = bool(arch.get("drop_morph", False))
+        drop_morph = bool(arch.get("drop_morph", False))
         # v5.5 : flags d'ablation persistés — sans eux l'inférence réactiverait
         # des features masquées au train (mismatch train/inférence silencieux).
-        no_positional  = bool(arch.get("no_positional", False))
-        no_ternary     = bool(arch.get("no_ternary", False))
-        no_mood        = bool(arch.get("no_mood", False))
-        no_tense       = bool(arch.get("no_tense", False))
-        temperature    = float(arch.get("temperature", 1.0))
-        bfs_depth      = arch.get("bfs_depth")
+        no_positional = bool(arch.get("no_positional", False))
+        no_ternary = bool(arch.get("no_ternary", False))
+        no_mood = bool(arch.get("no_mood", False))
+        no_tense = bool(arch.get("no_tense", False))
+        temperature = float(arch.get("temperature", 1.0))
+        bfs_depth = arch.get("bfs_depth")
         if bfs_depth is not None:
             bfs_depth = int(bfs_depth)
 
         # M5 : reconstruit les couches R-GCN extra (n_rgcn_layers>1).
         pipeline = CGNPipeline(
-            encoder=encoder, graph=graph, vocabulary=vocab,
-            word_embedding=word_embedding, bidirectional=bidirectional,
-            all_pairs=all_pairs, n_rgcn_layers=n_rgcn_layers,
-            edge_threshold=edge_threshold, drop_morph=drop_morph,
-            temperature=temperature, bfs_depth=bfs_depth,
-            no_positional=no_positional, no_ternary=no_ternary,
-            no_mood=no_mood, no_tense=no_tense,
+            encoder=encoder,
+            graph=graph,
+            vocabulary=vocab,
+            word_embedding=word_embedding,
+            bidirectional=bidirectional,
+            all_pairs=all_pairs,
+            n_rgcn_layers=n_rgcn_layers,
+            edge_threshold=edge_threshold,
+            drop_morph=drop_morph,
+            temperature=temperature,
+            bfs_depth=bfs_depth,
+            no_positional=no_positional,
+            no_ternary=no_ternary,
+            no_mood=no_mood,
+            no_tense=no_tense,
             node_types=list(_active_nodes),
             relation_types=list(_active_rels),
             clause_pooling=clause_pooling,
@@ -296,9 +340,11 @@ class GCNEngine:
         _nremap = arch.get("node_remap") or None
         _eremap = arch.get("edge_remap") or None
         pipeline._coarse_node_remap = (
-            {int(k): int(v) for k, v in _nremap.items()} if _nremap else None)
+            {int(k): int(v) for k, v in _nremap.items()} if _nremap else None
+        )
         pipeline._coarse_edge_remap = (
-            {int(k): int(v) for k, v in _eremap.items()} if _eremap else None)
+            {int(k): int(v) for k, v in _eremap.items()} if _eremap else None
+        )
         pipeline._coarse_phase = bool(arch.get("coarse_phase", False))
         load_checkpoint(pipeline, checkpoint, trusted=True)
 
@@ -306,9 +352,11 @@ class GCNEngine:
         # subcommand : sous-commande en clair (défaut "analyze") — aucune
         # langue nommée ici (moteur langue-agnostique).
         import shutil
+
         text_parser = None
         if shutil.which(gcn_bin):
             from .frontend.bridge import GCNLatticeParser
+
             text_parser = GCNLatticeParser(gcn_bin, subcommand)
 
         return cls(pipeline, text_parser=text_parser)
@@ -321,13 +369,22 @@ class GCNEngine:
     # Inférence
     # ------------------------------------------------------------------
 
-    def analyze(self, text: str) -> dict:
+    def analyze(self, text: str, *, use_tok: bool = False, lang: str = "fr") -> dict:
         """
         Une phrase pré-segmentée → CausalIR dict.
 
         La segmentation du texte brut en phrases est la responsabilité
         des frontends (gcn-cli) ou de gcn-discuss. Le moteur reçoit
         une phrase et produit un CIR.
+
+        use_tok=False (défaut) : chemin legacy (lattice gcn-cli via
+        text_parser) — comportement inchangé.
+        use_tok=True : chemin tok in-process (pipeline/forward_ids.py :
+        split + B + E_tok, sans binaire, sans UD). Gate capacitaire :
+        exige un moteur tok attaché (constructeur ``tok_engine=``) avec
+        vocabulaire non vide, sinon ValueError — prédire sans E_tok
+        fondé est refusé (vérité graphe). Têtes non entraînées par
+        défaut : CIR structurels, non calibrés (doctrine 6b).
 
         Returns
         -------
@@ -338,6 +395,20 @@ class GCNEngine:
             "edges": [[src_id, dst_id, {"relation": str, "confidence": float, ...}]],
           }
         """
+        if use_tok:
+            tok = self._tok_engine
+            if tok is None:
+                raise ValueError(
+                    "use_tok=True sans moteur tok : passez tok_engine=TokForwardEngine "
+                    "au constructeur (vocabulaire construit via build_vocab, ou "
+                    "checkpoint s1+ quand l'intégration checkpoint sera livrée)."
+                )
+            if getattr(tok, "vocab_size", 0) == 0:
+                raise ValueError(
+                    "use_tok=True avec E_tok vide : appelez build_vocab(textes) "
+                    "d'abord — l'inférence sans vocabulaire est refusée."
+                )
+            return tok.analyze_tok(text, lang=lang)
         return self._pipeline.analyze(
             text,
             text_parser=self._text_parser,
@@ -364,6 +435,7 @@ class GCNEngine:
             return self.analyze(text)
         except Exception as exc:  # noqa: BLE001 — contrat None-safe : warn nommé, jamais silencieux
             import warnings as _w
+
             _w.warn(f"analyze_or_skip : phrase ignorée — {exc}", UserWarning, stacklevel=2)
             return None
 
@@ -386,10 +458,12 @@ class GCNEngine:
             if enriched is not None:
                 return {"cir": cir, "text": self._pipeline.decoder.decode(enriched)}
         from .verbalizer.decoder import ReferenceDecoder
+
         return {"cir": cir, "text": ReferenceDecoder().decode_cir(cir) or ""}
 
-    def predict_links(self, text: str, threshold: float = 0.5,
-                        bfs_depth: int | None = None) -> list[tuple[int, int, float]]:
+    def predict_links(
+        self, text: str, threshold: float = 0.5, bfs_depth: int | None = None
+    ) -> list[tuple[int, int, float]]:
         """Prédit les arêtes manquantes d'une phrase (tête LinkPredHead).
 
         Lève RuntimeError si aucune tête attachée (voir CGNPipeline.predict_links).
@@ -410,6 +484,7 @@ class GCNEngine:
         n = len(vecs)
         if bfs_depth is not None:
             from .layer3.link_pred import candidates_within_depth
+
             adj: dict[int, list[int]] = {}
             for s, d in existing:
                 adj.setdefault(s, []).append(d)
@@ -420,8 +495,9 @@ class GCNEngine:
                         cand_set.add((s, t))
             candidates = sorted(cand_set)
         else:
-            candidates = [(i, j) for i in range(n) for j in range(n)
-                          if i != j and (i, j) not in existing]
+            candidates = [
+                (i, j) for i in range(n) for j in range(n) if i != j and (i, j) not in existing
+            ]
         scored = self._pipeline.predict_links(candidates, vecs)
         return [(s, d, c) for s, d, c in scored if c >= threshold]
 
@@ -438,6 +514,7 @@ class GCNEngine:
         Textes vides/blancs sautés (pas de slot — len(out) ≤ len(texts)).
         """
         import copy as _copy
+
         seen: dict[str, dict] = {}
         out: list[dict] = []
         for t in texts:
@@ -479,10 +556,11 @@ class GCNEngine:
         return list(self._pipeline.relation_types)
 
     def __repr__(self) -> str:
-        _we = getattr(self._pipeline, 'word_embedding', None)
+        _we = getattr(self._pipeline, "word_embedding", None)
         d_eff = self._pipeline.vocabulary.d_clause_effective(
             _we.d_emb if _we is not None else 0,
-            bool(getattr(self._pipeline, 'subject_object_emb', False)))
+            bool(getattr(self._pipeline, "subject_object_emb", False)),
+        )
         n_rel = len(self._pipeline.relation_types)
         parser = "gcn-cli" if self._text_parser else "bridge heuristique"
         return (
