@@ -555,6 +555,8 @@ class TokForwardEngine:
         logits, pas le CIR). ``intent`` : stocké tel quel pour la future
         tête act apprise (supervision intent absente du gold à ce pas).
         """
+        if not clause_spans:
+            raise ValueError("forward_supervise sans clause — supervision vide refusée.")
         parts = self._forward_parts(text, ids, offsets, clause_spans, clause_textes, None, "gold")
         parts["d_base"] = _edge_base_dim(self.d_model)
         parts["d_pooled"] = self.d_model

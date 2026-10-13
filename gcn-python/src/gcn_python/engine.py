@@ -419,7 +419,7 @@ class GCNEngine:
           }
         """
         if use_tok:
-            tok = self._tok_engine
+            tok = getattr(self, "_tok_engine", None)
             if tok is None:
                 raise ValueError(
                     "use_tok=True sans moteur tok : passez tok_engine=TokForwardEngine "

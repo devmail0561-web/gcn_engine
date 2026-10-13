@@ -153,6 +153,49 @@ def test_determinisme_inter_instances_meme_seed():
     assert a == b
 
 
+def test_determinisme_inter_processus():
+    """Même texte + même seed → mêmes octets entre processus (PYTHONHASHSEED).
+
+    Verrouille contre les itérations d'ensembles/dicts non ordonnées
+    (emit Eq.11, cycles) : la reproductibilité protocole §5 l'exige.
+    PYTHONPATH absolu (le relatif casse le sous-processus — leçon test_engine_b).
+    """
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    racine = Path(__file__).resolve().parents[2]
+    code = (
+        "import json, re;"
+        "from gcn_python.pipeline.forward_ids import TokForwardEngine;"
+        "from gcn_python.nlu.tok import analyze_tok_text;"
+        "e = TokForwardEngine(seed=7);"
+        "e.build_vocab(['Les ventes baissent. On reduit les couts. La crise demarre.']);"
+        "cir = analyze_tok_text(e, 'Les ventes baissent. On reduit les couts. La crise demarre.');"
+        "s = json.dumps(cir, sort_keys=True);"
+        's = re.sub(r\'"extracted_at": "[^"]*"|"created_at": "[^"]*"\', \'"T"\', s);'
+        "print(s)"
+    )
+    sorties = []
+    for graine in ("0", "1", "42"):
+        env = dict(os.environ)
+        env["PYTHONHASHSEED"] = graine
+        env["PYTHONPATH"] = str(racine / "gcn-python" / "src")
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+            cwd=str(racine),
+            env=env,
+        )
+        assert proc.returncode == 0, proc.stderr[-500:]
+        sorties.append(proc.stdout)
+    assert sorties[0] == sorties[1] == sorties[2]
+
+
 def test_oov_warn_et_taux_expose():
     eng = TokForwardEngine()
     eng.build_vocab(["Bonjour le monde."])
@@ -330,6 +373,18 @@ class TestEngineUseTok:
         engine = GCNEngine(pipe, tok_engine=TokForwardEngine())
         with pytest.raises(ValueError):
             engine.analyze(TEXTE_2_PHRASES, use_tok=True)
+
+    def test_supervise_vide_refuse_proprement(self):
+        eng = _moteur()
+        with pytest.raises(ValueError):
+            eng.forward_supervise(TEXTE_2_PHRASES, [], [], [], [])
+
+    def test_use_tok_moteur_etranger_erreur_claire(self):
+        from types import SimpleNamespace
+
+        etranger = SimpleNamespace()
+        with pytest.raises(ValueError):
+            GCNEngine.__dict__["analyze"](etranger, TEXTE_2_PHRASES, use_tok=True)
 
     def test_use_tok_cir_valide(self):
         pipe = make_test_pipeline(d_emb=8)

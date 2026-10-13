@@ -128,6 +128,27 @@ def test_gel_rare_classe(tmp_path):
         entrainer(f, f, epochs=1)
 
 
+def test_pas_sgd_une_clause_sans_arete():
+    # E=0 : boucle arêtes + R-GCN sautés, nœuds + E_tok mis à jour, fini.
+    import numpy as np
+
+    eng = TokForwardEngine(d_model=8, seed=1)
+    eng.build_vocab(["Les ventes baissent."])
+    from gcn_python.nlu.tok import parse_text
+
+    seg = parse_text("Les ventes baissent.")
+    parts = eng.forward_supervise(
+        "Les ventes baissent.",
+        seg["ids"],
+        seg["offsets"],
+        seg["clause_spans"],
+        seg["clause_textes"],
+    )
+    res = backward_tok(eng, parts, [2], {}, lr=0.01)
+    assert res["n_edge_sup"] == 0
+    assert np.isfinite(res["node"])
+
+
 def test_pas_sgd_fait_baisser_la_loss():
     eng = TokForwardEngine(d_model=8, seed=3)
     eng.build_vocab([TEXTE])
