@@ -18,13 +18,25 @@ from ..constants import NEGATION_PREVENT_MAP, NODE_ORIGIN_VALUES, TEMPORAL_REF_D
 #: *_prevent → R2 (analogie PREVENT), data/control_dependency → R1
 #: (dépendances systémiques observées, confiance modérée).
 CONFIDENCE_RUNG: dict[str, float] = {
-    "cause": 0.50, "sequence": 0.50, "analogy": 0.50,
-    "data_dependency": 0.50, "control_dependency": 0.50,
-    "condition": 0.75, "enable": 0.75, "prevent": 0.75,
-    "filter": 0.75, "conditional_cause": 0.75, "motivation": 0.75,
-    "counterfactual": 0.65, "mediated_cause": 0.65, "joint_cause": 0.65,
-    "concession": 0.65, "opposition": 0.65,
-    "conditional_prevent": 0.75, "mediated_prevent": 0.65, "joint_prevent": 0.65,
+    "cause": 0.50,
+    "sequence": 0.50,
+    "analogy": 0.50,
+    "data_dependency": 0.50,
+    "control_dependency": 0.50,
+    "condition": 0.75,
+    "enable": 0.75,
+    "prevent": 0.75,
+    "filter": 0.75,
+    "conditional_cause": 0.75,
+    "motivation": 0.75,
+    "counterfactual": 0.65,
+    "mediated_cause": 0.65,
+    "joint_cause": 0.65,
+    "concession": 0.65,
+    "opposition": 0.65,
+    "conditional_prevent": 0.75,
+    "mediated_prevent": 0.65,
+    "joint_prevent": 0.65,
 }
 
 #: f(Mood) — ETUDE §9.0 : Ind=1.00 / Sub=0.85 / Cnd=0.80.
@@ -34,7 +46,10 @@ MOOD_FACTOR: dict[str, float] = {"Ind": 1.00, "Sub": 0.85, "Cnd": 0.80}
 #: g(connecteur) — ETUDE §9.0/§12.4 : explicite=1.00 / VERB_causal=0.90 /
 #: parataxis=0.60 / aucun=0.50.
 CONNECTOR_FACTOR: dict[str, float] = {
-    "explicite": 1.00, "verb": 0.90, "parataxis": 0.60, "aucun": 0.50,
+    "explicite": 1.00,
+    "verb": 0.90,
+    "parataxis": 0.60,
+    "aucun": 0.50,
 }
 
 
@@ -128,9 +143,7 @@ def detect_ternary(
             return ("condition", None, None)
         return (None, None, None)
     if relation in ("mediated_cause", "mediated_prevent"):
-        if src_tokens is not None and any(
-            t.get("dep_rel") == "obl" for t in src_tokens
-        ):
+        if src_tokens is not None and any(t.get("dep_rel") == "obl" for t in src_tokens):
             return ("mediator", None, None)
         return (None, None, None)
     if relation in ("joint_cause", "joint_prevent"):
@@ -140,15 +153,15 @@ def detect_ternary(
 
 def _infer_temporal_ref(rep) -> str:
     """Dérive temporal_ref depuis les features UD déjà calculées (S-1)."""
-    tense = getattr(rep, 'tense', '_absent')
-    if tense == 'Past':
-        return 'past'
-    if tense in ('Fut', 'Futur'):
-        return 'future'
-    if tense == 'Pres':
-        return 'present'
-    if getattr(rep, 'has_temporal_obl', False):
-        return 'anchored'
+    tense = getattr(rep, "tense", "_absent")
+    if tense == "Past":
+        return "past"
+    if tense in ("Fut", "Futur"):
+        return "future"
+    if tense == "Pres":
+        return "present"
+    if getattr(rep, "has_temporal_obl", False):
+        return "anchored"
     return TEMPORAL_REF_DEFAULT
 
 
@@ -200,10 +213,15 @@ def emit(
     negation_sites: list[str | None] | None = None,
     ambiguous_edges: list[bool] | None = None,
     edge_candidates: list[list | None] | None = None,
+    intent: dict | None = None,
 ) -> dict:
     """
     Produit un dict CausalIR conforme au schéma serde Rust de gcn-ir.
     JSON-serializable. Tous les noms en snake_case.
+
+    intent : ``{"act", "lang", "saillant"}`` (règles v0 ``detect_act`` ou
+      tête apprise — T4). None (défaut) = clé ABSENTE (legacy byte-identique ;
+      Rust lit absent → None). Valeurs validées (act ∈ 3 actes, fail-fast).
 
     edge_triples : 6-tuple legacy
         (src_idx, dst_idx, relation, confidence, negated, marker_token)
@@ -235,30 +253,39 @@ def emit(
     for i, (nt, label, span, scope, origin) in enumerate(
         zip(node_types, node_labels, token_spans, scopes, node_origins, strict=False)
     ):
-        attrs = node_attributes[i] if node_attributes and i < len(node_attributes) else {
-            "entity": None,
-            "quality": None,
-            "agent": None,
-            "patient": None,
-            "agent_type": None,
-            "reversible": None,
-        }
+        attrs = (
+            node_attributes[i]
+            if node_attributes and i < len(node_attributes)
+            else {
+                "entity": None,
+                "quality": None,
+                "agent": None,
+                "patient": None,
+                "agent_type": None,
+                "reversible": None,
+            }
+        )
         inferred = bool(node_inferred[i]) if node_inferred and i < len(node_inferred) else False
-        nodes.append({
-            "id": i,
-            "node_type": nt,
-            "label": label,
-            "source_span": {"token_span": {"start": span[0], "end": span[1]}},
-            "scope": scope,
-            "modifiers": [],
-            "temporal_ref": temporal_refs[i] if temporal_refs and i < len(temporal_refs) else TEMPORAL_REF_DEFAULT,
-            "temporal_index": temporal_rank[i],  # S-2 : rang texte, pas rang création
-            "origin": origin,
-            "is_inferred": inferred,
-            "attributes": attrs,
-        })
+        nodes.append(
+            {
+                "id": i,
+                "node_type": nt,
+                "label": label,
+                "source_span": {"token_span": {"start": span[0], "end": span[1]}},
+                "scope": scope,
+                "modifiers": [],
+                "temporal_ref": temporal_refs[i]
+                if temporal_refs and i < len(temporal_refs)
+                else TEMPORAL_REF_DEFAULT,
+                "temporal_index": temporal_rank[i],  # S-2 : rang texte, pas rang création
+                "origin": origin,
+                "is_inferred": inferred,
+                "attributes": attrs,
+            }
+        )
 
     import datetime as _dt
+
     _now_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         from .. import __version__ as _gcn_version
@@ -267,31 +294,68 @@ def emit(
 
     import math
     from collections import defaultdict as _defaultdict
+
     edges = []
     for edge_idx, tup in enumerate(edge_triples):
         if len(tup) == 6:
             src, dst, relation, confidence, negated, marker_token = tup
             third_role = third_node = joint_group_id = None
-            negation_site = (negation_sites[edge_idx]
-                             if negation_sites and edge_idx < len(negation_sites) else None)
-            ambiguous = (ambiguous_edges[edge_idx]
-                         if ambiguous_edges and edge_idx < len(ambiguous_edges) else False)
-            candidates = (edge_candidates[edge_idx]
-                          if edge_candidates and edge_idx < len(edge_candidates) else None)
+            negation_site = (
+                negation_sites[edge_idx]
+                if negation_sites and edge_idx < len(negation_sites)
+                else None
+            )
+            ambiguous = (
+                ambiguous_edges[edge_idx]
+                if ambiguous_edges and edge_idx < len(ambiguous_edges)
+                else False
+            )
+            candidates = (
+                edge_candidates[edge_idx]
+                if edge_candidates and edge_idx < len(edge_candidates)
+                else None
+            )
         elif len(tup) == 9 and not isinstance(tup[7], bool):
             # 9-tuple §C.3 : (src,dst,rel,conf,neg,marker,third_role,third_node,joint_group_id)
-            (src, dst, relation, confidence, negated, marker_token,
-             third_role, third_node, joint_group_id) = tup
-            negation_site = (negation_sites[edge_idx]
-                             if negation_sites and edge_idx < len(negation_sites) else None)
-            ambiguous = (ambiguous_edges[edge_idx]
-                         if ambiguous_edges and edge_idx < len(ambiguous_edges) else False)
-            candidates = (edge_candidates[edge_idx]
-                          if edge_candidates and edge_idx < len(edge_candidates) else None)
+            (
+                src,
+                dst,
+                relation,
+                confidence,
+                negated,
+                marker_token,
+                third_role,
+                third_node,
+                joint_group_id,
+            ) = tup
+            negation_site = (
+                negation_sites[edge_idx]
+                if negation_sites and edge_idx < len(negation_sites)
+                else None
+            )
+            ambiguous = (
+                ambiguous_edges[edge_idx]
+                if ambiguous_edges and edge_idx < len(ambiguous_edges)
+                else False
+            )
+            candidates = (
+                edge_candidates[edge_idx]
+                if edge_candidates and edge_idx < len(edge_candidates)
+                else None
+            )
         else:
             # Nouveau format cgnp.py : (src,dst,rel,conf,neg,marker,negation_site,ambiguous,candidates)
-            (src, dst, relation, confidence, negated, marker_token,
-             negation_site, ambiguous, candidates) = tup
+            (
+                src,
+                dst,
+                relation,
+                confidence,
+                negated,
+                marker_token,
+                negation_site,
+                ambiguous,
+                candidates,
+            ) = tup
             third_role = third_node = joint_group_id = None
         if apply_orientation:
             src, dst = orient_edge_d7(src, dst, relation, token_spans)
@@ -310,8 +374,11 @@ def emit(
                 joint_group_id = _jgid
 
         # §9.4 algèbre de négation — promotion "condition" si third présent sans site
-        third_dict = ({"role": third_role, "node": third_node}
-                      if (third_role and third_node is not None) else None)
+        third_dict = (
+            {"role": third_role, "node": third_node}
+            if (third_role and third_node is not None)
+            else None
+        )
         if negated and negation_site is None and third_dict is not None:
             negation_site = "condition"
         relation, third_dict, source_polarity = apply_negation_algebra(
@@ -324,8 +391,7 @@ def emit(
         else:
             connector = "explicite" if marker_token is not None else "aucun"
         salience = (salience_by_edge or {}).get(edge_idx, 0.0)
-        conf_d6 = confidence_d6(relation, mood=mood, connector=connector,
-                               salience_bonus=salience)
+        conf_d6 = confidence_d6(relation, mood=mood, connector=connector, salience_bonus=salience)
         conf = float(confidence)
         if not math.isfinite(conf):
             raise ValueError(
@@ -336,32 +402,44 @@ def emit(
         t_src = temporal_rank[src] if src < len(temporal_rank) else None
         t_dst = temporal_rank[dst] if dst < len(temporal_rank) else None
         _t_gap_int = (t_dst - t_src) if (t_src is not None and t_dst is not None) else None
-        t_gap = ({"min": None, "max": _t_gap_int, "nature": "deferred"}
-                 if _t_gap_int is not None else None)
-        edges.append([src, dst, {
-            "relation": relation,
-            "confidence": conf,
-            "confidence_ml": conf,
-            "confidence_d6": conf_d6,
-            "temporal_gap": t_gap,
-            "explicit": marker_token is not None,
-            "negated": negated,
-            "source_polarity": source_polarity,
-            "marker_token": marker_token,
-            "third": third_dict,
-            "joint_group_id": joint_group_id,
-            "ambiguous": ambiguous,
-            "candidates": candidates,
-            "in_cycle": None,
-            "provenance": {
-                "ref": doc_ref,
-                "span": ({"token_span": {"start": marker_token, "end": marker_token}}
-                         if marker_token is not None else "synthetic"),
-                "extraction_method": "ml_python",
-                "model_version": _gcn_version,
-                "extracted_at": _now_iso,
-            },
-        }])
+        t_gap = (
+            {"min": None, "max": _t_gap_int, "nature": "deferred"}
+            if _t_gap_int is not None
+            else None
+        )
+        edges.append(
+            [
+                src,
+                dst,
+                {
+                    "relation": relation,
+                    "confidence": conf,
+                    "confidence_ml": conf,
+                    "confidence_d6": conf_d6,
+                    "temporal_gap": t_gap,
+                    "explicit": marker_token is not None,
+                    "negated": negated,
+                    "source_polarity": source_polarity,
+                    "marker_token": marker_token,
+                    "third": third_dict,
+                    "joint_group_id": joint_group_id,
+                    "ambiguous": ambiguous,
+                    "candidates": candidates,
+                    "in_cycle": None,
+                    "provenance": {
+                        "ref": doc_ref,
+                        "span": (
+                            {"token_span": {"start": marker_token, "end": marker_token}}
+                            if marker_token is not None
+                            else "synthetic"
+                        ),
+                        "extraction_method": "ml_python",
+                        "model_version": _gcn_version,
+                        "extracted_at": _now_iso,
+                    },
+                },
+            ]
+        )
 
     # Éq.11 — cohérence locale : résoudre les arêtes ambiguës par voisinage
     _confirmed_by_node: dict[int, set[str]] = _defaultdict(set)
@@ -390,7 +468,7 @@ def emit(
         adj_directed[src].append(dst)
 
     visited: set[int] = set()
-    in_path: set[int] = set()       # nœuds dans le chemin de récursion courant
+    in_path: set[int] = set()  # nœuds dans le chemin de récursion courant
     cycle_node_sets: list[frozenset[int]] = []
 
     def _dfs_cycle(node: int, path: list[int]) -> None:
@@ -428,7 +506,8 @@ def emit(
         edge[2]["in_cycle"] = src_cid if (src_cid is not None and src_cid == dst_cid) else None
 
     import datetime
-    return {
+
+    cir: dict = {
         # Moteur language-agnostic : "und" volontaire (la langue n'est jamais
         # passée au modèle, même à l'entraînement).
         "source_lang": {"natural": {"lang": "und"}},
@@ -440,6 +519,20 @@ def emit(
         "metadata": {
             "schema_version": "2.0",
             "pipeline": ["cgnp-layer1", "cgnp-layer2", "cgnp-layer3"],
-            "created_at": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat() + "Z",
+            "created_at": datetime.datetime.now(datetime.timezone.utc)
+            .replace(tzinfo=None)
+            .isoformat()
+            + "Z",
         },
     }
+    if intent is not None:
+        # T4 — CirIntent : validé ici (fail-fast), toléré côté Rust (Option).
+        _act = intent.get("act")
+        _lang = intent.get("lang", "fr")
+        _saillant = bool(intent.get("saillant", False))
+        if _act not in ("assert", "question", "request"):
+            raise ValueError(f"emit : intent.act invalide : {_act!r}.")
+        if not isinstance(_lang, str) or not _lang:
+            raise ValueError(f"emit : intent.lang invalide : {_lang!r}.")
+        cir["intent"] = {"act": _act, "lang": _lang, "saillant": _saillant}
+    return cir

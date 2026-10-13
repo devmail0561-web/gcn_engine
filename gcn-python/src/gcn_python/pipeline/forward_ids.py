@@ -507,19 +507,21 @@ class TokForwardEngine:
         clause_textes: list,
         connecteurs: list | None = None,
         source_b: str = "tok",
+        intent: dict | None = None,
     ) -> dict:
         """Pré-segmenté → CIR dict (runtime pur — aucune entrée B/texte ici).
 
         ``clause_spans`` : spans caractères (socle B) ; ``clause_textes`` :
         libellés ; ``connecteurs`` : dicts avec ``span`` (marqueurs) ;
-        ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref``.
+        ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref`` ;
+        ``intent`` : dict CirIntent (règles v0 ou tête apprise — T4).
         La segmentation (socle + split) vit dans ``nlu/tok.py`` — ce module
         ne segmente jamais (garde du runtime).
         """
         if not isinstance(text, str):
             raise TypeError(f"text doit être str, reçu {type(text).__name__}")
         if not clause_spans:
-            return emit(text, [], [], [], [], [])
+            return emit(text, [], [], [], [], [], intent=intent)
         parts = self._forward_parts(
             text, ids, offsets, clause_spans, clause_textes, connecteurs, source_b
         )
@@ -532,6 +534,7 @@ class TokForwardEngine:
             parts["triples"],
             node_origins=parts["origins"],
             doc_ref=f"tok:{parts['source_b']}",
+            intent=intent,
         )
 
     def forward_supervise(
@@ -541,6 +544,7 @@ class TokForwardEngine:
         offsets: list,
         clause_spans: list,
         clause_textes: list,
+        intent: dict | None = None,
     ) -> dict:
         """Pré-segmenté gold → intermédiaires + caches chauds pour le train.
 
@@ -548,10 +552,12 @@ class TokForwardEngine:
         MLP/R-GCN prêts pour le backward : appeler backward AVANT tout autre
         forward sur ce moteur (caches par tête écrasés à chaque appel —
         même contrat que le legacy). Pas d'émission ici (l'éval F1 lit les
-        logits, pas le CIR).
+        logits, pas le CIR). ``intent`` : stocké tel quel pour la future
+        tête act apprise (supervision intent absente du gold à ce pas).
         """
         parts = self._forward_parts(text, ids, offsets, clause_spans, clause_textes, None, "gold")
         parts["d_base"] = _edge_base_dim(self.d_model)
         parts["d_pooled"] = self.d_model
         parts["n_node_types"] = len(NODE_TYPES)
+        parts["intent"] = intent
         return parts

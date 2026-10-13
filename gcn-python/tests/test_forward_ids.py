@@ -397,6 +397,69 @@ class TestEngineUseTok:
             GCNEngine.from_pretrained(str(tmp_path / "absent.npz"), trusted=True)
 
 
+class TestIntentTok:
+    """T4 — règles v0 sur le chemin tok : intent présent, contraint, routable."""
+
+    def test_intent_assert_declaratif(self):
+        eng = _moteur()
+        cir = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        assert cir["intent"] == {"act": "assert", "saillant": False, "lang": "fr"}
+
+    def test_intent_question(self):
+        eng = _moteur(textes=("Ou sont les ventes ?",))
+        cir = analyze_tok_text(eng, "Ou sont les ventes ?")
+        assert cir["intent"]["act"] == "question"
+
+    def test_intent_request_consigne(self):
+        eng = _moteur(textes=("Réponds en wolof.",))
+        cir = analyze_tok_text(eng, "Réponds en wolof.")
+        assert cir["intent"] == {"act": "request", "saillant": False, "lang": "wo"}
+
+    def test_intent_vide_omise_legacy_intact(self):
+        # forward_from_spans sans intent : clé absente (legacy byte-identique).
+        eng = _moteur()
+        seg = parse_text(TEXTE_2_PHRASES)
+        cir = eng.forward_from_spans(
+            TEXTE_2_PHRASES, seg["ids"], seg["offsets"], seg["clause_spans"], seg["clause_textes"]
+        )
+        assert "intent" not in cir
+
+    def test_emit_intent_invalide_refuse(self):
+        from gcn_python.pipeline.ir_emitter import emit
+
+        with pytest.raises(ValueError):
+            emit(
+                "x",
+                ["processus"],
+                ["x"],
+                [(0, 0)],
+                ["unknown"],
+                [],
+                intent={"act": "doute", "lang": "fr", "saillant": False},
+            )
+        with pytest.raises(ValueError):
+            emit(
+                "x",
+                ["processus"],
+                ["x"],
+                [(0, 0)],
+                ["unknown"],
+                [],
+                intent={"act": "assert", "lang": "", "saillant": False},
+            )
+
+    def test_route_intent_sur_cir_tok(self):
+        from gcn_python.pipeline.route_intent import route_intent
+
+        eng = _moteur()
+        cir = analyze_tok_text(eng, TEXTE_2_PHRASES)
+        decide = route_intent(cir["intent"], TEXTE_2_PHRASES)
+        assert decide["act"] == "assert" and "store" in decide
+        req = analyze_tok_text(_moteur(textes=("Réponds en wolof.",)), "Réponds en wolof.")
+        decide_req = route_intent(req["intent"], "Réponds en wolof.")
+        assert decide_req["act"] == "request" and "filed" in decide_req
+
+
 class TestCheckpointS1:
     """Persistance s1+ : roundtrip exact, refus fail-fast (jamais partiel)."""
 

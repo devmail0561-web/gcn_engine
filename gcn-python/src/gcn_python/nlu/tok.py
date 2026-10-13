@@ -17,19 +17,23 @@ from __future__ import annotations
 
 from ..layer0 import engine_b
 from ..layer0.tokenizer import split as tok_split
+from ..layer2.act import detect_act
 
 
 def parse_text(text: str, lang: str = "fr") -> dict:
     """Texte brut → segments tok prêts pour le runtime.
 
     Retourne ``{"ids", "offsets", "clause_spans", "clause_textes",
-    "connecteurs", "source"}`` — ``source`` = ``silver-B|fallback`` (B).
-    Texte vide/blanc → segments vides (jamais d'exception — miroir du
-    legacy ``parse_lattice`` qui ne retourne jamais d'erreur).
+    "connecteurs", "source", "intent"}`` — ``source`` = ``silver-B|fallback`` (B) ;
+    ``intent`` = règles v0 ``detect_act`` (message-level, T4 — la tête apprise
+    prendra le relais ; supervision intent absente du gold à ce pas).
+    Texte vide/blanc → segments vides + intent par défaut (jamais d'exception —
+    miroir du legacy ``parse_lattice`` qui ne retourne jamais d'erreur).
     ``lang`` hors budget → ``ValueError`` de B (pas de silencieux).
     """
     if not isinstance(text, str):
         raise TypeError(f"text doit être str, reçu {type(text).__name__}")
+    intent = detect_act(text)
     if not text.strip():
         return {
             "ids": [],
@@ -38,6 +42,7 @@ def parse_text(text: str, lang: str = "fr") -> dict:
             "clause_textes": [],
             "connecteurs": [],
             "source": "vide",
+            "intent": intent,
         }
     sortie_b = engine_b.analyze(text, lang=lang)
     ids, offsets, _tokens = tok_split(text)
@@ -48,6 +53,7 @@ def parse_text(text: str, lang: str = "fr") -> dict:
         "clause_textes": [(c.get("texte") or "").strip() for c in sortie_b.clauses],
         "connecteurs": list(sortie_b.connecteurs or []),
         "source": sortie_b.source,
+        "intent": intent,
     }
 
 
@@ -72,7 +78,7 @@ def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
     if not text.strip():
         from ..pipeline.ir_emitter import emit
 
-        return emit(text, [], [], [], [], [])
+        return emit(text, [], [], [], [], [], intent=detect_act(text))
     cle = (_epoch(), text, lang)
     present = tok_engine._tok_cache.get(cle)
     if present is not None:
@@ -82,7 +88,7 @@ def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
     if not segments["clause_spans"]:
         from ..pipeline.ir_emitter import emit
 
-        return emit(text, [], [], [], [], [])
+        return emit(text, [], [], [], [], [], intent=segments["intent"])
     cir = tok_engine.forward_from_spans(
         text,
         segments["ids"],
@@ -91,6 +97,7 @@ def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
         segments["clause_textes"],
         connecteurs=segments["connecteurs"],
         source_b=segments["source"],
+        intent=segments["intent"],
     )
     tok_engine._tok_misses += 1
     if len(tok_engine._tok_cache) >= TOK_CACHE_MAX:
