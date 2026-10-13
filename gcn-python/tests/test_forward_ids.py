@@ -360,6 +360,23 @@ class TestEngineUseTok:
         assert len(out) == 2
         _valide_structure(out[0], TEXTE_2_PHRASES, 2)
 
+    def test_tok_only_surface_coherente(self):
+        from gcn_python.constants import NODE_TYPES, RELATION_TYPES
+        from gcn_python.pipeline.forward_ids import TokForwardEngine as _T
+
+        tok = _T()
+        tok.build_vocab([TEXTE_2_PHRASES])
+        engine = GCNEngine(None, tok_engine=tok)
+        assert engine.node_types == NODE_TYPES
+        assert engine.relation_types == RELATION_TYPES
+        assert "tok-only" in repr(engine)
+        # stream + or_skip via tok.
+        flux = list(engine.stream([TEXTE_2_PHRASES, "  "], use_tok=True))
+        assert len(flux) == 1
+        _valide_structure(flux[0], TEXTE_2_PHRASES, 2)
+        cir = engine.analyze_or_skip(TEXTE_2_PHRASES, use_tok=True)
+        _valide_structure(cir, TEXTE_2_PHRASES, 2)
+
     def test_from_pretrained_tok(self, tmp_path):
         tok = TokForwardEngine(seed=9)
         tok.build_vocab([TEXTE_2_PHRASES])

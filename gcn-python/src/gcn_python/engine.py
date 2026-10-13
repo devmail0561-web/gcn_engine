@@ -445,13 +445,14 @@ class GCNEngine:
             text_parser=self._text_parser,
         )
 
-    def analyze_or_skip(self, text: str) -> dict | None:
+    def analyze_or_skip(self, text: str, *, use_tok: bool = False, lang: str = "fr") -> dict | None:
         """
         Comme analyze(), retourne None si gcn-cli est absent ou l'appel échoue.
 
         P0-10 : chemin non-raise pour les pipelines batch/CI (index, discuss
         sur corpus) — l'appelant loggue le skip avec le contexte fichier/ligne.
         Réutilise le parser déjà configuré (binaire + sous-commande).
+        use_tok/lang : transmis à analyze() (chemin tok in-process).
         """
         from .frontend.bridge import GCNLatticeParser
 
@@ -463,7 +464,7 @@ class GCNEngine:
                 subcommand=parser.subcommand,
             )
         try:
-            return self.analyze(text)
+            return self.analyze(text, use_tok=use_tok, lang=lang)
         except Exception as exc:  # noqa: BLE001 — contrat None-safe : warn nommé, jamais silencieux
             import warnings as _w
 
@@ -568,7 +569,7 @@ class GCNEngine:
             out.append(_copy.deepcopy(seen[t]))
         return out
 
-    def stream(self, source) -> Iterator[dict]:
+    def stream(self, source, *, use_tok: bool = False, lang: str = "fr") -> Iterator[dict]:
         """
         Itérateur paresseux — une ligne = une phrase pré-segmentée.
 
@@ -578,11 +579,13 @@ class GCNEngine:
             for cir in engine.stream(open("corpus.txt")):
                 if cir["edges"]:
                     process(cir)
+
+        use_tok/lang : transmis à analyze() (chemin tok in-process).
         """
         for line in source:
             text = line.strip() if hasattr(line, "strip") else str(line).strip()
             if text:
-                yield self.analyze(text)
+                yield self.analyze(text, use_tok=use_tok, lang=lang)
 
     # ------------------------------------------------------------------
     # Introspection
@@ -590,15 +593,30 @@ class GCNEngine:
 
     @property
     def node_types(self) -> list[str]:
-        """Les 7 types de nœuds que le modèle peut prédire."""
+        """Les types de nœuds prédits (pipeline legacy ou espace tok 8/19)."""
+        if self._pipeline is None:
+            from .constants import NODE_TYPES
+
+            return list(NODE_TYPES)
         return list(self._pipeline.node_types)
 
     @property
     def relation_types(self) -> list[str]:
-        """Les 11 types de relations que le modèle peut prédire."""
+        """Les relations prédites (pipeline legacy ou espace tok 8/19)."""
+        if self._pipeline is None:
+            from .constants import RELATION_TYPES
+
+            return list(RELATION_TYPES)
         return list(self._pipeline.relation_types)
 
     def __repr__(self) -> str:
+        if self._pipeline is None:
+            tok = self._tok_engine
+            return (
+                "GCNEngine(tok-only, d_model="
+                f"{getattr(tok, 'd_model', '?')}, "
+                f"vocab={getattr(tok, 'vocab_size', '?')})"
+            )
         _we = getattr(self._pipeline, "word_embedding", None)
         d_eff = self._pipeline.vocabulary.d_clause_effective(
             _we.d_emb if _we is not None else 0,
