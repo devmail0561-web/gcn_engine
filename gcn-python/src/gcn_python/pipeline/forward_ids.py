@@ -11,10 +11,9 @@ Périmètre STRICT — inférence seule : aucun ``backward``, aucun entraînemen
 (câblage ultérieur avec ``refacto_loss`` + masques R8). Lecture seule du
 pipeline legacy : ``forward()`` / ``vectorize_*`` intacts, zéro modification.
 
-Séparation imposée par la garde ``test_runtime_appris_n_importe_jamais_moteur_b`` :
-le runtime appris (``pipeline/``, ``training/``, ``engine.py``) n'importe
-JAMAIS le moteur B — la segmentation B vit dans ``frontend/tok.py`` (même
-couche que le bridge legacy, même précédent que ``nlu/infer.py``). Ce module
+Séparation imposée par la garde du runtime : le runtime appris (``pipeline/``,
+``training/``, ``engine.py``) n'importe JAMAIS le socle B — la segmentation
+vit dans ``nlu/tok.py`` (zéro lexique, T6 : pas un frontend). Ce module
 reçoit du PRÉ-SEGMENTÉ (spans + textes + connecteurs) et ne connaît que des
 ids stables.
 
@@ -185,11 +184,11 @@ class TokForwardEngine:
     ) -> dict:
         """Pré-segmenté → CIR dict (runtime pur — aucune entrée B/texte ici).
 
-        ``clause_spans`` : spans caractères (sortie B) ; ``clause_textes`` :
+        ``clause_spans`` : spans caractères (socle B) ; ``clause_textes`` :
         libellés ; ``connecteurs`` : dicts B avec ``span`` (marqueurs) ;
         ``source_b`` : ``silver-B|fallback`` tracé en ``doc_ref``.
-        La segmentation (B + split) vit dans ``frontend/tok.py`` — ce module
-        ne segmente jamais (garde ``test_runtime_appris_n_importe_jamais_moteur_b``).
+        La segmentation (socle + split) vit dans ``nlu/tok.py`` — ce module
+        ne segmente jamais (garde du runtime).
 
         Gate capacitaire : vocabulaire vide → ``ValueError`` (prédire sur
         E vide/OOV-total est refusé — la vérité graphe ne se brade pas).

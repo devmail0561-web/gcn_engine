@@ -410,7 +410,7 @@ class GCNEngine:
                 )
             # Segmentation via le frontend (le runtime appris n'importe
             # jamais le socle — garde du runtime, voir tests du socle).
-            from .frontend.tok import analyze_tok_text
+            from .nlu.tok import analyze_tok_text
 
             return analyze_tok_text(tok, text, lang=lang)
         return self._pipeline.analyze(

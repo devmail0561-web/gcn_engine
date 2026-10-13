@@ -1,13 +1,16 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
-"""Segmentation tok in-process (B + split) — frontend, pas runtime appris.
+"""Segmentation socle + association apprise texte → CIR (pas un frontend).
 
-Seul endroit avec ``nlu/`` autorisé à appeler le moteur B : la garde
-``test_runtime_appris_n_importe_jamais_moteur_b`` interdit
-``pipeline/``, ``training/`` et ``engine.py`` d'importer ``engine_b`` /
-``fallback_regex``. Ce module segmente (B : clauses + connecteurs + source)
-et délègue le forward au runtime pur (``pipeline/forward_ids.py``) —
-même découpe frontend→pipeline que le bridge legacy.
+T6 : 0 frontend — ce module n'en est pas un : il ne contient AUCUNE règle
+lexicale par langue (vérifiable par grep : zéro lemme, zéro table, zéro
+mot-clé). Il segmente via le socle B (clauses + connecteurs + source,
+même rôle que dans ``nlu/infer.py``) et délègue l'association texte → CIR
+au runtime pur (``pipeline/forward_ids.py`` : E_tok + têtes apprises).
+Ajouter une langue = ajouter des DONNÉES (D2), jamais du code ici.
+
+Seul endroit avec ``nlu/infer.py`` autorisé à appeler le socle B : la garde
+du runtime interdit ``pipeline/``, ``training/`` et ``engine.py`` de le faire.
 """
 
 from __future__ import annotations

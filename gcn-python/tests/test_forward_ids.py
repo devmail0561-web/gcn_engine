@@ -1,6 +1,6 @@
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
-"""Tests du chemin tok in-process (pipeline/forward_ids.py + frontend/tok.py).
+"""Tests du chemin tok in-process (pipeline/forward_ids.py + nlu/tok.py).
 
 Doctrine : parité STRUCTURELLE (schéma serde Rust), jamais parité de
 valeurs avec le legacy (features différentes — assumé). Têtes non
@@ -8,7 +8,7 @@ entraînées : aucun test ne lit une classe ou une confiance comme mesure.
 Déterminisme : octets identiques hors horodates wall-clock
 (``extracted_at`` / ``created_at``, design legacy de ``emit()``).
 Séparation : le runtime (``pipeline/``) n'importe jamais B — la
-segmentation vit dans ``frontend/tok.py`` (garde
+segmentation vit dans ``nlu/tok.py`` (garde
 ``test_runtime_appris_n_importe_jamais_moteur_b``).
 """
 
@@ -23,8 +23,8 @@ sys.path.insert(0, "gcn-python/tests")
 from conftest import make_test_pipeline
 from gcn_python.constants import NODE_TYPES, RELATION_TYPES
 from gcn_python.engine import GCNEngine
-from gcn_python.frontend.tok import analyze_tok_text, parse_text
 from gcn_python.layer0.tokenizer import split as tok_split
+from gcn_python.nlu.tok import analyze_tok_text, parse_text
 from gcn_python.pipeline.forward_ids import (
     D_MODEL_DEFAULT,
     WINDOW_K,
