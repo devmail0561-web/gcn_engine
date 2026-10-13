@@ -79,16 +79,15 @@ def _split_lines(text: str, min_line_len: int = 10) -> list[str]:
 
 
 def extract_concepts_from_cir(cir: dict) -> list[str]:
-    """Extrait des concepts (lemmes) depuis cir['nodes'] via la regex bridge.
+    """Extrait des concepts (lemmes) depuis cir['nodes'] via regex locale.
 
-    Réutilise frontend.bridge._LABEL_RE (^([^(?\\s]+), avec ? littéral).
-    Strip ?.,!(), longueur ≥ 3.
+    V3 : l'import historique `frontend.bridge._LABEL_RE` est supprimé —
+    `bridge.py` ne le définit pas (le try/except retombait toujours ici).
+    Regex inchangée (^([^(?\\s]+), avec ? littéral). Strip ?.,!(), longueur ≥ 3.
     """
-    try:
-        from .frontend.bridge import _LABEL_RE
-    except Exception:  # noqa: BLE001  # repli sur regex locale si l'import interne échoue
-        import re as _re
-        _LABEL_RE = _re.compile(r'^([^(?\s]+)')
+    import re as _re
+
+    _LABEL_RE = _re.compile(r'^([^(?\s]+)')
     concepts = []
     for n in cir.get("nodes", []) or []:
         label = (n.get("label") or "").strip()

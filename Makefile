@@ -24,7 +24,13 @@ gates: guards
 guards:
 	! grep -rq gcn_transformers gcn-python/src/
 	! grep -rn "^import torch\|^from torch" gcn-python/src/
-	grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ || true
+	# V5 — subprocess réel : `git rev-parse` (provenance, training/train.py) est le seul
+	# usage autorisé ; frontend/bridge.py (lattice gcn-cli) est le reste connu en
+	# transition (bascule P1). Tout NOUVEAU fichier avec import/appel subprocess
+	# fait échouer (les mentions en docstring ne comptent pas).
+	! grep -rn "import subprocess\|subprocess\.run\|subprocess\.Popen" --include="*.py" gcn-python/src/ | grep -v "frontend/bridge.py" | grep -v "training/train.py"
+	# Compteur informatif bascule → 0 en fin de refacto (ne fait pas échouer).
+	grep -rln 'gcn_bin\|Lattice\|_call_gcn_lattice' --include="*.py" gcn-python/src/ || true
 	# R4 — ban final/ : aucun répertoire final/ sous les chemins de modèles
 	# (les splits DATA/final/* fuyards sont exclus par ailleurs : voir audit-gold).
 	test ! -d gcn-python/models/final
