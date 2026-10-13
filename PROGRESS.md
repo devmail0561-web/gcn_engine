@@ -1075,3 +1075,12 @@ Discours  : discourse.py — Éq.10, connecteurs inter-phrasaux depuis lang_mark
 | K2 macro-F1 11 classes partagées v2↔v3 | Mesure post-entraînement | `edge_macro_f1(class_subset=RELATION_TYPES_V2)` |
 | K3 T4 e2e bridge fix | Mesure + 20 phrases conditionnelles | — |
 | D.0-médical 25 phrases OOV | Annotation humaine (owner Michel) | Si D.0-min F1 < 70% |
+
+### Reporté — décisions owner (session chemin tok, 2026-10-13)
+
+| Tâche | Nature | Déclencheur / condition |
+|---|---|---|
+| Annotation `concept` / `evenement` / `contrainte` (~30-50 phrases) | Annotation humaine | Seul levier vers un run tok réel (GEL R8 actuel : 3 types à 0) |
+| Suppression legacy (`bridge.py`, `vectorize_*`, frontends NL) | Décision + exécution | Après F1 tok mesuré (re-mesure harnais unique) — prématuré avant |
+| Re-pin SA (`engine-compat.md`, pin `20163da` → release/head) | Décision owner SA | 14+ commits de drift (compatibilité vérifiée, pas de casse) |
+| Réduction de périmètre R8 (ex. 5 types nœuds) | Décision owner | Alternative à l'annotation — modifie le gate, jamais en solo |
