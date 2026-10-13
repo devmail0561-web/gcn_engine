@@ -24,10 +24,9 @@ import warnings
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
-from ..data.gold_spans import SpanError, reconstruire_offsets, span_clause
+from ..data.tok_loader import couverture_vocab
 from ..evaluation.metrics import edge_macro_f1, node_macro_f1
-from ..layer0.tokenizer import split as tok_split
-from ..pipeline.forward_ids import OOV_WARN_RATE, WINDOW_K, TokForwardEngine
+from ..pipeline.forward_ids import OOV_WARN_RATE, TokForwardEngine
 from ..training.refacto_loss import GelError, build_class_mask, ce_loss, require_min_counts
 
 #: Seuil STOP d'alignement gold (revue training-tok) : au-delà = données, pas acharnement.
@@ -87,71 +86,14 @@ def _softmax_backward(probs: np.ndarray, d_probs: np.ndarray) -> np.ndarray:
 
 
 def charger_split(fichier: str) -> tuple[list, dict]:
-    """Split JSON gold → samples tok + stats d'alignement.
+    """Split JSON gold → samples tok + stats (délègue à ``data/tok_loader``).
 
-    Sample : ``{text, ids, offsets, clause_spans, clause_textes,
-    node_gold: [idx], edge_gold: {(i,j): rel_idx}}``. Phrases non
-    alignables : rejetées (comptées ``rejetees``). Paires gold hors
-    fenêtre ou arrières : exclues (comptées ``hors_fenetre`` /
-    ``arrieres``) — rapportées, jamais silencieuses.
+    Conservé pour compatibilité (tests + appelants) : UNE seule
+    implémentation d'alignement, ici réexportée.
     """
-    with open(fichier, encoding="utf-8") as fh:
-        doc = json.load(fh)
-    samples = []
-    stats = {"phrases": 0, "rejetees": [], "hors_fenetre": 0, "arrieres": 0}
-    for s in doc["document"]["sentences"]:
-        stats["phrases"] += 1
-        ident = s.get("id", f"#{stats['phrases']}")
-        try:
-            offs = reconstruire_offsets(s["text"], s["tokens"])
-        except SpanError as exc:
-            stats["rejetees"].append((ident, str(exc)))
-            continue
-        ntoks = len(s["tokens"])
-        try:
-            rangs = {n["id"]: k for k, n in enumerate(s["cir"]["nodes"])}
-            cspans, ctextes, ngold = [], [], []
-            for n in s["cir"]["nodes"]:
-                a, b = n["token_span"]
-                cspans.append(list(span_clause(offs, a, b, ntoks)))
-                ctextes.append(s["text"][cspans[-1][0] : cspans[-1][1]])
-                try:
-                    ngold.append(NODE_TYPES.index(n["type"]))
-                except ValueError:
-                    raise SpanError(f"type de nœud inconnu : {n['type']!r}.") from None
-            egold = {}
-            for e in s["cir"]["edges"]:
-                srcs = e.get("sources") or ([e["source"]] if "source" in e else [])
-                for src in srcs:
-                    i, j = rangs[src], rangs[e["target"]]
-                    try:
-                        r = RELATION_TYPES.index(e["relation"])
-                    except ValueError:
-                        raise SpanError(f"relation inconnue : {e['relation']!r}.") from None
-                    if i >= j:
-                        stats["arrieres"] += 1
-                        continue
-                    if j - i > WINDOW_K:
-                        stats["hors_fenetre"] += 1
-                        continue
-                    egold[(i, j)] = r
-        except SpanError as exc:
-            stats["rejetees"].append((ident, str(exc)))
-            continue
-        ids, offsets, _ = tok_split(s["text"])
-        samples.append(
-            {
-                "id": ident,
-                "text": s["text"],
-                "ids": ids,
-                "offsets": offsets,
-                "clause_spans": cspans,
-                "clause_textes": ctextes,
-                "node_gold": ngold,
-                "edge_gold": egold,
-            }
-        )
-    return samples, stats
+    from ..data.tok_loader import charger_split as _charger
+
+    return _charger(fichier)
 
 
 def backward_tok(
@@ -379,13 +321,15 @@ def entrainer(
             raise ValueError(f"{nom} : rejet alignement {taux:.1%} > 5 % — STOP (données).")
     eng = TokForwardEngine(d_model=d_model, seed=seed)
     eng.build_vocab([s["text"] for s in train])
-    oov_tr = sum(1 for s in train for i in s["ids"] if eng.emb.row_index(i) is None)
-    tot_tr = sum(len(s["ids"]) for s in train)
+
+    def _dans_vocab(i) -> bool:
+        return eng.emb.row_index(i) is not None
+
+    oov_tr, tot_tr = couverture_vocab(_dans_vocab, train)
     if tot_tr and oov_tr / tot_tr > OOV_WARN_RATE:
         raise ValueError(f"OOV train {oov_tr / tot_tr:.1%} > 5 % — vocabulaire défectueux.")
-    oov_val = sum(1 for s in val for i in s["ids"] if eng.emb.row_index(i) is None)
-    tot_val = sum(len(s["ids"]) for s in val) or 1
-    taux_oov_val = oov_val / tot_val
+    oov_val, tot_val = couverture_vocab(_dans_vocab, val)
+    taux_oov_val = oov_val / (tot_val or 1)
     if taux_oov_val > OOV_WARN_RATE:
         warnings.warn(
             f"train_tok : OOV val {taux_oov_val:.1%} > 5 % — publié, pas avorté "
