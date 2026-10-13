@@ -11,6 +11,7 @@ Usage :
     gcn-index --corpus rapports/ --checkpoint model.npz --output graph.json
     gcn-discuss --checkpoint model.npz --graph graph.json
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,22 +38,63 @@ def segment_sentences(line: str) -> list[str]:
 
 
 @click.command("gcn-index")
-@click.option("--corpus", required=True, type=click.Path(path_type=Path),
-              help="Fichier texte ou répertoire à indexer.")
-@click.option("--checkpoint", required=True, type=click.Path(path_type=Path),
-              help="Checkpoint .npz produit par gcn-train.")
-@click.option("--output", required=True, type=click.Path(path_type=Path),
-              help="Fichier JSON de sortie pour le graphe causal.")
-@click.option("--gcn-bin", default="gcn", show_default=True,
-              help="Chemin vers le binaire gcn-cli Rust.")
-@click.option("--append/--overwrite", default=False, show_default=True,
-              help="Enrichir un graphe existant (--append) ou le remplacer.")
-@click.option("--min-line-len", default=10, show_default=True, type=int,
-              help="Longueur minimale de ligne (remplace le magic number 10).")
-@click.option("--vecs-out", default=None, type=click.Path(path_type=Path),
-              help="Fichier .npz de sortie pour les vecteurs enrichis (+ manifest JSON). "
-                   "Anti-perte : les vecteurs calculés pendant l'indexation sont persistés "
-                   "par clé stable et réutilisables en session.")
+@click.option(
+    "--corpus",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Fichier texte ou répertoire à indexer.",
+)
+@click.option(
+    "--checkpoint",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Checkpoint .npz produit par gcn-train.",
+)
+@click.option(
+    "--output",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Fichier JSON de sortie pour le graphe causal.",
+)
+@click.option(
+    "--gcn-bin", default="gcn", show_default=True, help="Chemin vers le binaire gcn-cli Rust."
+)
+@click.option(
+    "--append/--overwrite",
+    default=False,
+    show_default=True,
+    help="Enrichir un graphe existant (--append) ou le remplacer.",
+)
+@click.option(
+    "--min-line-len",
+    default=10,
+    show_default=True,
+    type=int,
+    help="Longueur minimale de ligne (remplace le magic number 10).",
+)
+@click.option(
+    "--vecs-out",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Fichier .npz de sortie pour les vecteurs enrichis (+ manifest JSON). "
+    "Anti-perte : les vecteurs calculés pendant l'indexation sont persistés "
+    "par clé stable et réutilisables en session.",
+)
+@click.option(
+    "--use-tok",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Chemin tok in-process (sans binaire gcn). Auto-activé si le "
+    "checkpoint est tok s1+ ; gate explicite sinon (E_tok vide refusé). "
+    "Sans pipeline, discours/vecs ignorés (une info, pas un avertissement).",
+)
+@click.option(
+    "--lang",
+    default="fr",
+    show_default=True,
+    help="Langue budgétée fr/en/es/de/pt/it (chemin tok uniquement).",
+)
 def index_cmd(
     corpus: Path,
     checkpoint: Path,
@@ -61,10 +103,13 @@ def index_cmd(
     append: bool,
     min_line_len: int,
     vecs_out: Path | None,
+    use_tok: bool,
+    lang: str,
 ) -> None:
     """Indexe un corpus de fichiers texte → graphe causal JSON."""
     import numpy as _np
 
+    from .cli.tok_flags import resolve_use_tok
     from .data.graph_vecs import checkpoint_hash as _ckpt_hash
     from .data.graph_vecs import save_graph_vecs, stable_key
     from .engine import GCNEngine
@@ -77,12 +122,15 @@ def index_cmd(
     # Charger le moteur
     click.echo(f"Chargement du modèle depuis {checkpoint.name}...")
     try:
-        engine = GCNEngine.from_pretrained(
-            checkpoint, gcn_bin=gcn_bin, trusted=True
-        )
+        engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
     except Exception as exc:
         raise click.ClickException(f"Erreur de chargement du checkpoint : {exc}") from exc
-    engine._pipeline.encoder.training = False
+    use_tok = resolve_use_tok(engine, use_tok, "gcn-index")
+    tok_only = engine._pipeline is None
+    if tok_only:
+        click.echo("Moteur tok-only : discours inter-phrasal et vecs ignorés (pas de pipeline).")
+    else:
+        engine._pipeline.encoder.training = False
 
     # Charger ou créer le graphe
     graph = CausalGraph()
@@ -111,29 +159,39 @@ def index_cmd(
         n_new = 0
         _prev_cir = None  # reset entre fichiers
         for line in lines:
+            # Granularité : legacy = phrase (segmentation externe, clauses
+            # sub-phrastiques du lattice) ; tok = ligne/bloc (les clauses du
+            # socle SONT des phrases — sous-segmenter isolerait chaque clause
+            # et viderait la fenêtre k=2 par construction, zéro arête).
+            sents = [line] if use_tok else segment_sentences(line)
             # Séquence correcte : segmenter en phrases, un analyze() par phrase,
             # puis bloc de discours avec ids préfixés (bBBBBB_nMMM).
-            for sent in segment_sentences(line):
+            for sent in sents:
                 # P0-10 : analyze_or_skip (None si gcn absent/échec bridge) au lieu de
                 # try/except aveugle — le skip est nommé avec le contexte.
                 # Les erreurs forward (ValueError/RuntimeError/...) restent visibles
                 # par phrase (log + suivante), jamais silencieuses ni fatales au batch.
                 try:
-                    cir = engine.analyze_or_skip(sent)
+                    cir = engine.analyze_or_skip(sent, use_tok=use_tok, lang=lang)
                 except (ValueError, RuntimeError, KeyError, IndexError, TypeError) as exc:
-                    log.warning("index: forward impossible (%s) : %s : %r",
-                                filename, exc, sent[:80])
+                    log.warning(
+                        "index: forward impossible (%s) : %s : %r", filename, exc, sent[:80]
+                    )
                     continue
                 if cir is None:
-                    log.warning("index: phrase ignorée (gcn indisponible ou échec) : %s : %r",
-                                filename, sent[:80])
-                    continue
-                # Éq.10 — relation discursive inter-phrasale (best-effort)
-                try:
-                    _disc = extract_discourse_relation(
-                        _prev_cir, cir,
-                        getattr(engine._pipeline, "_cached_reps", []) or [],
+                    log.warning(
+                        "index: phrase ignorée (gcn indisponible ou échec) : %s : %r",
+                        filename,
+                        sent[:80],
                     )
+                    continue
+                # Éq.10 — relation discursive inter-phrasale (best-effort,
+                # pipeline legacy uniquement : sans pipeline, ignorée d'office).
+                try:
+                    _reps = (
+                        [] if tok_only else (getattr(engine._pipeline, "_cached_reps", []) or [])
+                    )
+                    _disc = None if tok_only else extract_discourse_relation(_prev_cir, cir, _reps)
                     if _disc is not None:
                         cir.setdefault("edges", []).append(_disc)
                 except Exception as exc:  # noqa: BLE001  # discours best-effort : log + sans arête
@@ -141,8 +199,9 @@ def index_cmd(
                 _prev_cir = cir
                 if cir.get("edges"):
                     block_idx += 1
-                    # Collecte vecs AVANT préfixage (positions = ordre cir["nodes"])
-                    if vecs_out is not None:
+                    # Collecte vecs AVANT préfixage (positions = ordre cir["nodes"]).
+                    # Tok-only : pas de vecteurs enrichis — ignoré (annoncé au démarrage).
+                    if vecs_out is not None and not tok_only:
                         try:
                             _ev = engine._pipeline.get_enriched_vectors()
                             if _ev is not None:
@@ -194,13 +253,15 @@ def index_cmd(
             "Vérifiez le corpus, le checkpoint et la disponibilité de gcn-bin.",
             err=True,
         )
-    if vecs_out is not None and collected:
+    if vecs_out is not None and collected and not tok_only:
         try:
             _params = {}
             for _i, _p in enumerate(engine._pipeline.encoder.parameters()):
                 _params[f"encoder_{_i}"] = _np.asarray(_p)
             _d = int(next(iter(collected.values())).shape[-1])
             save_graph_vecs(vecs_out, collected, _ckpt_hash(_params), _d, collected_meta)
-            click.echo(f"Vecteurs sauvegardés : {vecs_out}  ({len(collected)} vecteur(s) + manifest)")
+            click.echo(
+                f"Vecteurs sauvegardés : {vecs_out}  ({len(collected)} vecteur(s) + manifest)"
+            )
         except Exception as exc:  # noqa: BLE001  # sauvegarde vecs best-effort : log, graphe déjà écrit
             log.warning("index: sauvegarde vecs impossible : %s", exc)

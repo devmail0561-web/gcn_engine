@@ -15,6 +15,7 @@ Questions libres (sans préfixe /) :
   Toute entrée sans / est traitée comme une question sur le graphe accumulé.
   Si aucune structure causale n'est trouvée sur le sujet : message explicite.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,6 +30,7 @@ from .verbalizer.instructions import CausalGraph, InstructionHandler
 # ---------------------------------------------------------------------------
 # Lecture des fichiers texte (raw text — pas de JSON annoté)
 # ---------------------------------------------------------------------------
+
 
 def _read_texts(path: Path) -> list[tuple[str, str]]:
     """
@@ -50,11 +52,15 @@ def _read_texts(path: Path) -> list[tuple[str, str]]:
             except OSError as e:  # read_text(errors="replace") : seul un échec d'E/S est possible
                 click.echo(f"  ⚠ Impossible de lire {path.name} : {e}", err=True)
         else:
-            click.echo(f"  ⚠ Format non supporté : {path.suffix}. "
-                       f"Formats acceptés : {', '.join(sorted(TEXT_EXTENSIONS))}", err=True)
+            click.echo(
+                f"  ⚠ Format non supporté : {path.suffix}. "
+                f"Formats acceptés : {', '.join(sorted(TEXT_EXTENSIONS))}",
+                err=True,
+            )
     elif path.is_dir():
-        files = sorted(p for p in path.iterdir()
-                       if p.is_file() and p.suffix.lower() in TEXT_EXTENSIONS)
+        files = sorted(
+            p for p in path.iterdir() if p.is_file() and p.suffix.lower() in TEXT_EXTENSIONS
+        )
         if not files:
             click.echo(f"  ⚠ Aucun fichier texte trouvé dans {path}", err=True)
         for f in files:
@@ -87,7 +93,7 @@ def extract_concepts_from_cir(cir: dict) -> list[str]:
     """
     import re as _re
 
-    _LABEL_RE = _re.compile(r'^([^(?\s]+)')
+    _LABEL_RE = _re.compile(r"^([^(?\s]+)")
     concepts = []
     for n in cir.get("nodes", []) or []:
         label = (n.get("label") or "").strip()
@@ -110,6 +116,7 @@ def extract_concepts_from_cir(cir: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 # Session principale
 # ---------------------------------------------------------------------------
+
 
 def _print_header(n_relations: int = 0, n_sources: int = 0) -> None:
     print()
@@ -149,6 +156,7 @@ def _write_log(log_path: Path | None, entry: dict) -> None:
         return
     import datetime
     import json
+
     entry["ts"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat()
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -161,9 +169,12 @@ def run_discuss(
     log_path: Path | None = None,
     session_dir: Path | None = None,
     vecs_index: Path | None = None,
+    use_tok: bool = False,
+    lang: str = "fr",
 ) -> None:
     """Lance la session de discussion."""
     from .cli.session import SessionStore
+    from .cli.tok_flags import resolve_use_tok
     from .data.graph_vecs import load_graph_vecs_index
     from .engine import GCNEngine
 
@@ -175,18 +186,24 @@ def run_discuss(
     if session_dir is not None:
         restored = session.load()
         if restored["graph_edges"] or restored["vecs"]:
-            print(f"\n  Session restaurée : {restored['graph_edges']} relation(s), "
-                  f"{restored['vecs']} vecteur(s), {restored['history']} événement(s).")
+            print(
+                f"\n  Session restaurée : {restored['graph_edges']} relation(s), "
+                f"{restored['vecs']} vecteur(s), {restored['history']} événement(s)."
+            )
 
     # Charger le moteur
     engine = None
     if checkpoint and checkpoint.exists():
         try:
-            engine = GCNEngine.from_pretrained(
-                checkpoint, gcn_bin=gcn_bin, trusted=True
-            )
-            engine._pipeline.encoder.training = False
-        except Exception as e:  # noqa: BLE001  # checkpoint illisible : message d'erreur CLI, sans moteur
+            engine = GCNEngine.from_pretrained(checkpoint, gcn_bin=gcn_bin, trusted=True)
+            if engine._pipeline is not None:
+                engine._pipeline.encoder.training = False
+            use_tok = resolve_use_tok(engine, use_tok, "gcn-discuss")
+        except Exception as e:  # checkpoint illisible : message d'erreur CLI, sans moteur
+            import click as _click
+
+            if isinstance(e, _click.ClickException):
+                raise  # gate --use-tok : erreur CLI propre, pas "chargement"
             print(f"\n  Erreur de chargement du checkpoint : {e}")
             print("  Impossible d'analyser sans checkpoint.")
 
@@ -201,7 +218,7 @@ def run_discuss(
     handler = InstructionHandler()
     if restored["graph_edges"]:
         handler.graph = session.graph
-    decoder = ReferenceDecoder()   # CIR → texte, flux direct sans fichier
+    decoder = ReferenceDecoder()  # CIR → texte, flux direct sans fichier
     if graph_path and graph_path.exists():
         try:
             handler.graph = CausalGraph.load(graph_path)
@@ -212,6 +229,7 @@ def run_discuss(
     # restaurée ou --graph préchargé) — sinon d00001_ est réutilisé et les
     # nœuds d'une session précédente sont silencieusement écrasés.
     import re as _blk_re
+
     for _nid in handler.graph.nodes:
         _m = _blk_re.match(r"^d(\d+)_", str(_nid))
         if _m:
@@ -248,8 +266,8 @@ def run_discuss(
         # ── Commandes /commande ──────────────────────────────────────────
         if user_input.startswith("/"):
             parts = user_input[1:].split(None, 1)
-            cmd   = parts[0].lower() if parts else ""
-            arg   = parts[1].strip() if len(parts) > 1 else ""
+            cmd = parts[0].lower() if parts else ""
+            arg = parts[1].strip() if len(parts) > 1 else ""
 
             if cmd in ("quit", "exit", "q"):
                 print("  bye.")
@@ -275,7 +293,7 @@ def run_discuss(
                     print("  Aucun checkpoint chargé — impossible d'analyser.")
                     continue
                 target = Path(arg)
-                texts  = _read_texts(target)
+                texts = _read_texts(target)
                 if not texts:
                     continue
                 print()
@@ -285,7 +303,13 @@ def run_discuss(
                     n_new = 0
                     for line in lines:
                         try:
-                            cir = engine.analyze(line)
+                            # Pattern branché : moteurs factices (tests) n'acceptent
+                            # pas les kwargs — legacy inchangé à l'identique.
+                            cir = (
+                                engine.analyze(line, use_tok=True, lang=lang)
+                                if use_tok
+                                else engine.analyze(line)
+                            )
                             if cir.get("edges"):
                                 # Collecte session : vecteurs persistés (anti-perte)
                                 if session.session_dir is not None:
@@ -318,18 +342,23 @@ def run_discuss(
                                 n_new += len(cir["edges"])
                         except Exception as _e:  # noqa: BLE001  # phrase invalide : warn + phrase suivante
                             import warnings as _dw
+
                             _dw.warn(
                                 f"discuss: erreur analyse/verbalisation CIR : {_e}",
-                                UserWarning, stacklevel=2,
+                                UserWarning,
+                                stacklevel=2,
                             )
                     total_new += n_new
                     print(f"  {filename} : {n_new} relation(s) extraite(s)")
-                    _write_log(log_path, {
-                        "event": "analyze",
-                        "file": filename,
-                        "relations_extracted": n_new,
-                        "session_total": len(handler.graph.edges),
-                    })
+                    _write_log(
+                        log_path,
+                        {
+                            "event": "analyze",
+                            "file": filename,
+                            "relations_extracted": n_new,
+                            "session_total": len(handler.graph.edges),
+                        },
+                    )
                 n_total = len(handler.graph.edges)
                 print(f"  Total session : {n_total} relation(s)")
                 print()
@@ -339,6 +368,7 @@ def run_discuss(
                     print(f"  Session sauvegardée : {session.session_dir}")
                     if n_total == 0:
                         import sys as _sys
+
                         print(
                             "  ATTENTION : graphe vide persisté (0 relation) — "
                             "aucune arête causale extraite dans cette session.",
@@ -378,13 +408,21 @@ def run_discuss(
             # Tour de dialogue 9b-e : résolution sujet, clarification, langue,
             # enrichissement question (9a), routage NLU, journal.
             response, info = dialogue.handle(
-                user_input, handler, engine=engine,
+                user_input,
+                handler,
+                engine=engine,
                 vec_index=_graph_vec_index or None,
+                use_tok=use_tok,
+                lang=lang,
             )
             # Collecte session : vecteurs de la question (anti-perte, best-effort)
             if engine is not None and session.session_dir is not None:
                 try:
-                    _qcir = engine.analyze(user_input)
+                    _qcir = (
+                        engine.analyze(user_input, use_tok=True, lang=lang)
+                        if use_tok
+                        else engine.analyze(user_input)
+                    )
                     if _qcir.get("edges"):
                         session.collect(engine, user_input, _qcir)
                 except Exception:  # noqa: S110, BLE001
@@ -395,41 +433,89 @@ def run_discuss(
             if session.session_dir is not None:
                 session.graph = handler.graph
                 session.record_exchange(
-                    user_input, _answered, turn=info["n"], subject=info["subject"],
-                    summary=info["summary"], status=info["status"],
-                    lang=info["lang"], added=info["added"],
+                    user_input,
+                    _answered,
+                    turn=info["n"],
+                    subject=info["subject"],
+                    summary=info["summary"],
+                    status=info["status"],
+                    lang=info["lang"],
+                    added=info["added"],
                 )
                 if info.get("summarized") is not None:
                     session.record_summary(info["summarized"])
                 session.save()
-            _write_log(log_path, {
-                "event": "query",
-                "question": user_input[:500],
-                "session_relations": len(handler.graph.edges),
-                "answered": _answered,
-            })
+            _write_log(
+                log_path,
+                {
+                    "event": "query",
+                    "question": user_input[:500],
+                    "session_relations": len(handler.graph.edges),
+                    "answered": _answered,
+                },
+            )
 
 
 # ---------------------------------------------------------------------------
 # Point d'entrée CLI
 # ---------------------------------------------------------------------------
 
+
 @click.command("gcn-discuss")
-@click.option("--checkpoint", "ckpt", default=None, type=click.Path(path_type=Path),
-              help="Checkpoint .npz produit par gcn-train.")
-@click.option("--graph", "graph_path", default=None, type=click.Path(path_type=Path),
-              help="Graphe de session JSON à charger (produit par /save).")
-@click.option("--gcn-bin", default="gcn", show_default=True,
-              help="Chemin vers le binaire gcn-cli Rust.")
-@click.option("--log", "log_path", default=None, type=click.Path(path_type=Path),
-              help="Fichier de log JSON pour le monitoring (optionnel).")
-@click.option("--session-dir", default=None, type=click.Path(path_type=Path),
-              help="Répertoire de session persistante (graphe + vecs + historique). "
-                   "Restauré au démarrage, sauvegardé à chaque analyse/question et à la sortie.")
-@click.option("--vecs-index", "vecs_index", default=None, type=click.Path(path_type=Path),
-              help="Fichier graph_vecs.npz produit par gcn-index --vecs-out. "
-                   "Active la résolution sémantique des requêtes : le concept de la question "
-                   "est résolu vers le nœud du graphe le plus proche (espace R-GCN).")
+@click.option(
+    "--checkpoint",
+    "ckpt",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Checkpoint .npz produit par gcn-train.",
+)
+@click.option(
+    "--graph",
+    "graph_path",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Graphe de session JSON à charger (produit par /save).",
+)
+@click.option(
+    "--gcn-bin", default="gcn", show_default=True, help="Chemin vers le binaire gcn-cli Rust."
+)
+@click.option(
+    "--log",
+    "log_path",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Fichier de log JSON pour le monitoring (optionnel).",
+)
+@click.option(
+    "--session-dir",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Répertoire de session persistante (graphe + vecs + historique). "
+    "Restauré au démarrage, sauvegardé à chaque analyse/question et à la sortie.",
+)
+@click.option(
+    "--vecs-index",
+    "vecs_index",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Fichier graph_vecs.npz produit par gcn-index --vecs-out. "
+    "Active la résolution sémantique des requêtes : le concept de la question "
+    "est résolu vers le nœud du graphe le plus proche (espace R-GCN).",
+)
+@click.option(
+    "--use-tok",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Chemin tok in-process (sans binaire gcn). Auto-activé si le "
+    "checkpoint est tok s1+ ; gate explicite sinon (E_tok vide refusé).",
+)
+@click.option(
+    "--lang",
+    default="fr",
+    show_default=True,
+    help="Langue budgétée fr/en/es/de/pt/it (chemin tok uniquement).",
+)
 def discuss_cmd(
     ckpt: Path | None,
     graph_path: Path | None,
@@ -437,8 +523,17 @@ def discuss_cmd(
     log_path: Path | None,
     session_dir: Path | None,
     vecs_index: Path | None,
+    use_tok: bool,
+    lang: str,
 ) -> None:
     """Session de discussion causale sur corpus — /analyze, questions libres, /save."""
-    run_discuss(checkpoint=ckpt, graph_path=graph_path, gcn_bin=gcn_bin,
-               log_path=log_path, session_dir=session_dir,
-               vecs_index=vecs_index)
+    run_discuss(
+        checkpoint=ckpt,
+        graph_path=graph_path,
+        gcn_bin=gcn_bin,
+        log_path=log_path,
+        session_dir=session_dir,
+        vecs_index=vecs_index,
+        use_tok=use_tok,
+        lang=lang,
+    )

@@ -26,6 +26,7 @@ marqueurs, ni phrases). Mécanismes structurels uniquement :
 Réponses en codes : `topic:`, `clarify:`, `abandoned:`, `revoked:`, `lang:`,
 `origin:` — même modèle que le DSL Pearl (mots-clés fixes, contenu libre).
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -65,7 +66,7 @@ def _trigrams(s: str) -> set[str]:
     t = f"#{CausalGraph._normalize(s)}#"
     if len(t) < PARAPHRASE_MIN_LEN + 1:
         return set()
-    return {t[i:i + 3] for i in range(len(t) - 2)}
+    return {t[i : i + 3] for i in range(len(t) - 2)}
 
 
 def paraphrase_overlap(a: str, b: str) -> float:
@@ -75,17 +76,14 @@ def paraphrase_overlap(a: str, b: str) -> float:
         return 0.0
     return len(ga & gb) / min(len(ga), len(gb))
 
+
 # Ponctuation dépouillée pour les mots de contenu (mirroir nlu_routing + ¿؟).
 _STRIP = "?.,!()«»:;\"'¿؟"
 
 
 def content_words(text: str) -> list[str]:
     """Mots de contenu : longueur > 2 après strip ponctuation. Aucun lexique."""
-    return [
-        w.strip(_STRIP).lower()
-        for w in text.split()
-        if len(w.strip(_STRIP)) > 2
-    ]
+    return [w.strip(_STRIP).lower() for w in text.split() if len(w.strip(_STRIP)) > 2]
 
 
 def is_question_surface(text: str) -> bool:
@@ -99,6 +97,7 @@ def script_tag(text: str) -> str | None:
     Dérivé de unicodedata — aucun nom de langue, aucun lexique.
     """
     import unicodedata as _ud
+
     scripts = []
     for ch in text:
         if ch.isalpha():
@@ -114,6 +113,7 @@ def script_tag(text: str) -> str | None:
 def parse_digits(text: str) -> list[int]:
     """Entiers (chiffres Unicode, tous scripts) trouvés dans le texte."""
     import unicodedata as _ud
+
     nums, cur = [], ""
     for ch in text:
         if ch.isdigit():
@@ -149,8 +149,7 @@ def prefix_cir_ids(cir: dict, prefix: str) -> dict:
     return cir
 
 
-def format_response(handler: InstructionHandler, question: str,
-                    subject: str | None = None) -> str:
+def format_response(handler: InstructionHandler, question: str, subject: str | None = None) -> str:
     """Répond à une question sur le graphe accumulé via QueryVerbalizer.
 
     Détecte le type de requête depuis la structure (pas la langue).
@@ -203,8 +202,12 @@ def format_response(handler: InstructionHandler, question: str,
 
 
 _UNANSWERED_MARKERS = (
-    "No causal structure", "no causes found", "no effects found",
-    "no causal path", "not found", "not connected",
+    "No causal structure",
+    "no causes found",
+    "no effects found",
+    "no causal path",
+    "not found",
+    "not connected",
 )
 
 #: Compteurs best-effort NLU/enrichissement (modèle _ETAT engine_b).
@@ -216,6 +219,7 @@ _NLU_FALLBACKS = {"nlu_route": 0, "semantic_resolve": 0, "enrichment": 0}
 def nlu_fallback_counts() -> dict:
     """Compteurs best-effort (un NLU cassé = compteur qui monte, pas de silence)."""
     return dict(_NLU_FALLBACKS)
+
 
 #: Plafond d'écho d'un sujet/label utilisateur dans les réponses et logs.
 #: Sans cap, une entrée de 20k caractères est répercutée 2× (topic: + message)
@@ -235,10 +239,14 @@ def short_subject(subject: str | None) -> str:
 class DialogueSession:
     """État de dialogue : sujets, clarification, langue, journal (9b-e)."""
 
-    def __init__(self, max_topics: int = 3, abandon_after: int = 3,
-                 max_nodes: int = SESSION_MAX_NODES,
-                 max_edges: int = SESSION_MAX_EDGES,
-                 max_turns: int = JOURNAL_KEEP_TURNS) -> None:
+    def __init__(
+        self,
+        max_topics: int = 3,
+        abandon_after: int = 3,
+        max_nodes: int = SESSION_MAX_NODES,
+        max_edges: int = SESSION_MAX_EDGES,
+        max_turns: int = JOURNAL_KEEP_TURNS,
+    ) -> None:
         self.max_topics = max_topics
         self.abandon_after = abandon_after
         self.max_nodes = max_nodes
@@ -351,8 +359,9 @@ class DialogueSession:
     # ------------------------------------------------------------------
     # 9e — journal + révocation
     # ------------------------------------------------------------------
-    def _record(self, question: str, subject: str | None, response: str,
-                status: str, added: int) -> tuple[dict, dict | None]:
+    def _record(
+        self, question: str, subject: str | None, response: str, status: str, added: int
+    ) -> tuple[dict, dict | None]:
         """Enregistre un tour ; résume les plus vieux au-delà du plafond.
 
         Retourne (entrée, résumé-ou-None). M2a : jamais drop, jamais de refus —
@@ -435,11 +444,11 @@ class DialogueSession:
         if not turns:
             return
         self.turn = max(e["n"] for e in turns)
-        self.topics = [e["subject"] for e in turns[-self.max_topics:] if e.get("subject")]
+        self.topics = [e["subject"] for e in turns[-self.max_topics :] if e.get("subject")]
         last_lang = turns[-1].get("lang")
         if last_lang:
             self.lang_thread = last_lang
-        self.journal = list(turns[-self.max_turns:])
+        self.journal = list(turns[-self.max_turns :])
 
     def reseed_qblocks(self, node_ids) -> None:
         """Reprend la numérotation qNNNNN_ après les blocs déjà présents.
@@ -449,6 +458,7 @@ class DialogueSession:
         nœuds question précédents (mêmes ids) en dupliquant les arêtes.
         """
         import re as _re
+
         for nid in node_ids:
             _m = _re.match(r"^q(\d+)_", str(nid))
             if _m:
@@ -462,9 +472,11 @@ class DialogueSession:
                 return "  revoked: nothing (no user-added turn)"
             turn = scored[-1]["n"]
         removed = graph.drop_edges(
-            lambda _s, _d, a: isinstance(a, dict)
-            and a.get("session_turn") == turn
-            and a.get("session_origin") in _USER_ORIGINS
+            lambda _s, _d, a: (
+                isinstance(a, dict)
+                and a.get("session_turn") == turn
+                and a.get("session_origin") in _USER_ORIGINS
+            )
         )
         if removed:
             return f"  revoked: turn {turn} ({removed} edge(s))"
@@ -473,8 +485,15 @@ class DialogueSession:
     # ------------------------------------------------------------------
     # Tour complet
     # ------------------------------------------------------------------
-    def handle(self, text: str, handler: InstructionHandler,
-               engine=None, vec_index: list | None = None) -> tuple[str, dict]:
+    def handle(
+        self,
+        text: str,
+        handler: InstructionHandler,
+        engine=None,
+        vec_index: list | None = None,
+        use_tok: bool = False,
+        lang: str = "fr",
+    ) -> tuple[str, dict]:
         """Traite un message ; retourne (réponse, info journal).
 
         info = {n, subject, summary, status, lang, added} pour
@@ -543,8 +562,7 @@ class DialogueSession:
             options = self.wants_clarify(text, handler.graph)
             if len(options) >= 2:
                 if self.pending is None:
-                    self.pending = {"question": text[:200], "options": options,
-                                    "asked_turn": n}
+                    self.pending = {"question": text[:200], "options": options, "asked_turn": n}
                     self.last_candidates = list(options)
                     resp = f"  clarify: {' | '.join(options)}"
                     if notes:  # bascule annoncée (abandon juste consommé)
@@ -567,7 +585,13 @@ class DialogueSession:
         added = 0
         if engine is not None and is_question_surface(text) and cmd == "text":
             try:
-                cir = engine.analyze(text)
+                # Pattern branché : les moteurs factices des tests n'acceptent
+                # pas les kwargs — chemin legacy inchangé à l'identique.
+                cir = (
+                    engine.analyze(text, use_tok=True, lang=lang)
+                    if use_tok
+                    else engine.analyze(text)
+                )
                 if cir.get("edges"):
                     before = len(handler.graph.edges)
                     self._qblocks += 1
@@ -599,9 +623,14 @@ class DialogueSession:
         else:
             if engine is not None:
                 try:
-                    cir = engine.analyze(text)
+                    cir = (
+                        engine.analyze(text, use_tok=True, lang=lang)
+                        if use_tok
+                        else engine.analyze(text)
+                    )
                     _reps = getattr(engine._pipeline, "_cached_reps", None)
                     from .pipeline.nlu_routing import nlu_route
+
                     nlu_cmd = nlu_route(
                         text,
                         tokens=_reps[0].tokens if _reps else None,
@@ -610,6 +639,7 @@ class DialogueSession:
                     if nlu_cmd and vec_index:
                         try:
                             from .pipeline.nlu_routing import semantic_resolve_concept
+
                             _qvecs = getattr(engine._pipeline, "_cached_enriched_vecs", None)
                             if _qvecs is not None and len(_qvecs) > 0:
                                 _resolved = semantic_resolve_concept(_qvecs, vec_index)
@@ -625,12 +655,16 @@ class DialogueSession:
                     pass
             if nlu_cmd:
                 response = handler.execute(nlu_cmd) or format_response(
-                    handler, text, subject=subject)
+                    handler, text, subject=subject
+                )
             else:
                 response = format_response(handler, text, subject=subject)
 
-        status = "clarified" if clarified else (
-            "unanswered" if any(m in response for m in _UNANSWERED_MARKERS) else "ok")
+        status = (
+            "clarified"
+            if clarified
+            else ("unanswered" if any(m in response for m in _UNANSWERED_MARKERS) else "ok")
+        )
         if subject is not None:
             response = f"  topic: {short_subject(subject)}\n" + response
             self.last_candidates = [subject]
@@ -642,6 +676,5 @@ class DialogueSession:
             info["summarized"] = _summ
         if notes:
             response = "\n".join(notes) + "\n" + response
-            info["summary"] = next(
-                (ln for ln in response.splitlines() if ln.strip()), "")[:120]
+            info["summary"] = next((ln for ln in response.splitlines() if ln.strip()), "")[:120]
         return response, info
