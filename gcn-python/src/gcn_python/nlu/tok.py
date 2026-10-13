@@ -57,14 +57,33 @@ def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
     ``tok_engine`` : ``TokForwardEngine`` avec vocabulaire construit
     (gate capacitaire dans ``forward_from_spans``). Texte vide →
     CIR vide (pas d'appel socle inutile). Répétition → hit cache M1a
-    (zéro recalcul, copies indépendantes).
+    (zéro recalcul : ni socle, ni forward — copies indépendantes).
+    Compromis assumé : les hits ne rejouent pas le socle, donc les
+    compteurs B (fallback_stats) ne voient que les textes uniques —
+    comme le cache M1a legacy qui saute le parse.
     """
+    import copy as _copy
+
+    from ..param_epoch import current as _epoch
+    from ..pipeline.forward_ids import TOK_CACHE_MAX
+
+    if not isinstance(text, str):
+        raise TypeError(f"text doit être str, reçu {type(text).__name__}")
+    if not text.strip():
+        from ..pipeline.ir_emitter import emit
+
+        return emit(text, [], [], [], [], [])
+    cle = (_epoch(), text, lang)
+    present = tok_engine._tok_cache.get(cle)
+    if present is not None:
+        tok_engine._tok_hits += 1
+        return _copy.deepcopy(present)
     segments = parse_text(text, lang=lang)
     if not segments["clause_spans"]:
         from ..pipeline.ir_emitter import emit
 
         return emit(text, [], [], [], [], [])
-    return tok_engine.forward_cached(
+    cir = tok_engine.forward_from_spans(
         text,
         segments["ids"],
         segments["offsets"],
@@ -73,3 +92,8 @@ def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
         connecteurs=segments["connecteurs"],
         source_b=segments["source"],
     )
+    tok_engine._tok_misses += 1
+    if len(tok_engine._tok_cache) >= TOK_CACHE_MAX:
+        tok_engine._tok_cache.pop(next(iter(tok_engine._tok_cache)))
+    tok_engine._tok_cache[cle] = _copy.deepcopy(cir)
+    return cir

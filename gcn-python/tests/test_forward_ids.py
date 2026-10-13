@@ -225,11 +225,38 @@ class TestCacheTok:
             return origine(*args, **kwargs)
 
         monkeypatch.setattr(eng, "_forward_parts", _compte)
+        import gcn_python.nlu.tok as _tok
+
+        origine_parse = _tok.parse_text
+        segles = {"n": 0}
+
+        def _compte_parse(*args, **kwargs):
+            segles["n"] += 1
+            return origine_parse(*args, **kwargs)
+
+        monkeypatch.setattr(_tok, "parse_text", _compte_parse)
         c1 = analyze_tok_text(eng, TEXTE_2_PHRASES)
         c2 = analyze_tok_text(eng, TEXTE_2_PHRASES)
-        assert appels["n"] == 1  # 2e appel servi par le cache
+        assert appels["n"] == 1  # forward sauté la 2e fois
+        assert segles["n"] == 1  # socle sauté aussi (cache au-dessus de B)
         assert c1 == c2
         assert eng.cache_stats() == {"hits": 1, "misses": 1, "size": 1, "max": 1024}
+
+    def test_forward_cached_segment_level(self):
+        eng = _moteur()
+        seg = parse_text(TEXTE_2_PHRASES)
+        kwargs = {
+            "text": TEXTE_2_PHRASES,
+            "ids": seg["ids"],
+            "offsets": seg["offsets"],
+            "clause_spans": seg["clause_spans"],
+            "clause_textes": seg["clause_textes"],
+        }
+        c1 = eng.forward_cached(**kwargs)
+        c1["edges"] = []
+        c2 = eng.forward_cached(**kwargs)
+        assert c2["edges"] != []
+        assert eng.cache_stats()["hits"] == 1
 
     def test_copies_independantes(self):
         eng = _moteur()
