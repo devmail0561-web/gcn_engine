@@ -53,6 +53,7 @@ from ..constants import (
 )
 from ..layer0.tokenizer import RULES_VERSION, tokenizer_hash
 from ..layer0.tokenizer import split as tok_split
+from ..layer1.context import ContextEncoder
 from ..layer1.l1_forward import align_spans, forward_ids, pool_clauses
 from ..layer1.tok_embedding import FORMAT_REFACTO, TokEmbedding
 from ..layer2.reference import MLPEncoder
@@ -111,6 +112,8 @@ class TokForwardEngine:
         bidirectional: bool = False,
         node_types: list[str] | None = None,
         relation_types: list[str] | None = None,
+        use_context: bool = False,
+        use_oov_hash: bool = False,
     ) -> None:
         if d_model < 1:
             raise ValueError(f"d_model doit être ≥ 1 (reçu {d_model!r}).")
@@ -131,7 +134,12 @@ class TokForwardEngine:
         # COARSE_NODE_TYPES — R8 franchissable sans toucher aux gates prod).
         self.node_types = list(node_types) if node_types else list(NODE_TYPES)
         self.relation_types = list(relation_types) if relation_types else list(RELATION_TYPES)
-        self.emb = TokEmbedding(d_model=self.d_model, seed=self.seed)
+        self.emb = TokEmbedding(
+            d_model=self.d_model,
+            seed=self.seed,
+            oov_mode="hash" if use_oov_hash else "zeros",
+        )
+        self.use_oov_hash = bool(use_oov_hash)
         self.encoder = MLPEncoder(
             d_clause=self.d_model,
             d_edge=_edge_full_dim(self.d_model, len(self.node_types)),
@@ -148,6 +156,15 @@ class TokForwardEngine:
             dropout=0.0,
         )
         self._no_edge = rgcn_no_edge_idx(len(self.relation_types))
+        # Contexte O1 (opt-in, défaut off — parité legacy préservée) :
+        # CNN dilaté token-level entre lookup et pooling. Seed+3 (convention
+        # dérivations fixes). Zéro lexique, zéro langue.
+        self.use_context = bool(use_context)
+        self.ctx = (
+            ContextEncoder(d_model=self.d_model, seed=self.seed + 3)
+            if self.use_context
+            else None
+        )
         self.last_oov_rate: float = 0.0
         # Cache analyze (miroir M1a) : clé (epoch params, texte) — toute
         # mutation (update → bump) invalide. Copies profondes aux deux bouts
@@ -195,6 +212,35 @@ class TokForwardEngine:
             tables[f"edge_L{i}_b"] = np.asarray(couche.b, dtype=np.float32)
         tables["rgcn_Wr"] = np.asarray(self.rgcn.W_r, dtype=np.float32)
         tables["rgcn_W0"] = np.asarray(self.rgcn.W_0, dtype=np.float32)
+        tables["use_context"] = _np.asarray(int(self.ctx is not None), dtype=_np.int64)
+        _f = getattr(self, "factor_aux", None)
+        tables["has_factor"] = _np.asarray(int(_f is not None), dtype=_np.int64)
+        if _f is not None:
+            for _nm, _arr in (
+                ("factor_Wb", _f.W_base),
+                ("factor_bb", _f.b_base),
+                ("factor_Wt", _f.W_tern),
+                ("factor_bt", _f.b_tern),
+                ("factor_Ws", _f.W_spec),
+                ("factor_bs", _f.b_spec),
+            ):
+                tables[_nm] = np.asarray(_arr, dtype=np.float32)
+        _s = getattr(self, "span_head", None)
+        tables["has_span"] = _np.asarray(int(_s is not None), dtype=_np.int64)
+        if _s is not None:
+            tables["span_ws"] = np.asarray(_s.w_s, dtype=np.float32)
+            tables["span_bs"] = np.asarray(float(_s.b_s), dtype=np.float32)
+            tables["span_we"] = np.asarray(_s.w_e, dtype=np.float32)
+            tables["span_be"] = np.asarray(float(_s.b_e), dtype=np.float32)
+        tables["oov_mode"] = _np.asarray(self.emb.oov_mode)
+        if self.emb.oov_mode == "hash":
+            tables["oov_buckets"] = _np.asarray(self.emb.oov_buckets, dtype=_np.int64)
+            tables["oov_B"] = np.asarray(self.emb._B, dtype=np.float32)
+        if self.ctx is not None:
+            tables["ctx_W1"] = np.asarray(self.ctx.bloc1.W, dtype=np.float32)
+            tables["ctx_b1"] = np.asarray(self.ctx.bloc1.b, dtype=np.float32)
+            tables["ctx_W2"] = np.asarray(self.ctx.bloc2.W, dtype=np.float32)
+            tables["ctx_b2"] = np.asarray(self.ctx.bloc2.b, dtype=np.float32)
         tables["rgcn_norm"] = _np.asarray(int(self.rgcn.norm is not None), dtype=_np.int64)
         if self.rgcn.norm is not None:
             tables["rgcn_gamma"] = np.asarray(self.rgcn.norm.gamma, dtype=np.float32)
@@ -248,6 +294,8 @@ class TokForwardEngine:
                 bidirectional=bool(int(z["bidirectional"])),
                 node_types=nt,
                 relation_types=rt,
+                use_context=bool(int(z["use_context"])) if "use_context" in cles else False,
+                use_oov_hash=(str(z["oov_mode"]) == "hash") if "oov_mode" in cles else False,
             )
             if int(z["window_k"]) != WINDOW_K:
                 raise ValueError("window_k divergent — version incompatible.")
@@ -256,6 +304,10 @@ class TokForwardEngine:
             if lignes.shape != (len(vocab), d_model):
                 raise ValueError(f"E de forme {lignes.shape}, incohérente avec le vocab.")
             obj.emb._E = lignes
+            if obj.emb.oov_mode == "hash" and "oov_B" in cles:
+                _b = _np.asarray(z["oov_B"], dtype=_np.float32)
+                if _b.shape == obj.emb._B.shape:
+                    obj.emb._B = _b
             for i, couche in enumerate(obj.encoder._node_layers):
                 w = _np.asarray(z[f"node_L{i}_W"], dtype=_np.float32)
                 b = _np.asarray(z[f"node_L{i}_b"], dtype=_np.float32)
@@ -285,6 +337,67 @@ class TokForwardEngine:
                     if cible.shape != w.shape:
                         raise ValueError(f"R-GCN {attr} : forme incompatible.")
                     cible[:] = w
+            a_ctx = int(z["use_context"]) if "use_context" in cles else 0
+            if a_ctx and obj.ctx is None:
+                raise ValueError(
+                    "checkpoint avec contexte mais moteur sans (use_context=False) — "
+                    "reconstruire avec use_context=True."
+                )
+            if not a_ctx and obj.ctx is not None:
+                raise ValueError(
+                    "checkpoint sans contexte mais moteur avec (use_context=True) — "
+                    "pas de chargement partiel silencieux."
+                )
+            if a_ctx:
+                for nom, bloc, attr in (
+                    ("ctx_W1", obj.ctx.bloc1, "W"),
+                    ("ctx_b1", obj.ctx.bloc1, "b"),
+                    ("ctx_W2", obj.ctx.bloc2, "W"),
+                    ("ctx_b2", obj.ctx.bloc2, "b"),
+                ):
+                    w = _np.asarray(z[nom], dtype=_np.float32)
+                    cible = getattr(bloc, attr)
+                    if cible.shape != w.shape:
+                        raise ValueError(f"contexte {nom} : forme incompatible.")
+                    cible[:] = w
+            if int(z["has_factor"]) if "has_factor" in cles else 0:
+                from ..layer2.edge_factor import FactorizedEdgeHead as _FEH
+
+                _d = int(_np.asarray(z["factor_Wb"], dtype=_np.float32).shape[1])
+                obj.factor_aux = _FEH(d_edge=_d)
+                obj.factor_aux_enabled = True
+                for nom, attr in (
+                    ("factor_Wb", "W_base"),
+                    ("factor_bb", "b_base"),
+                    ("factor_Wt", "W_tern"),
+                    ("factor_bt", "b_tern"),
+                    ("factor_Ws", "W_spec"),
+                    ("factor_bs", "b_spec"),
+                ):
+                    w = _np.asarray(z[nom], dtype=_np.float32)
+                    cible = getattr(obj.factor_aux, attr)
+                    if cible.shape != w.shape:
+                        raise ValueError(f"facteur {nom} : forme incompatible.")
+                    cible[:] = w
+            if int(z["has_span"]) if "has_span" in cles else 0:
+                from ..layer1.span_head import SpanHead as _SH
+
+                obj.span_head = _SH(d_model=d_model, seed=int(z["seed"]) + 4)
+                obj.span_aux_enabled = True
+                for nom, attr, scalaire in (
+                    ("span_ws", "w_s", False),
+                    ("span_bs", "b_s", True),
+                    ("span_we", "w_e", False),
+                    ("span_be", "b_e", True),
+                ):
+                    w = _np.asarray(z[nom], dtype=_np.float32)
+                    if scalaire:
+                        setattr(obj.span_head, attr, np.float32(w))
+                    else:
+                        cible = getattr(obj.span_head, attr)
+                        if cible.shape != w.shape:
+                            raise ValueError(f"spans {nom} : forme incompatible.")
+                        cible[:] = w
             return obj
 
     # ── vocabulaire ──────────────────────────────────────────────
@@ -365,8 +478,13 @@ class TokForwardEngine:
                 UserWarning,
                 stacklevel=2,
             )
+        if self.ctx is not None:
+            # O1 : états contextuels AVANT pooling (même N — parité
+            # forward_from_spans / forward_supervise préservée).
+            matrice = self.ctx.forward(matrice)
         spans = [list(span) for span, _texte in clauses]
         alignes = align_spans(offsets, spans)
+        token_reps = matrice.copy()  # R3 : supervision spans token-level.
         pooled, _miroir = pool_clauses(matrice, alignes)
 
         # Têtes nœuds (batch si dispo — même sémantique que la boucle).
@@ -471,6 +589,7 @@ class TokForwardEngine:
             "alignes": alignes,
             "ids": list(ids),
             "source_b": source_b,
+            "token_reps": token_reps,
         }
 
     def cache_stats(self) -> dict:
