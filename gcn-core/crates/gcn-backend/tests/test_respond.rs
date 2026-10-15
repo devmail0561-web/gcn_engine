@@ -439,7 +439,10 @@ fn invalid_ir_errors_refuse_response() {
     );
     let processed = process(ir).expect("process ne refuse pas (diagnostics)");
     assert!(
-        processed.diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Error),
+        processed
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error),
         "pendante doit être Error"
     );
     let r = respond_validated("WHY Beta", &processed.ir, &processed.diagnostics);

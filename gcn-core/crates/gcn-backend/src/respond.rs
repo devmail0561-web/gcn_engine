@@ -333,11 +333,7 @@ pub fn respond(input: &str, ir: &CausalIR) -> UserResponse {
 /// diagnostic `Error` (pendantes, boucles réflexives) refuse la réponse
 /// (`Degrade` motif `invalid_ir:`) au lieu de répondre sur l'IR invalide.
 /// `Warning` seuls : réponse normale. `respond()` historique = sans diagnostics.
-pub fn respond_validated(
-    input: &str,
-    ir: &CausalIR,
-    diagnostics: &[Diagnostic],
-) -> UserResponse {
+pub fn respond_validated(input: &str, ir: &CausalIR, diagnostics: &[Diagnostic]) -> UserResponse {
     let errors: Vec<String> = diagnostics
         .iter()
         .filter(|d| d.severity == DiagnosticSeverity::Error)

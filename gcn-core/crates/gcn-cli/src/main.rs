@@ -383,12 +383,10 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             // P1-rigidité : --strict refuse aussi tout IR invalide (diagnostics
             // Error), quelle que soit la requête — pas de demi-mesure par commande.
             if strict
-                && processed.diagnostics.iter().any(|d| {
-                    matches!(
-                        d.severity,
-                        gcn_middleend::error::DiagnosticSeverity::Error
-                    )
-                })
+                && processed
+                    .diagnostics
+                    .iter()
+                    .any(|d| matches!(d.severity, gcn_middleend::error::DiagnosticSeverity::Error))
             {
                 return Err("IR invalide (diagnostics Error) en mode --strict".into());
             }
@@ -419,12 +417,10 @@ fn run(cmd: Commands) -> Result<(), Box<dyn std::error::Error>> {
             }
             // P1-rigidité : pas de rendu sur IR invalide sans --force explicite.
             if !force
-                && processed.diagnostics.iter().any(|d| {
-                    matches!(
-                        d.severity,
-                        gcn_middleend::error::DiagnosticSeverity::Error
-                    )
-                })
+                && processed
+                    .diagnostics
+                    .iter()
+                    .any(|d| matches!(d.severity, gcn_middleend::error::DiagnosticSeverity::Error))
             {
                 return Err("IR invalide (diagnostics Error) — relancez avec --force".into());
             }
