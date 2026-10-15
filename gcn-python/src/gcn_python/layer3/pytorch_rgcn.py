@@ -38,9 +38,8 @@ except ImportError as e:  # pragma: no cover
 
 import numpy as np
 
-from ..param_epoch import bump as _bump_param_epoch
-
 from ..constants import RELATION_TYPES, rgcn_n_relations
+from ..param_epoch import bump as _bump_param_epoch
 
 
 class RGCNLayerPT(nn.Module):

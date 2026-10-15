@@ -165,7 +165,7 @@ class Stage2Classifier:
                  prov=np.array([json_dumps(provenance or {})], dtype=object))
 
     @classmethod
-    def load(cls, path: str) -> tuple["Stage2Classifier", dict]:
+    def load(cls, path: str) -> tuple[Stage2Classifier, dict]:
         import json as _json
         # F1 audit : pickle audité (prov = object array) via la garde centrale.
         data = guarded_np_load(path)
