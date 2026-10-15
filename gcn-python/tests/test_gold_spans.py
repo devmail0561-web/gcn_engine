@@ -7,6 +7,7 @@ le test de parité l'exige sur les trois splits v4/final2.
 """
 
 import json
+import os
 import subprocess
 import sys
 
@@ -19,6 +20,12 @@ SPLITS = [
     "gcn-datasets/DATA/supervision/v4/final2/val/val.json",
     "gcn-datasets/DATA/supervision/v4/final2/test/test.json",
 ]
+
+# DATA hors-git : absente en CI (voir ROADMAP §CI) — ces 4 tests exigent
+# les splits figés, ils sont SKIPPÉS sans DATA, jamais assouplis.
+_DATA_DISPONIBLES = all(os.path.exists(f) for f in SPLITS)
+_saute_sans_data = pytest.mark.skipif(
+    not _DATA_DISPONIBLES, reason="DATA hors-git absente (CI)")
 
 
 def test_pliage_conserve_longueur():
@@ -57,6 +64,7 @@ def test_texte_non_str():
         reconstruire_offsets(42, [])
 
 
+@_saute_sans_data
 @pytest.mark.parametrize("fichier", SPLITS)
 def test_taux_rejet_nul_sur_gold(fichier):
     with open(fichier, encoding="utf-8") as fh:
@@ -73,6 +81,7 @@ def test_taux_rejet_nul_sur_gold(fichier):
     assert rejet == 0  # seuil STOP 5 % : tout rejet = enquête, pas silencieux
 
 
+@_saute_sans_data
 def test_parite_avec_oracle_audit():
     proc = subprocess.run(
         [sys.executable, "scripts/audit_spans_tok.py", *SPLITS],
