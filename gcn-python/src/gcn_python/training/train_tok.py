@@ -104,7 +104,14 @@ def charger_split(fichier: str) -> tuple[list, dict]:
 
 
 def backward_tok(
-    eng: TokForwardEngine, parts: dict, node_gold: list[int], edge_gold: dict, lr: float
+    eng: TokForwardEngine,
+    parts: dict,
+    node_gold: list[int],
+    edge_gold: dict,
+    lr: float,
+    edge_gold_fin: dict | None = None,
+    factor_primary: bool = False,
+    factor_masks: tuple | None = None,
 ) -> dict:
     """Un pas SGD phrase (caches chauds de ``forward_supervise``).
 
@@ -113,7 +120,14 @@ def backward_tok(
     MLP.backward_node_dx → RGCN.backward → pool-mean⁻¹ → E_tok.backward
     → updates (bump epoch M1a partout). Paires sans gold : aucun gradient
     (exclues, pas masquées à 0 — le 0 biaiserait la CE).
-    Retourne ``{"node": loss, "edge": loss, "n_edge_sup": int}``.
+
+    Auxiliaire factorisé (R2, opt-in via ``eng.factor_aux_enabled``) :
+    les mêmes paires supervisées entraînent aussi 3 petites têtes
+    (base 11 × ternary 4 × special 3) depuis ``edge_gold_fin`` (indices
+    fins, jamais remappés). Pas de gradient vers le tronc — signal
+    partagé futur, mesure immédiate. Zéro lexique.
+    Retourne ``{"node": loss, "edge": loss, "factor": loss, "span": loss,
+    "n_edge_sup": int}`` (``span`` = 0.0 sans ``span_aux``).
     """
     if not (np.isfinite(lr) and lr > 0):
         raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
@@ -124,10 +138,126 @@ def backward_tok(
     mat_edge = np.stack(edge_logits, axis=0) if edge_logits else np.zeros((0, len(RELATION_TYPES)))
     d_edge_full = np.zeros_like(mat_edge, dtype=np.float32)
     loss_edge = 0.0
-    if sup_idx:
+    dx_primaire: dict = {}
+    if factor_primary and sup_idx:
+        # Primaire factorisée (espace factor, D-R8F) : REMPLACE la loss
+        # plate. ``edge_gold`` porte des indices fins (jamais remappés dans
+        # cet espace). Têtes partagées base/ternary/special + reflux tronc.
+        from ..layer2.edge_factor import (
+            BASE_RELATIONS as _BB,
+        )
+        from ..layer2.edge_factor import (
+            SPECIAL as _SS,
+        )
+        from ..layer2.edge_factor import (
+            TERNARY as _TT,
+        )
+        from ..layer2.edge_factor import (
+            FactorizedEdgeHead as _FEH,
+        )
+        from ..layer2.edge_factor import (
+            decompose as _decomp,
+        )
+
+        _vecs = parts.get("edge_vecs") or []
+        if _vecs:
+            if getattr(eng, "factor_primary", None) is None:
+                eng.factor_primary = _FEH(
+                    d_edge=len(np.asarray(_vecs[0]).ravel()),
+                    seed=int(getattr(eng, "seed", 42)) + 5,
+                )
+            _X, _gb, _gt, _gs, _ks = [], [], [], [], []
+            for k in sup_idx:
+                _p = paires[k]
+                try:
+                    _b, _t, _s = _decomp(RELATION_TYPES[int(edge_gold[_p])])
+                except (ValueError, IndexError):
+                    continue
+                _X.append(np.asarray(_vecs[k], dtype=np.float32).ravel())
+                _gb.append(_BB.index(_b))
+                _gt.append(_TT.index(_t))
+                _gs.append(_SS.index(_s))
+                _ks.append(k)
+            if _X:
+                loss_edge, _dX = eng.factor_primary.loss_update_dx(
+                    np.stack(_X),
+                    np.asarray(_gb, dtype=np.int64),
+                    np.asarray(_gt, dtype=np.int64),
+                    np.asarray(_gs, dtype=np.int64),
+                    factor_masks,
+                    lr,
+                )
+                dx_primaire = {paires[_k]: _dX[_r] for _r, _k in enumerate(_ks)}
+    elif sup_idx:
         sub = mat_edge[sup_idx]
         loss_edge = ce_loss(sub, sup_gold, class_mask=parts.get("edge_mask"))
         d_edge_full[sup_idx] = _ce_backward(sub, sup_gold, parts.get("edge_mask"))
+    # Auxiliaire factorisé R2 : 3 CEs (base/ternary/special) sur les mêmes
+    # paires, labels fins décomposés. Têtes seules mises à jour.
+    loss_factor = 0.0
+    if getattr(eng, "factor_aux_enabled", False) and edge_gold_fin and sup_idx:
+        from ..layer2.edge_factor import (
+            BASE_RELATIONS,
+            SPECIAL,
+            TERNARY,
+            FactorizedEdgeHead,
+            decompose,
+        )
+
+        vecs = parts.get("edge_vecs") or []
+        if vecs:
+            if getattr(eng, "factor_aux", None) is None:
+                eng.factor_aux = FactorizedEdgeHead(
+                    d_edge=len(np.asarray(vecs[0]).ravel()),
+                    seed=int(getattr(eng, "seed", 42)),
+                )
+            X_list, gb, gt, gs = [], [], [], []
+            for k in sup_idx:
+                p = paires[k]
+                if p not in edge_gold_fin:
+                    continue
+                try:
+                    b, t, s_ = decompose(RELATION_TYPES[int(edge_gold_fin[p])])
+                except (ValueError, IndexError):
+                    continue
+                X_list.append(np.asarray(vecs[k], dtype=np.float32).ravel())
+                gb.append(BASE_RELATIONS.index(b))
+                gt.append(TERNARY.index(t))
+                gs.append(SPECIAL.index(s_))
+            if X_list:
+                loss_factor = eng.factor_aux.loss_and_update(
+                    np.stack(X_list),
+                    np.asarray(gb, dtype=np.int64),
+                    np.asarray(gt, dtype=np.int64),
+                    np.asarray(gs, dtype=np.int64),
+                    lr,
+                )
+    # Auxiliaire spans R3 : bornes start/end sur reps token (token_reps),
+    # gold = frontières des alignements clauses (même signal que les noeuds
+    # actuels — la granularité sub-clause viendra du gold-3000). Tête seule
+    # + reflux partagé (2e update ctx/phrase si contexte — documenté).
+    loss_span = 0.0
+    if getattr(eng, "span_aux_enabled", False):
+        from ..layer1.span_head import SpanHead
+
+        if getattr(eng, "span_head", None) is None:
+            _d_span = int(np.asarray(parts["token_reps"]).shape[1])
+            eng.span_head = SpanHead(d_model=_d_span, seed=int(getattr(eng, "seed", 42)) + 4)
+        _H = np.asarray(parts["token_reps"], dtype=np.float32)
+        _n_tok = len(parts["ids"])
+        _ys = np.zeros(_n_tok)
+        _ye = np.zeros(_n_tok)
+        for _m in parts["alignes"]:
+            if _m:
+                _ys[_m[0]] = 1.0
+                _ye[_m[-1]] = 1.0
+        loss_span = eng.span_head.loss_and_update(_H, _ys, _ye, lr)
+        _dH = eng.span_head.grad_input(_H, _ys, _ye)
+        if getattr(eng, "ctx", None) is not None:
+            _d_in_s, _g_s = eng.ctx.backward(_dH.astype(np.float32))
+            eng.ctx.update(_g_s, lr)
+            _dH = _d_in_s
+        eng.emb.backward(_dH, parts["ids"])
     node_logits = np.asarray(parts["node_logits"], dtype=np.float32)
     node_gold_a = np.asarray(node_gold, dtype=np.int64)
     loss_node = ce_loss(node_logits, node_gold_a, class_mask=parts.get("node_mask"))
@@ -141,17 +271,24 @@ def backward_tok(
     d_node_extra = np.zeros_like(node_logits, dtype=np.float64)
     grads_edge = None
     # Arêtes : re-run déterministe (dropout 0 = cache exact) + backward.
+    # Voie primaire factorisée : dx direct, pas de tête plate (grads_edge None).
     for k, (i, j) in enumerate(paires):
-        eng.encoder.forward_edge(parts["edge_vecs"][k])
-        row = d_edge_full[k]
-        if not np.abs(row).any():
-            continue
-        grads_e, dx = eng.encoder.backward_edge_dx(row)
-        grads_edge = (
-            grads_e
-            if grads_edge is None
-            else [(a[0] + b[0], a[1] + b[1]) for a, b in zip(grads_edge, grads_e, strict=True)]
-        )
+        if dx_primaire:
+            row = dx_primaire.get((i, j))
+            if row is None or not np.abs(row).any():
+                continue
+            dx = np.asarray(row, dtype=np.float32)
+        else:
+            eng.encoder.forward_edge(parts["edge_vecs"][k])
+            row = d_edge_full[k]
+            if not np.abs(row).any():
+                continue
+            grads_e, dx = eng.encoder.backward_edge_dx(row)
+            grads_edge = (
+                grads_e
+                if grads_edge is None
+                else [(a[0] + b[0], a[1] + b[1]) for a, b in zip(grads_edge, grads_e, strict=True)]
+            )
         d_pooled[i] += dx[:d_pool]
         d_pooled[j] += dx[d_pool : 2 * d_pool]
         d_enriched[i] += dx[d_base : d_base + d_pool]
@@ -171,7 +308,7 @@ def backward_tok(
                 UserWarning,
                 stacklevel=2,
             )
-            return {"node": loss_node, "edge": loss_edge, "n_edge_sup": len(sup_idx)}
+            return {"node": loss_node, "edge": loss_edge, "factor": loss_factor, "n_edge_sup": len(sup_idx)}
     grads_node = None
     for i in range(n):
         eng.encoder.forward_node(parts["pooled"][i])
@@ -188,11 +325,15 @@ def backward_tok(
         d_pooled += d_rgcn
     else:
         grads_r = None
-    # Pool-mean⁻¹ via les alignements + E_tok.
+    # Pool-mean⁻¹ via les alignements + E_tok (via contexte O1 si actif).
     d_tok = np.zeros((len(parts["ids"]), d_pool), dtype=np.float32)
     for c, membres in enumerate(parts["alignes"]):
         if membres:
             d_tok[membres] += (d_pooled[c] / len(membres)).astype(np.float32)
+    if getattr(eng, "ctx", None) is not None:
+        d_in, grads_c = eng.ctx.backward(d_tok.astype(np.float32))
+        eng.ctx.update(grads_c, lr)
+        d_tok = d_in
     eng.emb.backward(d_tok, parts["ids"])
     # Updates (bump epoch M1a dans chaque update — sens sûr).
     if grads_node is not None:
@@ -202,7 +343,13 @@ def backward_tok(
     if grads_r is not None:
         eng.rgcn.update(grads_r, lr)
     eng.emb.update(lr)
-    return {"node": loss_node, "edge": loss_edge, "n_edge_sup": len(sup_idx)}
+    return {
+        "node": loss_node,
+        "edge": loss_edge,
+        "factor": loss_factor,
+        "span": loss_span,
+        "n_edge_sup": len(sup_idx),
+    }
 
 
 def _git_sha() -> str:
@@ -237,9 +384,20 @@ def _hash_fichiers(fichiers: list[str]) -> str:
 def _parametres(eng: TokForwardEngine) -> dict:
     """Snapshot copié (E + têtes MLP + R-GCN) pour best-restore."""
     snap = {"E": eng.emb._E.copy(), "vocab": list(eng.emb.tok_vocab)}
+    if eng.emb.oov_mode == "hash":
+        snap["oov_B"] = eng.emb._B.copy()
     snap["node"] = [(c.W.copy(), c.b.copy()) for c in eng.encoder._node_layers]
     snap["edge"] = [(c.W.copy(), c.b.copy()) for c in eng.encoder._edge_layers]
     snap["rgcn"] = [eng.rgcn.W_r.copy(), eng.rgcn.W_0.copy()]
+    if getattr(eng, "ctx", None) is not None:
+        snap["ctx"] = [a.copy() for a in eng.ctx.parameters()]
+    if getattr(eng, "factor_aux", None) is not None:
+        snap["factor"] = [a.copy() for a in eng.factor_aux.parameters()]
+    if getattr(eng, "factor_primary", None) is not None:
+        snap["factor_primary"] = [a.copy() for a in eng.factor_primary.parameters()]
+    if getattr(eng, "span_head", None) is not None:
+        snap["span"] = [np.asarray(a).copy() for a in eng.span_head.parameters()]
+        snap["span_d"] = int(eng.span_head.w_s.shape[0])
     return snap
 
 
@@ -248,6 +406,12 @@ def _restaurer(eng: TokForwardEngine, snap: dict) -> None:
     if eng.emb._E.shape != snap["E"].shape:
         raise ValueError("snapshot incompatible (E).")
     eng.emb._E[:] = snap["E"]
+    if "oov_B" in snap:
+        if eng.emb.oov_mode != "hash":
+            raise ValueError("snapshot avec table OOV mais moteur sans.")
+        if eng.emb._B.shape != snap["oov_B"].shape:
+            raise ValueError("snapshot incompatible (table OOV).")
+        eng.emb._B[:] = snap["oov_B"]
     for (w, b), couche in zip(snap["node"], eng.encoder._node_layers, strict=True):
         if couche.W.shape != w.shape:
             raise ValueError("snapshot incompatible (nœuds).")
@@ -262,6 +426,39 @@ def _restaurer(eng: TokForwardEngine, snap: dict) -> None:
         raise ValueError("snapshot incompatible (R-GCN).")
     eng.rgcn.W_r[:] = snap["rgcn"][0]
     eng.rgcn.W_0[:] = snap["rgcn"][1]
+    if "ctx" in snap:
+        if getattr(eng, "ctx", None) is None:
+            raise ValueError("snapshot avec contexte mais moteur sans.")
+        for dst, src in zip(eng.ctx.parameters(), snap["ctx"], strict=True):
+            if dst.shape != src.shape:
+                raise ValueError("snapshot incompatible (contexte).")
+            dst[:] = src
+    if "factor" in snap:
+        if getattr(eng, "factor_aux", None) is None:
+            raise ValueError("snapshot avec facteur mais tête absente.")
+        for dst, src in zip(eng.factor_aux.parameters(), snap["factor"], strict=True):
+            if dst.shape != src.shape:
+                raise ValueError("snapshot incompatible (facteur).")
+            dst[:] = src
+    if "factor_primary" in snap:
+        from ..layer2.edge_factor import FactorizedEdgeHead as _FEHp
+
+        if getattr(eng, "factor_primary", None) is None:
+            _d0 = int(np.asarray(snap["factor_primary"][0]).shape[1])
+            eng.factor_primary = _FEHp(d_edge=_d0, seed=int(getattr(eng, "seed", 42)) + 5)
+        for dst, src in zip(eng.factor_primary.parameters(), snap["factor_primary"], strict=True):
+            if dst.shape != src.shape:
+                raise ValueError("snapshot incompatible (facteur primaire).")
+            dst[:] = np.asarray(src)
+    if "span" in snap:
+        from ..layer1.span_head import SpanHead as _SpanHead
+
+        if getattr(eng, "span_head", None) is None:
+            eng.span_head = _SpanHead(d_model=int(snap["span_d"]), seed=int(getattr(eng, "seed", 42)) + 4)
+        for dst, src in zip(eng.span_head.parameters(), snap["span"], strict=True):
+            if dst.shape != src.shape:
+                raise ValueError("snapshot incompatible (spans).")
+            np.copyto(dst, np.asarray(src))
 
 
 def evaluer(
@@ -271,6 +468,8 @@ def evaluer(
     edge_mask=None,
     node_types: list[str] | None = None,
     relation_types: list[str] | None = None,
+    use_factor: bool = False,
+    factor_masks: tuple | None = None,
 ) -> dict:
     """Passe éval (sans grad) : argmax → F1 macro (NaN si vide, jamais 0.0).
 
@@ -278,6 +477,9 @@ def evaluer(
     ``node_types`` : espace de labels du moteur (défaut canonique) — la F1
     est calculée dans cet espace et étiquetée comme telle (jamais comparée
     entre espaces).
+    ``use_factor`` (espace factor D-R8F) : prédiction via têtes primaires +
+    ``compose()``, argmax restreint aux classes observées (masques) —
+    jamais d'hallucination ternaire sans signal.
     """
     noms_noeuds = list(node_types) if node_types else list(NODE_TYPES)
     noms_rels = list(relation_types) if relation_types else list(RELATION_TYPES)
@@ -291,6 +493,41 @@ def evaluer(
         perte += ce_loss(np.asarray(parts["node_logits"]), node_gold, class_mask=node_mask)
         pred_n += [noms_noeuds[int(i)] for i in np.argmax(parts["node_logits"], axis=1)]
         gold_n += [noms_noeuds[int(i)] for i in node_gold]
+        if use_factor:
+            from ..layer2.edge_factor import (
+                BASE_RELATIONS as _EB,
+            )
+            from ..layer2.edge_factor import (
+                SPECIAL as _ES,
+            )
+            from ..layer2.edge_factor import (
+                TERNARY as _ET,
+            )
+            from ..layer2.edge_factor import (
+                compose as _comp,
+            )
+            from ..layer2.edge_factor import (
+                decompose as _dec2,
+            )
+
+            _head = getattr(eng, "factor_primary", None)
+            if _head is None:
+                raise ValueError("éval factor sans tête primaire (pas entraînée).")
+            _mb, _mt, _ms = factor_masks if factor_masks is not None else (None, None, None)
+            for k, p in enumerate(parts["paires"]):
+                if p not in s["edge_gold"]:
+                    continue
+                g = s["edge_gold"][p]
+                _gb, _gt, _gs = _dec2(noms_rels[int(g)])
+                _lb, _lt, _ls = _head.forward(parts["edge_vecs"][k])
+                if _mb is not None:
+                    _lb = np.where(np.asarray(_mb, dtype=bool), _lb, -np.inf)
+                    _lt = np.where(np.asarray(_mt, dtype=bool), _lt, -np.inf)
+                    _ls = np.where(np.asarray(_ms, dtype=bool), _ls, -np.inf)
+                pred_e.append(_comp(_EB[int(np.argmax(_lb))], _ET[int(np.argmax(_lt))], _ES[int(np.argmax(_ls))]))
+                gold_e.append(noms_rels[int(g)])
+                perte += ce_loss(_lb.reshape(1, -1), np.asarray([_EB.index(_gb)]))
+            continue
         mat = np.stack(parts["edge_logits"], axis=0) if parts["edge_logits"] else None
         for k, p in enumerate(parts["paires"]):
             if p not in s["edge_gold"]:
@@ -319,16 +556,27 @@ def entrainer(
     d_model: int = 128,
     csv_out: str | None = None,
     espace: str = "fin",
+    init_npz: str | None = None,
+    factor_aux: bool = False,
+    context: bool = False,
+    init_o1: str | None = None,
+    oov_hash: bool = False,
+    model_out: str | None = None,
+    span_aux: bool = False,
 ) -> dict:
     """Boucle SGD tok (ordre fixe, seedée — reproductible, protocole §5).
 
     1. Charge splits (rejet > 5 % → ValueError STOP).
     2. Vocabulaire sur train (+sanity OOV train = 0) ; OOV val publié + warn
        (écart documenté à R5 : la val mesure, elle n'avorte pas).
-    3. Espace : ``fin`` (8 nœuds + 19 relations — GEL R8 actuel) ou
-       ``coarse`` D4 (4 groupes nœuds + 5 groupes relations — R8 franchi
-       sur v4/final2, gates prod intacts) ; remap gold fin→coarse, F1
-       étiquetée dans l'espace mesuré (jamais comparée entre espaces).
+    3. Espace : ``fin`` (8 nœuds + 19 relations — GEL R8 actuel),
+    ``coarse`` D4 (4 + 5 — R8 franchi, gates prod intacts) ou ``factor``
+    (nœuds fins + arêtes primaires factorisées base 11 × ternary 4 ×
+    special 3 — doctrine D-R8F : ``require`` sur les 11 bases apprises,
+    masques seuls pour nœuds/ternary/special présents ; seuils et
+    calibration restent gelés par ``grid_f1``/``require`` aval) ; remap
+    gold fin→coarse sauf factor (fins intacts), F1 étiquetée dans l'espace
+    mesuré (jamais comparée entre espaces).
     4. Masques R8 + ``require_min_counts`` (``GelError`` fail-fast).
     5. Epochs : forward_supervise → backward_tok → update par phrase ;
        éval val ; best sur ``val_edge_macro_f1`` (NaN jamais best) ;
@@ -337,8 +585,8 @@ def entrainer(
     """
     if epochs < 1:
         raise ValueError(f"epochs doit être ≥ 1 (reçu {epochs!r}).")
-    if espace not in ("fin", "coarse"):
-        raise ValueError(f"espace doit être 'fin' ou 'coarse' (reçu {espace!r}).")
+    if espace not in ("fin", "coarse", "factor"):
+        raise ValueError(f"espace doit être 'fin', 'coarse' ou 'factor' (reçu {espace!r}).")
     noms_noeuds = list(COARSE_NODE_TYPES) if espace == "coarse" else list(NODE_TYPES)
     noms_rels = list(COARSE_RELATION_TYPES) if espace == "coarse" else list(RELATION_TYPES)
     train, st_tr = charger_split(train_path)
@@ -349,6 +597,7 @@ def entrainer(
             raise ValueError(f"{nom} : rejet alignement {taux:.1%} > 5 % — STOP (données).")
     if espace == "coarse":
         for s in train + val:
+            s["edge_gold_fin"] = dict(s["edge_gold"])
             try:
                 s["node_gold"] = [
                     noms_noeuds.index(FINE_TO_COARSE_NODE[NODE_TYPES[g]]) for g in s["node_gold"]
@@ -359,10 +608,77 @@ def entrainer(
                 }
             except KeyError as exc:
                 raise ValueError(f"label fin hors table coarse : {exc} — données.") from exc
+    else:
+        for s in train + val:
+            s["edge_gold_fin"] = s["edge_gold"]
     eng = TokForwardEngine(
-        d_model=d_model, seed=seed, node_types=noms_noeuds, relation_types=noms_rels
+        d_model=d_model,
+        seed=seed,
+        node_types=noms_noeuds,
+        relation_types=noms_rels,
+        use_context=bool(context),
+        use_oov_hash=bool(oov_hash),
     )
     eng.build_vocab([s["text"] for s in train])
+    eng.factor_aux_enabled = bool(factor_aux)
+    eng.factor_aux = None
+    eng.span_aux_enabled = bool(span_aux)
+    eng.span_head = None
+    if init_npz is not None:
+        # E2 : init O1 pré-entraînée (même vocab exigé, sinon STOP — pas de
+        # mélange silencieux entre vocabulaires).
+        from ..layer1.tok_embedding import TokEmbedding as _TokEmbInit
+
+        _init = _TokEmbInit.load_npz(init_npz)
+        if _init.d_model != eng.emb.d_model:
+            raise ValueError(
+                f"init-npz d_model={_init.d_model} ≠ d_model={eng.emb.d_model} — STOP."
+            )
+        if set(_init.tok_vocab) != set(eng.emb.tok_vocab):
+            raise ValueError(
+                f"init-npz vocab {len(_init.tok_vocab)} ≠ train vocab "
+                f"{len(eng.emb.tok_vocab)} (ensembles) — régénérer l'init "
+                "sur le même train."
+            )
+        # Réindexe les lignes par id stable (l'ordre interne dépend de l'ordre
+        # d'insertion, pas du contenu — les ensembles sont la vérité).
+        _pos = {v: i for i, v in enumerate(_init.tok_vocab)}
+        _E_init = np.asarray(_init._E, dtype=np.float32)
+        _E_cible = np.stack(
+            [_E_init[_pos[v]] for v in eng.emb.tok_vocab]
+        ).astype(np.float32)
+        eng.emb._E = _E_cible.copy()
+    if init_o1 is not None:
+        # E2-MLM : init complète E + contexte O1 (mêmes ensembles exigés,
+        # --context obligatoire — pas de chargement partiel silencieux).
+        if getattr(eng, "ctx", None) is None:
+            raise ValueError("init-o1 exige --context (moteur sans contexte).")
+        with np.load(init_o1, allow_pickle=False) as _z:
+            if int(_z["format_o1"]) != 20261014:
+                raise ValueError("init-o1 : format inconnu — régénérer.")
+            if int(_z["d_model"]) != eng.emb.d_model:
+                raise ValueError("init-o1 : d_model divergent — STOP.")
+            _v = [int(v) for v in _z["tok_vocab"].tolist()]
+            if set(_v) != set(eng.emb.tok_vocab):
+                raise ValueError(
+                    "init-o1 : vocabulaire divergent — régénérer sur le même train."
+                )
+            _pv = {v: i for i, v in enumerate(_v)}
+            _Eo = np.asarray(_z["E"], dtype=np.float32)
+            eng.emb._E = np.stack([_Eo[_pv[v]] for v in eng.emb.tok_vocab]).astype(
+                np.float32
+            )
+            for _nom, _bloc, _attr in (
+                ("ctx_W1", eng.ctx.bloc1, "W"),
+                ("ctx_b1", eng.ctx.bloc1, "b"),
+                ("ctx_W2", eng.ctx.bloc2, "W"),
+                ("ctx_b2", eng.ctx.bloc2, "b"),
+            ):
+                _w = np.asarray(_z[_nom], dtype=np.float32)
+                _cible = getattr(_bloc, _attr)
+                if _cible.shape != _w.shape:
+                    raise ValueError(f"init-o1 : {_nom} forme incompatible.")
+                _cible[:] = _w
 
     def _dans_vocab(i) -> bool:
         return eng.emb.row_index(i) is not None
@@ -380,6 +696,9 @@ def entrainer(
             stacklevel=2,
         )
     # Masques + gate R8 (fail-fast — GelError = sortie écrite, pas acharnement).
+    # Espace factor (D-R8F) : require sur les 11 bases APPRISES (tête
+    # primaire), masques seuls pour nœuds présents + ternary/special
+    # observés. Seuils/calibration restent gelés en aval (grid_f1).
     n_counts = np.zeros(len(noms_noeuds), dtype=np.int64)
     e_counts = np.zeros(len(noms_rels), dtype=np.int64)
     for s in train:
@@ -387,10 +706,44 @@ def entrainer(
             n_counts[g] += 1
         for g in s["edge_gold"].values():
             e_counts[g] += 1
-    require_min_counts(n_counts, nom="nœuds")
-    require_min_counts(e_counts, nom="relations")
-    node_mask = build_class_mask(n_counts)
-    edge_mask = build_class_mask(e_counts)
+    factor_masks = None
+    use_factor_primary = espace == "factor"
+    if use_factor_primary:
+        from ..layer2.edge_factor import (
+            BASE_RELATIONS as _FB,
+        )
+        from ..layer2.edge_factor import (
+            SPECIAL as _FS,
+        )
+        from ..layer2.edge_factor import (
+            TERNARY as _FT,
+        )
+        from ..layer2.edge_factor import (
+            decompose as _dec,
+        )
+
+        _b_cnt = np.zeros(len(_FB), dtype=np.int64)
+        _t_cnt = np.zeros(len(_FT), dtype=np.int64)
+        _s_cnt = np.zeros(len(_FS), dtype=np.int64)
+        for s in train:
+            for g in s["edge_gold"].values():
+                _b, _t, _s = _dec(RELATION_TYPES[int(g)])
+                _b_cnt[_FB.index(_b)] += 1
+                _t_cnt[_FT.index(_t)] += 1
+                _s_cnt[_FS.index(_s)] += 1
+        require_min_counts(_b_cnt, nom="bases factorisées")
+        node_mask = build_class_mask(n_counts)
+        edge_mask = build_class_mask(e_counts)
+        factor_masks = (
+            build_class_mask(_b_cnt),
+            _t_cnt > 0,
+            _s_cnt > 0,
+        )
+    else:
+        require_min_counts(n_counts, nom="nœuds")
+        require_min_counts(e_counts, nom="relations")
+        node_mask = build_class_mask(n_counts)
+        edge_mask = build_class_mask(e_counts)
     sha_donnees = _hash_fichiers([train_path, val_path])
     lignes = []
     best_f1 = float("-inf")
@@ -405,10 +758,20 @@ def entrainer(
             )
             parts["node_mask"] = node_mask
             parts["edge_mask"] = edge_mask
-            res = backward_tok(eng, parts, s["node_gold"], s["edge_gold"], lr)
-            perte_tr += res["node"] + res["edge"]
+            res = backward_tok(
+                eng,
+                parts,
+                s["node_gold"],
+                s["edge_gold"],
+                lr,
+                edge_gold_fin=s.get("edge_gold_fin"),
+                factor_primary=use_factor_primary,
+                factor_masks=factor_masks,
+            )
+            perte_tr += res["node"] + res["edge"] + res.get("factor", 0.0) + res.get("span", 0.0)
         met = evaluer(
-            eng, val, node_mask, edge_mask, node_types=noms_noeuds, relation_types=noms_rels
+            eng, val, node_mask, edge_mask, node_types=noms_noeuds, relation_types=noms_rels,
+            use_factor=use_factor_primary, factor_masks=factor_masks,
         )
         f1 = met["edge_f1"]
         if np.isfinite(f1) and f1 > best_f1:
@@ -429,6 +792,10 @@ def entrainer(
             break
     if best_snap is not None:
         _restaurer(eng, best_snap)
+    if model_out is not None:
+        # Sauvegarde best-restore s1+ (E + têtes + R-GCN + ctx + facteur) —
+        # le seul artefact évaluable sur test/holdout (protocole §4).
+        eng.save_npz(model_out)
     resume = {
         "epochs": len(lignes),
         "best_epoch": best_ep,
@@ -442,6 +809,12 @@ def entrainer(
         "git_sha": _git_sha(),
         "seed": seed,
         "espace": espace,
+        "factor_aux": bool(factor_aux),
+        "span_aux": bool(span_aux),
+        "context": bool(context),
+        "oov_hash": bool(oov_hash),
+        "init_npz": bool(init_npz is not None),
+        "init_o1": bool(init_o1 is not None),
         "node_types": noms_noeuds,
         "relation_types": noms_rels,
     }
@@ -479,12 +852,57 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--d-model", type=int, default=128)
     ap.add_argument(
         "--espace",
-        choices=["fin", "coarse"],
+        choices=["fin", "coarse", "factor"],
         default="fin",
-        help="Espace de labels : fin (8+19, GEL R8 actuel) ou coarse "
-        "D4 (4+5, R8 franchi sur v4/final2 — F1 étiquetée).",
+        help="Espace de labels : fin (8+19, GEL R8 actuel), coarse "
+        "D4 (4+5, R8 franchi), factor (fins + têtes primaires factorisées, "
+        "D-R8F : require sur les 11 bases). F1 étiquetée par espace.",
     )
     ap.add_argument("--csv-out", default=None)
+    ap.add_argument(
+        "--init-npz",
+        default=None,
+        help="Init E_tok O1 pré-entraînée (même train exigé, sinon STOP).",
+    )
+    ap.add_argument(
+        "--factor-aux",
+        action="store_true",
+        help="Auxiliaire factorisé R2 (base×ternary×special) sur labels fins.",
+    )
+    ap.add_argument(
+        "--span-aux",
+        action="store_true",
+        help="Auxiliaire bornes start/end R3 sur reps token (même signal clauses).",
+    )
+    ap.add_argument(
+        "--context",
+        action="store_true",
+        default=True,
+        help="Encodeur contextuel O1 entre lookup et pooling "
+             "(défaut ON depuis E8-révisé : +0.21 prouvé E4/E8, généralisé 3 splits ; "
+             " calibration des confiances reste indépendante, Ph5).",
+    )
+    ap.add_argument(
+        "--no-context",
+        action="store_false",
+        dest="context",
+        help="Désactive l'encodeur contextuel (sacs seuls, 0.107 — mesure seule).",
+    )
+    ap.add_argument(
+        "--oov-hash",
+        action="store_true",
+        help="OOV → seaux hashés appris au lieu de zéros (E7, défaut zéros).",
+    )
+    ap.add_argument(
+        "--model-out",
+        default=None,
+        help="Sauvegarde best-restore s1+ évaluable sur test/holdout.",
+    )
+    ap.add_argument(
+        "--init-o1",
+        default=None,
+        help="Init complète O1-MLM (E+ctx, exige --context, même train sinon STOP).",
+    )
     args = ap.parse_args(argv)
     try:
         resume = entrainer(
@@ -497,6 +915,13 @@ def main(argv: list[str] | None = None) -> int:
             d_model=args.d_model,
             csv_out=args.csv_out,
             espace=args.espace,
+            init_npz=args.init_npz,
+            factor_aux=args.factor_aux,
+            span_aux=args.span_aux,
+            context=args.context,
+            init_o1=args.init_o1,
+            oov_hash=args.oov_hash,
+            model_out=args.model_out,
         )
     except GelError as exc:
         print(f"GELÉ (R8) : {exc}", flush=True)

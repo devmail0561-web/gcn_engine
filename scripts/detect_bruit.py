@@ -125,7 +125,15 @@ def main():
                     help="ignorer les phrases tombstonees (quarantaine*.json)")
     ap.add_argument("--strict", action="store_true",
                     help="exit 1 si junk (latex) ou en_texte sur phrases actives (gate CI)")
+    ap.add_argument("--exceptions", default=None,
+                    help="JSON {id: motif} : faux positifs avérés, ignorés avec trace "
+                         "(ex : titres EN dans phrase FR). Défaut : exceptions_bruit.json du dossier.")
     a = ap.parse_args()
+    exc = {}
+    exc_path = a.exceptions or os.path.join(a.dir, "exceptions_bruit.json")
+    if os.path.exists(exc_path):
+        exc = json.load(open(exc_path, encoding="utf-8"))
+        print(f"(exceptions connues: {len(exc)})")
     tomb = set()
     if a.exclude_tombstones:
         for fp in sorted(glob.glob(os.path.join(a.dir, "quarantaine*.json"))):
@@ -144,6 +152,8 @@ def main():
         with_flag = set()
         for f in st["flags"]:
             if f["id"] in tomb:
+                continue
+            if f["id"] in exc:
                 continue
             cats[f["cat"]] = cats.get(f["cat"], 0) + 1
             totaux[f["cat"]] = totaux.get(f["cat"], 0) + 1
