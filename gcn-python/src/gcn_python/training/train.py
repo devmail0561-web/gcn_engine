@@ -1481,13 +1481,15 @@ def train_cmd(
     # Provenance CSV (protocole §1+§3) : constantes du run, une valeur par ligne.
     try:
         from gcn_python import __version__ as _gcn_ver
-    except Exception:
+    except Exception:  # noqa: BLE001 — provenance best-effort (voir ci-dessous)
         _gcn_ver = "?"
     try:
         import subprocess as _sp
-        _git_sha = _sp.run(["git", "rev-parse", "--short", "HEAD"],
+        # Provenance best-effort : ne doit JAMAIS échouer le run
+        # (pas de git/pas de binaire = "?") — pas de check, PATH volontaire.
+        _git_sha = _sp.run(["git", "rev-parse", "--short", "HEAD"],  # noqa: PLW1510, S607
                            capture_output=True, text=True, timeout=10).stdout.strip() or "?"
-    except Exception:
+    except Exception:  # noqa: BLE001 — voir ci-dessus
         _git_sha = "?"
     _prov = {
         "run_seed": _init_seed,
@@ -1573,7 +1575,8 @@ def train_cmd(
                 "edge_cut_train", "sentence_accuracy",
                 "qual_polarity_accuracy", "qual_voice_accuracy",
                 "qual_modality_accuracy",
-            ] + list(_prov.keys())
+                *_prov.keys(),
+            ]
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
             if assembler is not None:

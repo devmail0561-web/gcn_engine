@@ -330,7 +330,7 @@ class TestAddCirStrict:
     def test_dangling_endpoint_rejected(self):
         import pytest
         g = CausalGraph()
-        with pytest.raises(ValueError, match="pendante.*zz"):
+        with pytest.raises(ValueError, match=r"pendante.*zz"):
             g.add_cir({"nodes": [{"id": "a", "label": "a"}],
                        "edges": [["a", "zz", {"relation": "cause", "confidence": 0.9}]],
                        "source_text": "t"}, session_origin="document")

@@ -27,6 +27,6 @@ def current() -> int:
 
 def bump() -> int:
     """Signale une mutation de paramètres. Retourne le nouvel epoch."""
-    global _EPOCH
+    global _EPOCH  # noqa: PLW0603 — compteur module (design assumé, pas d'état caché)
     _EPOCH += 1
     return _EPOCH

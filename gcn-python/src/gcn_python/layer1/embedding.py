@@ -291,7 +291,7 @@ class WordEmbedding:
         data = json.loads(s)
         # Compatibilité : ancien format = liste de lemmes directement
         lemmas = data if isinstance(data, list) else data.get("lemmas", [])
-        obj._add_lemmas_bulk([l for l in lemmas[1:] if l != "_unk"])  # index 0 = _unk, déjà présent
+        obj._add_lemmas_bulk([lem for lem in lemmas[1:] if lem != "_unk"])  # index 0 = _unk, déjà présent
         if isinstance(data, dict):
             obj._pretrained_start = data.get("__pretrained_start")
             obj._pretrained_end = data.get("__pretrained_end")

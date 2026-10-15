@@ -1071,8 +1071,8 @@ class CGNPipeline:
             try:
                 for i, p in enumerate(obj.parameters()):
                     params[f"{prefix}_{i}"] = np.asarray(p)
-            except Exception:  # noqa: S110, BLE001  # paramètres illisibles : tag partiel
-                global _MODEL_TAG_PARTIAL_WARNED
+            except Exception:  # noqa: BLE001  # paramètres illisibles : tag partiel
+                global _MODEL_TAG_PARTIAL_WARNED  # noqa: PLW0603 — fanion once (design)
                 if not _MODEL_TAG_PARTIAL_WARNED:
                     import warnings as _w
                     _w.warn(
@@ -1080,7 +1080,6 @@ class CGNPipeline:
                         "tag partiel, collisions de cache possibles entre modèles "
                         "défaillants identiques.", UserWarning, stacklevel=2)
                     _MODEL_TAG_PARTIAL_WARNED = True
-                pass
 
         _grab("encoder", getattr(self, "encoder", None))
         for li, layer in enumerate(getattr(self, "_graph_layers", []) or []):

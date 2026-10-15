@@ -329,9 +329,10 @@ class CausalGraph:
             return tuple(CausalGraph._freeze(x) for x in v)
         try:
             hash(v)
-            return v
         except TypeError:
             return repr(v)
+        else:
+            return v
 
     @staticmethod
     def _edge_key(attrs: dict) -> tuple:
@@ -423,7 +424,7 @@ class CausalGraph:
         from pathlib import Path as _P
         data = json.loads(_P(path).read_text(encoding="utf-8"))
         if not isinstance(data, dict):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004 — ValueError = convention API validation (données invalides)
                 f"CausalGraph.load : {path} n'est pas un graphe "
                 f"(racine {type(data).__name__}, objet JSON attendu).")
         g = cls()
@@ -431,12 +432,12 @@ class CausalGraph:
         if _nodes is None:
             _nodes = {}
         if not isinstance(_nodes, dict):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004 — ValueError = convention API validation (données invalides)
                 f"CausalGraph.load : {path} a des nœuds invalides "
                 f"({type(_nodes).__name__}, objet attendu).")
         # Clés re-stringifiées (vieux fichiers avec clés entières -> str, cf add_cir).
         g.nodes = {str(k): v for k, v in _nodes.items()}
-        for nid, nd in g.nodes.items():
+        for nd in g.nodes.values():
             if isinstance(nd, dict) and "session_origin" not in nd:
                 nd["session_origin"] = "document"
                 nd["migrated"] = True
@@ -444,12 +445,12 @@ class CausalGraph:
         if _edges is None:
             _edges = []
         if not isinstance(_edges, list):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004 — ValueError = convention API validation (données invalides)
                 f"CausalGraph.load : {path} a des arêtes invalides "
                 f"({type(_edges).__name__}, liste attendue).")
         for i, e in enumerate(_edges):
             if not isinstance(e, dict):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004 — ValueError = convention API validation (données invalides)
                     f"CausalGraph.load : {path} arête #{i} invalide "
                     f"({type(e).__name__}, objet attendu).")
             try:

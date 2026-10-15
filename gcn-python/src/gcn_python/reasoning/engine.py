@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re as _re
 import warnings as _warnings
+from itertools import pairwise as _pairwise
 
 from .steps import (
     STATUS_DEGRADE,
@@ -115,7 +116,7 @@ def verify_path(path: list, graph, causal_only: bool = True,
     confiance < min_conf → rejet `low-conf:` ; opposée sémantique (§9.4,
     dans les deux sens, `opposition` = opposée à tout) → `contradiction:`.
     """
-    for a, b in zip(path, path[1:]):
+    for a, b in _pairwise(path):
         edge = graph._edge_between(a, b)
         if edge is None:
             return False, f"missing-link: {a} -> {b}"
@@ -136,7 +137,7 @@ def verify_path(path: list, graph, causal_only: bool = True,
 
 
 def _chain_answer(path: list, graph, derived: list) -> dict:
-    confs = [_edge_conf(graph._edge_between(a, b)) for a, b in zip(path, path[1:])]
+    confs = [_edge_conf(graph._edge_between(a, b)) for a, b in _pairwise(path)]
     conf = min(confs) if confs else 1.0
     return {
         "summary": "chain:\n  " + " --> ".join(_label(graph, n) for n in path),
@@ -259,7 +260,7 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16,
                                 _companion_ok(graph, p[i], p[i + 1],
                                               causal_only, min_premise_conf)
                                 for i in range(len(p) - 1)):
-                            bridges.append([s] + p)
+                            bridges.append([s, *p])
             # Pont B : d côté v, précédé de u → s.
             if d in v_ids:
                 for u2 in u_ids:
@@ -274,19 +275,19 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16,
                                 _companion_ok(graph, p[i], p[i + 1],
                                               causal_only, min_premise_conf)
                                 for i in range(len(p) - 1)):
-                            bridges.append(p + [d])
+                            bridges.append([*p, d])
             for bridge in bridges:
                 if not _spend():
                     return _degrade("budget:", "budget: exhausted")
                 _links = [graph._edge_between(a, b)
-                          for a, b in zip(bridge, bridge[1:])]
+                          for a, b in _pairwise(bridge)]
                 confs = [_edge_conf(e) for e in _links]
                 conf = min(confs) if confs else 0.5
                 rels = [e.get("relation") if isinstance(e, dict) else None
                         for e in _links]
                 trace.append(make_step("infer:", tour,
                                        premises=tuple(f"{a}->{b}" for a, b
-                                                      in zip(bridge, bridge[1:])),
+                                                      in _pairwise(bridge)),
                                        conf=conf, extra={"rel": rels}))
                 ok, detail = verify_path(bridge, graph, causal_only, min_premise_conf)
                 trace.append(make_step("verify:", tour, motif=None if ok else detail))
@@ -294,7 +295,7 @@ def reason(kw_from: str, kw_to: str, graph, budget: int = 16,
                     derived = [{"path": bridge, "derivation": "derived",
                                 "confidence": conf,
                                 "premises": [f"{a}->{b}" for a, b
-                                             in zip(bridge, bridge[1:])]}]
+                                             in _pairwise(bridge)]}]
                     trace.append(make_step("answer:", tour,
                                            premises=tuple(bridge), conf=conf))
                     return reason_response(STATUS_OK,

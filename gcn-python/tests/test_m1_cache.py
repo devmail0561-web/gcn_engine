@@ -16,7 +16,6 @@ import numpy as np
 
 sys.path.insert(0, "gcn-python/tests")
 from conftest import make_test_pipeline
-
 from gcn_python.layer1.representation import UDRepresentation
 
 

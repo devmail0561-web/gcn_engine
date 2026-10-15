@@ -43,7 +43,7 @@ def _node_hash(node: dict) -> str:
     import hashlib
     return hashlib.sha1(
         json.dumps(node, sort_keys=True, ensure_ascii=False, default=str
-                   ).encode("utf-8")).hexdigest()
+                   ).encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 class SessionStore:

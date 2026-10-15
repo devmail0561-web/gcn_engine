@@ -301,7 +301,7 @@ class DialogueSession:
         """
         found = []
         for w in content_words(text):
-            for nid, nd in graph.nodes.items():
+            for nid in graph.nodes:
                 lbl = graph._label(nid)
                 if lbl in found:
                     continue
@@ -413,7 +413,7 @@ class DialogueSession:
             "turns": dropped_turns,
             "subjects": subjects,
         }
-        self.journal = [summary] + self.journal[n_drop:]
+        self.journal = [summary, *self.journal[n_drop:]]
         return summary
 
     def _enforce_graph_caps(self, graph: CausalGraph) -> list[str]:
@@ -600,9 +600,8 @@ class DialogueSession:
                     for e in handler.graph.edges[before:]:
                         e[2]["session_turn"] = n
                     added = len(handler.graph.edges) - before
-            except Exception:  # noqa: S110, BLE001  # enrichissement best-effort
+            except Exception:  # noqa: BLE001  # enrichissement best-effort
                 _NLU_FALLBACKS["enrichment"] += 1
-                pass
 
         # M2a : rangement au-delà des plafonds — annoncé, jamais de refus.
         cap_parts = self._enforce_graph_caps(handler.graph)
@@ -647,12 +646,10 @@ class DialogueSession:
                                     _parts = nlu_cmd.split(": ", 1)
                                     if len(_parts) == 2:
                                         nlu_cmd = f"{_parts[0]}: {_resolved}"
-                        except Exception:  # noqa: S110, BLE001
+                        except Exception:  # noqa: BLE001
                             _NLU_FALLBACKS["semantic_resolve"] += 1
-                            pass
-                except Exception:  # noqa: S110, BLE001
+                except Exception:  # noqa: BLE001
                     _NLU_FALLBACKS["nlu_route"] += 1
-                    pass
             if nlu_cmd:
                 response = handler.execute(nlu_cmd) or format_response(
                     handler, text, subject=subject

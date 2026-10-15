@@ -85,7 +85,7 @@ class TestCapsAnnounced:
     def test_overflow_compacts_never_refuses(self):
         s = DialogueSession(max_nodes=2, max_edges=2)
         h = _graph_dup()  # 3 nœuds (2 stress), 3 arêtes (2 identiques)
-        resp, info = s.handle("explain: insomnie", h)
+        resp, _info = s.handle("explain: insomnie", h)
         assert resp.startswith("  compacted: merged 1 node(s), merged 2 duplicate edge(s)\n")
         assert "stress" in resp  # réponse quand même : zéro refus
         assert len(h.graph.nodes) == 2 and len(h.graph.edges) == 1
@@ -100,8 +100,8 @@ class TestJournalSummary:
     def test_old_turns_summarized_not_dropped(self):
         s = DialogueSession(max_turns=3)
         h = _graph_dup()
-        for i in range(5):
-            s.handle(f"explain: insomnie", h)
+        for _ in range(5):
+            s.handle("explain: insomnie", h)
         assert len(s.journal) == 3  # 1 résumé + 2 tours
         assert s.journal[0]["event"] == "summary"
         assert s.journal[0]["turns"] == [1, 2, 3]
@@ -126,8 +126,9 @@ class TestJournalSummary:
 
 class TestVecsCap:
     def test_oldest_vecs_evicted_on_collect(self):
-        import numpy as np
         from types import SimpleNamespace
+
+        import numpy as np
 
         store = SessionStore(None, max_vecs=3)
         for i in range(5):

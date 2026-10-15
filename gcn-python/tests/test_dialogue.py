@@ -18,7 +18,7 @@ from gcn_python.dialogue import (
     parse_digits,
     script_tag,
 )
-from gcn_python.verbalizer.instructions import CausalGraph, InstructionHandler
+from gcn_python.verbalizer.instructions import InstructionHandler
 
 
 def _graph():
@@ -86,7 +86,7 @@ class TestTopics:
         h = _graph()
         s.handle("explain: insomnie", h)       # tour 1 : sujet insomnie
         s.handle("stress insomnie", h)         # tour 2 : clarification (pas de sujet)
-        resp, info = s.handle("et ensuite ?", h)  # tour 3 : continuité
+        _resp, info = s.handle("et ensuite ?", h)  # tour 3 : continuité
         assert info["subject"] == "insomnie"  # sujet vieux de 2 tours, via journal
         assert len(s.journal) == 3
 
@@ -114,7 +114,7 @@ class TestClarify:
         s = DialogueSession()
         h = _graph()
         s.handle("stress insomnie", h)
-        resp, info = s.handle("1", h)
+        _resp, info = s.handle("1", h)
         assert info["subject"] == "insomnie"
         assert info["status"] == "clarified"
         assert s.pending is None
@@ -123,7 +123,7 @@ class TestClarify:
         s = DialogueSession()
         h = _graph()
         s.handle("stress insomnie", h)
-        resp, info = s.handle("stress !", h)
+        _resp, info = s.handle("stress !", h)
         assert info["subject"] == "stress"
         assert s.pending is None
 
@@ -164,7 +164,7 @@ class TestClarify:
         s = DialogueSession()
         h = _graph()
         s.handle("stress insomnie", h)
-        resp, info = s.handle("explain: fatigue", h)
+        resp, _info = s.handle("explain: fatigue", h)
         assert resp.startswith("  abandoned: insomnie | stress\n")
         assert "topic: fatigue" in resp
         assert s.pending is None
@@ -342,9 +342,10 @@ def test_giant_input_echo_capped():
 
 def test_nlu_failure_counted_not_silent(monkeypatch):
     """NLU cassé → repli intact + compteur (plus de silence)."""
+    from types import SimpleNamespace
+
     import gcn_python.pipeline.nlu_routing as _nr
     from gcn_python.dialogue import nlu_fallback_counts
-    from types import SimpleNamespace
     monkeypatch.setattr(_nr, "nlu_route", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     before = nlu_fallback_counts()["nlu_route"]
     h = _graph()

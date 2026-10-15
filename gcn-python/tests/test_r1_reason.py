@@ -132,7 +132,6 @@ def test_trivial_self_goal_degrades():
 
 
 def test_load_rejects_non_graph(tmp_path):
-    import json
     for content, exc in [("[1,2,3]", ValueError), ('{"nodes": [1]}', ValueError),
                          ('{"edges": {}}', ValueError),
                          ('{"edges": [42]}', ValueError),

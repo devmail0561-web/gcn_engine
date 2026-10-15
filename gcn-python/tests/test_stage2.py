@@ -61,7 +61,7 @@ def test_toy_overfit_proves_reject_learnable():
             X[i, 13] = 3.0  # n_markers élevé, marqueur ambigu
     X += rng.normal(0, 0.01, X.shape).astype(np.float32)
     clf = Stage2Classifier(seed=11)
-    hist = clf.fit(X, y, val=(X, y), epochs=500, lr=0.1,
+    _hist = clf.fit(X, y, val=(X, y), epochs=500, lr=0.1,
                    patience=60)
     acc = float((clf.predict(X) == y).mean())
     assert acc == 1.0, f"MLP incapable de mémoriser 24 pts (acc={acc})"
