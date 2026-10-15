@@ -8,8 +8,10 @@ d_model), ``plan-remodelage-inference.md`` §[6] (``WordEmbedding`` lemmes →
 (différences apprises dans ``E_tok``, pas codées).
 
 Vocab = ids stables TRIÉS (déterminisme d'ordre, insertion indépendante) ;
-OOV → vecteur zéro (Option A, comme ``WordEmbedding.lookup`` : ``_unk``
-reste propre, pas d'absorption du bruit). Taux OOV exposé pour la garde
+OOV → vecteur zéro par défaut (Option A : ``_unk`` propre, pas d'absorption).
+Mode opt-in ``oov_mode="hash"`` (E7) : OOV → seau hashé ``id % 1024`` dans une
+table auxiliaire fixe-seed APPRISE (zéro lexique — fonction pure de l'id,
+déterministe). Taux OOV exposé dans les deux modes (couverture inchangée).
 R5 (raise train/val si > 5 %, backoff ``_unk`` prod — câblée au loader).
 
 Format s1/s2 ([R4]) : ``{"format_refacto": 20261007, "tok_vocab": [...],
@@ -39,9 +41,20 @@ class TokEmbedding:
     ``.copy()``) ; OOV → zéros + compteur (garde R5 au loader).
     """
 
-    def __init__(self, d_model: int = 128, seed: int = 42) -> None:
+    def __init__(
+        self,
+        d_model: int = 128,
+        seed: int = 42,
+        oov_mode: str = "zeros",
+        oov_buckets: int = 1024,
+        oov_seed: int = 0,
+    ) -> None:
         if d_model < 1:
             raise ValueError(f"d_model doit être ≥ 1 (reçu {d_model!r}).")
+        if oov_mode not in ("zeros", "hash"):
+            raise ValueError(f"oov_mode ∈ {{zeros, hash}} (reçu {oov_mode!r}).")
+        if oov_buckets < 1:
+            raise ValueError(f"oov_buckets doit être ≥ 1 (reçu {oov_buckets!r}).")
         self.d_model = d_model
         self._seed = seed
         self._rng = np.random.default_rng(seed)
@@ -51,6 +64,17 @@ class TokEmbedding:
         self._grad_accum: np.ndarray | None = None
         self._oov_count = 0
         self._lookup_count = 0
+        # Table hash OOV (E7) : fixe-seed, apprise, zéro lexique.
+        self.oov_mode = oov_mode
+        self.oov_buckets = int(oov_buckets)
+        _r = np.random.default_rng(int(oov_seed))
+        _s = float(np.sqrt(1.0 / d_model))
+        self._B = _r.normal(0, _s, (int(oov_buckets), d_model)).astype(np.float32)
+        self._grad_b: np.ndarray | None = None
+
+    def _bucket(self, tok_id: int) -> int:
+        """Seau déterministe pur fonction de l'id (ids = hash — uniformes)."""
+        return int(tok_id % self.oov_buckets)
 
     # ── vocabulaire ────────────────────────────────────────────────
 
@@ -96,37 +120,51 @@ class TokEmbedding:
         return self._index.get(tok_id)
 
     def lookup(self, tok_id: int) -> np.ndarray:
-        """Copie de la ligne (zéros si OOV, compteur incrémenté)."""
+        """Copie de la ligne (OOV : zéros ou seau hashé selon le mode)."""
         self._lookup_count += 1
         idx = self._index.get(tok_id)
         if idx is None:
             self._oov_count += 1
+            if self.oov_mode == "hash" and int(tok_id) >= 0:
+                return self._B[self._bucket(int(tok_id))].copy()
             return np.zeros(self.d_model, dtype=np.float32)
         return self._E[idx].copy()
 
     def lookup_batch(self, ids) -> np.ndarray:
-        """``(N, d_model)`` : lignes dans l'ordre des ids (OOV → zéros)."""
-        arr = np.asarray(ids, dtype=np.uint64).ravel()
+        """``(N, d_model)`` : lignes dans l'ordre des ids (OOV → zéros).
+
+        Convention O1-MLM : ``-1`` = token masqué → zéros + compteur OOV
+        (jamais produit au runtime — ids stables u64).
+        """
+        arr = np.asarray(list(ids), dtype=object).ravel()
         out = np.zeros((arr.shape[0], self.d_model), dtype=np.float32)
         self._lookup_count += arr.shape[0]
         for pos, tok_id in enumerate(arr.tolist()):
-            idx = self._index.get(tok_id)
+            tok = int(tok_id)
+            idx = self._index.get(tok) if tok >= 0 else None
             if idx is None:
                 self._oov_count += 1
+                if self.oov_mode == "hash" and tok >= 0:
+                    out[pos] = self._B[self._bucket(tok)]
             else:
                 out[pos] = self._E[idx]
         return out
 
     def backward(self, d_out: np.ndarray, ids) -> None:
-        """Accumule le gradient (no-op sur OOV — ``_unk`` reste propre)."""
-        arr = np.asarray(ids, dtype=np.uint64).ravel()
+        """Accumule le gradient (no-op sur OOV/masqué — ``_unk`` reste propre)."""
+        arr = np.asarray(list(ids), dtype=object).ravel()
         grads = np.asarray(d_out, dtype=np.float32).reshape(arr.shape[0], self.d_model)
         if self._grad_accum is None:
             self._grad_accum = np.zeros_like(self._E)
         for pos, tok_id in enumerate(arr.tolist()):
-            idx = self._index.get(tok_id)
+            tok = int(tok_id)
+            idx = self._index.get(tok) if tok >= 0 else None
             if idx is not None:
                 self._grad_accum[idx] += grads[pos]
+            elif self.oov_mode == "hash" and tok >= 0:
+                if self._grad_b is None:
+                    self._grad_b = np.zeros_like(self._B)
+                self._grad_b[self._bucket(tok)] += grads[pos]
 
     def update(self, lr: float) -> None:
         """Étape SGD ; vide les gradients (ignore les non-finis, vecteurs préservés)."""
@@ -145,22 +183,31 @@ class TokEmbedding:
             return
         self._E -= lr * self._grad_accum
         self._grad_accum = None
+        if self._grad_b is not None:
+            if np.all(np.isfinite(self._grad_b)):
+                self._B -= lr * self._grad_b
+            self._grad_b = None
 
     def parameters(self) -> list[np.ndarray]:
-        return [self._E]
+        return [self._E, self._B] if self.oov_mode == "hash" else [self._E]
 
     # ── persistance s1/s2 ──────────────────────────────────────────
 
     def to_dict(self) -> dict:
-        """Dictionnaire s1/s2 : vocab trié + hash + d_model + E."""
-        return {
+        """Dictionnaire s1/s2 : vocab trié + hash + d_model + E (+B si hash)."""
+        base = {
             "format_refacto": FORMAT_REFACTO,
             "tok_vocab": list(self._vocab),
             "tokenizer_hash": tokenizer_hash(RULES_VERSION, [str(v) for v in self._vocab]),
             "rules": RULES_VERSION,
             "d_model": self.d_model,
             "E": self._E.tolist(),
+            "oov_mode": self.oov_mode,
         }
+        if self.oov_mode == "hash":
+            base["oov_buckets"] = self.oov_buckets
+            base["oov_B"] = self._B.tolist()
+        return base
 
     def to_json(self) -> str:
         """Sérialise s1/s2 (poids inclus)."""
@@ -186,7 +233,11 @@ class TokEmbedding:
                 "tokenizer_hash incohérent (vocab ou règles modifiés) — "
                 "re-geler le vocab avant de charger."
             )
-        obj = cls(d_model=d_model)
+        obj = cls(
+            d_model=d_model,
+            oov_mode=str(data.get("oov_mode", "zeros")),
+            oov_buckets=int(data.get("oov_buckets", 1024)),
+        )
         obj.build_vocab(vocab)
         lignes = np.asarray(data.get("E", []), dtype=np.float32)
         if lignes.shape != (len(vocab), d_model):
@@ -194,6 +245,10 @@ class TokEmbedding:
                 f"E de forme {lignes.shape}, attendue ({len(vocab)}, {d_model})."
             )
         obj._E = lignes
+        if obj.oov_mode == "hash" and "oov_B" in data:
+            _b = np.asarray(data["oov_B"], dtype=np.float32)
+            if _b.shape == obj._B.shape:
+                obj._B = _b
         return obj
 
     @classmethod
@@ -202,17 +257,21 @@ class TokEmbedding:
         return cls.from_dict(json.loads(s))
 
     def save_npz(self, path: str) -> str:
-        """Sauvegarde `.npz` s1/s2 (``E``, ``vocab``, ``hash``, ``d_model``)."""
-        np.savez(
-            path,
-            E=self._E,
-            tok_vocab=np.asarray(self._vocab, dtype=np.uint64),
-            tokenizer_hash=np.asarray(
+        """Sauvegarde `.npz` s1/s2 (``E``, ``vocab``, ``hash``, ``d_model`` +B si hash)."""
+        tables = {
+            "E": self._E,
+            "tok_vocab": np.asarray(self._vocab, dtype=np.uint64),
+            "tokenizer_hash": np.asarray(
                 tokenizer_hash(RULES_VERSION, [str(v) for v in self._vocab])
             ),
-            d_model=np.asarray(self.d_model, dtype=np.int64),
-            format_refacto=np.asarray(FORMAT_REFACTO, dtype=np.int64),
-        )
+            "d_model": np.asarray(self.d_model, dtype=np.int64),
+            "format_refacto": np.asarray(FORMAT_REFACTO, dtype=np.int64),
+            "oov_mode": np.asarray(self.oov_mode),
+        }
+        if self.oov_mode == "hash":
+            tables["oov_buckets"] = np.asarray(self.oov_buckets, dtype=np.int64)
+            tables["oov_B"] = np.asarray(self._B, dtype=np.float32)
+        np.savez(path, **tables)
         return path
 
     @classmethod
@@ -227,12 +286,18 @@ class TokEmbedding:
                 RULES_VERSION, [str(v) for v in vocab]
             ):
                 raise ValueError("tokenizer_hash incohérent — re-geler le vocab.")
-            obj = cls(d_model=d_model)
+            _mode = str(z["oov_mode"]) if "oov_mode" in z.files else "zeros"
+            _nb = int(z["oov_buckets"]) if "oov_buckets" in z.files else 1024
+            obj = cls(d_model=d_model, oov_mode=_mode, oov_buckets=_nb)
             obj.build_vocab(vocab)
             lignes = np.asarray(z["E"], dtype=np.float32)
             if lignes.shape != (len(vocab), d_model):
                 raise ValueError(f"E de forme {lignes.shape}, incohérente avec le vocab.")
             obj._E = lignes
+            if _mode == "hash" and "oov_B" in z.files:
+                _b = np.asarray(z["oov_B"], dtype=np.float32)
+                if _b.shape == obj._B.shape:
+                    obj._B = _b
             return obj
 
 
