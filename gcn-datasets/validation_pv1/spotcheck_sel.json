@@ -1,0 +1,38 @@
+{
+ "ternaire": [
+  "t006",
+  "t013",
+  "t015",
+  "t016",
+  "t019"
+ ],
+ "cdb2": [
+  "p1b2001",
+  "p1b2002",
+  "p1b2003",
+  "p1b2004",
+  "p1b2005",
+  "p1b2006",
+  "p1b2007",
+  "p1b2009"
+ ],
+ "minage": [
+  "minage59#g0-1082",
+  "minage59#g0-1315",
+  "minage59#g0-1392",
+  "minage59#g0-1414",
+  "minage59#g0-1883",
+  "minage59#g0-1897",
+  "minage59#g0-1976",
+  "minage59#g0-2162",
+  "minage59#g0-2403",
+  "minage59#g0-2406",
+  "minage59#g0-272",
+  "minage59#g0-2957",
+  "minagebig#g0-27918",
+  "minagebig#g0-27981",
+  "minage59#g0-1883",
+  "minage59#g0-4120",
+  "minage59#g0-8560"
+ ]
+}

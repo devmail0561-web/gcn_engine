@@ -41,6 +41,13 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
   ("bloque", "prevent", "fwd"), ("interdit", "prevent", "fwd"), ("inhibe", "prevent", "fwd"),
    ("protège", "prevent", "fwd"), ("lutte contre", "prevent", "fwd"), ("sans ", "prevent", "fwd"),
    ("contre ", "prevent", "fwd"), ("pas accès", "prevent", "fwd"),
+   # Infinitifs (PV1 : "pour éviter/empêcher" hijacké par "pour"/motivation —
+   # le regex exige frontières de mots, l'infinitif ne matchait jamais).
+   ("empêcher", "prevent", "fwd"), ("prévenir", "prevent", "fwd"),
+   ("éviter", "prevent", "fwd"), ("bloquer", "prevent", "fwd"),
+   ("interdire", "prevent", "fwd"), ("inhiber", "prevent", "fwd"),
+   ("protéger", "prevent", "fwd"), ("freiner", "prevent", "fwd"),
+   ("entraver", "prevent", "fwd"), ("neutraliser", "prevent", "fwd"),
   (" à condition que", "condition", "bwd"), (" en cas de", "condition", "bwd"),
    ("lorsque", "condition", "bwd"), ("lorsqu", "condition", "bwd"),
    ("quand ", "condition", "bwd"), (" si ", "condition", "bwd"),
@@ -88,6 +95,8 @@ CONN: dict[str, list[tuple[str, str, str]]] = {
   ("prevents", "prevent", "fwd"), ("avoids", "prevent", "fwd"), ("blocks", "prevent", "fwd"),
   ("inhibits", "prevent", "fwd"), ("stops ", "prevent", "fwd"), ("protects", "prevent", "fwd"),
   ("against ", "prevent", "fwd"), ("without ", "prevent", "fwd"),
+  ("prevent", "prevent", "fwd"), ("avoid", "prevent", "fwd"), ("block", "prevent", "fwd"),
+  ("inhibit", "prevent", "fwd"), ("stop", "prevent", "fwd"), ("protect", "prevent", "fwd"),
   ("provided that", "condition", "bwd"), ("as long as", "condition", "bwd"),
   (" if ", "condition", "bwd"), ("unless", "condition", "bwd"), ("when ", "condition", "bwd"),
   ("whenever", "condition", "bwd"), ("given that", "condition", "bwd"),
@@ -423,12 +432,51 @@ def _para_infinitif(text: str, m) -> bool:
     return bool(toks) and toks[0].endswith(("ar", "er", "ir"))
 
 
+# "n'empêche pas" : négation autour du marqueur prevent → pas de prévention
+# assertée (PV1 : pw-771, pw-28, pw-1136, pw-1283, se-765, se-387).
+_NEG_AV = re.compile(r"\b(ne|n['’])\b", re.IGNORECASE)
+_NEG_AP = re.compile(r"\b(pas|jamais|plus|guère|aucun|aucune|rien|personne)\b", re.IGNORECASE)
+# "sans empêcher/éviter..." : absence de prévention explicite (PV1 : pw-1048).
+# ("sans permettre" reste prevent : bloquer par omission — seul sans+verbe-prevent
+# est exclu.) "prévient que/," = avertir, pas empêcher (PV1 : pw-105, pw-29).
+_PREVENT_VERBS = ("empêcher", "éviter", "bloquer", "interdire", "prévenir",
+                  "inhiber", "protéger", "freiner", "entraver", "neutraliser",
+                  "empêche", "évite", "bloque", "interdit", "prévient",
+                  "inhibe", "protège", "freine", "entrave")
+
+
+def _prevent_nié(text: str, m) -> bool:
+    avant = text[max(0, m.start() - 35):m.start()]
+    après = text[m.end():m.end() + 20]
+    # ne...pas|jamais|plus|... : le "ne" (ou n' élidé, collé au verbe) est avant,
+    # la 2e moitié avant OU après ("ne sont pas de nature à empêcher").
+    # "ne...que" (restrictif) n'a pas de mot de négation → épargné.
+    if (re.search(r"\bne\b|\bn['’]", avant, re.IGNORECASE)
+            and _NEG_AP.search(avant + " " + après)):
+        return True
+    # "sans empêcher/éviter..." : le mot suivant le match est un verbe-prevent,
+    # ou le match est un verbe-prevent précédé de "sans".
+    nxt = re.findall(r"[A-Za-zÀ-ÿ']+", text[m.end():m.end() + 20].lower())
+    if nxt and nxt[0] in _PREVENT_VERBS:
+        return True
+    if (m.group(0).strip().lower() in _PREVENT_VERBS
+            and re.search(r"\bsans\s+$", avant, re.IGNORECASE)):
+        return True
+    if m.group(0).strip().lower().rstrip(",.") in ("prévient", "préviennent"):
+        suite = text[m.end():m.end() + 12]
+        if re.match(r"\s*(que\b|,)", suite, re.IGNORECASE):
+            return True
+    return False
+
+
 def find_markers(text: str, lang: str):
     out = []
     seq_temp = bool(_SEQ_TEMP_RE.search(text))
     for conn, rel, direction, pat in PAT.get(lang, []):
         m = pat.search(text)
         if m:
+            if rel == "prevent" and _prevent_nié(text, m):
+                continue
             if conn in ("first", "primero") and _first_ordinal(text, m):
                 continue
             if conn.strip().lower() == "si" and _CLEFT_RE.search(text):

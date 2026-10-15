@@ -1,0 +1,7056 @@
+{
+ "schema_version": "4.0",
+ "document": {
+  "id": "silver-control-dep-batch2",
+  "lang": "fr",
+  "weight": 0.0,
+  "sentences": [
+   {
+    "id": "p1b2001",
+    "text": "Le berger a sifflé le rassemblement sous les premiers flocons.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "berger",
+      "lemma": "berger",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "sifflé",
+      "lemma": "sifflé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "rassemblement",
+      "lemma": "rassemblement",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "premiers",
+      "lemma": "premiers",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "flocons.",
+      "lemma": "flocons.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le berger",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "rassemblement sifflé",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2002",
+    "text": "La directrice a avancé la réunion sous la visite de l'inspecteur.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "directrice",
+      "lemma": "directrice",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "avancé",
+      "lemma": "avancé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "réunion",
+      "lemma": "réunion",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "visite",
+      "lemma": "visite",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "l'inspecteur.",
+      "lemma": "l'inspecteur.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la directrice",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "réunion avancée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2003",
+    "text": "Le moniteur a interrompu la descente sous le brouillard givrant.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "moniteur",
+      "lemma": "moniteur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "interrompu",
+      "lemma": "interrompu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "descente",
+      "lemma": "descente",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "brouillard",
+      "lemma": "brouillard",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "givrant.",
+      "lemma": "givrant.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le moniteur",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "descente interrompue",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2004",
+    "text": "L'huissier a scellé les cartons sous l'ordonnance du juge.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'huissier",
+      "lemma": "l'huissier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "scellé",
+      "lemma": "scellé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "cartons",
+      "lemma": "cartons",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'ordonnance",
+      "lemma": "l'ordonnance",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "juge.",
+      "lemma": "juge.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "huissier",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "cartons scellés",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2005",
+    "text": "La cheffe de chœur a fait taire les altos sous la fausse note.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "cheffe",
+      "lemma": "cheffe",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "chœur",
+      "lemma": "chœur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "fait",
+      "lemma": "fait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "taire",
+      "lemma": "taire",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "altos",
+      "lemma": "altos",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "fausse",
+      "lemma": "fausse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 13,
+      "form": "note.",
+      "lemma": "note.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "cheffe de chœur",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "altos tus",
+       "token_span": [
+        8,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 7
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2006",
+    "text": "Le régisseur a coupé les micros sous le larsen strident.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "régisseur",
+      "lemma": "régisseur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "coupé",
+      "lemma": "coupé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "micros",
+      "lemma": "micros",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "larsen",
+      "lemma": "larsen",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "strident.",
+      "lemma": "strident.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le régisseur",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "micros coupés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2007",
+    "text": "La surveillante a ramassé les copies sous la sonnerie.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "surveillante",
+      "lemma": "surveillante",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "ramassé",
+      "lemma": "ramassé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "copies",
+      "lemma": "copies",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "sonnerie.",
+      "lemma": "sonnerie.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la surveillante",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "copies ramassées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2008",
+    "text": "Le skipper a affalé la grand-voile sous la rafale.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "skipper",
+      "lemma": "skipper",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "affalé",
+      "lemma": "affalé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "grand-voile",
+      "lemma": "grand-voile",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "rafale.",
+      "lemma": "rafale.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le skipper",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "grand-voile affalée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2009",
+    "text": "L'aiguilleur a dérouté le convoi sous les travaux de nuit.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'aiguilleur",
+      "lemma": "l'aiguilleur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "dérouté",
+      "lemma": "dérouté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "convoi",
+      "lemma": "convoi",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "travaux",
+      "lemma": "travaux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "nuit.",
+      "lemma": "nuit.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "aiguilleur",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "convoi dérouté",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2010",
+    "text": "La bibliothécaire a chuchoté le silence sous les regards.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "bibliothécaire",
+      "lemma": "bibliothécaire",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "chuchoté",
+      "lemma": "chuchoté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "silence",
+      "lemma": "silence",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "regards.",
+      "lemma": "regards.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "bibliothécaire",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "silence imposé",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2011",
+    "text": "Le chef de chantier a stoppé la grue sous les vents violents.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "chef",
+      "lemma": "chef",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "chantier",
+      "lemma": "chantier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "stoppé",
+      "lemma": "stoppé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "grue",
+      "lemma": "grue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "vents",
+      "lemma": "vents",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "violents.",
+      "lemma": "violents.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "chef de chantier",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "grue stoppée",
+       "token_span": [
+        7,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 6
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2012",
+    "text": "La présidente a levé la séance sous le tumulte.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "présidente",
+      "lemma": "présidente",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "levé",
+      "lemma": "levé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "séance",
+      "lemma": "séance",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "tumulte.",
+      "lemma": "tumulte.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la présidente",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "séance levée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2013",
+    "text": "Le sommelier a débouché le bordeaux sous l'œil du client.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sommelier",
+      "lemma": "sommelier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "débouché",
+      "lemma": "débouché",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "bordeaux",
+      "lemma": "bordeaux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'œil",
+      "lemma": "l'œil",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "client.",
+      "lemma": "client.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le sommelier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "bordeaux débouché",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2014",
+    "text": "L'ambulancier a sanglé le brancard sous les secousses.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'ambulancier",
+      "lemma": "l'ambulancier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "sanglé",
+      "lemma": "sanglé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "brancard",
+      "lemma": "brancard",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "secousses.",
+      "lemma": "secousses.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "ambulancier",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "brancard sanglé",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2015",
+    "text": "Le jardinier a bâché les rosiers sous la grêle.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "jardinier",
+      "lemma": "jardinier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "bâché",
+      "lemma": "bâché",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "rosiers",
+      "lemma": "rosiers",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "grêle.",
+      "lemma": "grêle.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le jardinier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "rosiers bâchés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2016",
+    "text": "La caissière a appelé le responsable sous le billet déchiré.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "caissière",
+      "lemma": "caissière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "appelé",
+      "lemma": "appelé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "responsable",
+      "lemma": "responsable",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "billet",
+      "lemma": "billet",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "déchiré.",
+      "lemma": "déchiré.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la caissière",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "responsable appelé",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2017",
+    "text": "Le maçon a étayé le linteau sous les fissures.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "maçon",
+      "lemma": "maçon",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "étayé",
+      "lemma": "étayé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "linteau",
+      "lemma": "linteau",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "fissures.",
+      "lemma": "fissures.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le maçon",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "linteau étayé",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2018",
+    "text": "L'apiculteur a enfumé la ruche sous l'agitation des abeilles.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'apiculteur",
+      "lemma": "l'apiculteur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "enfumé",
+      "lemma": "enfumé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "ruche",
+      "lemma": "ruche",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'agitation",
+      "lemma": "l'agitation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "abeilles.",
+      "lemma": "abeilles.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "apiculteur",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "ruche enfumée",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2019",
+    "text": "Le projectionniste a relancé la bobine sous les applaudissements.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "projectionniste",
+      "lemma": "projectionniste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "relancé",
+      "lemma": "relancé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "bobine",
+      "lemma": "bobine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "applaudissements.",
+      "lemma": "applaudissements.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "projectionniste",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "bobine relancée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2020",
+    "text": "La fleuriste a arrosé les orchidées sous la canicule.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "fleuriste",
+      "lemma": "fleuriste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "arrosé",
+      "lemma": "arrosé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "orchidées",
+      "lemma": "orchidées",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "canicule.",
+      "lemma": "canicule.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la fleuriste",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "orchidées arrosées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2021",
+    "text": "Le poissonnier a glacé l'étal sous la chaleur.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "poissonnier",
+      "lemma": "poissonnier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "glacé",
+      "lemma": "glacé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "l'étal",
+      "lemma": "l'étal",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "chaleur.",
+      "lemma": "chaleur.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le poissonnier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "étal glacé",
+       "token_span": [
+        5,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2022",
+    "text": "L'électricien a disjoncté l'atelier sous le court-circuit.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'électricien",
+      "lemma": "l'électricien",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "disjoncté",
+      "lemma": "disjoncté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'atelier",
+      "lemma": "l'atelier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "court-circuit.",
+      "lemma": "court-circuit.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "électricien",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "atelier disjoncté",
+       "token_span": [
+        4,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2023",
+    "text": "Le caviste a carafer le pomerol sous la commande du client.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "caviste",
+      "lemma": "caviste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "carafer",
+      "lemma": "carafer",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "pomerol",
+      "lemma": "pomerol",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "client.",
+      "lemma": "client.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le caviste",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "pomerol carafé",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2024",
+    "text": "La lingère a amidonné les nappes sous la réception du soir.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "lingère",
+      "lemma": "lingère",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "amidonné",
+      "lemma": "amidonné",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "nappes",
+      "lemma": "nappes",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "réception",
+      "lemma": "réception",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "soir.",
+      "lemma": "soir.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la lingère",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "nappes amidonnées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2025",
+    "text": "Le forgeron a trempé la lame sous la braise.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "forgeron",
+      "lemma": "forgeron",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "trempé",
+      "lemma": "trempé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "lame",
+      "lemma": "lame",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "braise.",
+      "lemma": "braise.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le forgeron",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "lame trempée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2026",
+    "text": "La relieuse a cousu les cahiers sous la commande urgente.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "relieuse",
+      "lemma": "relieuse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "cousu",
+      "lemma": "cousu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "cahiers",
+      "lemma": "cahiers",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "urgente.",
+      "lemma": "urgente.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la relieuse",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "cahiers cousus",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2027",
+    "text": "Le cireur a lustré les chaussures sous le regard du client.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "cireur",
+      "lemma": "cireur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "lustré",
+      "lemma": "lustré",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "chaussures",
+      "lemma": "chaussures",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "regard",
+      "lemma": "regard",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "client.",
+      "lemma": "client.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le cireur",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "chaussures lustrées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2028",
+    "text": "L'horloger a remonté la pendule sous la panne.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'horloger",
+      "lemma": "l'horloger",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "remonté",
+      "lemma": "remonté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "pendule",
+      "lemma": "pendule",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "panne.",
+      "lemma": "panne.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "horloger",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "pendule remontée",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2029",
+    "text": "Le vitrier a remplacé la vitrine sous le vandalisme.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "vitrier",
+      "lemma": "vitrier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "remplacé",
+      "lemma": "remplacé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "vitrine",
+      "lemma": "vitrine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "vandalisme.",
+      "lemma": "vandalisme.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le vitrier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "vitrine remplacée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2030",
+    "text": "La modiste a repassé les voilettes sous la commande de la mariée.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "modiste",
+      "lemma": "modiste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "repassé",
+      "lemma": "repassé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "voilettes",
+      "lemma": "voilettes",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "mariée.",
+      "lemma": "mariée.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la modiste",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "voilettes repassées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2031",
+    "text": "Le tonnelier a cerclé les fûts sous la vendange.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "tonnelier",
+      "lemma": "tonnelier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "cerclé",
+      "lemma": "cerclé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "fûts",
+      "lemma": "fûts",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "vendange.",
+      "lemma": "vendange.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le tonnelier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "fûts cerclés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2032",
+    "text": "L'émouleur a affûté les couteaux sous la demande du boucher.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'émouleur",
+      "lemma": "l'émouleur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "affûté",
+      "lemma": "affûté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "couteaux",
+      "lemma": "couteaux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "demande",
+      "lemma": "demande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "boucher.",
+      "lemma": "boucher.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "émouleur",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "couteaux affûtés",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2033",
+    "text": "Le sellier a graissé les harnais sous la pluie.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sellier",
+      "lemma": "sellier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "graissé",
+      "lemma": "graissé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "harnais",
+      "lemma": "harnais",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "pluie.",
+      "lemma": "pluie.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le sellier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "harnais graissés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2034",
+    "text": "La dentellière a tendu le fuseau sous la lumière rasante.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "dentellière",
+      "lemma": "dentellière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "tendu",
+      "lemma": "tendu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "fuseau",
+      "lemma": "fuseau",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "lumière",
+      "lemma": "lumière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "rasante.",
+      "lemma": "rasante.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la dentellière",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "fuseau tendu",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2035",
+    "text": "Le maréchal-ferrant a ferré le percheron sous la chaleur de la forge.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "maréchal-ferrant",
+      "lemma": "maréchal-ferrant",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "ferré",
+      "lemma": "ferré",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "percheron",
+      "lemma": "percheron",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "chaleur",
+      "lemma": "chaleur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "forge.",
+      "lemma": "forge.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "maréchal-ferrant",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "percheron ferré",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2036",
+    "text": "Le sabotier a creusé les galoches sous la commande du fermier.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sabotier",
+      "lemma": "sabotier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "creusé",
+      "lemma": "creusé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "galoches",
+      "lemma": "galoches",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "fermier.",
+      "lemma": "fermier.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le sabotier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "galoches creusées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2037",
+    "text": "La fileuse a cardé la laine sous la veillée.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "fileuse",
+      "lemma": "fileuse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "cardé",
+      "lemma": "cardé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "laine",
+      "lemma": "laine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "veillée.",
+      "lemma": "veillée.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la fileuse",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "laine cardée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2038",
+    "text": "Le vannier a tressé les paniers sous la commande du marché.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "vannier",
+      "lemma": "vannier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "tressé",
+      "lemma": "tressé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "paniers",
+      "lemma": "paniers",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "marché.",
+      "lemma": "marché.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le vannier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "paniers tressés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2039",
+    "text": "Le chaudronnier a riveté la cuve sous la pression du délai.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "chaudronnier",
+      "lemma": "chaudronnier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "riveté",
+      "lemma": "riveté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "cuve",
+      "lemma": "cuve",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "pression",
+      "lemma": "pression",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "délai.",
+      "lemma": "délai.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le chaudronnier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "cuve rivetée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2040",
+    "text": "La brodeuse a ourlé les mouchoirs sous la commande du trousseau.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "brodeuse",
+      "lemma": "brodeuse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "ourlé",
+      "lemma": "ourlé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "mouchoirs",
+      "lemma": "mouchoirs",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "trousseau.",
+      "lemma": "trousseau.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la brodeuse",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "mouchoirs ourlés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2041",
+    "text": "Le doreur a patiné les cadres sous la poussière d'or.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "doreur",
+      "lemma": "doreur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "patiné",
+      "lemma": "patiné",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "cadres",
+      "lemma": "cadres",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "poussière",
+      "lemma": "poussière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "d'or.",
+      "lemma": "d'or.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le doreur",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "cadres patinés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2042",
+    "text": "Le relieur a doré les tranches sous la lampe.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "relieur",
+      "lemma": "relieur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "doré",
+      "lemma": "doré",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "tranches",
+      "lemma": "tranches",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "lampe.",
+      "lemma": "lampe.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le relieur",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "tranches dorées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2043",
+    "text": "La passementière a galonné les rideaux sous la commande du théâtre.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "passementière",
+      "lemma": "passementière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "galonné",
+      "lemma": "galonné",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "rideaux",
+      "lemma": "rideaux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "théâtre.",
+      "lemma": "théâtre.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la passementière",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "rideaux galonnés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2044",
+    "text": "Le tabletier a incrusté les coffrets sous la nacre.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "tabletier",
+      "lemma": "tabletier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "incrusté",
+      "lemma": "incrusté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "coffrets",
+      "lemma": "coffrets",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "nacre.",
+      "lemma": "nacre.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le tabletier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "coffrets incrustés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2045",
+    "text": "L'enlumineur a rehaussé les lettrines sous la feuille d'or.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'enlumineur",
+      "lemma": "l'enlumineur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "rehaussé",
+      "lemma": "rehaussé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "lettrines",
+      "lemma": "lettrines",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "feuille",
+      "lemma": "feuille",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "d'or.",
+      "lemma": "d'or.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "enlumineur",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "lettrines rehaussées",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2046",
+    "text": "Le santonnier a moulé les santons sous la commande de Noël.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "santonnier",
+      "lemma": "santonnier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "moulé",
+      "lemma": "moulé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "santons",
+      "lemma": "santons",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "Noël.",
+      "lemma": "noël.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le santonnier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "santons moulés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2047",
+    "text": "La plumassière a monté les aigrettes sous la commande du cabaret.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "plumassière",
+      "lemma": "plumassière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "monté",
+      "lemma": "monté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "aigrettes",
+      "lemma": "aigrettes",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "cabaret.",
+      "lemma": "cabaret.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la plumassière",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "aigrettes montées",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2048",
+    "text": "Le feutrier a foulé les chapeaux sous la vapeur.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "feutrier",
+      "lemma": "feutrier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "foulé",
+      "lemma": "foulé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "chapeaux",
+      "lemma": "chapeaux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "vapeur.",
+      "lemma": "vapeur.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le feutrier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "chapeaux foulés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2049",
+    "text": "La gantière a piqué les gants sous la commande du régiment.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "gantière",
+      "lemma": "gantière",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "piqué",
+      "lemma": "piqué",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "gants",
+      "lemma": "gants",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "régiment.",
+      "lemma": "régiment.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "la gantière",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "gants piqués",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "p1b2050",
+    "text": "Le layetier a chevillé les tiroirs sous la commande de l'ébéniste.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "layetier",
+      "lemma": "layetier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "chevillé",
+      "lemma": "chevillé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "tiroirs",
+      "lemma": "tiroirs",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "commande",
+      "lemma": "commande",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "l'ébéniste.",
+      "lemma": "l'ébéniste.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "le layetier",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "tiroirs chevillés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-p1b2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

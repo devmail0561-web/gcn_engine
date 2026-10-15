@@ -1,0 +1,502 @@
+{
+ "se-147": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-454": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-911": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-958": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-938": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée",
+  "validateur": "machine-PV1"
+ },
+ "se-69": {
+  "verdict": "non",
+  "motif": "verbe échoué en n1",
+  "validateur": "machine-PV1"
+ },
+ "se-387": {
+  "verdict": "non",
+  "motif": "négation",
+  "validateur": "machine-PV1"
+ },
+ "se-927": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-922": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-656": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-923": {
+  "verdict": "non",
+  "motif": "verbe échoué en n1",
+  "validateur": "machine-PV1"
+ },
+ "se-928": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-904": {
+  "verdict": "non",
+  "motif": "étymologie, pas d'acte",
+  "validateur": "machine-PV1"
+ },
+ "se-765": {
+  "verdict": "non",
+  "motif": "négation",
+  "validateur": "machine-PV1"
+ },
+ "se-422": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-3": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-451": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-30": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-41": {
+  "verdict": "non",
+  "motif": "salade bilingue",
+  "validateur": "machine-PV1"
+ },
+ "se-276": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-924": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-912": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-935": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-919": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-547": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-851": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-539": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-356": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-268": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-371": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-311": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-368": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-608": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-613": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-453": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-533": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-77": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-724": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-827": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-479": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-333": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-557": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-310": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1"
+ },
+ "se-484": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-485": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-585": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-410": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1"
+ },
+ "se-181": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-957": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-198": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-589": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-755": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-700": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-154": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-666": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-907": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-166": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-960": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-247": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-918": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-603": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-708": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-373": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-719": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-241": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-218": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-254": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-169": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-221": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-265": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-240": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-891": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-917": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-426": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-882": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-17": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-1022": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-892": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-639": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-706": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-916": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-795": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-944": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-380": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-728": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-722": {
+  "verdict": "non",
+  "motif": "si interrogatif",
+  "validateur": "machine-PV1"
+ },
+ "se-46": {
+  "verdict": "non",
+  "motif": "doute",
+  "validateur": "machine-PV1"
+ },
+ "se-529": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-25": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-96": {
+  "verdict": "non",
+  "motif": "mention, pas d'acte",
+  "validateur": "machine-PV1"
+ },
+ "se-873": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-303": {
+  "verdict": "non",
+  "motif": "conclusion sans prémisse",
+  "validateur": "machine-PV1"
+ },
+ "se-334": {
+  "verdict": "non",
+  "motif": "dégradé+inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-60": {
+  "verdict": "non",
+  "motif": "mention",
+  "validateur": "machine-PV1"
+ },
+ "se-423": {
+  "verdict": "non",
+  "motif": "spans ne portent pas",
+  "validateur": "machine-PV1"
+ },
+ "se-763": {
+  "verdict": "oui",
+  "motif": "PV-4 échantillon",
+  "validateur": "machine-PV1"
+ },
+ "se-189": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-909": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-351": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-660": {
+  "verdict": "non",
+  "motif": "mention",
+  "validateur": "machine-PV1"
+ }
+}

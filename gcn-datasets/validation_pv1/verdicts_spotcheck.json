@@ -1,0 +1,147 @@
+{
+ "t006": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : contre-lecture écartée",
+  "validateur": "machine-PV1-spot"
+ },
+ "t013": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : contre-lecture écartée",
+  "validateur": "machine-PV1-spot"
+ },
+ "t015": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : contre-lecture écartée",
+  "validateur": "machine-PV1-spot"
+ },
+ "t016": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : contre-lecture écartée",
+  "validateur": "machine-PV1-spot"
+ },
+ "t019": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : contre-lecture écartée",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2001": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2002": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2003": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2004": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2005": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2006": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2007": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "p1b2009": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial (R5 auteur) : acte avéré",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1082": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1315": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1392": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1414": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1883": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1897": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-1976": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-2162": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-2403": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-2406": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-272": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-2957": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-4120": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-8560": {
+  "verdict": "oui",
+  "motif": "spot-check adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-27918": {
+  "verdict": "oui",
+  "motif": "spot-check : inversion P4 vérifiée en lot (fiche périmée, réel ['n2']->n1)",
+  "validateur": "machine-PV1-spot"
+ },
+ "g0-27981": {
+  "verdict": "oui",
+  "motif": "spot-check : inversion P4 conforme convention",
+  "validateur": "machine-PV1-spot"
+ }
+}

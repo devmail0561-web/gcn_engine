@@ -1,0 +1,102 @@
+{
+ "t001": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t002": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t003": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t004": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t005": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t006": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme [confiance faible : contre-lecture table explicitement écartée]",
+  "validateur": "machine-PV1"
+ },
+ "t007": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t008": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t009": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t010": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t011": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t012": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t013": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme [confiance faible : contre-lecture table explicitement écartée]",
+  "validateur": "machine-PV1"
+ },
+ "t014": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t015": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme [confiance faible : contre-lecture table explicitement écartée]",
+  "validateur": "machine-PV1"
+ },
+ "t016": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme [confiance faible : contre-lecture table explicitement écartée]",
+  "validateur": "machine-PV1"
+ },
+ "t017": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t018": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ },
+ "t019": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme [confiance faible : contre-lecture table explicitement écartée]",
+  "validateur": "machine-PV1"
+ },
+ "t020": {
+  "verdict": "oui",
+  "motif": "déclencheur table-11-19 validé + tiers conforme",
+  "validateur": "machine-PV1"
+ }
+}

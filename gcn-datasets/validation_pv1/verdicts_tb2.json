@@ -1,0 +1,297 @@
+{
+ "tb2001": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2002": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2003": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2004": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2005": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2006": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2007": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2008": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2009": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2010": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2011": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2012": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2013": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2014": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2015": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2016": {
+  "verdict": "non",
+  "motif": "src chevauche tgt (circulaire)",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2017": {
+  "verdict": "non",
+  "motif": "src chevauche tgt (circulaire)",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2018": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2019": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2020": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2021": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2022": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2023": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2024": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2025": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2026": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2027": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2028": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2029": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2030": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2031": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2032": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2033": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2034": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2035": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2036": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2037": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2038": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2039": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2040": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2041": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2042": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2043": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2044": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2045": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2046": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2047": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2048": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2049": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2050": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2051": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2052": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2053": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2054": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2055": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2056": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2057": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2058": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ },
+ "tb2059": {
+  "verdict": "oui",
+  "motif": "R5 auteur : déclencheur table + tiers conforme + paraphrase",
+  "validateur": "machine-PV1-R5"
+ }
+}

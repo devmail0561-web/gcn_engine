@@ -1,0 +1,207 @@
+{
+ "ac-6": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-21": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-42": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-55": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-70": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-90": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-93": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-103": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-106": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-127": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-128": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-129": {
+  "verdict": "oui",
+  "motif": "PV-4 actes",
+  "validateur": "machine-PV1"
+ },
+ "ac-1": {
+  "verdict": "non",
+  "motif": "devant=devoir, pas condition",
+  "validateur": "machine-PV1"
+ },
+ "ac-13": {
+  "verdict": "non",
+  "motif": "sans fin = manière",
+  "validateur": "machine-PV1"
+ },
+ "ac-18": {
+  "verdict": "non",
+  "motif": "header méta, pas de claim",
+  "validateur": "machine-PV1"
+ },
+ "ac-40": {
+  "verdict": "non",
+  "motif": "mais discursif, pas d'opposition",
+  "validateur": "machine-PV1"
+ },
+ "ac-64": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "ac-65": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-68": {
+  "verdict": "non",
+  "motif": "span dégénéré (Une)",
+  "validateur": "machine-PV1"
+ },
+ "ac-79": {
+  "verdict": "non",
+  "motif": "devant locatif + slogan",
+  "validateur": "machine-PV1"
+ },
+ "ac-85": {
+  "verdict": "non",
+  "motif": "manière (sans avoir eu)",
+  "validateur": "machine-PV1"
+ },
+ "ac-86": {
+  "verdict": "non",
+  "motif": "manière",
+  "validateur": "machine-PV1"
+ },
+ "ac-91": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-94": {
+  "verdict": "non",
+  "motif": "salade titres, junk",
+  "validateur": "machine-PV1"
+ },
+ "ac-95": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-96": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-100": {
+  "verdict": "non",
+  "motif": "satire, pas de prévention",
+  "validateur": "machine-PV1"
+ },
+ "ac-109": {
+  "verdict": "non",
+  "motif": "ainsi rapporté, pas causal",
+  "validateur": "machine-PV1"
+ },
+ "ac-108": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-113": {
+  "verdict": "non",
+  "motif": "anecdote + inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-118": {
+  "verdict": "non",
+  "motif": "span dégénéré (Alors)",
+  "validateur": "machine-PV1"
+ },
+ "ac-124": {
+  "verdict": "non",
+  "motif": "ainsi que additif, pas causal",
+  "validateur": "machine-PV1"
+ },
+ "ac-126": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-130": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-131": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-134": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-135": {
+  "verdict": "non",
+  "motif": "sans fin = manière",
+  "validateur": "machine-PV1"
+ },
+ "ac-136": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "ac-137": {
+  "verdict": "non",
+  "motif": "sans fin",
+  "validateur": "machine-PV1"
+ },
+ "ac-138": {
+  "verdict": "non",
+  "motif": "alors sans que, pas opposition",
+  "validateur": "machine-PV1"
+ },
+ "ac-139": {
+  "verdict": "non",
+  "motif": "idem",
+  "validateur": "machine-PV1"
+ }
+}

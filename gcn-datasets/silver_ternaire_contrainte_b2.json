@@ -1,0 +1,8192 @@
+{
+ "schema_version": "4.0",
+ "document": {
+  "id": "silver-ternaire-contrainte-b2",
+  "lang": "fr",
+  "weight": 0.0,
+  "sentences": [
+   {
+    "id": "tb2001",
+    "text": "Si la digue cède, le village sera inondé.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "digue",
+      "lemma": "digue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "cède,",
+      "lemma": "cède,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "village",
+      "lemma": "village",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sera",
+      "lemma": "sera",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "inondé.",
+      "lemma": "inondé.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "digue qui cède",
+       "token_span": [
+        2,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "inondation assertée",
+       "token_span": [
+        5,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2002",
+    "text": "Le blé lève si la pluie d'automne est abondante.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "blé",
+      "lemma": "blé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "lève",
+      "lemma": "lève",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "pluie",
+      "lemma": "pluie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "d'automne",
+      "lemma": "d'automne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "est",
+      "lemma": "est",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "abondante.",
+      "lemma": "abondante.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "levée du blé",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "pluie abondante",
+       "token_span": [
+        5,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2003",
+    "text": "Si le vent tourne au nord, les températures chuteront sous zéro.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "vent",
+      "lemma": "vent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "tourne",
+      "lemma": "tourne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "au",
+      "lemma": "au",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "nord,",
+      "lemma": "nord,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "températures",
+      "lemma": "températures",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "chuteront",
+      "lemma": "chuteront",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "zéro.",
+      "lemma": "zéro.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "vent au nord",
+       "token_span": [
+        2,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "chute assertée",
+       "token_span": [
+        7,
+        11
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2004",
+    "text": "La récolte pourrit si l'humidité persiste dix jours.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "récolte",
+      "lemma": "récolte",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "pourrit",
+      "lemma": "pourrit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "l'humidité",
+      "lemma": "l'humidité",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "persiste",
+      "lemma": "persiste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "dix",
+      "lemma": "dix",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "jours.",
+      "lemma": "jours.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "pourrissement",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "humidité persistante",
+       "token_span": [
+        5,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2005",
+    "text": "Si la banque relève ses taux, le crédit immobilier ralentira.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "banque",
+      "lemma": "banque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "relève",
+      "lemma": "relève",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "ses",
+      "lemma": "ses",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "taux,",
+      "lemma": "taux,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "crédit",
+      "lemma": "crédit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "immobilier",
+      "lemma": "immobilier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "ralentira.",
+      "lemma": "ralentira.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "hausse des taux",
+       "token_span": [
+        2,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "ralentissement asserté",
+       "token_span": [
+        7,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2006",
+    "text": "Les fraises mûrissent si les gelées d'avril les épargnent.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "fraises",
+      "lemma": "fraises",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "mûrissent",
+      "lemma": "mûrissent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "gelées",
+      "lemma": "gelées",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "d'avril",
+      "lemma": "d'avril",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "épargnent.",
+      "lemma": "épargnent.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "maturation",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "absence de gel",
+       "token_span": [
+        5,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2007",
+    "text": "Si le gardien dort, les cambrioleurs entreront sans bruit.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "gardien",
+      "lemma": "gardien",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "dort,",
+      "lemma": "dort,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "cambrioleurs",
+      "lemma": "cambrioleurs",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "entreront",
+      "lemma": "entreront",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "bruit.",
+      "lemma": "bruit.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "gardien endormi",
+       "token_span": [
+        2,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "intrusion assertée",
+       "token_span": [
+        5,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2008",
+    "text": "Le barrage tiendra si les vannes restent ouvertes.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "barrage",
+      "lemma": "barrage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "tiendra",
+      "lemma": "tiendra",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "vannes",
+      "lemma": "vannes",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "restent",
+      "lemma": "restent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "ouvertes.",
+      "lemma": "ouvertes.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "barrage tenu",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "vannes ouvertes",
+       "token_span": [
+        5,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2009",
+    "text": "Si le témoin se tait, l'enquête s'enlisera.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "témoin",
+      "lemma": "témoin",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "se",
+      "lemma": "se",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "tait,",
+      "lemma": "tait,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "l'enquête",
+      "lemma": "l'enquête",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "s'enlisera.",
+      "lemma": "s'enlisera.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "témoin muet",
+       "token_span": [
+        2,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "enlisement asserté",
+       "token_span": [
+        6,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2010",
+    "text": "La forêt survivra si les pompiers contiennent le flanc ouest.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "forêt",
+      "lemma": "forêt",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "survivra",
+      "lemma": "survivra",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "pompiers",
+      "lemma": "pompiers",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "contiennent",
+      "lemma": "contiennent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "flanc",
+      "lemma": "flanc",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "ouest.",
+      "lemma": "ouest.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "forêt sauvée",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "flanc contenu",
+       "token_span": [
+        5,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2011",
+    "text": "Si la digue est surveillée, la crue sera contenue.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "digue",
+      "lemma": "digue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "est",
+      "lemma": "est",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "surveillée,",
+      "lemma": "surveillée,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "crue",
+      "lemma": "crue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "sera",
+      "lemma": "sera",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "contenue.",
+      "lemma": "contenue.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "surveillance",
+       "token_span": [
+        2,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "crue contenue",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2012",
+    "text": "La ville a tenu contre la crue grâce aux barrages de sacs de sable.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "ville",
+      "lemma": "ville",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "tenu",
+      "lemma": "tenu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "contre",
+      "lemma": "contre",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "crue",
+      "lemma": "crue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "aux",
+      "lemma": "aux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "barrages",
+      "lemma": "barrages",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "sacs",
+      "lemma": "sacs",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 13,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 14,
+      "form": "sable.",
+      "lemma": "sable.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "ville tenue",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "barrages (moyen)",
+       "token_span": [
+        9,
+        14
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "crue",
+       "token_span": [
+        6,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2013",
+    "text": "Le malade guérit de l'infection via un protocole d'antibiotiques ciblés.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "malade",
+      "lemma": "malade",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "guérit",
+      "lemma": "guérit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "l'infection",
+      "lemma": "l'infection",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "via",
+      "lemma": "via",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "un",
+      "lemma": "un",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "protocole",
+      "lemma": "protocole",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "d'antibiotiques",
+      "lemma": "d'antibiotiques",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "ciblés.",
+      "lemma": "ciblés.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "guérison",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "protocole (moyen)",
+       "token_span": [
+        7,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "infection",
+       "token_span": [
+        5,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2014",
+    "text": "L'usine tourne grâce à sa turbine et assure la production.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'usine",
+      "lemma": "l'usine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "tourne",
+      "lemma": "tourne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "sa",
+      "lemma": "sa",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "turbine",
+      "lemma": "turbine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "assure",
+      "lemma": "assure",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "production.",
+      "lemma": "production.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "usine en marche",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "turbine (moyen)",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "processus",
+       "label": "production",
+       "token_span": [
+        9,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2015",
+    "text": "Le village survit à la famine par l'intermédiaire des convois humanitaires.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "village",
+      "lemma": "village",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "survit",
+      "lemma": "survit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "famine",
+      "lemma": "famine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "par",
+      "lemma": "par",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'intermédiaire",
+      "lemma": "l'intermédiaire",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "convois",
+      "lemma": "convois",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "humanitaires.",
+      "lemma": "humanitaires.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "survie du village",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "convois (moyen)",
+       "token_span": [
+        9,
+        11
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "famine",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2016",
+    "text": "La thèse dissipe l'ignorance grâce aux archives municipales inédites.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "thèse",
+      "lemma": "thèse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "dissipe",
+      "lemma": "dissipe",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'ignorance",
+      "lemma": "l'ignorance",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "aux",
+      "lemma": "aux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "archives",
+      "lemma": "archives",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "municipales",
+      "lemma": "municipales",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "inédites.",
+      "lemma": "inédites.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "ignorance dissipée",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "archives (moyen)",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "concept",
+       "label": "ignorance",
+       "token_span": [
+        4,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2017",
+    "text": "Le chantier résorbe le retard via la préfabrication des modules.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "chantier",
+      "lemma": "chantier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "résorbe",
+      "lemma": "résorbe",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "retard",
+      "lemma": "retard",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "via",
+      "lemma": "via",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "préfabrication",
+      "lemma": "préfabrication",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "modules.",
+      "lemma": "modules.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "retard résorbé",
+       "token_span": [
+        1,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "préfabrication (moyen)",
+       "token_span": [
+        7,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "concept",
+       "label": "retard",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2018",
+    "text": "L'épidémie recule et stoppe la contagion grâce à la vaccination des soignants.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'épidémie",
+      "lemma": "l'épidémie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "recule",
+      "lemma": "recule",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "stoppe",
+      "lemma": "stoppe",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "contagion",
+      "lemma": "contagion",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "vaccination",
+      "lemma": "vaccination",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "soignants.",
+      "lemma": "soignants.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "épidémie en recul",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "vaccination (moyen)",
+       "token_span": [
+        9,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "processus",
+       "label": "contagion stoppée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2019",
+    "text": "La cave reste sèche et repousse l'inondation via un drainage périphérique continu.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "cave",
+      "lemma": "cave",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "reste",
+      "lemma": "reste",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "sèche",
+      "lemma": "sèche",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "repousse",
+      "lemma": "repousse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'inondation",
+      "lemma": "l'inondation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "via",
+      "lemma": "via",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "un",
+      "lemma": "un",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "drainage",
+      "lemma": "drainage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "périphérique",
+      "lemma": "périphérique",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "continu.",
+      "lemma": "continu.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "cave sèche",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "drainage (moyen)",
+       "token_span": [
+        9,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "inondation repoussée",
+       "token_span": [
+        7,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2020",
+    "text": "La récolte est sauvée de la sécheresse grâce à l'irrigation nocturne.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "récolte",
+      "lemma": "récolte",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "est",
+      "lemma": "est",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "sauvée",
+      "lemma": "sauvée",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "sécheresse",
+      "lemma": "sécheresse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "l'irrigation",
+      "lemma": "l'irrigation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "nocturne.",
+      "lemma": "nocturne.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "récolte sauvée",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "irrigation (moyen)",
+       "token_span": [
+        10,
+        11
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "sécheresse",
+       "token_span": [
+        6,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2021",
+    "text": "Le réseau tient contre la panne par l'intermédiaire des serveurs de secours.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "réseau",
+      "lemma": "réseau",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "tient",
+      "lemma": "tient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "contre",
+      "lemma": "contre",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "panne",
+      "lemma": "panne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "par",
+      "lemma": "par",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'intermédiaire",
+      "lemma": "l'intermédiaire",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "serveurs",
+      "lemma": "serveurs",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "secours.",
+      "lemma": "secours.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "réseau tenu",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "serveurs (moyen)",
+       "token_span": [
+        9,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "panne",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2022",
+    "text": "Le verger survit au gel grâce aux voiles d'hivernage.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "verger",
+      "lemma": "verger",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "survit",
+      "lemma": "survit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "au",
+      "lemma": "au",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "gel",
+      "lemma": "gel",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "aux",
+      "lemma": "aux",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "voiles",
+      "lemma": "voiles",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "d'hivernage.",
+      "lemma": "d'hivernage.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "verger sauf",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "voiles (moyen)",
+       "token_span": [
+        7,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "gel",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2023",
+    "text": "La sécheresse et le vent ont attisé l'incendie.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sécheresse",
+      "lemma": "sécheresse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "vent",
+      "lemma": "vent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "attisé",
+      "lemma": "attisé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'incendie.",
+      "lemma": "l'incendie.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_global",
+       "label": "sécheresse",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_global",
+       "label": "vent",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "incendie attisé",
+       "token_span": [
+        8,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2024",
+    "text": "Le froid et l'humidité ont rouillé les outils.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "froid",
+      "lemma": "froid",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'humidité",
+      "lemma": "l'humidité",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "rouillé",
+      "lemma": "rouillé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "outils.",
+      "lemma": "outils.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_global",
+       "label": "froid",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_global",
+       "label": "humidité",
+       "token_span": [
+        4,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "outils rouillés",
+       "token_span": [
+        7,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2025",
+    "text": "La grève et la panne ont paralysé la gare.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "grève",
+      "lemma": "grève",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "panne",
+      "lemma": "panne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "paralysé",
+      "lemma": "paralysé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "gare.",
+      "lemma": "gare.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "grève",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "panne",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "gare paralysée",
+       "token_span": [
+        8,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2026",
+    "text": "Le sel et le gel ont fissuré la chaussée.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sel",
+      "lemma": "sel",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "gel",
+      "lemma": "gel",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "fissuré",
+      "lemma": "fissuré",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "chaussée.",
+      "lemma": "chaussée.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "sel",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_global",
+       "label": "gel",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "chaussée fissurée",
+       "token_span": [
+        8,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2027",
+    "text": "La nuit et le brouillard ont égaré les randonneurs.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "nuit",
+      "lemma": "nuit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "brouillard",
+      "lemma": "brouillard",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "égaré",
+      "lemma": "égaré",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "randonneurs.",
+      "lemma": "randonneurs.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_global",
+       "label": "nuit",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_global",
+       "label": "brouillard",
+       "token_span": [
+        4,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "entite",
+       "label": "randonneurs égarés",
+       "token_span": [
+        8,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2028",
+    "text": "L'orage et la grêle ont haché les vignes.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'orage",
+      "lemma": "l'orage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "grêle",
+      "lemma": "grêle",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "haché",
+      "lemma": "haché",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "vignes.",
+      "lemma": "vignes.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "orage",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "grêle",
+       "token_span": [
+        3,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "vignes hachées",
+       "token_span": [
+        7,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 2,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2029",
+    "text": "De même que le loup suit le troupeau, le fisc suit les fraudeurs.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "De",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "même",
+      "lemma": "même",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "que",
+      "lemma": "que",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "loup",
+      "lemma": "loup",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "suit",
+      "lemma": "suit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "troupeau,",
+      "lemma": "troupeau,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "fisc",
+      "lemma": "fisc",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "suit",
+      "lemma": "suit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 13,
+      "form": "fraudeurs.",
+      "lemma": "fraudeurs.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "loup→troupeau",
+       "token_span": [
+        4,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "fisc→fraudeurs",
+       "token_span": [
+        9,
+        13
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2030",
+    "text": "Tout comme la marée use la falaise, le temps use les souvenirs.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Tout",
+      "lemma": "tout",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "comme",
+      "lemma": "comme",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "marée",
+      "lemma": "marée",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "use",
+      "lemma": "use",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "falaise,",
+      "lemma": "falaise,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "temps",
+      "lemma": "temps",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "use",
+      "lemma": "use",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "souvenirs.",
+      "lemma": "souvenirs.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "marée→falaise",
+       "token_span": [
+        3,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "temps→souvenirs",
+       "token_span": [
+        8,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2031",
+    "text": "De même que la forge durcit le fer, l'effort durcit le caractère.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "De",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "même",
+      "lemma": "même",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "que",
+      "lemma": "que",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "forge",
+      "lemma": "forge",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "durcit",
+      "lemma": "durcit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "fer,",
+      "lemma": "fer,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "l'effort",
+      "lemma": "l'effort",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "durcit",
+      "lemma": "durcit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "caractère.",
+      "lemma": "caractère.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "forge→fer",
+       "token_span": [
+        4,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "effort→caractère",
+       "token_span": [
+        9,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2032",
+    "text": "Tout comme le jardinier taille les rosiers, le professeur corrige les copies.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Tout",
+      "lemma": "tout",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "comme",
+      "lemma": "comme",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "jardinier",
+      "lemma": "jardinier",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "taille",
+      "lemma": "taille",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "rosiers,",
+      "lemma": "rosiers,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "professeur",
+      "lemma": "professeur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "corrige",
+      "lemma": "corrige",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "copies.",
+      "lemma": "copies.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "jardinier→rosiers",
+       "token_span": [
+        3,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "professeur→copies",
+       "token_span": [
+        8,
+        12
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2033",
+    "text": "De même que la chouette voit la nuit, le sonar voit sous l'eau.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "De",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "même",
+      "lemma": "même",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "que",
+      "lemma": "que",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "chouette",
+      "lemma": "chouette",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "voit",
+      "lemma": "voit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "nuit,",
+      "lemma": "nuit,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "sonar",
+      "lemma": "sonar",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "voit",
+      "lemma": "voit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "sous",
+      "lemma": "sous",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 13,
+      "form": "l'eau.",
+      "lemma": "l'eau.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "chouette→nuit",
+       "token_span": [
+        4,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "sonar→eau",
+       "token_span": [
+        9,
+        13
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2034",
+    "text": "Sans le phare, les navires se seraient brisés sur les récifs.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "phare,",
+      "lemma": "phare,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "navires",
+      "lemma": "navires",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "se",
+      "lemma": "se",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "seraient",
+      "lemma": "seraient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "brisés",
+      "lemma": "brisés",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "sur",
+      "lemma": "sur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "récifs.",
+      "lemma": "récifs.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "phare absent (irréel)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "naufrage hypothétique",
+       "token_span": [
+        4,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2035",
+    "text": "Si le pont avait tenu, les renforts seraient arrivés avant l'aube.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "pont",
+      "lemma": "pont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "avait",
+      "lemma": "avait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "tenu,",
+      "lemma": "tenu,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "renforts",
+      "lemma": "renforts",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "seraient",
+      "lemma": "seraient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "arrivés",
+      "lemma": "arrivés",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "avant",
+      "lemma": "avant",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "l'aube.",
+      "lemma": "l'aube.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "pont tenu (irréel)",
+       "token_span": [
+        2,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "renforts non arrivés (irréel)",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2036",
+    "text": "Sans les vaccins, la variole ravagerait encore des continents.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "vaccins,",
+      "lemma": "vaccins,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "variole",
+      "lemma": "variole",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ravagerait",
+      "lemma": "ravagerait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "encore",
+      "lemma": "encore",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "continents.",
+      "lemma": "continents.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "vaccins absents (irréel)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "ravage hypothétique",
+       "token_span": [
+        4,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2037",
+    "text": "Si la sentinelle avait veillé, l'attaque aurait échoué.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "sentinelle",
+      "lemma": "sentinelle",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "avait",
+      "lemma": "avait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "veillé,",
+      "lemma": "veillé,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "l'attaque",
+      "lemma": "l'attaque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "échoué.",
+      "lemma": "échoué.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "veille non faite (irréel)",
+       "token_span": [
+        2,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "attaque réussie (irréel)",
+       "token_span": [
+        6,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2038",
+    "text": "Sans les digues, la mer aurait repris les polders.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "digues,",
+      "lemma": "digues,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "mer",
+      "lemma": "mer",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "repris",
+      "lemma": "repris",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "polders.",
+      "lemma": "polders.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "digues absentes (irréel)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "submersion hypothétique",
+       "token_span": [
+        4,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2039",
+    "text": "Si l'orage avait éclaté plus tôt, la moisson aurait été perdue.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "l'orage",
+      "lemma": "l'orage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "avait",
+      "lemma": "avait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "éclaté",
+      "lemma": "éclaté",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "plus",
+      "lemma": "plus",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "tôt,",
+      "lemma": "tôt,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "moisson",
+      "lemma": "moisson",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "été",
+      "lemma": "été",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "perdue.",
+      "lemma": "perdue.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "orage précoce (irréel)",
+       "token_span": [
+        2,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "moisson perdue (irréel)",
+       "token_span": [
+        7,
+        11
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2040",
+    "text": "Le couvre-feu interdit toute sortie après vingt et une heures.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "couvre-feu",
+      "lemma": "couvre-feu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "interdit",
+      "lemma": "interdit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "toute",
+      "lemma": "toute",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "sortie",
+      "lemma": "sortie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "après",
+      "lemma": "après",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "vingt",
+      "lemma": "vingt",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "une",
+      "lemma": "une",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "heures.",
+      "lemma": "heures.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "couvre-feu (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "sorties interdites",
+       "token_span": [
+        4,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2041",
+    "text": "Le règlement intérieur impose le port du badge.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "règlement",
+      "lemma": "règlement",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "intérieur",
+      "lemma": "intérieur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "impose",
+      "lemma": "impose",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "port",
+      "lemma": "port",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "badge.",
+      "lemma": "badge.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "règlement (règle)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "port imposé",
+       "token_span": [
+        5,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2042",
+    "text": "La loi oblige les commerces à fermer le dimanche.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "loi",
+      "lemma": "loi",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "oblige",
+      "lemma": "oblige",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "commerces",
+      "lemma": "commerces",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "fermer",
+      "lemma": "fermer",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "dimanche.",
+      "lemma": "dimanche.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "loi (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "fermeture obligée",
+       "token_span": [
+        4,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2043",
+    "text": "L'interdiction de fumer protège les non-fumeurs.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'interdiction",
+      "lemma": "l'interdiction",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "fumer",
+      "lemma": "fumer",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "protège",
+      "lemma": "protège",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "non-fumeurs.",
+      "lemma": "non-fumeurs.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "interdiction (règle)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "non-fumeurs protégés",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "prevent",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2044",
+    "text": "Le quota de pêche préserve les stocks de cabillaud.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "quota",
+      "lemma": "quota",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "pêche",
+      "lemma": "pêche",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "préserve",
+      "lemma": "préserve",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "stocks",
+      "lemma": "stocks",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "cabillaud.",
+      "lemma": "cabillaud.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "quota (règle)",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "stocks préservés",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "prevent",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 5
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2045",
+    "text": "L'obligation du masque freinait la contagion.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'obligation",
+      "lemma": "l'obligation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "masque",
+      "lemma": "masque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "freinait",
+      "lemma": "freinait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "contagion.",
+      "lemma": "contagion.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "obligation (règle)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "contagion freinée",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "prevent",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2046",
+    "text": "La consigne de tri réduit les déchets incinérés.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "consigne",
+      "lemma": "consigne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "tri",
+      "lemma": "tri",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "réduit",
+      "lemma": "réduit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "déchets",
+      "lemma": "déchets",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "incinérés.",
+      "lemma": "incinérés.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "consigne (règle)",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "déchets réduits",
+       "token_span": [
+        6,
+        8
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "prevent",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 5
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2047",
+    "text": "Le permis à points sanctionne les chauffards.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "permis",
+      "lemma": "permis",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "points",
+      "lemma": "points",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "sanctionne",
+      "lemma": "sanctionne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "chauffards.",
+      "lemma": "chauffards.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "permis (règle)",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "chauffards sanctionnés",
+       "token_span": [
+        6,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 5
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2048",
+    "text": "La limitation à quatre-vingts punit les excès de vitesse.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "limitation",
+      "lemma": "limitation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "quatre-vingts",
+      "lemma": "quatre-vingts",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "punit",
+      "lemma": "punit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "excès",
+      "lemma": "excès",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "vitesse.",
+      "lemma": "vitesse.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "limitation (règle)",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "excès punis",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 5
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2049",
+    "text": "L'astreinte judiciaire force le débiteur à payer.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'astreinte",
+      "lemma": "l'astreinte",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "judiciaire",
+      "lemma": "judiciaire",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "force",
+      "lemma": "force",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "débiteur",
+      "lemma": "débiteur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "payer.",
+      "lemma": "payer.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "astreinte (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "paiement forcé",
+       "token_span": [
+        4,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "control_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2050",
+    "text": "Le couvre-feu dépend du préfet et de la situation sanitaire.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "couvre-feu",
+      "lemma": "couvre-feu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "dépend",
+      "lemma": "dépend",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "préfet",
+      "lemma": "préfet",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "situation",
+      "lemma": "situation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "sanitaire.",
+      "lemma": "sanitaire.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "couvre-feu (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "préfet et situation",
+       "token_span": [
+        4,
+        10
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "data_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2051",
+    "text": "La validité du pass dépend du décret en vigueur.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "validité",
+      "lemma": "validité",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "pass",
+      "lemma": "pass",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "dépend",
+      "lemma": "dépend",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "décret",
+      "lemma": "décret",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "en",
+      "lemma": "en",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "vigueur.",
+      "lemma": "vigueur.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "validité du pass",
+       "token_span": [
+        1,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "contrainte",
+       "label": "décret (règle)",
+       "token_span": [
+        6,
+        9
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "data_dependency",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 5
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2052",
+    "text": "Le confinement n'autorisait que les sorties essentielles.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "confinement",
+      "lemma": "confinement",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "n'autorisait",
+      "lemma": "n'autorisait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "que",
+      "lemma": "que",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "sorties",
+      "lemma": "sorties",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "essentielles.",
+      "lemma": "essentielles.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "confinement (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "sorties admises",
+       "token_span": [
+        5,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "filter",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2053",
+    "text": "Seuls les véhicules autorisés franchissent le barrage.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Seuls",
+      "lemma": "seuls",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "véhicules",
+      "lemma": "véhicules",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "autorisés",
+      "lemma": "autorisés",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "franchissent",
+      "lemma": "franchissent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "barrage.",
+      "lemma": "barrage.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "véhicules autorisés",
+       "token_span": [
+        2,
+        4
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "contrainte",
+       "label": "barrage (règle)",
+       "token_span": [
+        6,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "filter",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 1
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2054",
+    "text": "La zone interdite exclut tout promeneur.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "zone",
+      "lemma": "zone",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "interdite",
+      "lemma": "interdite",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "exclut",
+      "lemma": "exclut",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "tout",
+      "lemma": "tout",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "promeneur.",
+      "lemma": "promeneur.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "zone (règle)",
+       "token_span": [
+        1,
+        3
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "promeneurs exclus",
+       "token_span": [
+        5,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "filter",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 4
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2055",
+    "text": "Le péage conditionne l'accès à l'autoroute.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "péage",
+      "lemma": "péage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "conditionne",
+      "lemma": "conditionne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'accès",
+      "lemma": "l'accès",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "l'autoroute.",
+      "lemma": "l'autoroute.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "péage (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "accès conditionné",
+       "token_span": [
+        4,
+        6
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "condition",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2056",
+    "text": "Le visa conditionne l'entrée sur le territoire.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "visa",
+      "lemma": "visa",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "conditionne",
+      "lemma": "conditionne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'entrée",
+      "lemma": "l'entrée",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "sur",
+      "lemma": "sur",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "territoire.",
+      "lemma": "territoire.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "visa (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "entrée conditionnée",
+       "token_span": [
+        4,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "condition",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2057",
+    "text": "L'embargo affame la population assiégée.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'embargo",
+      "lemma": "l'embargo",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "affame",
+      "lemma": "affame",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "population",
+      "lemma": "population",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "assiégée.",
+      "lemma": "assiégée.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "embargo (règle)",
+       "token_span": [
+        1,
+        1
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "population affamée",
+       "token_span": [
+        3,
+        5
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "cause",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 2
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2058",
+    "text": "Le blocus ruine le commerce du port.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "blocus",
+      "lemma": "blocus",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "ruine",
+      "lemma": "ruine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "commerce",
+      "lemma": "commerce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "du",
+      "lemma": "du",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "port.",
+      "lemma": "port.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "blocus (règle)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "processus",
+       "label": "commerce ruiné",
+       "token_span": [
+        4,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "cause",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tb2059",
+    "text": "La grève bloque les trains en gare.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "grève",
+      "lemma": "grève",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "bloque",
+      "lemma": "bloque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "trains",
+      "lemma": "trains",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "en",
+      "lemma": "en",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "gare.",
+      "lemma": "gare.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "sentence_type": "declarative",
+    "registre": "mixte",
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "contrainte",
+       "label": "grève (contrainte collective)",
+       "token_span": [
+        1,
+        2
+       ],
+       "scope": "specific",
+       "temporal_index": 0,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "trains bloqués",
+       "token_span": [
+        4,
+        7
+       ],
+       "scope": "specific",
+       "temporal_index": 1,
+       "origin": "propose",
+       "span_source": "silver-tb2"
+      }
+     ],
+     "edges": [
+      {
+       "sources": [
+        "n000"
+       ],
+       "target": "n001",
+       "relation": "prevent",
+       "explicit": true,
+       "confidence": 0.0,
+       "negated": false,
+       "third": null,
+       "marker_token": 3
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

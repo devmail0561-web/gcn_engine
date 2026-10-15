@@ -1,0 +1,252 @@
+{
+ "p1b2001": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2002": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2003": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2004": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2005": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2006": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2007": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2008": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2009": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2010": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2011": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2012": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2013": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2014": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2015": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2016": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2017": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2018": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2019": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2020": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2021": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2022": {
+  "verdict": "oui",
+  "motif": "acte d'autorité/déclenchement avéré",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2023": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2024": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2025": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2026": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2027": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2028": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2029": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2030": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2031": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2032": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2033": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2034": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2035": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2036": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2037": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2038": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2039": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2040": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2041": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2042": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2043": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2044": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2045": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2046": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2047": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2048": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2049": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ },
+ "p1b2050": {
+  "verdict": "non",
+  "motif": "action sans sémantique de contrôle (R5 strict)",
+  "validateur": "machine-PV1-R5"
+ }
+}

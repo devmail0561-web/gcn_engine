@@ -20,15 +20,20 @@ gates: guards
 	for f in gcn-datasets/DATA/supervision/v4/annotated/lot*.json; do \
 	  python3 scripts/check_v4.py --min-class-count 1 "$$f" || exit 1; \
 	done
+	# P6 remediation-donnees : 0 junk actif (latex/EN hors tombstones) sinon FAIL.
+	python3 scripts/detect_bruit.py --dir gcn-datasets/DATA/supervision/v4/annotated \
+	  --out /tmp/opencode/bruit_gate.json --exclude-tombstones --strict
 
 guards:
 	! grep -rq gcn_transformers gcn-python/src/
+	# Torch cantonné layer3 PT/GAT, jamais runtime tok : aucun import top-level.
 	! grep -rn "^import torch\|^from torch" gcn-python/src/
-	# V5 — subprocess réel : `git rev-parse` (provenance, training/train.py et
-	# training/train_tok.py via shutil.which + timeout, best-effort) est le seul
-	# usage autorisé ; frontend/bridge.py (lattice gcn-cli) est le reste connu en
-	# transition (bascule P1). Tout NOUVEAU fichier avec import/appel subprocess
-	# fait échouer (les mentions en docstring ne comptent pas).
+	# V5 — subprocess restreint au chemin tok : `git rev-parse` (provenance,
+	# training/train.py et training/train_tok.py via shutil.which + timeout,
+	# best-effort) + frontend/bridge.py (lattice gcn-cli, transition bascule P1)
+	# sont les seuls usages autorisés ; pipeline/forward_ids.py, nlu/tok.py,
+	# layer0/tokenizer.py et tout NOUVEAU fichier hors de cette liste avec
+	# import/appel subprocess fait échouer (mentions en docstring exclues).
 	! grep -rn "import subprocess\|subprocess\.run\|subprocess\.Popen" --include="*.py" gcn-python/src/ | grep -v "frontend/bridge.py" | grep -v "training/train.py" | grep -v "training/train_tok.py"
 	# Compteur informatif bascule → 0 en fin de refacto (ne fait pas échouer).
 	grep -rln 'gcn_bin\|Lattice\|_call_gcn_lattice' --include="*.py" gcn-python/src/ || true
