@@ -516,6 +516,31 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
 - Leçon : à ~200 paires, la supervision production sert la RELATION
   (diversité), pas la DÉTECTION (échelle insuffisante d'un ordre).
 
+## Programme gold-3000 — vagues J/S/T/bulk/cond + p12 (2026-10-16, EN COURS)
+
+- Lots promus : **lot34 joints** (20+20, joint_prevent 2→22, joint_cause
+  14→34), **lot35 spécial** (20+20, analogy 15→35, counterfactual 16→36),
+  **lot36 ternaire-T** (10×4, conditional/mediated 27-37→37-47),
+  **lot37 bulk** (126, cause×60 enable×35), **lot38 cond** (71 dont 65
+  condition 95→160). Aveugle groupé en file : **32 cas**.
+- **p12** : quota 100 + exclude-none + exclude-lots=lot37 (manifest tracé),
+  980/207/207 (11-directes 770/165/165). Val/test +68% vs p11 ; couv.
+  éval combinée ~300 (207 split + 94 prod gelé).
+- **Fuite inter-splits DÉCOUVERTE et PROTOCOLE** : les re-splits rééchantillonnent
+  le même pool → recouvrements train/test (p12-test∩p10-train 31%,
+  P11-test∩p12-train 37%). Tous les chiffres E9-ter/bis/aug sont des bornes
+  hautes. Règle : exclusion overlap systématique + comptage publié.
+  Effet mesuré petit (±0.02-0.04) mais réel.
+- **lot37 DÉGRADE le test (-0.08)** : ablation propre (même seed/config/test) :
+  avec bulk 0.116 → sans bulk 0.196 ; split propre p12b 0.174. Cause :
+  spans style TOK-regex (« L ' ICA ») = bruit d'alignement (labels PV1 OK).
+  lot37 exclu des splits (`--exclude-lots`, labels intacts) en attendant
+  re-spanning. Les golds PV1 propres (69 prod) HELPENT (+0.08) : c'est le
+  STYLE de spans qui compte, pas les labels.
+- Tableau test honnête (clean) : e9ter→P11 0.164, e9ter→p12 0.273,
+  aug→P11 0.240, p12b→p12 0.174. Le CLASSEMENT DÉPEND DU TEST (±0.1) :
+  aucune supériorité de modèle n'est établie sous 0.1.
+
 ## Ph5 vague 4 — B-c1 validé, précision stable (2026-10-16)
 
 - 150 phrases fraîches (H1/H2 seuls — H3 verbal abandonné, règle

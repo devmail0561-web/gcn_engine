@@ -45,12 +45,23 @@ def main() -> None:
                     help="exclure la strate edgeless `_none` du livré "
                          "(décision v4 finale 2026-10-04 : 65 `_none` lots "
                          "01-05 exclus, fichiers intacts).")
+    ap.add_argument("--exclude-lots", default="",
+                    help="lots exclus du livré (virgules, ex. 'lot37') — "
+                         "labels intacts sur disque, exclusion tracée au "
+                         "manifest. Motif lot37 (2026-10-16) : spans style "
+                         "TOK-regex incompatibles (bruit d'alignement), "
+                         "dégrade le test -0.08 (ablation). Re-spanning "
+                         "requis avant réintégration.")
     args = ap.parse_args()
     if args.quota < 0:
         raise SystemExit("--quota doit être ≥ 0.")
     rng = random.Random(args.seed)
     ss = []
+    _ex_lots = {x.strip() for x in args.exclude_lots.split(",") if x.strip()}
     for f in sorted(glob.glob(str(V4 / "annotated" / "lot*.json"))):
+        if any(Path(f).stem == x or Path(f).stem.startswith(x + "_") for x in _ex_lots):
+            print(f"lot exclu (--exclude-lots): {Path(f).name}")
+            continue
         ss.extend(json.load(open(f))["document"]["sentences"])
     # Tombstones exclus du livré (disque intact) + dédupe inter-lots.
     excluded: set[str] = set()
@@ -150,6 +161,7 @@ def main() -> None:
         "seed": args.seed,
         "quota": args.quota,
         "exclude_none": args.exclude_none,
+        "exclude_lots": sorted(_ex_lots),
         "train": len(tr),
         "val": len(va),
         "test": len(te),
