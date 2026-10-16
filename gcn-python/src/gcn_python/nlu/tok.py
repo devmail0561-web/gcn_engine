@@ -129,19 +129,24 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
     nspans, ntextes = [], []
     for sp, tx in zip(spans, textes):
         debut, fin = sp[0], sp[1]
-        en_tete = [c for c in conns
-                   if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin]
+        # Connecteur en tête vraie (<3 car. : ponctuation ouvrante seule).
+        # Les préfixes paratexte (« - [3] ») sont isolés par la coupe
+        # intérieure puis repris au second passage (itération ci-dessous).
+        en_tete = {c["span"][0] for c in conns
+                   if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin}
         coupes = sorted({c["span"][0] for c in conns
                          if debut < c["span"][0] and c["span"][1] <= fin
-                         and c["span"][0] > debut})
+                         and c["span"][0] > debut} - en_tete)
         # Filtre : coupe trop proche des bords (<3 caractères de matière).
         coupes = [p for p in coupes if p - debut >= 3 and fin - p >= 3]
         if en_tete and not coupes:
             # B-c1 : protase introduite en tête → coupe à la première virgule.
-            suiv = text[en_tete[0]["span"][1]:fin]
+            fin_tete = max(c["span"][1] for c in conns
+                           if c["span"][0] in en_tete)
+            suiv = text[fin_tete:fin]
             pos_virgule = suiv.find(",")
             if pos_virgule >= 3 and (len(suiv) - pos_virgule) >= 4:
-                coupes = [en_tete[0]["span"][1] + pos_virgule + 1]
+                coupes = [fin_tete + pos_virgule + 1]
         if not coupes:
             nspans.append(sp)
             ntextes.append(tx)
@@ -154,10 +159,32 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
                 decal = brut.find(morceau)
                 nspans.append([a + decal, a + decal + len(morceau)])
                 ntextes.append(morceau)
+    # Second passage : les parties issues de la coupe intérieure et qui
+    # COMMENCENT par un connecteur (« Parce que P, Q » après isolation du
+    # préfixe) sont coupées à la première virgule (protase | apodose).
+    # Itération bornée à un passage (pas de récursion).
+    fspans, ftextes = [], []
+    for sp, tx in zip(nspans, ntextes):
+        debut, fin = sp[0], sp[1]
+        tete = [c for c in conns
+                if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin]
+        if tete:
+            fin_tete = max(c["span"][1] for c in tete)
+            suiv = text[fin_tete:fin]
+            pos_virgule = suiv.find(",")
+            if pos_virgule >= 3 and (len(suiv) - pos_virgule) >= 4:
+                milieu = fin_tete + pos_virgule + 1
+                for a, b in ((debut, milieu), (milieu, fin)):
+                    morceau = text[a:b].strip()
+                    if morceau:
+                        decal = text[a:b].find(morceau)
+                        fspans.append([a + decal, a + decal + len(morceau)])
+                        ftextes.append(morceau)
+                continue
+        fspans.append(sp)
+        ftextes.append(tx)
     # Pas de B-c2 lexical : aucun mot-matching dans le moteur (règle projet).
-    # Les fragments restants sont interceptés par le gate de forme
-    # (clause_degeneree) ou jugés non en PV1 — jamais devinés.
-    return nspans, ntextes
+    return fspans, ftextes
 
 
 def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
