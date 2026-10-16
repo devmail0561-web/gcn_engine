@@ -288,3 +288,86 @@ def test_moteur_espaces_custom_et_persistance(tmp_path):
     charge = _TE.load_npz(chemin)
     assert charge.node_types == list(COARSE_NODE_TYPES)
     assert charge.relation_types == list(COARSE_RELATION_TYPES)
+
+
+def test_bce_coherent_finite_diff():
+    # Gate §6[G] : _bce_backward descend _bce_loss.
+    from gcn_python.training.train_tok import _bce_backward, _bce_loss
+    rng = np.random.default_rng(4)
+    lg = rng.normal(size=6).astype(np.float64)
+    y = np.array([1.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+    avant = _bce_loss(lg, y)
+    d = _bce_backward(lg, y)
+    apres = _bce_loss(lg - 0.5 * d, y)
+    assert apres < avant
+    with pytest.raises(ValueError):
+        _bce_loss(np.array([0.5]), np.array([2.0]))
+
+
+def test_exist_head_bout_en_bout():
+    # Tête seule : backward met à jour les poids exist, loss descend.
+    from gcn_python.training.train_tok import _bce_loss
+    eng = TokForwardEngine(d_model=8, seed=5, exist_head=True,
+                           node_types=["a", "b"], relation_types=["r0", "r1"])
+    eng.build_vocab([TEXTE])
+    from gcn_python.nlu.tok import parse_text
+    seg = parse_text(TEXTE)
+    kw = dict(text=TEXTE, ids=seg["ids"], offsets=seg["offsets"],
+              clause_spans=seg["clause_spans"], clause_textes=seg["clause_textes"])
+    parts = eng.forward_supervise(**kw)
+    w_avant = [c.W.copy() for c in eng.encoder._exist_layers]
+    res = backward_tok(eng, parts, [0, 1], {(0, 1): 0}, lr=0.05,
+                       exist_gold={(0, 1): 1})
+    assert res["n_exist_sup"] == 1 and np.isfinite(res["exist"])
+    assert any(not np.array_equal(a, b.W) for a, b in zip(w_avant, eng.encoder._exist_layers))
+    # Sans exist_gold : tête intacte, loss 0.
+    w_apres = [c.W.copy() for c in eng.encoder._exist_layers]
+    res2 = backward_tok(eng, parts, [0, 1], {(0, 1): 0}, lr=0.05)
+    assert res2["n_exist_sup"] == 0 and res2["exist"] == 0.0
+    assert all(np.array_equal(a, b.W) for a, b in zip(w_apres, eng.encoder._exist_layers))
+
+
+def test_loader_coarse_natif_et_exist_gold():
+    # Production : labels coarse natifs + exist_gold, jamais remappés.
+    from gcn_python.data.tok_loader import convertir_phrase
+    from gcn_python.data.gold_spans import SpanError
+    s = _phrase(
+        "Il reste parce que la pluie tombe.",
+        [_noeud("n0", "action_coarse", 1, 2), _noeud("n1", "action_coarse", 3, 7)],
+        [{"sources": ["n0"], "target": "n1", "relation": "causale"}],
+    )
+    s["espace_natif"] = "coarse"
+    s["exist_gold"] = {"0,1": 1}
+    echantillon = convertir_phrase(s)
+    assert echantillon["espace_natif"] == "coarse"
+    assert echantillon["edge_gold"] == {(0, 1): 0}  # causale = idx 0 coarse
+    assert echantillon["node_gold"] == [0, 0]  # action_coarse = idx 0
+    assert echantillon["exist_gold"] == {(0, 1): 1}
+    s2 = dict(s)
+    s2["cir"] = {"nodes": s["cir"]["nodes"], "edges": [
+        {"sources": ["n0"], "target": "n1", "relation": "cause"}]}  # fin refusé en natif coarse
+    with pytest.raises(SpanError):
+        convertir_phrase(s2)
+    s3 = dict(s)
+    s3["exist_gold"] = {"0,1": 7}
+    with pytest.raises(SpanError):
+        convertir_phrase(s3)
+
+
+def test_save_load_exist_roundtrip(tmp_path):
+    eng = TokForwardEngine(d_model=8, seed=6, exist_head=True,
+                           node_types=["a", "b"], relation_types=["r0", "r1"])
+    eng.build_vocab([TEXTE])
+    p = str(tmp_path / "ex.npz")
+    eng.save_npz(p)
+    e2 = TokForwardEngine.load_npz(p)
+    assert getattr(e2.encoder, "exist_head", False) is True
+    for a, b in zip(eng.encoder._exist_layers, e2.encoder._exist_layers):
+        assert np.array_equal(a.W, b.W)
+    # Vieux checkpoint (sans exist) : chargé sans tête, comportement intact.
+    e3 = TokForwardEngine(d_model=8, seed=6, node_types=["a", "b"], relation_types=["r0", "r1"])
+    e3.build_vocab([TEXTE])
+    p2 = str(tmp_path / "ancien.npz")
+    e3.save_npz(p2)
+    e4 = TokForwardEngine.load_npz(p2)
+    assert getattr(e4.encoder, "exist_head", False) is False

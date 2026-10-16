@@ -114,6 +114,8 @@ class TokForwardEngine:
         relation_types: list[str] | None = None,
         use_context: bool = False,
         use_oov_hash: bool = False,
+        exist_head: bool = False,
+        exist_threshold: float = 0.5,
     ) -> None:
         if d_model < 1:
             raise ValueError(f"d_model doit être ≥ 1 (reçu {d_model!r}).")
@@ -121,6 +123,8 @@ class TokForwardEngine:
             raise ValueError(f"temperature doit être > 0 (reçue {temperature!r}).")
         if not (0.0 <= float(edge_threshold) < 1.0):
             raise ValueError(f"edge_threshold doit être dans [0, 1[ (reçu {edge_threshold!r}).")
+        if not (0.0 < float(exist_threshold) < 1.0):
+            raise ValueError(f"exist_threshold doit être dans ]0, 1[ (reçu {exist_threshold!r}).")
         for nom, vals in (("node_types", node_types), ("relation_types", relation_types)):
             if vals is not None and (not vals or len(set(vals)) != len(vals)):
                 raise ValueError(f"{nom} doit être une liste non vide sans doublons.")
@@ -128,6 +132,7 @@ class TokForwardEngine:
         self.seed = int(seed)
         self.temperature = float(temperature)
         self.edge_threshold = float(edge_threshold)
+        self.exist_threshold = float(exist_threshold)
         self.theta_ambiguity = float(theta_ambiguity)
         self.bidirectional = bool(bidirectional)
         # Espaces de labels (défaut : ontologies canoniques ; coarse D4 :
@@ -147,6 +152,7 @@ class TokForwardEngine:
             edge_dropout=0.0,
             n_node_types=len(self.node_types),
             n_relation_types=len(self.relation_types),
+            exist_head=bool(exist_head),
         )
         self.rgcn = RGCNLayer(
             d_in=self.d_model,
@@ -210,6 +216,13 @@ class TokForwardEngine:
         for i, couche in enumerate(self.encoder._edge_layers):
             tables[f"edge_L{i}_W"] = np.asarray(couche.W, dtype=np.float32)
             tables[f"edge_L{i}_b"] = np.asarray(couche.b, dtype=np.float32)
+        _ex = getattr(self.encoder, "_exist_layers", None)
+        tables["has_exist"] = _np.asarray(int(_ex is not None), dtype=_np.int64)
+        if _ex is not None:
+            for i, couche in enumerate(_ex):
+                tables[f"exist_L{i}_W"] = np.asarray(couche.W, dtype=np.float32)
+                tables[f"exist_L{i}_b"] = np.asarray(couche.b, dtype=np.float32)
+        tables["exist_threshold"] = _np.asarray(float(self.exist_threshold), dtype=_np.float64)
         tables["rgcn_Wr"] = np.asarray(self.rgcn.W_r, dtype=np.float32)
         tables["rgcn_W0"] = np.asarray(self.rgcn.W_0, dtype=np.float32)
         tables["use_context"] = _np.asarray(int(self.ctx is not None), dtype=_np.int64)
@@ -296,6 +309,8 @@ class TokForwardEngine:
                 relation_types=rt,
                 use_context=bool(int(z["use_context"])) if "use_context" in cles else False,
                 use_oov_hash=(str(z["oov_mode"]) == "hash") if "oov_mode" in cles else False,
+                exist_head=bool(int(z["has_exist"])) if "has_exist" in cles else False,
+                exist_threshold=float(z["exist_threshold"]) if "exist_threshold" in cles else 0.5,
             )
             if int(z["window_k"]) != WINDOW_K:
                 raise ValueError("window_k divergent — version incompatible.")
@@ -322,6 +337,20 @@ class TokForwardEngine:
                     raise ValueError(f"tête arêtes L{i} : forme incompatible.")
                 couche.W[:] = w
                 couche.b[:] = b
+            _ex_layers = getattr(obj.encoder, "_exist_layers", None)
+            _has_ex = bool(int(z["has_exist"])) if "has_exist" in cles else False
+            if _has_ex and _ex_layers is None:
+                raise ValueError("checkpoint avec tête existence mais moteur sans — reconstruire avec exist_head=True.")
+            if _ex_layers is not None:
+                if not _has_ex:
+                    raise ValueError("moteur avec tête existence mais checkpoint sans — ré-entraîner.")
+                for i, couche in enumerate(_ex_layers):
+                    w = _np.asarray(z[f"exist_L{i}_W"], dtype=_np.float32)
+                    b = _np.asarray(z[f"exist_L{i}_b"], dtype=_np.float32)
+                    if couche.W.shape != w.shape or couche.b.shape != b.shape:
+                        raise ValueError(f"tête existence L{i} : forme incompatible.")
+                    couche.W[:] = w
+                    couche.b[:] = b
             for nom, attr in (("rgcn_Wr", "W_r"), ("rgcn_W0", "W_0")):
                 w = _np.asarray(z[nom], dtype=_np.float32)
                 cible = getattr(obj.rgcn, attr)
@@ -517,6 +546,8 @@ class TokForwardEngine:
         triples = []
         edge_logits: list = []
         edge_vecs: list = []
+        exist_logits: list = []
+        _exist_on = bool(getattr(self.encoder, "exist_head", False))
         for i, j in paires:
             gap = float(j - i)
             base = np.concatenate(
@@ -530,10 +561,17 @@ class TokForwardEngine:
             logit = self.encoder.forward_edge(vec)
             edge_logits.append(logit.copy())
             edge_vecs.append(vec.copy())
+            if _exist_on:
+                exist_logits.append(float(self.encoder.forward_exist(vec).ravel()[0]))
             probs = _softmax_rows((logit / self.temperature).reshape(1, -1))[0]
             rel_idx = int(np.argmax(probs))
             conf = float(probs[rel_idx])
             conf = 0.0 if not np.isfinite(conf) else min(1.0, max(0.0, conf))
+            if _exist_on:
+                import math as _math
+                p_exist = 1.0 / (1.0 + _math.exp(-exist_logits[-1]))
+                if p_exist < self.exist_threshold:
+                    continue
             if conf < self.theta_ambiguity and conf >= self.edge_threshold:
                 top2 = np.argsort(probs)[-2:][::-1]
                 candidates = [(self.relation_types[int(k)], float(probs[k])) for k in top2]
@@ -585,6 +623,7 @@ class TokForwardEngine:
             "paires": paires,
             "edge_logits": edge_logits,
             "edge_vecs": edge_vecs,
+            "exist_logits": exist_logits,
             "triples": triples,
             "alignes": alignes,
             "ids": list(ids),

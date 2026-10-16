@@ -103,6 +103,25 @@ def charger_split(fichier: str) -> tuple[list, dict]:
     return _charger(fichier)
 
 
+def _bce_loss(logits: np.ndarray, gold: np.ndarray) -> float:
+    """BCE-with-logits stable (voie A, tête seule)."""
+    l = np.asarray(logits, dtype=np.float64).ravel()
+    y = np.asarray(gold, dtype=np.float64).ravel()
+    if l.shape != y.shape or l.size == 0:
+        raise ValueError(f"BCE : formes {l.shape} vs {y.shape} (non vides).")
+    if ((y != 0.0) & (y != 1.0)).any():
+        raise ValueError("BCE : gold non binaire.")
+    return float(np.mean(np.maximum(l, 0.0) - l * y + np.log1p(np.exp(-np.abs(l)))))
+
+
+def _bce_backward(logits: np.ndarray, gold: np.ndarray) -> np.ndarray:
+    """Gradient de ``_bce_loss`` : (sigmoid - y) / N (1-D, comme ``_ce_backward``)."""
+    l = np.asarray(logits, dtype=np.float64).ravel()
+    y = np.asarray(gold, dtype=np.float64).ravel()
+    p = 1.0 / (1.0 + np.exp(-l))
+    return ((p - y) / l.size).astype(np.float32)
+
+
 def backward_tok(
     eng: TokForwardEngine,
     parts: dict,
@@ -112,6 +131,7 @@ def backward_tok(
     edge_gold_fin: dict | None = None,
     factor_primary: bool = False,
     factor_masks: tuple | None = None,
+    exist_gold: dict | None = None,
 ) -> dict:
     """Un pas SGD phrase (caches chauds de ``forward_supervise``).
 
@@ -127,7 +147,11 @@ def backward_tok(
     fins, jamais remappés). Pas de gradient vers le tronc — signal
     partagé futur, mesure immédiate. Zéro lexique.
     Retourne ``{"node": loss, "edge": loss, "factor": loss, "span": loss,
-    "n_edge_sup": int}`` (``span`` = 0.0 sans ``span_aux``).
+    "exist": loss, "n_edge_sup": int, "n_exist_sup": int}`` (``span`` = 0.0
+    sans ``span_aux``). ``exist_gold`` : {(i,j): 0/1} — paires à existence
+    connue ; paires hors ``exist_gold`` : aucun gradient (exclues, jamais
+    devinées — même doctrine que les paires sans gold). Tête existence seule
+    mise à jour (précédent R2 : pas de reflux tronc).
     """
     if not (np.isfinite(lr) and lr > 0):
         raise ValueError(f"lr doit être > 0 et fini (reçu {lr!r}).")
@@ -298,6 +322,37 @@ def backward_tok(
             parts["node_probs"][i], dx[d_base + 2 * d_pool : d_base + 2 * d_pool + nn]
         )
         d_node_extra[j] += _softmax_backward(parts["node_probs"][j], dx[d_base + 2 * d_pool + nn :])
+    # Existence (voie A) : BCE sur paires à existence connue, re-run
+    # déterministe par paire (même pattern que les arêtes). Tête seule —
+    # dx ignoré (pas de reflux tronc, précédent R2). Sans tête ou sans
+    # exist_gold : loss 0.0 (P10 : paires non jugées = exclues).
+    loss_exist = 0.0
+    n_exist_sup = 0
+    _xg = exist_gold or {}
+    _vecs_ex = parts.get("edge_vecs") or []
+    if _xg and getattr(eng.encoder, "_exist_layers", None) is not None and _vecs_ex:
+        _xl, _yl, _kk = [], [], []
+        for k, p in enumerate(paires):
+            if p in _xg and k < len(_vecs_ex):
+                _xl.append(float(eng.encoder.forward_exist(np.asarray(_vecs_ex[k], dtype=np.float32)).ravel()[0]))
+                _yl.append(float(_xg[p]))
+                _kk.append(k)
+        if _xl:
+            _la = np.asarray(_xl, dtype=np.float64)
+            _ya = np.asarray(_yl, dtype=np.float64)
+            loss_exist = _bce_loss(_la, _ya)
+            _d = _bce_backward(_la, _ya)
+            grads_exist = None
+            for r in range(len(_kk)):
+                eng.encoder.forward_exist(np.asarray(_vecs_ex[_kk[r]], dtype=np.float32))
+                _g, _ = eng.encoder.backward_exist(_d[r : r + 1])
+                grads_exist = (
+                    _g
+                    if grads_exist is None
+                    else [(a[0] + b[0], a[1] + b[1]) for a, b in zip(grads_exist, _g, strict=True)]
+                )
+            eng.encoder.update_exist(grads_exist, lr)
+            n_exist_sup = len(_kk)
     # Nœuds : gradient total (CE + reflux probs).
     d_node_total = (d_node + d_node_extra).astype(np.float32)
     # Garde non-finis (miroir legacy) : warn + pas de mise à jour.
@@ -308,7 +363,7 @@ def backward_tok(
                 UserWarning,
                 stacklevel=2,
             )
-            return {"node": loss_node, "edge": loss_edge, "factor": loss_factor, "n_edge_sup": len(sup_idx)}
+            return {"node": loss_node, "edge": loss_edge, "factor": loss_factor, "exist": 0.0, "n_edge_sup": len(sup_idx), "n_exist_sup": 0}
     grads_node = None
     for i in range(n):
         eng.encoder.forward_node(parts["pooled"][i])
@@ -348,7 +403,9 @@ def backward_tok(
         "edge": loss_edge,
         "factor": loss_factor,
         "span": loss_span,
+        "exist": loss_exist,
         "n_edge_sup": len(sup_idx),
+        "n_exist_sup": n_exist_sup,
     }
 
 
@@ -388,6 +445,8 @@ def _parametres(eng: TokForwardEngine) -> dict:
         snap["oov_B"] = eng.emb._B.copy()
     snap["node"] = [(c.W.copy(), c.b.copy()) for c in eng.encoder._node_layers]
     snap["edge"] = [(c.W.copy(), c.b.copy()) for c in eng.encoder._edge_layers]
+    if getattr(eng.encoder, "_exist_layers", None) is not None:
+        snap["exist"] = [(c.W.copy(), c.b.copy()) for c in eng.encoder._exist_layers]
     snap["rgcn"] = [eng.rgcn.W_r.copy(), eng.rgcn.W_0.copy()]
     if getattr(eng, "ctx", None) is not None:
         snap["ctx"] = [a.copy() for a in eng.ctx.parameters()]
@@ -422,6 +481,15 @@ def _restaurer(eng: TokForwardEngine, snap: dict) -> None:
             raise ValueError("snapshot incompatible (arêtes).")
         couche.W[:] = w
         couche.b[:] = b
+    if "exist" in snap:
+        _ex = getattr(eng.encoder, "_exist_layers", None)
+        if _ex is None:
+            raise ValueError("snapshot avec existence mais moteur sans.")
+        for (w, b), couche in zip(snap["exist"], _ex, strict=True):
+            if couche.W.shape != w.shape:
+                raise ValueError("snapshot incompatible (existence).")
+            couche.W[:] = w
+            couche.b[:] = b
     if eng.rgcn.W_r.shape != snap["rgcn"][0].shape:
         raise ValueError("snapshot incompatible (R-GCN).")
     eng.rgcn.W_r[:] = snap["rgcn"][0]
@@ -597,6 +665,17 @@ def entrainer(
             raise ValueError(f"{nom} : rejet alignement {taux:.1%} > 5 % — STOP (données).")
     if espace == "coarse":
         for s in train + val:
+            if s.get("espace_natif") == "coarse":
+                # Production : labels coarse natifs (jamais remappés) —
+                # valide les bornes au lieu de convertir.
+                if any(g >= len(noms_noeuds) for g in s["node_gold"]):
+                    raise ValueError(f"node coarse hors espace : {s.get('id')} — données.")
+                if any(g >= len(noms_rels) for g in s["edge_gold"].values()):
+                    raise ValueError(f"edge coarse hors espace : {s.get('id')} — données.")
+                # Pas de labels fins → auxiliaire factorisé désactivé sur
+                # ces samples (edge_gold_fin vide = skip, jamais deviné).
+                s["edge_gold_fin"] = {}
+                continue
             s["edge_gold_fin"] = dict(s["edge_gold"])
             try:
                 s["node_gold"] = [
@@ -618,6 +697,7 @@ def entrainer(
         relation_types=noms_rels,
         use_context=bool(context),
         use_oov_hash=bool(oov_hash),
+        exist_head=True,
     )
     eng.build_vocab([s["text"] for s in train])
     eng.factor_aux_enabled = bool(factor_aux)
@@ -752,6 +832,7 @@ def entrainer(
     attente = 0
     for ep in range(epochs):
         perte_tr = 0.0
+        perte_ex_tr = 0.0
         for s in train:
             parts = eng.forward_supervise(
                 s["text"], s["ids"], s["offsets"], s["clause_spans"], s["clause_textes"]
@@ -767,8 +848,10 @@ def entrainer(
                 edge_gold_fin=s.get("edge_gold_fin"),
                 factor_primary=use_factor_primary,
                 factor_masks=factor_masks,
+                exist_gold=s.get("exist_gold"),
             )
             perte_tr += res["node"] + res["edge"] + res.get("factor", 0.0) + res.get("span", 0.0)
+            perte_ex_tr += res.get("exist", 0.0)
         met = evaluer(
             eng, val, node_mask, edge_mask, node_types=noms_noeuds, relation_types=noms_rels,
             use_factor=use_factor_primary, factor_masks=factor_masks,
@@ -785,6 +868,7 @@ def entrainer(
             {
                 "epoch": ep,
                 "train_loss": perte_tr / max(1, len(train)),
+                "train_exist": perte_ex_tr / max(1, len(train)),
                 **{f"val_{k}": v for k, v in met.items()},
             }
         )
@@ -822,6 +906,7 @@ def entrainer(
         cols = [
             "epoch",
             "train_loss",
+            "train_exist",
             "val_loss",
             "val_node_f1",
             "val_edge_f1",

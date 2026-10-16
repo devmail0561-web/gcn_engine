@@ -74,6 +74,7 @@ class MLPEncoder:
         n_sentence_types: int = 0,
         intent_conditioned: bool = False,
         qual_heads: bool = False,
+        exist_head: bool = False,
     ):
         # P4b : si conditionnée, la tête intent lit [vec_clause | probs_sentence].
         # Dims fixées à la construction (persistées en arch) — jamais devinées.
@@ -172,6 +173,18 @@ class MLPEncoder:
                     _LinearLayer(qual_hidden, len(_qclasses), rng),
                 ]
                 self._qual_cache[_qn] = []
+        # Voie A (2026-10-16) — tête d'existence : d_edge → qual_hidden → 1
+        # logit (arête présente/absente). exist_head=False = désactivé
+        # (non-breaking : checkpoints sans clés exist chargent sans elle).
+        # Tête seule mise à jour (précédent R2 factor_aux : pas de reflux
+        # tronc) — le signal de détection ne déforme pas les représentations.
+        self.exist_head = bool(exist_head)
+        if exist_head:
+            self._exist_layers = [
+                _LinearLayer(d_edge, qual_hidden, rng),
+                _LinearLayer(qual_hidden, 1, rng),
+            ]
+            self._exist_cache: list = []
 
     def _forward_mlp(
         self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list,
@@ -216,6 +229,28 @@ class MLPEncoder:
             x, self._edge_layers, self._edge_cache,
             dropout=self.edge_dropout, dropout_masks=self._edge_dropout_masks,
         )
+
+    def forward_exist(self, x: np.ndarray) -> np.ndarray:
+        """Logit d'existence (1,) — lève si tête désactivée."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("forward_exist sans tête d'existence (exist_head=False).")
+        self._exist_cache = []
+        return self._forward_mlp(
+            x, self._exist_layers, self._exist_cache,
+            dropout=self.edge_dropout, dropout_masks=None,
+        )
+
+    def backward_exist(self, d_logit: np.ndarray) -> tuple[list, np.ndarray]:
+        """(grads, dx) — dx vers le tronc IGNORÉ par l'appelant (tête seule)."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("backward_exist sans tête d'existence.")
+        return self._backward_mlp(d_logit, self._exist_layers, self._exist_cache)
+
+    def update_exist(self, grads: list, lr: float) -> None:
+        """Mise à jour tête seule (précédent R2)."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("update_exist sans tête d'existence.")
+        self._apply_grads(self._exist_layers, grads, lr)
 
     def forward_quals(self, x: np.ndarray) -> dict[str, np.ndarray]:
         """P4 quals — dict {nom: logits} sur le même vecteur edge enrichi."""

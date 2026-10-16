@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 
-from ..constants import NODE_TYPES, RELATION_TYPES
+from ..constants import COARSE_NODE_TYPES, COARSE_RELATION_TYPES, NODE_TYPES, RELATION_TYPES
 from ..layer0.tokenizer import split as tok_split
 from ..pipeline.forward_ids import WINDOW_K
 from .gold_spans import SpanError, reconstruire_offsets, span_clause
@@ -33,13 +33,20 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
     Sample : ``{id, text, ids, offsets, clause_spans, clause_textes,
     node_gold: [idx], edge_gold: {(i,j): rel_idx},
     edge_third: {(i,j): {"role": Condition|Mediator, "node": rang}},
-    edge_joint: {(i,j): group_id}, hors_fenetre, arrieres}``.
+    edge_joint: {(i,j): group_id},
+    exist_gold: {(i,j): 0/1} (voie A — paires à existence connue ;
+    absent = paires non jugées, exclues de la perte existence),
+    espace_natif: "fin"|"coarse" (production : labels coarse natifs,
+    jamais remappés), hors_fenetre, arrieres}``.
     ``third`` inconnu (rôle hors {Condition, Mediator}, nœud absent) =
     ``SpanError`` (jamais deviné). Joints = sources multiples même
     (cible, relation) → même ``group_id`` déterministe.
     """
     if window_k < 1:
         raise ValueError(f"window_k doit être ≥ 1 (reçu {window_k!r}).")
+    natif_coarse = s.get("espace_natif") == "coarse"
+    _NT = COARSE_NODE_TYPES if natif_coarse else NODE_TYPES
+    _RT = COARSE_RELATION_TYPES if natif_coarse else RELATION_TYPES
     offs = reconstruire_offsets(s["text"], s["tokens"])
     ntoks = len(s["tokens"])
     rangs = {n["id"]: k for k, n in enumerate(s["cir"]["nodes"])}
@@ -49,7 +56,7 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
         cspans.append(list(span_clause(offs, a, b, ntoks)))
         ctextes.append(s["text"][cspans[-1][0] : cspans[-1][1]])
         try:
-            ngold.append(NODE_TYPES.index(n["type"]))
+            ngold.append(_NT.index(n["type"]))
         except ValueError:
             raise SpanError(f"type de nœud inconnu : {n['type']!r}.") from None
     egold, ethird, hors, arrieres = {}, {}, 0, 0
@@ -58,7 +65,7 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
         for src in srcs:
             i, j = rangs[src], rangs[e["target"]]
             try:
-                r = RELATION_TYPES.index(e["relation"])
+                r = _RT.index(e["relation"])
             except ValueError:
                 raise SpanError(f"relation inconnue : {e['relation']!r}.") from None
             if i >= j:
@@ -87,6 +94,16 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
             for i in _srcs:
                 ejoint[(i, j)] = _gid
     ids, offsets, _ = tok_split(s["text"])
+    # Voie A : existence connue {(i,j): 0/1} — clés "i,j" en JSON.
+    xgold: dict = {}
+    for cle, val in (s.get("exist_gold") or {}).items():
+        try:
+            a, b = (int(x) for x in str(cle).split(","))
+        except ValueError:
+            raise SpanError(f"clé exist_gold invalide : {cle!r}.") from None
+        if int(val) not in (0, 1):
+            raise SpanError(f"exist_gold non binaire : {cle!r}={val!r}.") from None
+        xgold[(a, b)] = int(val)
     return {
         "id": s.get("id", "?"),
         "text": s["text"],
@@ -98,6 +115,8 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
         "edge_gold": egold,
         "edge_third": ethird,
         "edge_joint": ejoint,
+        "exist_gold": xgold,
+        "espace_natif": "coarse" if natif_coarse else "fin",
         "hors_fenetre": hors,
         "arrieres": arrieres,
     }
