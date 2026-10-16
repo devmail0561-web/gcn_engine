@@ -448,11 +448,14 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   causale→systemique ×3/negative ×3, negative→sequentielle ×3.
 - ECE : N=52 <100 → toujours NO-GO, mais à 52% du gate (contre 6%).
   Chemin : ~150 paires v2 de plus à juger (nouveaux candidats du réservoir).
-- Résidus B-c (documentés, non implémentés) : connecteurs en tête de phrase
-  (« Parce que X, Y », « Si X, Y » — la causale intra-phrase est manquée,
-  cf. v2-254) ; connecteurs discursifs qui miettent (« enfin », « donc »,
-  « seul » piégé) ; abréviations (« p. », « vol. » — hors scope, lexique) ;
-  liste EN hygiène incomplète (v2-194 passé H2 — sans gravité, jugé non).
+- Résidus B-c : B-c1 FAIT (`subdiviser_connecteurs` : connecteur en tête →
+  coupe à la première virgule, protase|apodose — ponctuation seule ;
+  162/83/22/3 clauses/phrase). B-c2 (refusion sans-verbe) **RETIRÉ avant
+  commit — règle projet : jamais de hardcoding ni de mot-matching dans le
+  moteur** (listes verbales et stoplist supprimées du code ; les fragments
+  restants passent par le gate de forme ou sont jugés non en PV1).
+  Restent : connecteurs discursifs qui miettent, abréviations (hors scope),
+  liste EN hygiène (one-shot, pas moteur).
 
 ## Ph5-ECE — calibration GO (2026-10-16, RÉSULTAT HISTORIQUE)
 

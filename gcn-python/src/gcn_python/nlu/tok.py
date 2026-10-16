@@ -114,6 +114,10 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
     Pour chaque clause, points de coupe = débuts des connecteurs strictement
     intérieurs (ni en tête ni en queue de clause) ; le connecteur reste avec
     la partie droite (« X parce que Y » → [« X », « parce que Y »]).
+    B-c1 : connecteur en tête de clause (« Parce que P, Q », « Si P, Q ») →
+    coupe à la première virgule (protase | apodose), le connecteur restant
+    avec la protase. Aucun mot-matching ajouté : ponctuation + tables
+    existantes uniquement (règle projet — le B-c2 lexical a été retiré).
     Connecteurs qui se recouvrent : le plus long gagne (comme
     ``find_connectors``). Retourne (spans, textes) absolus ; jamais d'exception
     (incident → clause intacte).
@@ -125,11 +129,19 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
     nspans, ntextes = [], []
     for sp, tx in zip(spans, textes):
         debut, fin = sp[0], sp[1]
+        en_tete = [c for c in conns
+                   if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin]
         coupes = sorted({c["span"][0] for c in conns
                          if debut < c["span"][0] and c["span"][1] <= fin
                          and c["span"][0] > debut})
         # Filtre : coupe trop proche des bords (<3 caractères de matière).
         coupes = [p for p in coupes if p - debut >= 3 and fin - p >= 3]
+        if en_tete and not coupes:
+            # B-c1 : protase introduite en tête → coupe à la première virgule.
+            suiv = text[en_tete[0]["span"][1]:fin]
+            pos_virgule = suiv.find(",")
+            if pos_virgule >= 3 and (len(suiv) - pos_virgule) >= 4:
+                coupes = [en_tete[0]["span"][1] + pos_virgule + 1]
         if not coupes:
             nspans.append(sp)
             ntextes.append(tx)
@@ -142,6 +154,9 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
                 decal = brut.find(morceau)
                 nspans.append([a + decal, a + decal + len(morceau)])
                 ntextes.append(morceau)
+    # Pas de B-c2 lexical : aucun mot-matching dans le moteur (règle projet).
+    # Les fragments restants sont interceptés par le gate de forme
+    # (clause_degeneree) ou jugés non en PV1 — jamais devinés.
     return nspans, ntextes
 
 

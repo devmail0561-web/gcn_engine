@@ -50,3 +50,13 @@ def test_subdivision_connecteurs():
     _, x2 = subdiviser_connecteurs(t2, [[0, 19], [20, len(t2)]],
                                    ["Les ventes baissent.", "On reduit les couts."], "fr")
     assert x2 == ["Les ventes baissent.", "On reduit les couts."]
+
+
+def test_subdivision_connecteur_en_tete():
+    # B-c1 : protase en tête -> coupe à la première virgule (ponctuation
+    # seule, aucun mot-matching ajouté).
+    from gcn_python.nlu.tok import subdiviser_connecteurs
+    t = ("Parce qu'il a fourni une représentation simple, "
+         "l'article a eu une influence considérable.")
+    _, x = subdiviser_connecteurs(t, [[0, len(t)]], [t], "fr")
+    assert len(x) == 2 and x[0].startswith("Parce qu")
