@@ -323,9 +323,11 @@ def backward_tok(
         )
         d_node_extra[j] += _softmax_backward(parts["node_probs"][j], dx[d_base + 2 * d_pool + nn :])
     # Existence (voie A) : BCE sur paires à existence connue, re-run
-    # déterministe par paire (même pattern que les arêtes). Tête seule —
-    # dx ignoré (pas de reflux tronc, précédent R2). Sans tête ou sans
-    # exist_gold : loss 0.0 (P10 : paires non jugées = exclues).
+    # déterministe par paire (même pattern que les arêtes). Tête mise à jour
+    # + REFLUX TRONC (2026-10-16 : tête seule prouvée insuffisante — collapse
+    # total, F1=0 — le signal de détection doit façonner les représentations
+    # partagées, même split que la dx arêtes). Sans tête ou sans exist_gold :
+    # loss 0.0 (P10 : paires non jugées = exclues).
     loss_exist = 0.0
     n_exist_sup = 0
     _xg = exist_gold or {}
@@ -345,12 +347,19 @@ def backward_tok(
             grads_exist = None
             for r in range(len(_kk)):
                 eng.encoder.forward_exist(np.asarray(_vecs_ex[_kk[r]], dtype=np.float32))
-                _g, _ = eng.encoder.backward_exist(_d[r : r + 1])
+                _g, _dx = eng.encoder.backward_exist(_d[r : r + 1])
                 grads_exist = (
                     _g
                     if grads_exist is None
                     else [(a[0] + b[0], a[1] + b[1]) for a, b in zip(grads_exist, _g, strict=True)]
                 )
+                # Reflux tronc (même split que la dx arêtes).
+                _i, _j = paires[_kk[r]]
+                _dx = np.asarray(_dx, dtype=np.float32).ravel()
+                d_pooled[_i] += _dx[:d_pool]
+                d_pooled[_j] += _dx[d_pool : 2 * d_pool]
+                d_enriched[_i] += _dx[d_base : d_base + d_pool]
+                d_enriched[_j] += _dx[d_base + d_pool : d_base + 2 * d_pool]
             eng.encoder.update_exist(grads_exist, lr)
             n_exist_sup = len(_kk)
     # Nœuds : gradient total (CE + reflux probs).

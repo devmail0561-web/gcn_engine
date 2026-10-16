@@ -492,4 +492,28 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   rupture compat checkpoint, revalidation E. **Changement d'architecture —
   décision humaine requise (scope, compat, effort).**
 
+## Voie A — verdict nuancé (2026-10-16, GO DÉCISION)
+
+- GO humain obtenu. Réalisé : tête d'existence (MLP d_edge→32→1, pattern
+  R2 tête-seule puis reflux tronc), loader coarse-natif + `exist_gold`,
+  BCE masquée, snapshot/npZ v4 (compat anciens checkpoints), 305 clauses
+  typées PV1-lite, split prod 127/64, campagne 3 seeds (val 0.497/0.608/0.684).
+- **Détection : NO-GO triple-preuve.** (1) Collapse total (F1=0.000, tout
+  abstenu) tête-seule ET avec reflux. (2) Sonde gelée : train F1=1.000,
+  test F1=0.528 < baseline tout-positif 0.578. (3) Courbe d'apprentissage
+  plate (0.49/0.44/0.52/0.53 pour n=34→135). Les vecs figés ne portent AUCUN
+  signal de détection généralisable à cette échelle.
+- **Relation : GO INATTENDU.** Ablation propre (seed 123) sur test P11 gelé :
+  P10-old 0.165 → P10-rebuilt 0.179 (+0.014, bruit) → +prod-golds 0.261
+  (+0.082, significatif). **Les 69 golds production valent +0.08 test F1.**
+  Nouveau meilleur test : 0.261 (modèle `aug_s123`).
+- Statut modèles : `e9ter_calibre` RESTE la référence production (triples +
+  T=2.5 prouvé N=106). `aug_s123` = meilleur relation (0.261) mais tête
+  existence effondrée (zéro triple) + calibration indicative (ECE-temp 0.087
+  N=69, T* au bord de grille 5.0) → éval-only, pas shippé.
+- Infra gardée (testée, non-breaking) : tête existence, `exist_gold`,
+  coarse-natif, BCE — disponible quand l'échelle (gold-3000) le permettra.
+- Leçon : à ~200 paires, la supervision production sert la RELATION
+  (diversité), pas la DÉTECTION (échelle insuffisante d'un ordre).
+
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis
