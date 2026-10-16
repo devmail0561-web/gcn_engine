@@ -1,0 +1,152 @@
+{
+ "se-180": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-914": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-210": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-1047": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-459": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-719": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-311": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-53": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-28": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-917": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-447": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-429": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-225": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-547": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "se-221": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-146": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-846": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-1075": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-1384": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-1328": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-167": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-222": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-1414": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-16634": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-9257": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-1110": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "g0-1976": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-429": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-985": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ },
+ "pw-99": {
+  "verdict": "oui",
+  "motif": "spot-check v2 adversarial : MAINTENU",
+  "validateur": "machine-PV1-spot2"
+ }
+}
