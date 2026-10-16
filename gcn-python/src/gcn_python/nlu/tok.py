@@ -15,21 +15,46 @@ du runtime interdit ``pipeline/``, ``training/`` et ``engine.py`` de le faire.
 
 from __future__ import annotations
 
+import re as _re
+
 from ..layer0 import engine_b
 from ..layer0.tokenizer import split as tok_split
 from ..layer2.act import detect_act
+
+#: Clause dégénérée (gate d'entrée Ph5, 2026-10-16) : ≤2 tokens ou ponctuation
+#: pure (aucun alphanumérique). Forme seule, jamais de lexique : une clause
+#: ≤2 tokens ne porte pas de proposition donc aucune arête la touchant ne peut
+#: être un gold (vérifié : 71/71 abstentions non-gold sur Ph5, 0 gold perdu,
+#: 13/14 surconfiants interceptés). Le train (gold) n'est jamais concerné —
+#: seule l'entrée inférence est filtrée.
+_RE_ALNUM = _re.compile(r"[A-Za-zÀ-ÿ0-9]")
+
+
+def clause_degeneree(texte_clause: str) -> str | None:
+    """Motif de dégénérescence d'une clause, ou None si valide."""
+    t = (texte_clause or "").strip()
+    if not t:
+        return "vide"
+    _ids, _offs, _toks = tok_split(t)
+    if len(_toks) <= 2:
+        return f"court({len(_toks)}tok)"
+    if not _RE_ALNUM.search(t):
+        return "ponctuation-pure"
+    return None
 
 
 def parse_text(text: str, lang: str = "fr") -> dict:
     """Texte brut → segments tok prêts pour le runtime.
 
     Retourne ``{"ids", "offsets", "clause_spans", "clause_textes",
-    "connecteurs", "source", "intent"}`` — ``source`` = ``silver-B|fallback`` (B) ;
-    ``intent`` = règles v0 ``detect_act`` (message-level, T4 — la tête apprise
-    prendra le relais ; supervision intent absente du gold à ce pas).
-    Texte vide/blanc → segments vides + intent par défaut (jamais d'exception —
-    miroir du legacy ``parse_lattice`` qui ne retourne jamais d'erreur).
-    ``lang`` hors budget → ``ValueError`` de B (pas de silencieux).
+    "connecteurs", "source", "intent", "clauses_rejetees"}`` — ``source`` =
+    ``silver-B|fallback`` (B) ; ``intent`` = règles v0 ``detect_act``
+    (message-level, T4 — la tête apprise prendra le relais ; supervision
+    intent absente du gold à ce pas) ; ``clauses_rejetees`` = [(texte, motif)]
+    dégénérées écartées AVANT forward (gate Ph5 — abstention, pas silence :
+    le rejet est tracé). Texte vide/blanc → segments vides + intent par défaut
+    (jamais d'exception — miroir du legacy ``parse_lattice`` qui ne retourne
+    jamais d'erreur). ``lang`` hors budget → ``ValueError`` de B (pas de silencieux).
     """
     if not isinstance(text, str):
         raise TypeError(f"text doit être str, reçu {type(text).__name__}")
@@ -43,17 +68,28 @@ def parse_text(text: str, lang: str = "fr") -> dict:
             "connecteurs": [],
             "source": "vide",
             "intent": intent,
+            "clauses_rejetees": [],
         }
     sortie_b = engine_b.analyze(text, lang=lang)
     ids, offsets, _tokens = tok_split(text)
+    spans, textes, rejetees = [], [], []
+    for c in sortie_b.clauses:
+        txt = (c.get("texte") or "").strip()
+        motif = clause_degeneree(txt)
+        if motif is not None:
+            rejetees.append((txt, motif))
+        else:
+            spans.append(list(c["span"]))
+            textes.append(txt)
     return {
         "ids": ids,
         "offsets": offsets,
-        "clause_spans": [list(c["span"]) for c in sortie_b.clauses],
-        "clause_textes": [(c.get("texte") or "").strip() for c in sortie_b.clauses],
+        "clause_spans": spans,
+        "clause_textes": textes,
         "connecteurs": list(sortie_b.connecteurs or []),
         "source": sortie_b.source,
         "intent": intent,
+        "clauses_rejetees": rejetees,
     }
 
 

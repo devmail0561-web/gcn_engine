@@ -410,7 +410,19 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   (hors coarse-5), juxtaposition ×4, sujet-prédicat ×1, paywall/UI ×4.
 - Aveugle humain 10% : DEVIENT SANS OBJET (pas de golds à exploiter pour ECE).
 - Pivot imposé : le prochain chantier n'est pas la calibration, c'est
-  (1) gate d'entrée anti-dégénéré (clause ≤2 tok / ponctuation pure → abstention),
-  (2) segmentation B sur texte réel. Sans cela, toute calibration est vaine.
+  (1) gate d'entrée anti-dégénéré (FAIT — voir § Gate-Ph5 ci-dessous),
+  (2) segmentation B sur texte réel. Sans (2), toute calibration reste vaine.
+
+## Gate-Ph5 — abstention dégénérée (2026-10-16, FAIT et MESURÉ)
+
+- Implémentation : `clause_degeneree()` + filtre tracé `clauses_rejetees` dans
+  `nlu/tok.py::parse_text` (entrée inférence seule, jamais le train) ;
+  tests `gcn-python/tests/test_tok_gate.py` ; suite 984 passed.
+- Règles (forme seule, zéro lexique) : clause vide, ≤2 tokens, ponctuation pure.
+- Effet réel re-mesuré (forward gaté, mapping topologique) : 123 → 57 paires
+  (-54%), 6/6 golds conservés, **précision 0.049 → 0.115**,
+  **faux à conf ≥0.80 : 14 → 1**. 5 paires non-mappables (effet topologie fenêtre,
+  documenté — le gate change l'adjacence, c'est son objet).
+- Restant : précision 11.5% << exploitable → chantier segmentation B ensuite.
 
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis
