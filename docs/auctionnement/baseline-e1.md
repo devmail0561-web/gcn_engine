@@ -540,6 +540,11 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
 - Tableau test honnête (clean) : e9ter→P11 0.164, e9ter→p12 0.273,
   aug→P11 0.240, p12b→p12 0.174. Le CLASSEMENT DÉPEND DU TEST (±0.1) :
   aucune supériorité de modèle n'est établie sous 0.1.
+- **lot39 (re-spanning, 2026-10-16)** : `respan_bulk_whitespace.py`
+  (reproductible sha `dac77451`) — 126 phrases, loader 0-rejet. Test :
+  TOK-spans 0.116 → whitespace 0.147 → exclusion 0.174. Le style de spans
+  explique la moitié du malus ; le résidu (0.027) est au bruit (Δ<0.05).
+  lot39 gardé (labels + spans propres), lot37 exclu (manifest).
 
 ## Ph5 vague 4 — B-c1 validé, précision stable (2026-10-16)
 
