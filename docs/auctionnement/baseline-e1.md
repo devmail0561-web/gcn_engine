@@ -557,4 +557,4 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
 - ECE révisé N=107 (2 labels ajoutés) : brut 0.159, T*=2.50 (stable),
   ECE-temp 0.086 → GO inchangé. Checkpoint e9ter_calibre inchangé (T=2.5).
 
-## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis
+## Prochain : aveugle groupé (32 cas) → merge PR → vagues suivantes (bulk re-spanning, térnaire fin)
