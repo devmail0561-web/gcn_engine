@@ -1,0 +1,818 @@
+Guide d'annotation — Dataset GCN-NL (pour Muse Spark)
+
+ Objectif
+
+ Annoter les phrases scrappées pour entraîner le moteur causal GCN.
+ Source : gcn-tools/gcn-datasets/raw/sentences_20260921_183623.jsonl (18 948 phrases, FR/EN/ES/DE)
+ Cible : enrichir gcn-datasets/real/train/train.json (536 → objectif 2 000+ phrases)
+
+ ---
+
+ Étape 0 — Filtrage : quelles phrases annoter ?
+
+ N'annoter que les phrases causales. Une phrase est causale si elle exprime
+ une relation de cause → effet, condition, ou séquence causale.
+
+ Marqueurs à chercher (exemples, non exhaustifs) :
+
+ ┌────────┬─────────────────────────────────────────────────────────────┐
+ │ Langue │                          Marqueurs                          │
+ ├────────┼─────────────────────────────────────────────────────────────┤
+ │ FR     │ parce que, car, donc, puisque, si…alors, entraîne,          │
+ │        │ provoque, permet, empêche, grâce à, à cause de              │
+ ├────────┼─────────────────────────────────────────────────────────────┤
+ │ EN     │ because, since, so, therefore, causes, leads to, enables,   │
+ │        │ prevents, if…then, due to                                   │
+ ├────────┼─────────────────────────────────────────────────────────────┤
+ │ ES     │ porque, ya que, por lo tanto, causa, provoca, permite,      │
+ │        │ impide, si…entonces                                         │
+ ├────────┼─────────────────────────────────────────────────────────────┤
+ │ DE     │ weil, da, deshalb, daher, führt zu, verursacht, ermöglicht, │
+ │        │  verhindert, wenn…dann                                      │
+ └────────┴─────────────────────────────────────────────────────────────┘
+
+ Seuil minimal : 2 entités/événements distincts + 1 relation causale explicite.
+ Exclure : phrases purement descriptives, listes, titres, phrases < 8 mots.
+
+ ---
+
+ Étape 1 — Structure de sortie (format gcn-nl JSON)
+
+ Chaque phrase annotée doit produire un objet JSON de cette forme :
+
+ {
+   "id": "sNNN",
+   "text": "La pluie a causé l'inondation.",
+   "causal_pattern": "cause",
+   "tokens": [ ... ],
+   "cir": {
+     "nodes": [ ... ],
+     "edges": [ ... ]
+   }
+ }
+
+ Toutes ces phrases sont regroupées dans :
+ {
+   "document": {
+     "id": "doc-batch-001",
+     "lang": "fr",
+     "sentences": [ ... ]
+   }
+ }
+
+ ---
+
+ Étape 2 — Tokens (format UD simplifié)
+
+ Pour chaque mot de la phrase, produire :
+
+ {
+   "id": 1,
+   "form": "La",
+   "lemma": "le",
+   "pos": "DET",
+   "dep_rel": "det",
+   "dep_head": 3,
+   "morph": {}
+ }
+
+ Valeurs pos (Universal POS tags) :
+ NOUN, VERB, ADJ, ADV, DET, PRON, ADP, SCONJ, CCONJ, PUNCT, NUM, PROPN, AUX
+
+ Valeurs dep_rel les plus fréquentes :
+ root, nsubj, obj, advcl, mark, det, amod, advmod, punct, aux, case, nmod, obl
+
+ dep_head = id du token gouverneur (0 si root)
+ morph = dictionnaire vide {} si pas d'info morphologique
+
+ ▎ ⚠ Spécifiquement pour les tokens causaux (marqueurs comme "parce que", "donc", "because") :
+ ▎ ajouter optionnellement le champ gcn :
+ ▎ "gcn": { "causal_type": "conjonction", "causal_class": "cause" }
+ ▎ Ce champ est optionnel — les tokens sans gcn sont acceptés.
+
+ ---
+
+ Étape 3 — Nœuds CIR (cir.nodes)
+
+ Un nœud = un événement, état, ou entité participant à la relation causale.
+
+ Minimum : 2 nœuds par phrase.
+
+ {
+   "id": "n001",
+   "type": "processus",
+   "label": "chute(pluie)",
+   "token_span": [3, 4],
+   "origin": "explicit",
+   "scope": "specific",
+   "temporal_index": 0,
+   "modifiers": [],
+   "attributes": {
+     "entity": "pluie",
+     "quality": "chute"
+   }
+ }
+
+ Types de nœuds (champ type) — 7 valeurs
+
+ ┌─────────────────┬─────────────────────┬─────────────────────────────┐
+ │      Type       │        Usage        │           Exemple           │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ action          │ Action volontaire   │ "réduire les coûts",        │
+ │                 │ d'un agent          │ "attaquer"                  │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ processus       │ Changement ou       │ "baisser les ventes",       │
+ │                 │ évolution           │ "augmenter la température"  │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ etat            │ État stable d'une   │ "être vulnérable", "être    │
+ │                 │ entité              │ actif"                      │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ etat_systemique │ État d'un système   │ "inflation", "crise         │
+ │                 │ complexe            │ économique"                 │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ transition      │ Passage d'un état à │ "se connecter", "tomber en  │
+ │                 │  un autre           │ panne"                      │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ condition       │ Condition ou        │ "si le firewall est         │
+ │                 │ prérequis           │ désactivé"                  │
+ ├─────────────────┼─────────────────────┼─────────────────────────────┤
+ │ entite          │ Objet ou acteur     │ "le serveur", "l'attaquant" │
+ │                 │ (pas un événement)  │                             │
+ └─────────────────┴─────────────────────┴─────────────────────────────┘
+
+ Champ label
+
+ Format conseillé : verbe(objet) ou nom(entité) ou description courte.
+ Exemples : "baisser(ventes)", "réduire(coûts)", "inondation", "vulnérabilité CVE-2024-1234"
+
+ Champ token_span
+
+ [id_premier_token, id_dernier_token] — indices des tokens de la phrase qui correspondent au nœud.
+
+ Champ temporal_index
+
+ Ordre temporel des nœuds dans la phrase : 0 pour la cause, 1 pour l'effet, etc.
+
+ Champ scope
+
+ "specific" (événement ponctuel) ou "universal" (loi générale).
+
+ Champ attributes (optionnel mais recommandé)
+
+ {
+   "entity": "nom de l'entité principale",
+   "quality": "changement ou qualité",
+   "agent": "qui agit",
+   "patient": "qui subit"
+ }
+
+ ---
+
+ Étape 4 — Arêtes CIR (cir.edges)
+
+ Une arête = une relation causale entre deux nœuds.
+
+ Minimum : 1 arête par phrase.
+
+ {
+   "source": "n001",
+   "target": "n002",
+   "relation": "cause",
+   "attributes": {
+     "confidence": 0.9,
+     "explicit": true,
+     "negated": false,
+     "marker_token": 3
+   }
+ }
+
+ Types de relations (champ relation) — 11 valeurs
+
+ ┌────────────────────┬────────────────────┬───────────────────────────┐
+ │      Relation      │       Usage        │          Exemple          │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ cause              │ A provoque         │ "la pluie cause           │
+ │                    │ directement B      │ l'inondation"             │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ enable             │ A rend B possible  │ "le firewall désactivé    │
+ │                    │                    │ permet l'accès"           │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ prevent            │ A empêche B        │ "le chiffrement prévient  │
+ │                    │                    │ la fuite"                 │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ condition          │ Si A alors B       │ "si les ventes baissent,  │
+ │                    │                    │ on réduit"                │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │                    │ A puis B           │ "d'abord l'infection,     │
+ │ sequence           │ (temporel, pas     │ puis la propagation"      │
+ │                    │ forcément causal)  │                           │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │                    │ B explique A       │ "on réduit les coûts car  │
+ │ motivation         │ (causalité         │ les ventes baissent"      │
+ │                    │ inversée)          │                           │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ concession         │ Même si A, quand   │ "malgré le patch, la      │
+ │                    │ même B             │ vulnérabilité persiste"   │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ opposition         │ A s'oppose à B     │ "la défense s'oppose à    │
+ │                    │                    │ l'attaque"                │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ filter             │ A filtre /         │ "le IDS filtre le trafic  │
+ │                    │ sélectionne dans B │ malveillant"              │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ data_dependency    │ B dépend des       │ "l'alerte dépend des logs │
+ │                    │ données de A       │  du firewall"             │
+ ├────────────────────┼────────────────────┼───────────────────────────┤
+ │ control_dependency │ B dépend du        │ "l'exécution dépend du    │
+ │                    │ contrôle de A      │ token d'authentification" │
+ └────────────────────┴────────────────────┴───────────────────────────┘
+
+ Champ causal_pattern (niveau phrase)
+
+ Mettre la relation principale de la phrase : "cause", "condition", "sequence", etc.
+
+ Champ marker_token (optionnel)
+
+ ID du token connecteur (ex: "parce que" → id du premier token du marqueur).
+
+ ---
+
+ Étape 5 — Exemple complet
+
+ Phrase : "Le marché a souffert parce que la demande a chuté."
+
+ {
+   "id": "s042",
+   "text": "Le marché a souffert parce que la demande a chuté.",
+   "causal_pattern": "cause",
+   "tokens": [
+     {"id": 1, "form": "Le", "lemma": "le", "pos": "DET", "dep_rel": "det", "dep_head": 2, "morph": {}},
+     {"id": 2, "form": "marché", "lemma": "marché", "pos": "NOUN", "dep_rel": "nsubj", "dep_head": 4, "morph": {}},
+     {"id": 3, "form": "a", "lemma": "avoir", "pos": "AUX", "dep_rel": "aux", "dep_head": 4, "morph": {}},
+     {"id": 4, "form": "souffert", "lemma": "souffrir", "pos": "VERB", "dep_rel": "root", "dep_head": 0, "morph": {}},
+     {"id": 5, "form": "parce", "lemma": "parce", "pos": "SCONJ", "dep_rel": "mark", "dep_head": 9, "morph": {},
+      "gcn": {"causal_type": "conjonction", "causal_class": "cause"}},
+     {"id": 6, "form": "que", "lemma": "que", "pos": "SCONJ", "dep_rel": "fixed", "dep_head": 5, "morph": {}},
+     {"id": 7, "form": "la", "lemma": "le", "pos": "DET", "dep_rel": "det", "dep_head": 8, "morph": {}},
+     {"id": 8, "form": "demande", "lemma": "demande", "pos": "NOUN", "dep_rel": "nsubj", "dep_head": 9, "morph": {}},
+     {"id": 9, "form": "a", "lemma": "avoir", "pos": "AUX", "dep_rel": "aux", "dep_head": 10, "morph": {}},
+     {"id": 10, "form": "chuté", "lemma": "chuter", "pos": "VERB", "dep_rel": "advcl", "dep_head": 4, "morph": {}},
+     {"id": 11, "form": ".", "lemma": ".", "pos": "PUNCT", "dep_rel": "punct", "dep_head": 4, "morph": {}}
+   ],
+   "cir": {
+     "nodes": [
+       {
+         "id": "n001",
+         "type": "processus",
+         "label": "chute(demande)",
+         "token_span": [8, 10],
+         "origin": "explicit",
+         "scope": "specific",
+         "temporal_index": 0,
+         "modifiers": [],
+         "attributes": {"entity": "demande", "quality": "chute"}
+       },
+       {
+         "id": "n002",
+         "type": "etat",
+         "label": "souffrance(marché)",
+         "token_span": [2, 4],
+         "origin": "explicit",
+         "scope": "specific",
+         "temporal_index": 1,
+         "modifiers": [],
+         "attributes": {"entity": "marché", "quality": "souffrance"}
+       }
+     ],
+     "edges": [
+       {
+         "source": "n001",
+         "target": "n002",
+         "relation": "cause",
+         "attributes": {
+           "confidence": 0.9,
+           "explicit": true,
+           "negated": false,
+           "marker_token": 5
+         }
+       }
+     ]
+   }
+ }
+
+ ---
+
+ Étape 6 — Règles de qualité
+
+ 1. Chaque phrase doit avoir ≥ 2 nœuds et ≥ 1 arête. Pas de phrase avec 0 edge.
+ 2. token_span doit pointer vers des tokens réels : [i, j] avec i ≤ j et les deux ids existent dans tokens.
+ 3. L'arête source et target doivent être des ids de nœuds valides définis dans nodes.
+ 4. Ne pas annoter les phrases ambiguës où la causalité n'est pas claire — les sauter.
+ 5. temporal_index : toujours 0 pour la cause/condition, 1+ pour l'effet.
+ 6. confidence : 1.0 si le marqueur est explicite ("parce que", "donc"), 0.8 si implicite.
+
+ ---
+
+ Étape 7 — Organisation des fichiers de sortie
+
+ Un fichier JSON par batch de ~100 phrases :
+
+ gcn-tools/gcn-datasets/annotated/
+   batch_fr_001.json   ← 100 phrases FR
+   batch_fr_002.json
+   batch_en_001.json
+   batch_es_001.json
+   batch_de_001.json
+
+ Format de chaque fichier :
+ {
+   "document": {
+     "id": "batch-fr-001",
+     "lang": "fr",
+     "sentences": [ ... ]
+   }
+ }
+
+ ---
+
+ Résumé des champs obligatoires vs optionnels
+
+ ┌──────────────────────────────────────────────┬────────┬────────────┐
+ │                    Champ                     │ Niveau │ Obligatoir │
+ │                                              │        │     e      │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ id, text, tokens, cir                        │ senten │ ✅         │
+ │                                              │ ce     │            │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ causal_pattern                               │ senten │ ✅         │
+ │                                              │ ce     │            │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ tokens[].id/form/lemma/pos/dep_rel/dep_head  │ token  │ ✅         │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ tokens[].morph                               │ token  │ ✅ (peut   │
+ │                                              │        │ être {})   │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ tokens[].gcn                                 │ token  │ ❌         │
+ │                                              │        │ optionnel  │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.nodes[].id/type/label/token_span/tempora │ node   │ ✅         │
+ │ l_index                                      │        │            │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │                                              │        │ ✅ ("expli │
+ │ cir.nodes[].origin/scope                     │ node   │ cit", "spe │
+ │                                              │        │ cific")    │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.nodes[].attributes                       │ node   │ ❌         │
+ │                                              │        │ recommandé │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.nodes[].temporal_ref/modifiers           │ node   │ ❌         │
+ │                                              │        │ optionnel  │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.edges[].source/target/relation           │ edge   │ ✅         │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.edges[].attributes.confidence/explicit/n │ edge   │ ✅         │
+ │ egated                                       │        │            │
+ ├──────────────────────────────────────────────┼────────┼────────────┤
+ │ cir.edges[].attributes.marker_token/temporal │ edge   │ ❌         │
+ │ _gap                                         │        │ optionnel  │
+ └──────────────────────────────────────────────┴────────┴────────────┘
+
+ ---
+
+ Plan d'action — Annotation dataset scrappé (2026-09-21)
+
+ Contexte
+
+ Le vrai problème identifié : dataset trop petit (536 phrases train, 7 types nœuds, 11 relations).
+ Objectif : annoter les phrases scrappées (18 948 phrases JSONL) pour enrichir real/train.
+
+ État actuel :
+ - Raw scrappé : gcn-tools/gcn-datasets/raw/sentences_20260921_183623.jsonl (18 948 lignes)
+ - real/ : 536 train / 120 val / 109 test (gcn-datasets/real/)
+ - Outils disponibles : ud_annotator.py, smart_annotate.py, gcn-annotate annotate (LLM), gcn-bootstrap (gcn-cli)
+ - Pipeline existant : annotate_real_dataset.py (injecte UD tokens) + split_real_dataset.py (70/15/15, seed=42)
+
+ ---
+
+ Pipeline recommandé (4 étapes)
+
+ Étape 1 — Filtrage causal (gcn-tools/gcn-scraper/)
+
+ Sélectionner les phrases causales parmi les 18 948.
+
+ Outil existant : gcn-tools/gcn-scraper/src/gcn_scraper/filters/quality_scorer.py
+ À vérifier : si un filtre causal spécifique existe (marqueurs comme "parce que", "car", "because", "cause", "donc"…) ou à créer.
+
+ Sortie attendue : fichier JSONL filtré, ~1 000–3 000 phrases candidates par langue.
+
+ Étape 2 — Annotation CIR (nœuds + arêtes)
+
+ Deux options :
+
+ ┌────────────────────────────────────────┬──────┬──────────┬─────────┐
+ │                 Outil                  │ Qual │   Coût   │ Langues │
+ │                                        │ ité  │          │         │
+ ├────────────────────────────────────────┼──────┼──────────┼─────────┤
+ │ gcn-tools/gcn-annotate/src/gcn_annotat │ ⭐⭐ │ API (Cla │ FR/EN/E │
+ │ e/annotator.py (LLM)                   │ ⭐   │ ude/GPT) │ S/DE    │
+ ├────────────────────────────────────────┼──────┼──────────┼─────────┤
+ │ gcn-tools/gcn-annotate/src/gcn_annotat │ ⭐⭐ │ Gratuit  │ FR/EN   │
+ │ e/smart_annotate.py (spaCy)            │      │          │         │
+ └────────────────────────────────────────┴──────┴──────────┴─────────┘
+
+ Recommandation : LLM annotator pour FR (langue principale). smart_annotate en fallback si budget API limité.
+
+ Sortie attendue : JSON avec CIR (nodes + edges), sans tokens UD encore.
+
+ Étape 3 — Injection tokens UD
+
+ Outil existant : gcn-tools/gcn-scraper/src/gcn_scraper/ud_annotator.py
+ Fonction annotate_ud(text, lang, id_convention) → tokens spaCy (id/form/lemma/pos/dep_rel/dep_head/morph).
+
+ Outil existant : gcn-tools/gcn-scraper/annotate_real_dataset.py
+ Lit un JSON CIR-annoté, injecte les tokens UD, écrit annotated_ud.json.
+
+ Étape 4 — Split et merge dans real/
+
+ Outil existant : gcn-tools/gcn-scraper/split_real_dataset.py
+ Split 70/15/15, stratifié par type de relation, seed=42.
+
+ Merger avec les splits actuels ou remplacer (à décider).
+
+ ---
+
+ Fichiers critiques
+
+ - gcn-tools/gcn-datasets/raw/sentences_20260921_183623.jsonl — données source
+ - gcn-tools/gcn-annotate/src/gcn_annotate/annotator.py — LLM annotator
+ - gcn-tools/gcn-annotate/src/gcn_annotate/smart_annotate.py — annotateur spaCy
+ - gcn-tools/gcn-scraper/src/gcn_scraper/ud_annotator.py — injection UD tokens
+ - gcn-tools/gcn-scraper/annotate_real_dataset.py — pipeline UD
+ - gcn-tools/gcn-scraper/split_real_dataset.py — split train/val/test
+ - gcn-datasets/real/train/train.json — cible du merge
+
+ ---
+
+ Vérification
+
+ # Compter les phrases après filtrage
+ wc -l filtered_causal.jsonl
+
+ # Vérifier qu'une phrase annotée est valide
+ python -c "import json; d=json.load(open('annotated_ud.json')); s=d['document']['sentences'][0]; print(len(s['tokens']), 'tokens,', len(s['cir']['nodes']), 'nodes,', len(s['cir']['edges']), 'edges')"
+
+ # Vérifier le split
+ python -m pytest gcn-python/tests/ -x -q  # 300+ passent
+
+ ---
+
+ Décisions confirmées
+
+ - Annotateur : Muse Spark (agent LLM externe utilisé comme annotateur)
+ - Langues : FR (4 297) + EN (287) + ES (2 973) + DE (2 971) — toutes les 4
+ - Intégration : merger avec les 536 existants → re-split 70/15/15 sur l'ensemble fusionné
+
+ Rôle de Muse Spark dans le pipeline
+
+ Muse Spark reçoit chaque phrase candidate et produit l'annotation CIR
+ (nodes + edges + relation) au format gcn-nl JSON.
+
+ Interface à implémenter :
+ - Input : {"text": "...", "lang": "fr"}
+ - Output attendu : JSON partiel (juste cir + causal_pattern)
+ - Le prompt système doit inclure les 7 types de nœuds, les 11 types de relations,
+   et quelques exemples FR/EN tirés de gcn-datasets/examples/
+
+ Ordre d'exécution
+
+ 1. Filtre causal par langue
+    → filtered_fr.jsonl, filtered_en.jsonl, filtered_es.jsonl, filtered_de.jsonl
+
+ 2. Annotation CIR (Muse Spark, par batch de phrases)
+    → annotated_fr.jsonl, annotated_en.jsonl, annotated_es.jsonl, annotated_de.jsonl
+
+ 3. Injection UD tokens
+    python annotate_real_dataset.py annotated_fr.jsonl → annotated_ud_fr.json
+    (répéter pour en/es/de)
+
+ 4. Fusion + re-split
+    Combiner annotated_ud_*.json + real/{train,val,test}/*.json
+    python split_real_dataset.py merged.json --output real/ --seed 42
+
+ Question restante
+
+ Comment Muse Spark sera-t-il invoqué pour l'annotation ?
+ - Via un script Python qui appelle son API batch ?
+ - Manuellement phrase par phrase ?
+ - Via gcn-annotate annotate --llm-backend <muse-spark> si son API est compatible ?
+
+ ---
+
+ Plan d'action — Audit 11 : helps mensongers + guards CLI (2026-09-21)
+
+ Contexte
+
+ Audits 1-10 terminés et commités (commits f78fa55 → b5587fa). Le 11e audit a identifié
+ des helps CLI mensongers dans gcn-eval/gcn-train/gcn-verbalize et une fix --quiet
+ déjà implémentée mais non committée (290 tests pass, 4 skipped).
+
+ Règles : pas de Co-Authored-By, pas de YAML dans le moteur, JSON datasets uniquement.
+
+ ---
+
+ Étape 0 — Committer le fix --quiet déjà implémenté
+
+ eval_runner.py : flag --quiet + catch_warnings(ignore, UserWarning) autour de la
+ construction du rapport. 290 tests passent. À committer sans modification.
+
+ ---
+
+ Lot 1 — Helps mensongers (pure documentation, zéro risque comportemental)
+
+ H1 — --bfs-depth (train.py:92-93) : flag fantôme
+
+ Problème : Parsé par Click, stocké (train.py:222-223), jamais persisté dans _arch_json
+ (checkpoint.py:68-82), jamais utilisé lors de la prédiction. Le help promet un effet
+ « en prédiction » qui n'existe pas.
+
+ Correction : Ajouter "(non persisté dans le checkpoint — sans effet sur la prédiction)" au
+ help, OU retirer le flag. Retrait = breaking change pour les scripts existants → préférer le
+ label explicite sans changer le comportement.
+
+ H2 — --gate (eval_runner.py:238-240) : gate nœud décrit comme gate liens
+
+ Problème : Help dit pour la tête de liens (défaut plan : 0.60). Le code (eval_runner.py:280-289)
+ contrôle val_node_macro_f1 (métriques nœuds), pas la tête de prédiction de liens.
+
+ Correction : Réécrire le help : "Seuil val_node_macro_f1. Si val < seuil et --on-fail=error : exit 1."
+
+ H3 — Verbalizer (verbalizer/cli.py:13-18) : "depends on its training data" mensonger
+
+ Problème : Le help implique un modèle neuronal appris. Le code utilise toujours
+ ReferenceDecoder (templates statiques, decoder.py:7-20).
+
+ Correction : Remplacer par "Verbalization via templates statiques (ReferenceDecoder). TrainableDecoder activable avec --decoder-checkpoint mais non entraîné par ce CLI.".
+ Aussi README.md:294 si cohérent.
+
+ ---
+
+ Lot 2 (différé) — Garde gcn-verbalize + hygiène print
+
+ Touche lib.rs:29-33 (pont Rust consommateur stdout) et ~40 print() dans discuss.py.
+ Plus risqué que lot 1 → commit séparé après validation du lot 1.
+
+ ---
+
+ Fichiers critiques
+
+ - gcn-python/src/gcn_python/evaluation/eval_runner.py — H2 + étape 0
+ - gcn-python/src/gcn_python/training/train.py — H1
+ - gcn-python/src/gcn_python/verbalizer/cli.py — H3
+
+ ---
+
+ Vérification
+
+ python -m pytest gcn-python/tests/ -x --tb=short -q   # 290+ passent
+ gcn-eval --help   # vérifier texte gate
+ gcn-train --help  # vérifier texte bfs-depth
+
+ ---
+
+ Lot 1 — Correctifs inférence / évaluation
+
+ Fichiers touchés : evaluation/eval_runner.py, pipeline/cgnp.py
+
+ V1 — eval_runner.py : training=False absent
+
+ run_eval exécute le forward sans passer le pipeline en mode éval. Avec edge_dropout=0.3
+ actif par défaut dans MLPEncoder, les métriques val sont bruitées.
+
+ Correction : Après load_checkpoint(pipeline, model_path, trusted=True) (ligne 73),
+ ajouter le même bloc que GCNEngine.__init__ :
+ pipeline.encoder.training = False
+ for layer in pipeline._graph_layers:
+     if hasattr(layer, "training"):
+         layer.training = False
+
+ V2 — eval_runner.py:31-56 : d_edge calculé sur vocab vide
+
+ run_eval construit vocab = FeatureVocabulary() (ligne 31) avant de lire le checkpoint.
+ Si le modèle a été entraîné avec connector_lemmas, d_edge est différent → crash sur
+ shape mismatch dans load_checkpoint.
+
+ GCNEngine.from_pretrained fait l'inverse : charge _vocab_json du checkpoint AVANT de
+ construire l'encodeur.
+
+ Correction : Dans run_eval, charger _vocab_json depuis _raw (déjà chargé ligne 38-40)
+ avant de construire l'encodeur :
+ vocab = FeatureVocabulary()
+ if "_vocab_json" in _raw:
+     vocab = FeatureVocabulary.from_json(str(_raw["_vocab_json"][0]))
+ # ENSUITE seulement :
+ d_edge = vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb)
+ encoder = MLPEncoder(d_clause=_d_eff, d_edge=d_edge)
+
+ V3 — cgnp.py:755,918 : gradient word_embedding prend d_enriched pas d_curr
+
+ Dans backward() et backward_accumulate() :
+ d_curr = d_enriched                              # alias initial
+ d_curr, grads = _layer.backward_message_pass(d_curr)  # Python rebind → nouveau tableau
+ # d_enriched reste l'original (pré-RGCN)
+ d_emb_slice = d_enriched[:, self.vocabulary.d_clause:]  # FAUX — pré-RGCN
+
+ Après le backward R-GCN, d_curr contient le gradient propagé à travers les couches
+ RGCN jusqu'à l'entrée clause_vecs (shape N × d_eff). C'est ce gradient qui doit
+ alimenter les embeddings, pas d_enriched.
+
+ Correction : Dans backward() ligne 754-755 ET backward_accumulate() ligne 917-918,
+ remplacer d_enriched par d_curr pour la condition et le slice :
+ if (self.word_embedding is not None
+         and self._cached_reps is not None
+         and d_curr is not None                            # était d_enriched
+         and d_curr.shape[1] > self.vocabulary.d_clause): # était d_enriched
+     d_emb_slice = d_curr[:, self.vocabulary.d_clause:]    # était d_enriched
+
+ Cas dégradé garanti sans régression : si aucune couche RGCN n'implémente
+ backward_message_pass, d_curr reste un alias vers d_enriched (jamais réassigné),
+ donc le comportement est identique à avant.
+
+ ---
+
+ Lot 2 — Correctifs entraînement
+
+ Fichiers touchés : training/bootstrap.py, training/train.py
+
+ B1 — bootstrap.py:189 : tokens=[] → données bootstrappées inutilisables
+
+ _cir_to_doc écrit "tokens": []. Or reps_from_sentence (loader.py:178) retourne
+ ([], [], []) quand not rec.tokens → toutes les phrases bootstrappées sont ignorées
+ silencieusement à l'entraînement.
+
+ Correction : Générer des tokens synthétiques dans _cir_to_doc — un token par nœud,
+ construit depuis le label et le node_type. Utiliser les mêmes mappings que frontend/bridge.py
+ (NODE_TYPE_TO_POS, NODE_TYPE_TO_DEP). Assigner token_span=(i+1, i+1) à chaque clause
+ pour que _rep_from_clause retrouve son token.
+
+ _SYNTH_POS = {"action": "VERB", "transition": "VERB", "processus": "NOUN",
+               "etat": "NOUN", "etat_systemique": "NOUN", "entite": "NOUN", "condition": "SCONJ"}
+ _SYNTH_DEP = {"action": "root", "transition": "root", "processus": "root",
+               "etat": "nsubj", "etat_systemique": "nsubj", "entite": "nsubj", "condition": "advcl"}
+
+ def _synthetic_tokens(nodes: list) -> list:
+     tokens = []
+     for i, n in enumerate(nodes):
+         label = (n.get("label") or "").strip()
+         lemma = label.split()[0] if label else (n.get("type") or "action")
+         ntype = n.get("type", "action")
+         tokens.append({
+             "id": i + 1, "form": lemma, "lemma": lemma,
+             "pos": _SYNTH_POS.get(ntype, "NOUN"),
+             "dep_rel": _SYNTH_DEP.get(ntype, "root"),
+             "dep_head": 0, "morph": {},
+         })
+     return tokens
+
+ Dans _cir_to_doc : remplacer "tokens": [] par "tokens": _synthetic_tokens(nodes) et
+ "token_span": _extract_token_span(n) par "token_span": [i+1, i+1] pour chaque nœud.
+ Mettre à jour le docstring pour indiquer la qualité approximative des données (analogue au
+ bridge heuristique).
+
+ B2 — train.py:263 : CSV file ouvert hors try/finally → fuite ressource
+
+ # Ligne 262-265 — AVANT le try: (ligne 386)
+ csv_file = open(log_csv, "w", ...)
+
+ Correction : Déplacer l'ouverture du fichier CSV DANS le bloc try: (après ligne 386),
+ ou mieux, l'envelopper dans un second try/finally dédié qui ne bloque pas la logique
+ d'entraînement.
+
+ Alternative propre : utiliser un context manager :
+ # Remplacer l'ouverture manuelle par :
+ with (open(log_csv, "w", ...) if log_csv else contextlib.nullcontext()) as csv_file:
+     ...
+ Si la variante with alourdit trop le diff, déplacer simplement le bloc d'ouverture dans
+ le try: déjà existant (ligne 386) et adapter le finally.
+
+ B4 — train.py:181 : n_rgcn_layers hardcodé à 1 dans le CLI
+
+ Le pipeline supporte plusieurs couches R-GCN mais le CLI n'expose pas l'option.
+ from_pretrained et run_eval restaurent correctement n_rgcn_layers depuis le checkpoint.
+
+ Correction : Ajouter l'option Click :
+ @click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
+               help="Nombre de couches R-GCN empilées (≥1). Requiert RGCNLayer (pas GAT).")
+ Passer n_rgcn_layers=n_rgcn_layers dans la construction du CGNPipeline (ligne 181-183).
+ Ajouter une validation if n_rgcn_layers < 1: raise ClickException.
+
+ B9 — train.py:591 : _set_training_mode oublie decoder et link_pred_head
+
+ def _set_training_mode(pipeline, training):
+     _toggle(pipeline.encoder, training)
+     for layer in pipeline._graph_layers:
+         _toggle(layer, training)
+ # manque : decoder, link_predictor
+
+ Correction : Ajouter après la boucle _graph_layers :
+ if pipeline.decoder is not None:
+     _toggle(pipeline.decoder, training)
+ if getattr(pipeline, 'link_predictor', None) is not None:
+     _toggle(pipeline.link_predictor, training)
+
+ ---
+
+ Lot 3 — Correctifs mineurs et données
+
+ Fichiers touchés : pipeline/ir_emitter.py, data/graph_vecs.py,
+ training/checkpoint.py, engine.py, gcn-datasets/schemas/gcn-nl.schema.yaml,
+ data/loader.py
+
+ B5 — ir_emitter.py:88 : schema_version: "1.0" stale
+
+ Correction : "schema_version": "1.0" → "schema_version": "2.0".
+
+ B6 — graph_vecs.py:73 : commentaire "LRU" incorrect → FIFO
+
+ Correction : Remplacer le commentaire de la classe et du module par "FIFO (oldest-first
+ eviction)". La politique restera FIFO (acceptable pour 8 handles).
+
+ B7 — checkpoint.py:238-251 : décodeur partiellement muté sur shape mismatch
+
+ Le loader valide puis mute dans la même boucle pour le décodeur.
+ Si decoder_3 a une mauvaise shape après que decoder_0..2 ont été chargés,
+ le décodeur est partiellement corrompu.
+
+ Correction : Ajouter une boucle de pré-validation complète AVANT toute mutation,
+ identique au pattern encodeur/RGCN (lignes 183-202) :
+ # Pré-validation
+ if "_decoder_meta_json" in data:
+     _tmp_decoder = TrainableDecoder.from_json(str(data["_decoder_meta_json"][0]))
+     for i, p in enumerate(_tmp_decoder.parameters()):
+         key = f"decoder_{i}"
+         if key in data and data[key].shape != p.shape:
+             raise ValueError(f"Incompatibilité decoder_{i} : ...")
+ # Mutation seulement si pré-validation passée
+ ...
+
+ B8 — engine.py:311 : __repr__ affiche d_clause au lieu de d_eff
+
+ Correction :
+ we = getattr(self._pipeline, 'word_embedding', None)
+ d_eff = self._pipeline.vocabulary.d_clause + (we.d_emb if we is not None else 0)
+ # remplacer d_clause=... par d_eff=...
+
+ B3 — loader.py:154-160 : warning arête backward insuffisant
+
+ La remappitude (src, dst) → (tgt, src) avec la même relation est correcte pour
+ les relations symétriques mais trompeuse pour cause, enable, prevent.
+ Le code est intentionnel (évite de perdre des données), mais le warning est trop neutre.
+
+ Correction : Améliorer le message du warning pour mentionner explicitement le risque
+ sur les relations asymétriques et recommander d'annoter dans la bonne direction.
+
+ V5 — gcn-nl.schema.yaml:845 : data_dependency/control_dependency manquantes
+
+ # Ligne 845 — état actuel (9 relations)
+ values: [cause, enable, prevent, condition, concession, sequence, motivation, filter, opposition]
+
+ Correction : Ajouter les deux relations manquantes :
+ values: [cause, enable, prevent, condition, concession, sequence, motivation, filter,
+          opposition, data_dependency, control_dependency]
+
+ ---
+
+ Ordre de livraison recommandé
+
+ Lot 1 (eval/inférence)  →  Lot 2 (entraînement)  →  Lot 3 (mineurs)
+
+ Chaque lot fait l'objet d'un commit séparé et d'une passe de tests avant le suivant.
+
+ ---
+
+ Vérification
+
+ Tests existants à repasser après chaque lot
+
+ python -m pytest gcn-python/tests/ -x --tb=short -q
+ cd gcn-core && cargo test
+
+ Nouveaux tests à écrire
+
+ Lot 1 :
+ - test_eval_runner.py::test_run_eval_training_false — vérifier que
+   pipeline.encoder.training == False après run_eval
+ - test_eval_runner.py::test_run_eval_vocab_restored — checkpointer un modèle avec
+   connector_lemmas, appeler run_eval, vérifier pas de ValueError
+ - test_pipeline.py::test_word_embedding_gradient_reaches_postcrgcn — comparer le
+   gradient embedding avant/après fix V3 avec RGCN réel (1 couche)
+
+ Lot 2 :
+ - test_bootstrap.py::test_cir_to_doc_has_tokens — vérifier que _cir_to_doc produit
+   des tokens non vides, et que reps_from_sentence retourne des reps valides
+ - test_training.py::test_csv_no_leak_on_exception — patcher loader pour lever, vérifier
+   que le fichier CSV est fermé
+
+ Lot 3 :
+ - test_checkpoint.py::test_decoder_partial_load_raises — shape mismatch decoder_2,
+   vérifier que decoder_0/1 ne sont PAS mutés
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌

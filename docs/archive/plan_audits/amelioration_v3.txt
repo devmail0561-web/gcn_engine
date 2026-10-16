@@ -1,0 +1,776 @@
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Plan exhaustif — Améliorations structurelles CGNP (v3 — corrigé)
+
+ Contexte et contraintes
+
+ Quatre désavantages architecturaux identifiés + verbalizer non-fonctionnel.
+ Critique intégrée : 12 défauts corrigés dans ce plan révisé.
+
+ Contraintes invariables : pas de BERT/spaCy, données JSON dans gcn-datasets/, frontends Rust hors moteur, _arch_json non lu par Rust (fichier .npz Python uniquement → pas de risque de compatibilité Rust).
+
+ ---
+
+ Section 0 — Gestion des dimensions (référence unique)
+
+ Formule baseline
+
+  d_clause    = 79   (UPOS 18 + dep_rel 38 + subj_pos 5 + tense 5 + aspect 4 + mood 5 + polarity 1 + flags 3)
+ d_emb       = 0 ou N
+ d_effective = d_clause + d_emb                         (sans B)
+             = d_clause + d_emb + 2*d_emb               (avec B : +2*d_emb)
+             = d_clause + 3*d_emb                        (avec B, simplifié)
+  d_conn      = 31   (sans connector_lemmas définis)
+ d_edge_CL   = 2*d_effective + d_conn + 4 + 2*d_emb + 2*d_effective + 2*n_node_types
+
+ Point unique de vérité
+
+ FeatureVocabulary.d_clause_effective(d_emb, subject_object_emb) dans layer1/features.py :
+ def d_clause_effective(self, d_emb: int, subject_object_emb: bool = False) -> int:
+     return self.d_clause + d_emb + (2 * d_emb if subject_object_emb else 0)
+ train.py doit appeler cette méthode — jamais recalculer manuellement.
+
+ Contrainte multi-tête (CORRECTION défaut #1)
+
+  d_effective % n_heads doit être nul. Valeurs compatibles mesurées (d_clause=79) :
+  d_emb=48 → d_eff=127 → nombre premier — INCOMPATIBLE avec n_heads > 1  ← ERREUR v3 corrigée
+  d_emb=49 → d_eff=128 → compatible avec n_heads ∈ {1, 2, 4, 8}  ← valeur recommandée
+  d_emb=53 → d_eff=132 → compatible avec n_heads ∈ {1, 2, 4} seulement
+
+  Règle : si n_heads > 1, utiliser d_emb=49 (d_eff=128). Valider dans le CLI avec message d'erreur
+  explicite suggérant des valeurs compatibles.
+
+ ---
+
+ Section 1 — Stratégie de versionnement des checkpoints
+
+ Nouvelles clés _arch_json
+
+ ┌───────────────────────┬──────┬──────────────────────┐
+ │          Clé          │ Type │ Défaut (rétrocompat) │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ clause_pooling        │ str  │ "root"               │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ subject_object_emb    │ bool │ false                │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ freeze_embeddings     │ bool │ false                │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ n_gat_heads           │ int  │ 1                    │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ gat_residual          │ bool │ false                │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ gat_layernorm         │ bool │ false                │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ gat_output_activation │ str  │ "sigmoid"            │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ silver_weight         │float │ 1.0                  │
+ ├───────────────────────┼──────┼──────────────────────┤
+ │ verbalize_mode        │ str  │ "legacy"             │
+ └───────────────────────┴──────┴──────────────────────┘
+
+ Toute clé absente → valeur par défaut. Aucun checkpoint existant ne devient illisible.
+
+ Cas D — Shape collision a_r dans load_state()
+
+ if arrays[2].ndim == 2:          # ancien checkpoint (n_heads=1)
+     if self.n_heads != 1:
+         raise ValueError("Checkpoint mono-tête incompatible avec n_heads>1. "
+                          "Ré-entraîner ou utiliser --n-gat-heads 1.")
+     # charger tel quel
+ elif arrays[2].ndim == 3:        # checkpoint multi-tête
+     assert arrays[2].shape == (self.n_heads, self.n_relations, 2*self.d_head)
+
+ Cas E — LayerNorm : 5 arrays au lieu de 3
+
+ parameters() retourne [W_r, W_0, a_r, norm.weight, norm.bias] si use_layernorm.
+ Clés : graph_0…graph_4. Ancien checkpoint (3 arrays) → LayerNorm initialisé identité (weight=1, bias=0).
+
+ ---
+
+ Amélioration A — Pooling des tokens de contenu
+
+ Problème corrigé
+
+ Mean-pool sur TOUS les tokens inclut mots grammaticaux (DET, ADP, PUNCT) qui diluent la sémantique. Solution : filtrer par UPOS de contenu avant pooling.
+
+ Implémentation
+
+ layer1/features.py — vectorize_clause() :
+
+ CONTENT_POS = {'NOUN', 'VERB', 'ADJ', 'PROPN', 'ADV'}
+
+ def _pool_tokens(rep, word_embedding, mode):
+     """Pool embeddings des tokens de contenu (NOUN/VERB/ADJ/PROPN/ADV)."""
+     content = [t for t in rep.tokens if t['pos'] in CONTENT_POS]
+     targets = content if content else rep.tokens   # fallback si aucun contenu
+     vecs = [word_embedding.lookup(t['lemma']) for t in targets]
+     if mode == 'mean':
+         return np.mean(vecs, axis=0).astype(np.float32)
+     else:  # 'max'
+         return np.max(vecs, axis=0).astype(np.float32)
+
+ Paramètre clause_pooling: str = "root" ajouté à vectorize_clause(), vectorize_edge().
+ "root" = comportement actuel (rétrocompatible).
+
+ training/train.py
+
+ - --clause-pooling [root|mean|max] (défaut: "root").
+ - CRITIQUE : boucle de construction du vocabulaire (L263-291) collecte seulement root_lemma. Avec clause_pooling != "root", élargir :
+ if clause_pooling == "root":
+     all_lemmas.extend(r.root_lemma for r in reps_s)
+ else:
+     for r in reps_s:
+         all_lemmas.extend(t['lemma'] for t in r.tokens
+                           if t['pos'] in CONTENT_POS or not content_filter)
+ - Précondition : clause_pooling != "root" nécessite d_emb > 0, sinon ClickException.
+
+ Fichiers : layer1/features.py, training/train.py, training/checkpoint.py, engine.py
+
+ Tests (tests/test_layer1.py)
+
+ test_mean_pool_filters_stop_words
+   → clause avec DET+NOUN+ADP : mean_pool ≠ mean_pool_all_tokens
+ test_mean_pool_fallback_all_tokens_when_no_content
+   → clause uniquement DET+ADP → tokens tous utilisés
+ test_pooling_same_dim_as_root
+   → d_clause identique en mode root, mean, max
+ test_pooling_requires_word_embedding
+   → ValueError si clause_pooling="mean" et word_embedding=None
+ test_vocab_extended_with_mean_pooling
+   → plus de lemmes dans le vocab qu'avec root seul
+
+ ---
+
+ Amélioration B — Embeddings sujet/objet avec vecteur _absent appris
+
+ Problème corrigé (défaut #2)
+
+ 50% des nœuds n'ont pas de sujet, 57% pas d'objet. Vecteur nul = signal identique pour tous → aucune valeur discriminante. Solution : vecteur _absent appris (comme _unk dans WordEmbedding).
+
+ Implémentation
+
+ layer1/embedding.py — WordEmbedding.__init__() : initialiser deux lemmes spéciaux :
+ self.add_lemma('_subj_absent')   # index 1
+ self.add_lemma('_obj_absent')    # index 2
+ Ces vecteurs sont appris normalement (pas de gel spécial). lookup('_subj_absent') retourne un vecteur 50-dim appris → spécialisé pendant l'entraînement pour représenter "absence de sujet".
+
+ layer1/features.py — vectorize_clause() avec subject_object_emb=True :
+ subj = next((t for t in rep.tokens if t['dep_rel'] in {'nsubj','nsubj:pass'}), None)
+ obj  = next((t for t in rep.tokens if t['dep_rel'] in {'obj','iobj'}), None)
+ subj_emb = word_embedding.lookup(subj['lemma'] if subj else '_subj_absent')
+ obj_emb  = word_embedding.lookup(obj['lemma']  if obj  else '_obj_absent')
+ parts.extend([subj_emb, obj_emb])
+
+ layer1/features.py — FeatureVocabulary.d_clause_effective() (voir Section 0).
+
+ layer1/features.py — vectorize_edge() : passer subject_object_emb aux deux appels vectorize_clause().
+
+ training/train.py
+ - --subject-object-emb/--no-subject-object-emb (défaut: off).
+ - Remplacer L173 : d_effective = vocab.d_clause_effective(d_emb, subject_object_emb).
+ - Précondition : d_emb > 0, sinon ClickException.
+  - Note MLP : quand B est actif, d_effective passe de d_clause+d_emb à d_clause+3*d_emb. Avec d_emb=49, d_effective passe de 128 à 226. Le premier layer MLP d_effective→128 compresse plus agressivement. Recommander --embedding-dim 49 (d_eff=226 → première couche MLP cachée 256 plutôt que 128 par défaut). Ajouter option --mlp-hidden INT (défaut=128, recommandé=256 avec B).
+
+ Fichiers : layer1/embedding.py, layer1/features.py, training/train.py, training/checkpoint.py
+
+ Tests (tests/test_layer1.py)
+
+ test_absent_subject_lookup_not_zero
+   → word_embedding.lookup('_subj_absent') ≠ zeros après update
+ test_absent_subject_different_from_absent_object
+   → lookup('_subj_absent') ≠ lookup('_obj_absent') après quelques updates
+ test_d_clause_effective_with_B
+   → d_clause + 3*d_emb
+ test_subject_object_emb_requires_word_embedding
+
+ ---
+
+ Amélioration C — Gel des embeddings pré-entraînés
+
+ Implémentation
+
+ layer1/embedding.py :
+ class WordEmbedding:
+     def __init__(self, d_emb=50, seed=42, frozen=False):
+         ...
+         self.frozen = frozen
+
+     def backward(self, d_emb, lemma):
+         if self.frozen:
+             return   # accumuler rien
+
+     def update(self, lr):
+         if self.frozen:
+             self._grad_accum = None
+             return
+         if self._grad_accum is not None:
+             self._E -= lr * self._grad_accum
+             self._grad_accum = None
+
+ training/train.py
+ - --freeze-embeddings/--no-freeze-embeddings (défaut: off).
+ - Après word_embedding.load_from_file() : word_embedding.frozen = freeze_embeddings.
+ - Précondition : --freeze-embeddings sans --embedding-file → ClickException.
+ - Note : _subj_absent et _obj_absent (ajoutés par B) sont toujours entraînables même si frozen=True — ils n'existent pas dans le fichier pré-entraîné. Implémentation : frozen ne s'applique qu'aux indices < n_pretrained (à stocker à la fin de load_from_file()).
+
+ Fichiers : layer1/embedding.py, training/train.py, training/checkpoint.py
+
+ Tests (tests/test_layer1.py)
+
+ test_frozen_embedding_update_noop
+ test_frozen_embedding_backward_no_accumulate
+ test_absent_tokens_trainable_even_when_frozen
+   → _subj_absent et _obj_absent mis à jour malgré frozen=True
+
+ ---
+
+ Amélioration D — Attention multi-tête dans RGCNLayerGAT
+
+ Contrainte de divisibilité (CORRECTION défaut #1)
+
+ Dans RGCNLayerGAT.__init__() :
+ if d_out % n_heads != 0:
+     # Calculer les valeurs compatibles les plus proches
+     compatibles = [n for n in [1,2,4,8] if d_out % n == 0]
+     raise ValueError(
+         f"d_out={d_out} non divisible par n_heads={n_heads}. "
+         f"n_heads compatibles : {compatibles}. "
+          f"Avec d_emb=49 : d_out=128 compatible avec n_heads ∈ {{1,2,4,8}}."
+     )
+ self.d_head = d_out // n_heads
+
+ Implémentation de _gat_forward() multi-tête
+
+ W_r reste (n_relations, d_out, d_in) inchangé. Chaque tête h accède à la tranche [h*d_head:(h+1)*d_head] de la sortie :
+
+ out_heads = []
+ for h_idx in range(self.n_heads):
+     s, e = h_idx * self.d_head, (h_idx + 1) * self.d_head
+     out_h = H @ self.W_0[s:e].t()   # self-loop tête h
+
+     if edge_index.shape[1] > 0:
+         for r in range(self.n_relations):
+             mask = rtypes == r
+             if not mask.any(): continue
+             src_r, dst_r = src[mask], dst[mask]
+             msg_src = H[src_r] @ self.W_r[r][s:e].t()    # (|E_r|, d_head)
+             msg_dst = H[dst_r] @ self.W_r[r][s:e].t()
+             concat  = torch.cat([msg_src, msg_dst], dim=1) # (|E_r|, 2*d_head)
+             e_ij    = self.leaky_relu(concat @ self.a_r[h_idx, r])
+             alpha   = _softmax_per_dst(e_ij, dst_r, N)
+             agg     = torch.zeros(N, self.d_head, device=self._device)
+             out_h  += agg.scatter_add(0, dst_r.unsqueeze(1).expand(-1, self.d_head),
+                                       alpha.unsqueeze(1) * msg_src)
+     out_heads.append(out_h)
+
+ out = torch.cat(out_heads, dim=1)   # (N, d_out)
+
+ a_r change de shape : (n_relations, 2*d_out) → (n_heads, n_relations, 2*d_head).
+ Backward : aucun changement — torch.autograd.grad couvre automatiquement la nouvelle shape.
+
+ Fichiers : layer3/gat.py, training/train.py (--n-gat-heads INT, défaut 1), training/checkpoint.py, engine.py
+
+ Tests (tests/test_gat.py)
+
+ test_multihead_4_output_shape_unchanged
+   → n_heads=4, d_out=128 : output.shape == (N, 128)
+ test_multihead_backward_shapes_correct
+ test_n_heads_1_backward_compat_a_r_2d
+   → load_state avec a_r shape (R, 2*D) fonctionne si n_heads=1
+ test_n_heads_incompatible_raises_with_hint
+   → d_out=130, n_heads=4 → ValueError mentionnant d_emb=49
+ test_multihead_4_differs_from_single_head
+   → outputs différents (apprentissage de perspectives multiples)
+
+ ---
+
+ Amélioration E — Empilement GAT + Activation + Résidu + LayerNorm
+
+ E1 — Activation configurable (layer3/gat.py)
+
+ Paramètre output_activation: str = "sigmoid" :
+
+ Dans message_pass() :
+ if self.output_activation == "sigmoid":
+     result = torch.sigmoid(out)
+ elif self.output_activation == "relu":
+     result = torch.relu(out)
+ else:   # "none"
+     result = out
+
+ Dans backward_message_pass(), la dérivée devient conditionnelle :
+ if self.output_activation == "sigmoid":
+     sig = torch.sigmoid(self._out_retained)
+     d_pre = d_out_t * sig * (1 - sig)
+ elif self.output_activation == "relu":
+     d_pre = d_out_t * (self._out_retained > 0).float()
+ else:
+     d_pre = d_out_t
+
+ E2 — LayerNorm (layer3/gat.py)
+
+ use_layernorm: bool = False → nn.LayerNorm(d_out).
+ _gat_forward() : out = self.norm(out) si self.norm is not None.
+ parameters() étendu : [W_r, W_0, a_r, norm.weight, norm.bias] (5 arrays si LayerNorm).
+ load_state() : 3 arrays → LayerNorm identité, 5 arrays → restauration complète.
+
+ E3 — Résidu dans CGNPipeline (pipeline/cgnp.py)
+
+ # forward
+ prev = enriched
+ for _layer in self._graph_layers:
+     h = _layer.message_pass(prev, edge_index_mp, edge_types_mp)
+     enriched = (h + prev) if (self.gat_residual and h.shape == prev.shape) else h
+     prev = enriched
+
+ # backward
+ d_curr = d_node_from_loss
+ for _layer in reversed(self._graph_layers):
+     d_input, grads = _layer.backward_message_pass(d_curr)
+     if self.gat_residual and d_input.shape == d_curr.shape:
+         d_curr = d_input + d_curr   # gradient identité du résidu
+     else:
+         d_curr = d_input
+     _layer.update(grads, lr)
+
+ E4 — Empilement GAT et levée de la restriction CLI
+
+ pipeline/cgnp.py : remplacer from ..layer3.reference import RGCNLayer dans la boucle d'empilement par LayerClass = type(graph). Couches intermédiaires instanciées avec output_activation="relu", couche finale avec output_activation="sigmoid".
+
+ training/train.py :
+ - Supprimer la ClickException ligne 209.
+ - --gat-residual/--no-gat-residual (défaut: off).
+ - --gat-layernorm/--no-gat-layernorm (défaut: off).
+ - Note overfitting (CORRECTION défaut #7) : ajouter dans le help de --n-rgcn-layers : "Avec n>1 et GAT, recommander --rgcn-dropout 0.2 --weight-decay 1e-4 pour limiter l'overfitting sur petits datasets." Pas de contrainte forcée — avertissement uniquement.
+
+ Fichiers : layer3/gat.py, pipeline/cgnp.py, training/train.py, training/checkpoint.py
+
+ Tests (tests/test_gat.py, tests/test_pipeline.py)
+
+ test_relu_activation_output_can_exceed_1
+ test_layernorm_output_normalized
+ test_stacked_gat_2_layers_output_shape
+ test_residual_gradient_nonzero_even_if_layer_dead
+   → zeros dans le message pass → d_curr ≠ 0 grâce au résidu
+ test_checkpoint_layernorm_missing_keys_inits_identity
+ test_stacked_gat_without_residual_baseline_equivalent
+
+ ---
+
+ Amélioration F — Pondération par confiance d'annotation
+
+ Remarque préalable : les arêtes du schéma actuel n'ont pas de champ confidence
+ ({source, target, relation} uniquement). La pondération s'effectue donc au niveau phrase
+ via le champ _methode : gold=1.0 (absent ou "gold"), silver=silver_weight (toute valeur
+ commençant par "silver-"). Variante immédiate : silver_weight=0.7.
+
+ data/schema.py — SentenceRecord : ajouter weight: float = 1.0.
+ data/json_reader.py — _parse_dataset_sentence() :
+     methode = raw.get("_methode", "gold")
+     weight = silver_weight if methode.startswith("silver") else 1.0
+     (silver_weight est passé en paramètre à load_all_sentences ou à GCNDataLoader)
+
+ training/train.py uniquement.
+
+ Dans la loss des arêtes, après calcul de cross_entropy(edge_logit, gold_rel) :
+ if silver_weight < 1.0:
+     edge_loss_k *= sample.sentence.weight
+
+  --silver-weight FLOAT (défaut: 1.0). Aucun effet si 1.0 (rétrocompatible).
+  Note : silver_weight doit être transmis à GCNDataLoader via un paramètre dédié.
+
+  Test (tests/test_training.py)
+
+ test_silver_weight_0_7_reduces_edge_loss
+   → phrase avec _methode="silver-fr-moi-types" : loss < loss phrase gold équivalente
+
+ ---
+
+ Amélioration G — Refonte du verbalizer
+
+ Reframe complet de l'objectif (CORRECTION défauts #3 et #4)
+
+ Constat critique : les labels de nœuds dans les données verbalize sont des mots uniques ("économie", "souvent"). La surface gold est une phrase complète (50+ mots). Le BLEU entre "économie car environnement" et la phrase gold serait ≈ 0.03 même avec un connecteur parfait. La métrique BLEU contre la surface source est invalide.
+
+ Redéfinition : le verbalizer produit une description structurée apprise du graphe causal, pas une reconstruction de la phrase source. Sa qualité se mesure par connector_precision@1 (bon connecteur sélectionné pour chaque arête).
+
+ La phrase source est la responsabilité des frontends/LLMs. Le moteur produit un CausalIR ; le verbalizer produit une verbalisation structurelle lisible.
+
+ ---
+
+ G1 — Entrée lexicale réelle pour le décodeur
+
+ Problème : pipeline.get_enriched_vectors() retourne la sortie GAT (structurelle). Les labels sont des mots uniques → label.split()[0] == label (pas d'amélioration vs current).
+
+ Solution correcte : reconstruire le texte de chaque clause depuis sentence.tokens et token_span (IDs token 1-based).
+
+ Dans VerbalizeSample, ajouter clause_texts: list[str] extrait dans VerbalizerDataLoader :
+ # verbalize_loader.py
+ # Pour chaque nœud du CIR :
+ span_start, span_end = node['token_span']
+ clause_tokens = [t for t in sentence_tokens if span_start <= t['id'] <= span_end]
+ clause_text = " ".join(t['form'] for t in clause_tokens)   # texte réel de la clause
+
+ Pour les paires verbalize, mapper l'id de la phrase dans ex['causal_ir'] vers la phrase correspondante dans le dataset JSON source (via SentenceRecord.id). Le VerbalizerDataLoader doit charger le dataset source (train.json) en parallèle pour extraire les tokens.
+
+ training/train.py : remplacer pipeline.get_enriched_vectors() par :
+ if word_embedding is not None and vsample.clause_texts:
+     _lex_vecs = np.stack([
+         np.mean([word_embedding.lookup(w) for w in ct.lower().split() or ['_unk']],
+                 axis=0).astype(np.float32)
+         for ct in vsample.clause_texts
+     ])
+ else:
+     _lex_vecs = _node_type_embeddings(json.loads(vsample.ir_json)['nodes'])
+
+ Supprimer _minimal_reps_from_labels() (stubs fakés).
+
+ Fichiers : data/verbalize_loader.py (ajouter clause_texts, source_json_dir param), training/train.py
+
+ ---
+
+ G2 — LexicalConnectorAssembler
+
+ Architecture :
+ Input  : relation_idx (int, 0-10)
+ Étape 1 : rel_emb = R[relation_idx]              R : (11, d_rel=16)
+ Étape 2 : logits = W_conn @ rel_emb + b          W_conn : (|C|, 16), b : (|C|,)
+ Étape 3 : connector = vocab_connectors[argmax(logits)]
+ Sortie  : f"{clause_texts[src]} {connector} {clause_texts[dst]}"
+
+ Total paramètres : 11×16 + |C|×16 + |C| ≈ 500 + 17×|C|. Avec |C|=30 : ~1000 params.
+
+ gcn-datasets/connectors/connectors_fr.json — ALTERNATIVE à l'annotation manuelle :
+ Les connecteurs sont extractibles automatiquement des tokens inter-clauses de mixte_final
+ (2015 phrases annotées). Algorithme : pour chaque arête CIR, tokens entre end_src et start_dst
+ → texte normalisé → fréquence → top-N lemmes = vocabulaire de connecteurs.
+ Michel Tendeng peut valider/filtrer le vocab extrait plutôt que le créer from scratch.
+ (Le "bloquant manuel G2" est donc contournable en un script d'extraction.)
+
+ gcn-datasets/connectors/connectors_fr.json (format attendu) :
+ {
+   "schema": "gcn-connectors-v1",
+   "lang": "fr",
+   "connectors": [
+     "car", "parce que", "puisque", "étant donné que",
+     "ce qui permet", "permettant", "afin que",
+     "ce qui empêche", "empêchant", "sans que",
+     "si", "à condition que", "dans le cas où",
+     "bien que", "même si", "malgré",
+     "puis", "ensuite", "alors",
+     "afin de", "pour", "dans le but de",
+     "or", "mais", "cependant",
+     "selon", "d'après", "en fonction de",
+     "contrôlant", "dépendant de"
+   ]
+ }
+  Responsable : Michel Tendeng. Bloquant pour G2. À faire en priorité avant l'implémentation.
+
+ Extraction du connecteur gold (data/verbalize_loader.py) :
+ # token_span = [id_start, id_end] (token IDs 1-based)
+ # Tokens entre les deux clauses = connecteur
+ end_src   = node_src['token_span'][1]
+ start_dst = node_dst['token_span'][0]
+ connector_toks = [t for t in sentence_tokens if end_src < t['id'] < start_dst]
+ connector_text = " ".join(t['form'].lower() for t in connector_toks).strip()
+ # Matcher contre le vocab
+ connector_gold_idx = next(
+     (i for i, c in enumerate(connector_vocab) if c in connector_text or connector_text in c),
+     None   # None si aucun match
+ )
+
+ data/verbalize_loader.py : VerbalizeSample ajoute connector_gold_idx: int | None.
+
+ Rétrocompatibilité : TrainableDecoder reste dans le code, marqué DeprecationWarning. --legacy-decoder le réactive.
+
+ Fichiers : verbalizer/trainable.py (nouvelle classe), data/verbalize_loader.py, training/train.py, training/checkpoint.py
+
+ ---
+
+ G3 — Métriques correctes (CORRECTION défaut #3)
+
+ Retirer verbalize_bleu1 (invalide). Remplacer par :
+
+ # Dans metrics (training/train.py)
+ "verbalize_connector_prec1": connector_precision_at_1(pred_idxs, gold_idxs),
+ # gold_idxs où None sont exclus du calcul
+
+ connector_precision_at_1 = sum(p==g for p,g in zip(pred,gold) if g is not None) / max(1, count_non_none(gold)).
+
+ Cette métrique a un sens clair : le modèle choisit-il le bon connecteur pour chaque relation ?
+ Baseline attendue aléatoire : 1/|C| = 1/30 ≈ 0.033. Cible raisonnable après entraînement : > 0.50.
+
+ Fichiers : training/train.py
+
+ ---
+
+ Tests verbalizer (tests/test_verbalizer.py, tests/test_trainable_decoder.py)
+
+ test_trainable_decoder_deprecation_warning
+ test_lexical_connector_assembler_output_contains_labels
+ test_lexical_connector_assembler_output_non_empty
+ test_connector_precision_at_1_perfect
+ test_connector_precision_at_1_none_gold_excluded
+ test_verbalize_loader_extracts_clause_texts
+   → clause_texts[0] == reconstitution des tokens du span
+ test_verbalize_loader_extracts_connector_gold_idx
+   → connector_gold_idx ∈ [0, len(vocab)) ou None
+
+ ---
+
+ Section 9 — Plan d'exécution séquentiel
+
+ Phase 1 — Corrections bloquantes (4 tâches)
+
+ ┌───────────────────────────────────────┬─────────────────────┬────────┐
+ │                 Tâche                 │  Fichier principal  │ Bloque │
+ ├───────────────────────────────────────┼─────────────────────┼────────┤
+ │ G1 : extraction clause_texts depuis   │ verbalize_loader.py │ G2, G3 │
+ │ tokens                                │                     │        │
+ ├───────────────────────────────────────┼─────────────────────┼────────┤
+ │ G3 : remplacer BLEU par               │ train.py            │ mesure │
+ │ connector_prec@1                      │                     │        │
+ ├───────────────────────────────────────┼─────────────────────┼────────┤
+ │ C : attribut frozen +                 │ embedding.py        │ B, C   │
+ │ _subj/obj_absent trainable            │                     │        │
+ ├───────────────────────────────────────┼─────────────────────┼────────┤
+ │ F : --silver-weight + SentenceRecord  │ schema.py,          │ loss   │
+ │ .weight via _methode                  │ json_reader.py,     │ silver │
+ │ (trivial — 1 flag, 3 lignes)          │ train.py            │        │
+ └───────────────────────────────────────┴─────────────────────┴────────┘
+
+ Validation : pytest tests/ -x. Run verbalize affiche verbalize_connector_prec1 dans terminal.
+
+ Phase 2 — Encodage lexical (dépend de Phase 1)
+
+ ┌────────────────────────────────────┬────────────────────────────────┐
+ │               Tâche                │       Fichier principal        │
+ ├────────────────────────────────────┼────────────────────────────────┤
+ │ A : mean/max pooling tokens        │ features.py, train.py          │
+ │ contenu + extension vocab          │                                │
+ ├────────────────────────────────────┼────────────────────────────────┤
+ │ B : d_clause_effective(), subj/obj │ features.py, embedding.py      │
+ │  avec _absent                      │                                │
+ ├────────────────────────────────────┼────────────────────────────────┤
+ │ Validation dimension cascade       │ train.py:173 → appeler         │
+ │                                    │ d_clause_effective()           │
+ └────────────────────────────────────┴────────────────────────────────┘
+
+  Précondition : Pour A+B+D ensemble, utiliser --embedding-dim 49 (d_eff=128, divisible par 1, 2, 4 et 8).
+
+ Phase 3 — Verbalizer propre (dépend de Phase 1 + annotation manuelle)
+
+ Pré-requis : connectors_fr.json créé par Michel Tendeng (bloquant).
+
+ ┌────────────────────────────────────────┬─────────────────────────┐
+ │                 Tâche                  │    Fichier principal    │
+ ├────────────────────────────────────────┼─────────────────────────┤
+ │ Implémenter LexicalConnectorAssembler  │ verbalizer/trainable.py │
+ ├────────────────────────────────────────┼─────────────────────────┤
+ │ Ajouter connector_gold_idx dans loader │ verbalize_loader.py     │
+ ├────────────────────────────────────────┼─────────────────────────┤
+ │ Câbler dans train.py + checkpoint      │ train.py, checkpoint.py │
+ └────────────────────────────────────────┴─────────────────────────┘
+
+ Phase 4 — Architecture GAT (indépendante des phases 2/3)
+
+ ┌───────────────────────────────────┬─────────────────────────┐
+ │               Tâche               │    Fichier principal    │
+ ├───────────────────────────────────┼─────────────────────────┤
+ │ n_heads + contrainte divisibilité │ gat.py                  │
+ ├───────────────────────────────────┼─────────────────────────┤
+ │ Détection shape load_state()      │ gat.py                  │
+ ├───────────────────────────────────┼─────────────────────────┤
+ │ --n-gat-heads CLI + checkpoint    │ train.py, checkpoint.py │
+ └───────────────────────────────────┴─────────────────────────┘
+
+ Phase 5 — Profondeur (dépend de Phase 4)
+
+ ┌──────────────────────────────────────────────────┬──────────────────┐
+ │                      Tâche                       │     Fichier      │
+ │                                                  │    principal     │
+ ├──────────────────────────────────────────────────┼──────────────────┤
+ │ output_activation conditionnel + backward        │ gat.py           │
+ ├──────────────────────────────────────────────────┼──────────────────┤
+ │ use_layernorm + nn.LayerNorm + checkpoint 5      │ gat.py           │
+ │ arrays                                           │                  │
+ ├──────────────────────────────────────────────────┼──────────────────┤
+ │ Empilement type(graph) dans pipeline             │ pipeline/cgnp.py │
+ ├──────────────────────────────────────────────────┼──────────────────┤
+ │ Résidu forward + backward                        │ pipeline/cgnp.py │
+ ├──────────────────────────────────────────────────┼──────────────────┤
+ │ Lever restriction CLI + avertissement            │ train.py         │
+ │ overfitting                                      │                  │
+ └──────────────────────────────────────────────────┴──────────────────┘
+ Note : F (silver-weight) déplacé en Phase 1 — trivial, améliore la convergence dès le début.
+
+ ---
+
+ Section 10 — Vérification end-to-end
+
+  # ── Baseline de référence (à exécuter EN PREMIER — pas de nouveaux flags)
+  # Données : DATA/supervision/mixte_final/ — train 2015 phrases, test 380 phrases
+  # Note : le 0.4676 cité plus bas (§11) a été mesuré sur des données différentes
+  # et n'est PAS reproductible sur mixte_final (mesures actuelles : ~0.31 val / ~0.34 test).
+  # Re-baseliner ici avant d'interpréter les cibles post-améliorations.
+  gcn-train \
+    --data-dir DATA/supervision/mixte_final/train/ \
+    --val-dir  DATA/supervision/mixte_final/test/ \
+    --epochs 100 --lr 0.0005 \
+    --weighted-loss --use-attention --bidirectional \
+    --log-csv bench_baseline.csv
+  # → noter val_edge_macro_f1 et val_node_macro_f1 à convergence : ce sont les vraies baselines.
+
+  # Phase 1+2 — run de référence post-corrections
+  gcn-train \
+    --data-dir DATA/supervision/mixte_final/train/ \
+    --val-dir  DATA/supervision/mixte_final/test/ \
+    --epochs 100 --lr 0.0005 \
+    --weighted-loss --use-attention --bidirectional \
+    --embedding-dim 49 \
+    --embedding-file gcn-python/models/wiki.fr.vec \
+    --freeze-embeddings \
+    --silver-weight 0.7 \
+    --clause-pooling mean \
+    --subject-object-emb \
+    --log-csv bench_phase12.csv
+
+  # Métriques cibles réalistes (post-baseline remesurée) :
+  #   val_edge_macro_f1       > baseline + 0.06
+  #   val_node_macro_f1       > baseline + 0.08
+  #   verbalize_connector_prec1 > 0.50  (baseline aléatoire : 0.033)
+
+ # Phase 3+4 — multi-tête + verbalizer
+ gcn-train ... \
+   --n-gat-heads 4 \
+   --log-csv bench_phase34.csv
+  # Note : d_emb=49 requis pour n_heads=4 (d_eff=128, divisible par 1,2,4,8)
+
+ # Phase 5 — profondeur
+ gcn-train ... \
+   --n-rgcn-layers 2 --gat-residual --gat-layernorm \
+   --rgcn-dropout 0.2 --weight-decay 1e-4 \
+   --log-csv bench_phase5.csv
+
+  # Rétrocompatibilité : run sans aucun nouveau flag
+  gcn-train \
+    --data-dir DATA/supervision/mixte_final/train/ \
+    --val-dir  DATA/supervision/mixte_final/test/ \
+    --epochs 10 --lr 0.0005 \
+    --weighted-loss --use-attention --bidirectional
+  # val_edge_macro_f1 à epoch 10 dans ±0.02 du baseline re-mesuré
+
+ # Suite complète
+ python -m pytest gcn-python/tests/ -x -v
+
+ ---
+
+ Section 11 — Positionnement honnête : moteur vs Transformers après améliorations
+
+ Performance estimée post A–G
+
+ ┌───────────────────┬──────────────────┬──────────────┬──────────────────────┐
+ │                   │    Baseline      │  Post A–G    │      CamemBERT       │
+ │     Métrique      │   actuelle (*)   │   (estimé)   │  fine-tuné (2015ex.) │
+ ├───────────────────┼──────────────────┼──────────────┼──────────────────────┤
+ │ val_edge_macro_f1 │ à re-mesurer (*) │ baseline+0.06│ ~0.78–0.85           │
+ ├───────────────────┼──────────────────┼──────────────┼──────────────────────┤
+ │ val_node_macro_f1 │ à re-mesurer (*) │ baseline+0.08│ ~0.65–0.75           │
+ ├───────────────────┼─────────────┼──────────────┼───────────────────┤
+ │ Paramètres        │ ~300K            │ ~1.4M        │ 111M                 │
+ ├───────────────────┼──────────────────┼──────────────┼──────────────────────┤
+ │ Inférence CPU     │ <10ms            │ <15ms        │ >500ms               │
+ └───────────────────┴──────────────────┴──────────────┴──────────────────────┘
+
+ (*) Le 0.4676 cité antérieurement a été tracé sur des données non comparables à mixte_final.
+ Les vraies baselines sur mixte_final (train 2015 / test 380) sont à mesurer via le run
+ de référence §10. Les cibles post-améliorations sont exprimées en delta relatif (+0.06 / +0.08).
+
+ Les améliorations A–G ne rendent pas le moteur supérieur aux transformers en F1 brut. L'écart résiduel reste significatif.
+
+ Pourquoi le fossé structurel persiste
+
+ Les améliorations traitent les symptômes architecturaux. La cause racine reste l'absence de pré-entraînement :
+
+ CGNP amélioré  = FastText 300-dim (wiki.fr.vec) + 2015 phrases annotées (1388 gold + 627 silver)
+ CamemBERT       = 768-dim contextuels (138 Go texte fr) + 2015 phrases fine-tuning
+
+ Même avec mean-pooling (A) et embeddings sujet/objet (B), le vecteur de nœud est 300-dim (wiki.fr.vec) contre 768-dim contextuel — facteur 2.6× de capacité. Les améliorations D (multi-tête) et E (empilement) ajoutent de la profondeur mais ne compensent pas la richesse d'entrée.
+
+ Ce que les améliorations ferment et ce qu'elles ne ferment pas
+
+ ┌────────────────────────┬──────────────────────┬────────────────────┐
+ │      Désavantage       │     Amélioration     │    Effet estimé    │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ Root token seul →      │ A (mean-pool) + B    │ Ferme ~40% du gap  │
+ │ features pauvres       │ (subj/obj)           │ node F1            │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ Embeddings dégradés    │ C (freeze)           │ Préserve qualité   │
+ │                        │                      │ FastText           │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ Tête d'attention       │ D (multi-head)       │ +0.02–0.04 edge F1 │
+ │ unique                 │                      │                    │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ 1-hop profondeur       │ E (stacking+résidu)  │ +0.03–0.05 node F1 │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ Verbalizer cassé       │ G                    │ Fix fonctionnel,   │
+ │                        │                      │ pas de gain F1     │
+ ├────────────────────────┼──────────────────────┼────────────────────┤
+ │ Pas de                 │ Aucune amélioration  │ Gap structurel     │
+ │ pré-entraînement       │ ici                  │ intact             │
+ └────────────────────────┴──────────────────────┴────────────────────┘
+
+ Axes où le moteur reste supérieur aux transformers
+
+ ┌─────────────────────┬───────────────────────┬───────────────────────┐
+ │         Axe         │     CGNP amélioré     │  CamemBERT fine-tuné  │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Inférence CPU sans  │ <15ms, 1.4M params    │ >500ms, 111M params   │
+ │ GPU                 │                       │                       │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Graphe causal       │ Oui — nœuds/arêtes    │ Non — distribution de │
+ │ explicite           │ typés                 │  probabilités         │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Ontologie causale   │ 11 types définis par  │ Appris implicitement  │
+ │ contrôlée           │ le chercheur          │                       │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │                     │ Prédit uniquement sur │ Peut inférer des      │
+ │ Pas d'hallucination │  graphe UD existant   │ relations             │
+ │                     │                       │ inexistantes          │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Edge computing      │ Fonctionne sur CPU    │ Impossible sans GPU   │
+ │ embarqué            │ faible (Raspberry Pi) │                       │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Explicabilité       │ Chaque prédiction     │ Boîte noire           │
+ │ audit/légal         │ tracée au token       │                       │
+ ├─────────────────────┼───────────────────────┼───────────────────────┤
+ │ Edge F1 brut        │ ~0.55                 │ ~0.82                 │
+ └─────────────────────┴───────────────────────┴───────────────────────┘
+
+ Voie unique pour fermer le fossé dans la vision du moteur
+
+ La seule voie technique compatible : plus de données annotées.
+
+ 2015 phrases → edge F1 ≈ à mesurer  (baseline actuelle sur mixte_final)
+ 2015 phrases → edge F1 ≈ baseline+0.06  (post améliorations A–G)
+ 5 000 phrases → edge F1 ≈ 0.65–0.70  (projection loi de scaling)
+ 20 000 phrases → edge F1 ≈ 0.75+  (compétitif sans pré-entraînement)
+
+ Un transformer pré-entraîné atteint ~0.50 F1 à zéro données annotées (pré-entraînement seul), monte à ~0.82 avec 2015 exemples. CGNP commence à 0.00 et sa vraie baseline sur 2015 phrases est à mesurer. L'avantage transformer diminue à mesure que les données annotées augmentent.
+
+ Les améliorations A–G permettent au moteur de remplir sa mission avec moins de données et d'atteindre son plafond architectural plus tôt. Elles ne changent pas la nature de la compétition avec les transformers : le moteur gagne sur le déploiement, l'explicabilité et l'ontologie contrôlée — pas sur le F1 brut.
+
+ ---
+
+ Ce qui n'est PAS dans ce plan
+
+ - Pas de BERT/Transformers comme encodeur de nœuds.
+ - Pas de spaCy (retiré en v0.9.3).
+ - Pas de pré-entraînement auto-supervisé.
+ - Pas de changement au schéma JSON des datasets.
+ - Pas de modification des frontends Rust.
+ - Pas de BLEU comme métrique verbalizer (invalide sur labels 1 mot).
+ - TrainableDecoder : deprecated, non supprimé.
+
+  Dépendance bloquante externe
+
+  gcn-datasets/connectors/connectors_fr.json doit être créé manuellement (Michel Tendeng) avant le début de la Phase 3. Sans ce fichier, G2 et G3 ne peuvent pas être implémentés.

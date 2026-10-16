@@ -1,0 +1,78 @@
+AUDIT — Chaîne labélisation → poids d'entraînement
+Date : 2026-09-15
+Branche : HEAD (155e803)
+======================================================
+
+RÉSULTAT GLOBAL : aucun bug trouvé. 86 tests passent.
+
+------------------------------------------------------
+ÉTAPE 1 — YAML → TrainingSample (loader.py)
+------------------------------------------------------
+- ClauseRecord.node_type (str) → NODE_TYPES.index() → gold_node_labels: np.int64 [0..6]
+- EdgeRecord.relation (str)    → RELATION_TYPES.index() → edge_map: {(src_idx,tgt_idx): rel_idx [0..10]}
+
+Filtrages edge_map (corrects, avec UserWarning) :
+  - Arêtes longue-distance (gap > 1)      → exclues, non supervisables
+  - Arêtes direction inverse (src > tgt)  → exclues, non supervisables
+
+------------------------------------------------------
+ÉTAPE 2 — Vectorisation (features.py)
+------------------------------------------------------
+vectorize_clause → np.ndarray[d_clause] :
+  one-hot root_pos (19) + dep_rel (38) + subject_pos (5)
+  + tense/aspect/mood (14) + polarity (1) + flags (3) + taxonomie (N_tax)
+
+FeatureVocabulary sérialisée dans le checkpoint → cohérence train/inférence garantie.
+
+------------------------------------------------------
+ÉTAPE 3 — Alignement gold/logits (train.py:107-134)
+------------------------------------------------------
+Nœuds :
+  gold_node = gold_node_labels[valid_clause_idxs]
+  → node_logits[i] ↔ gold_node[i]  ✓
+
+Arêtes :
+  pairs = [(valid_clause_idxs[k], valid_clause_idxs[k+1]) for k in range(len-1)]
+  gold_edge_full[k] = edge_map.get(pairs[k], -1)
+  valid_edge_mask = gold_edge_full >= 0
+  edge_logits_arg = edge_logits[valid_edge_idxs]
+  filter_edge_cache(valid_edge_idxs)  → aligne caches backward  ✓
+
+------------------------------------------------------
+ÉTAPE 4 — Loss (cgnp._cross_entropy)
+------------------------------------------------------
+  d_logits = (softmax(logits) − onehot(gold)) / N   — normalisé par N
+  Garde-fou : labels.max() >= n_classes → ValueError avant tout calcul  ✓
+
+------------------------------------------------------
+ÉTAPE 5 — Backward + SGD (cgnp.backward)
+------------------------------------------------------
+MLP nœuds :
+  Accumulation Σ dW_i sur N nœuds (chaque dW_i ∝ 1/N → gradient batch correct)
+  encoder.update_node → W -= lr * Σ dW_i  ✓
+
+MLP arêtes :
+  Même logique sur E arêtes filtrées
+  encoder.update_edge → W -= lr * Σ dW_i  ✓
+
+R-GCN :
+  backward_message_pass utilise TOUTES les arêtes du forward (non filtrées)
+  → correct car message_pass les a toutes vues
+  d_enriched propagé depuis MLP nœud  ✓
+
+Normalisation 1/N : faite une seule fois dans _cross_entropy
+  (pas de double normalisation — corrigé commit 02ded88)  ✓
+
+Arêtes backward exclues de edge_map (entrées mortes supprimées — commit e0bbf1d)  ✓
+
+------------------------------------------------------
+POINT D'ATTENTION (non bloquant)
+------------------------------------------------------
+Les fixtures paper-002, paper-006, paper-012 contiennent des arêtes gold
+en direction inverse (src > tgt). Ces arêtes ne reçoivent aucune supervision.
+
+Si ces arêtes représentent de vraies relations causales importantes du corpus,
+il faudra envisager d'étendre le forward pour prédire les deux directions
+(ou inverser les arêtes à la lecture).
+
+Pour l'instant : UserWarning émis, comportement documenté, non bloquant.

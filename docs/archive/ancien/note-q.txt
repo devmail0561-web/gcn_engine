@@ -1,0 +1,38 @@
+Deux questions distinctes — réponse précise pour chacune.
+
+---
+
+R-GCN : le problème est-il résolu ?
+
+Le mécanisme est corrigé, oui. Deux-pass + scheduled sampling adressent les deux faces du problème :
+
+- Two-pass (Phase 1, déjà implémenté) : à l'inférence, le R-GCN reçoit des types prédits par le MLP edge (pas tous zéros). La dépendance circulaire est remplacée par une dépendance séquentielle — d'abord MLP edge sans R-GCN, puis R-GCN avec les types prédits, puis MLP edge final avec enrichissement.
+- Scheduled sampling (ce qu'on vient d'implémenter) : pendant l'entraînement, le modèle apprend progressivement à travailler sans le corrigé gold.
+
+Ce qu'on ne sait pas encore : est-ce que le R-GCN enrichi par les types prédits du two-pass apporte réellement quelque chose au classifieur final, ou est-ce qu'un MLP seul (sans R-GCN) ferait aussi bien ? C'est ce que le bench --n-rgcn-layers 0 mesurera. Corriger le mécanisme ne prouve pas que la propagation de messages apporte de l'information utile.
+
+---
+
+FastText : déjà implémenté, pas encore activé
+
+Tu as raison — j'ai lu le code. FastText est entièrement implémenté :
+- train.py:509-539 : charge les vecteurs lemme par lemme depuis le .bin
+- vectorize_clause accepte word_embedding et concatène les embeddings
+- --fasttext existe dans le CLI
+
+Mais le défaut est None — sans passer --fasttext wiki.fr.bin, le moteur tourne avec les one-hot seuls. C'est disponible, pas actif par défaut.
+
+L'effet concret quand activé : "pluie" et "soleil" ont des vecteurs différents. Le classifieur peut commencer à distinguer des patrons sémantiquement différents même avec la même syntaxe.
+
+---
+
+Ce qui reste vraiment ouvert
+
+Deux questions empiriques que le code ne peut pas trancher — seuls les bench
+
+1. R-GCN vs MLP-only : après les corrections (two-pass + scheduled sampling)
+2. FastText : les embeddings sémantiques améliorent-ils la F1 sur le val set ?
+
+Ces deux benchs sont les bench_A0, Phase 3 et Phase 4 du plan — aucun code à écrire, juste lancer les runs.
+
+donc le ML est le point faible du moteur, en quoi? Par quoi peut-on le remplacer?

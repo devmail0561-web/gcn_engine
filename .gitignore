@@ -42,8 +42,11 @@ benchmark-validation/*.npz
 /gcn-transformers-SYNTHESE-FINALE.md
 /REMEDIATION-DIAGNOSTIC.md
 
-# Documents internes de développement
-docs/
+# Documents internes de développement : textes versionnés, binaires exclus
+# (docs/ entier ignoré avant le 2026-10-16 : 118 fichiers dont baseline et
+# protocoles n'étaient pas versionnés — risque de perte silencieuse)
+docs/**/*.npz
+docs/**/*.zip
 .opencode/
 
 # Données de travail consolidées dans gcn-datasets/

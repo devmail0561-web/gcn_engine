@@ -1,0 +1,953 @@
+Plan : Intégration Encodeurs Transformer Post-Publication (gcn-transformers) — VERSION CORRIGÉE
+====================================================================================================
+
+ Contexte
+
+ Après publication de gcn-python==2.5.0 sur PyPI, créer un package séparé gcn-transformers qui fournit des encodeurs basés sur des modèles Transformer pré-entraînés (CamemBERT, XLM-RoBERTa, CodeBERT) comme alternatives au MLPEncoder actuel.
+
+ Problème actuel du MLPEncoder :
+ - MLPEncoder travaille sur features syntaxiques 79-dim one-hot (POS, dep_rel, morph UD)
+ - Aucune information sémantique — deux clauses de sens différent mais même syntaxe reçoivent le même vecteur
+ - Causalité implicite (sans connecteur) = angle mort
+ - Plafond structurel : val_edge_f1=0.468 sur 536 phrases
+
+ Bénéfice Transformers :
+ - Embeddings sémantiques 768-dim contextualisés (voit le sens des mots)
+ - 110M-280M paramètres pré-entraînés sur gigaoctets de texte
+ - Capable d'inférer la causalité implicite via embeddings textuels
+ - Objectif : val_edge_f1 > 0.70 avec fine-tuning sur 2000+ phrases
+
+ Contrainte de design :
+ - Modification minimale à gcn-python (~40 lignes : factory + entry-point)
+ - Utilisateur change UNE SEULE LIGNE de code (import de l'encodeur) après installation
+ - Package optionnel : utilisateurs sans Transformers continuent d'utiliser MLPEncoder
+
+ ---
+
+ Architecture Globale
+
+ 1. Design Pattern : Adapter avec Classe de Base Abstraite
+
+ TransformerEncoderBase (classe abstraite)  ← factorise PyTorch↔NumPy
+ ├── XLMRobertaEncoder   (multilingue FR/EN/Code, 280M params)
+ ├── CamembertEncoder    (français, 110M params)
+ └── CodeBERTEncoder     (code Python/Rust, 125M params)
+
+ Responsabilités TransformerEncoderBase :
+ - Conversion NumPy → PyTorch (.requires_grad_() pour autograd)
+ - Implémentation backward_node_dx ET backward_edge_dx via torch.autograd.grad()
+ - Gestion cache forward/backward avec graphe autograd préservé (node ET edge)
+ - Extraction gradients format list[tuple[np.ndarray, np.ndarray]] (gcn-python)
+ - Optimizer AdamW interne UNIQUE pour node+edge (évite double step)
+
+ Sous-classes concrètes :
+ - Instancient AutoModel.from_pretrained(model_name) (HuggingFace)
+ - ~80-150 lignes chacune (simple wrappers)
+
+ 2. Interface Critique : backward_node_dx et backward_edge_dx
+
+ C'est le cœur de l'intégration R-GCN. Sans ces méthodes, le pipeline ne peut pas entraîner le R-GCN (gradients ne remontent pas depuis l'encodeur vers les vecteurs enrichis).
+
+ Stratégie en 2 temps :
+
+ Temps 1 : Backward autograd PyTorch
+ d_logits_t = torch.as_tensor(d_logits, device=self._device)
+ output_logits.backward(d_logits_t, retain_graph=False)
+ dx = input_tensor.grad.cpu().numpy()  # gradient vers l'entrée (pour R-GCN)
+
+ Temps 2 : Extraction gradients au format gcn-python
+ # IMPORTANT : les gradients sont déjà dans .grad (calculés par backward)
+ # NE PAS appeler zero_grad() ici (sinon seul le dernier nœud survit)
+ grads = [(layer.weight.grad.cpu().numpy(), layer.bias.grad.cpu().numpy())
+          for layer in self._node_head if isinstance(layer, nn.Linear)]
+ return grads, dx
+
+ Le pipeline accumule ces gradients sur N nœuds (cgnp.py:883-890), puis appelle update_node() qui utilise AdamW et zero_grad().
+
+ 3. Stratégie Fine-Tuning : Gel Partiel + AdamW
+
+ Décision clé : freeze_layers=10 par défaut (geler les 10 premières couches sur 12)
+
+ IMPORTANT : Cette stratégie ne s'applique QUE si le Transformer voit du texte brut (Option B).
+ Avec Option A (projection UD), le gel est contre-productif car les couches basses sont calibrées sur du texte, pas sur des vecteurs UD one-hot.
+
+ Optimizer : AdamW au lieu de SGD
+ - Adaptive learning rate (momentum, weight decay découplé)
+ - Meilleur pour Transformers (standard dans HuggingFace)
+ - UNIQUE optimizer pour node+edge (évite double step)
+ - Warning émis UNE FOIS si le lr du pipeline diffère
+
+ 4. Gestion Mémoire : Lazy Loading + Snapshots avec Graphe
+
+ Lazy loading : modèle HuggingFace chargé au __init__ (pas à l'import)
+ class XLMRobertaEncoder:
+     def __init__(self, ...):
+         from transformers import AutoModel, AutoTokenizer
+         self.model = AutoModel.from_pretrained("xlm-roberta-base")  # 500 MB
+         self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
+
+ Snapshots : capture input_tensor et output_logits AVEC leur .grad_fn
+ - Graphe autograd préservé → backward efficace sans re-run forward
+ - Consomme plus de mémoire que MLPEncoder (~2× vecteurs clause)
+ - Acceptable pour N ≤ 40 nœuds (typique dans le dataset)
+ - REQUIS pour node ET edge (snapshot_node_cache + snapshot_edge_cache)
+
+ Alternative : sans snapshots, re-run forward en mode eval (gradients approximatifs si dropout actif)
+
+ ---
+
+ Structure du Package
+
+ gcn-transformers/
+ ├── pyproject.toml            # Hatchling, deps: gcn-python>=2.5.0, transformers>=4.30, torch>=2.0
+ ├── README.md                 # Usage, migration depuis MLPEncoder, benchmarks
+ ├── LICENSE                   # Apache 2.0 (aligné sur gcn-python)
+ ├── src/
+ │   └── gcn_transformers/
+ │       ├── __init__.py       # Expose XLMRobertaEncoder, CamembertEncoder, CodeBERTEncoder
+ │       ├── base.py           # TransformerEncoderBase (350 lignes) — CRITIQUE
+ │       ├── xlm_roberta.py    # XLMRobertaEncoder (150 lignes)
+ │       ├── camembert.py      # CamembertEncoder (80 lignes)
+ │       ├── codebert.py       # CodeBERTEncoder (80 lignes)
+ │       └── utils.py          # Helpers conversion, checkpoint transformer→npz
+ └── tests/
+     ├── conftest.py           # Fixtures, pytest.importorskip("transformers")
+     ├── test_protocol_compliance.py   # Vérifie CausalEncoder Protocol
+     ├── test_integration.py           # Tests avec CGNPipeline complet
+     ├── test_backward.py              # Tests backward_node_dx, gradients (torch.autograd.gradcheck)
+     └── test_checkpoint.py            # Tests save/load checkpoint
+
+
+ ---
+
+ Fichiers Critiques à Implémenter
+
+ 1. src/gcn_transformers/base.py (350 lignes)
+
+ Classe abstraite factorisant toute la logique PyTorch↔NumPy.
+
+ Méthodes clés :
+
+ import torch
+ import torch.nn as nn
+ import numpy as np
+ import warnings
+ from typing import Protocol
+
+ class TransformerEncoderBase:
+     """Classe de base abstraite pour encodeurs Transformer → CausalEncoder Protocol."""
+
+     def __init__(self, d_clause: int, d_edge: int, freeze_layers: int = 10,
+                  learning_rate: float = 1e-5, device: str | None = None,
+                  n_node_types: int = 7, n_relation_types: int = 11):
+         """
+         ATTENTION : les sous-classes doivent instancier self.model et self.tokenizer
+         AVANT d'appeler super().__init__(), car __init__ accède à self.model.config.
+         """
+         self.d_clause = d_clause  # Interne, jamais lu par le pipeline
+         self.d_edge = d_edge
+         self.freeze_layers = freeze_layers
+         self.training = True
+         self.prefers_batch_forward = False  # False par défaut (snapshots requis)
+         self.n_node_types = n_node_types
+         self.n_relation_types = n_relation_types
+
+         # Device auto-détecté
+         if device is None:
+             device = "cuda" if torch.cuda.is_available() else "cpu"
+         self._device = torch.device(device)
+
+         # Vérifier que self.model existe (instancié par sous-classe)
+         if not hasattr(self, 'model') or self.model is None:
+             raise RuntimeError(
+                 f"{type(self).__name__}.__init__() : self.model doit être instancié "
+                 "par la sous-classe AVANT d'appeler super().__init__()"
+             )
+
+         # Projection UD → hidden_size (persistant, optimisable)
+         self.proj_ud = nn.Linear(d_clause, self.model.config.hidden_size).to(self._device)
+
+         # Têtes de classification (node/edge)
+         self._node_head = nn.Sequential(
+             nn.Linear(self.model.config.hidden_size, 256),
+             nn.ReLU(),
+             nn.Dropout(0.1),
+             nn.Linear(256, n_node_types),
+         ).to(self._device)
+
+         # CORRECTION : edge head reçoit d_edge (365), PAS hidden*2
+         self._edge_head = nn.Sequential(
+             nn.Linear(d_edge, 256),
+             nn.ReLU(),
+             nn.Dropout(0.1),
+             nn.Linear(256, n_relation_types),
+         ).to(self._device)
+
+         # Geler les layers bas du Transformer
+         for layer_idx in range(freeze_layers):
+             for param in self.model.encoder.layer[layer_idx].parameters():
+                 param.requires_grad = False
+
+         # Optimizer AdamW UNIQUE pour node+edge (évite double step)
+         trainable_params = (
+             list(self.model.encoder.layer[freeze_layers:].parameters()) +
+             list(self.proj_ud.parameters()) +
+             list(self._node_head.parameters()) +
+             list(self._edge_head.parameters())
+         )
+         self.optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate)
+
+         # Cache pour backward_node_dx et backward_edge_dx
+         self._cached_input_tensor: torch.Tensor | None = None
+         self._cached_output_logits: torch.Tensor | None = None
+         self._cached_edge_input_tensor: torch.Tensor | None = None
+         self._cached_edge_output_logits: torch.Tensor | None = None
+
+         # Flag pour warning lr (émettre UNE SEULE FOIS)
+         self._lr_warning_emitted = False
+
+     def forward_node(self, x: np.ndarray) -> np.ndarray:
+         """Single node forward — construit le graphe autograd même en training=False."""
+         return self.forward_batch(x[np.newaxis, :])[0]
+
+     def forward_batch(self, X: np.ndarray, texts: list[str] | None = None) -> np.ndarray:
+         """
+         Batch forward (N, d_clause) → (N, n_node_types) node logits.
+
+         Option A (par défaut) : Projection UD → hidden_size (agnosticisme langue)
+         Option B (si texts fourni) : Tokenization texte → embeddings pré-entraînés
+         """
+         X_t = torch.as_tensor(X, dtype=torch.float32, device=self._device)
+         X_t.requires_grad_(True)  # TOUJOURS pour backward_node_dx
+
+         if texts is not None:
+             # Option B : tokenization réelle (recommandé)
+             inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+             inputs = {k: v.to(self._device) for k, v in inputs.items()}
+             outputs = self.model(**inputs)
+             H = outputs.last_hidden_state[:, 0, :]  # [CLS] token
+         else:
+             # Option A : projection UD (fallback)
+             H = self.proj_ud(X_t)  # (N, hidden_size)
+
+             # Forward Transformer (self-attention sur N nœuds)
+             # PAS de torch.no_grad() — le graphe doit être construit même si training=False
+             outputs = self.model(inputs_embeds=H.unsqueeze(0))  # (1, N, hidden_size)
+             H_enriched = outputs.last_hidden_state.squeeze(0)  # (N, hidden_size)
+             H = H_enriched
+
+         logits = self._node_head(H)  # (N, n_node_types)
+
+         # Cache pour backward
+         self._cached_input_tensor = X_t
+         self._cached_output_logits = logits
+
+         return logits.detach().cpu().numpy()
+
+     def backward_node_dx(self, d_logits: np.ndarray) -> tuple[list[tuple], np.ndarray]:
+         """Backward avec autograd PyTorch — retourne (grads, dx)."""
+         if self._cached_output_logits is None:
+             raise RuntimeError("backward_node_dx appelé sans forward_batch préalable")
+
+         # Backward autograd
+         d_logits_t = torch.as_tensor(d_logits, dtype=torch.float32, device=self._device)
+         self._cached_output_logits.backward(d_logits_t, retain_graph=False)
+
+         # Gradient vers l'entrée (pour R-GCN)
+         dx = self._cached_input_tensor.grad.cpu().numpy()
+
+         # Extraction gradients node_head au format gcn-python
+         # IMPORTANT : NE PAS appeler zero_grad() ici (sinon seul le dernier nœud survit)
+         grads = []
+         for layer in self._node_head:
+             if isinstance(layer, nn.Linear):
+                 grads.append((
+                     layer.weight.grad.cpu().numpy().copy(),
+                     layer.bias.grad.cpu().numpy().copy()
+                 ))
+
+         # Clear cache
+         self._cached_input_tensor = None
+         self._cached_output_logits = None
+
+         return grads, dx
+
+     def forward_edge(self, x: np.ndarray) -> np.ndarray:
+         """Edge forward (d_edge,) → (n_relation_types,) relation logits."""
+         x_t = torch.as_tensor(x, dtype=torch.float32, device=self._device)
+         x_t.requires_grad_(True)  # Pour backward_edge_dx
+
+         logits = self._edge_head(x_t)
+
+         # Cache pour backward
+         self._cached_edge_input_tensor = x_t
+         self._cached_edge_output_logits = logits
+
+         return logits.detach().cpu().numpy()
+
+     def backward_edge_dx(self, d_logits: np.ndarray) -> tuple[list[tuple], np.ndarray]:
+         """Backward edge — similaire à backward_node_dx."""
+         if self._cached_edge_output_logits is None:
+             raise RuntimeError("backward_edge_dx appelé sans forward_edge préalable")
+
+         # Backward autograd
+         d_logits_t = torch.as_tensor(d_logits, dtype=torch.float32, device=self._device)
+         self._cached_edge_output_logits.backward(d_logits_t, retain_graph=False)
+
+         # Gradient vers l'entrée
+         dx = self._cached_edge_input_tensor.grad.cpu().numpy()
+
+         # Extraction gradients edge_head
+         grads = []
+         for layer in self._edge_head:
+             if isinstance(layer, nn.Linear):
+                 grads.append((
+                     layer.weight.grad.cpu().numpy().copy(),
+                     layer.bias.grad.cpu().numpy().copy()
+                 ))
+
+         # Clear cache
+         self._cached_edge_input_tensor = None
+         self._cached_edge_output_logits = None
+
+         return grads, dx
+
+     def parameters(self) -> list[np.ndarray]:
+         """Retourne tous les paramètres au format NumPy (pour checkpoint)."""
+         params = []
+         # Transformer layers (non gelés seulement)
+         for layer in self.model.encoder.layer[self.freeze_layers:]:
+             for p in layer.parameters():
+                 params.append(p.detach().cpu().numpy())
+         # Projection UD
+         params.extend([
+             self.proj_ud.weight.detach().cpu().numpy(),
+             self.proj_ud.bias.detach().cpu().numpy()
+         ])
+         # Têtes de classification
+         for head in [self._node_head, self._edge_head]:
+             for layer in head:
+                 if isinstance(layer, nn.Linear):
+                     params.extend([
+                         layer.weight.detach().cpu().numpy(),
+                         layer.bias.detach().cpu().numpy()
+                     ])
+         return params
+
+     def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+         """
+         Applique les gradients via AdamW — lr ignoré (warning si différent).
+         IMPORTANT : les gradients sont déjà dans .grad (accumulés par le pipeline).
+         """
+         if not self._lr_warning_emitted and abs(lr - self.optimizer.param_groups[0]['lr']) > 1e-6:
+             warnings.warn(
+                 f"Pipeline lr={lr:.2e} != AdamW lr={self.optimizer.param_groups[0]['lr']:.2e}. "
+                 "AdamW lr utilisé (passez use_pipeline_lr=True pour forcer).",
+                 UserWarning
+             )
+             self._lr_warning_emitted = True
+
+         # Les gradients sont déjà dans .grad — juste step + zero_grad
+         # NE PAS appeler step() deux fois (update_node + update_edge)
+         # → on step() seulement dans update_node, update_edge est no-op
+         self.optimizer.step()
+         self.optimizer.zero_grad()
+
+     def update_edge(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+         """
+         No-op : optimizer.step() déjà appelé dans update_node.
+         Le même AdamW gère node+edge → un seul step par backward.
+         """
+         pass
+
+     def update(self, grads: list[np.ndarray], lr: float) -> None:
+         """Compatibilité rétroactive — délègue à optimizer.step()."""
+         self.optimizer.step()
+         self.optimizer.zero_grad()
+
+     def snapshot_node_cache(self) -> dict:
+         """Snapshot avec graphe autograd préservé."""
+         return {
+             'input_tensor': self._cached_input_tensor,
+             'output_logits': self._cached_output_logits,
+         }
+
+     def restore_node_cache(self, snapshot: dict) -> None:
+         """Restaure le cache."""
+         self._cached_input_tensor = snapshot['input_tensor']
+         self._cached_output_logits = snapshot['output_logits']
+
+     def snapshot_edge_cache(self) -> dict:
+         """Snapshot edge avec graphe autograd préservé."""
+         return {
+             'input_tensor': self._cached_edge_input_tensor,
+             'output_logits': self._cached_edge_output_logits,
+         }
+
+     def restore_edge_cache(self, snapshot: dict) -> None:
+         """Restaure le cache edge."""
+         self._cached_edge_input_tensor = snapshot['input_tensor']
+         self._cached_edge_output_logits = snapshot['output_logits']
+
+     def eval(self) -> None:
+         """Mode eval : désactive dropout ET Transformer."""
+         self.training = False
+         self.model.eval()
+         self._node_head.eval()
+         self._edge_head.eval()
+
+     def train(self) -> None:
+         """Mode train : active dropout ET Transformer."""
+         self.training = True
+         self.model.train()
+         self._node_head.train()
+         self._edge_head.train()
+
+ ---
+
+ 2. src/gcn_transformers/xlm_roberta.py (150 lignes)
+
+ Sous-classe concrète pour XLM-RoBERTa (multilingue).
+
+ from transformers import AutoModel, AutoTokenizer
+ from .base import TransformerEncoderBase
+
+ class XLMRobertaEncoder(TransformerEncoderBase):
+     """Encodeur XLM-RoBERTa multilingue (FR/EN/Code, 280M params, 100 langues)."""
+
+     def __init__(self, d_clause: int = 79, d_edge: int = 365,
+                  freeze_layers: int = 10, learning_rate: float = 1e-5,
+                  device: str | None = None, model_name: str = "xlm-roberta-base",
+                  n_node_types: int = 7, n_relation_types: int = 11):
+         """
+         IMPORTANT : instancier self.model AVANT super().__init__().
+
+         Args:
+             d_clause: Dimension features UD (79 par défaut = vocab.d_clause_effective(0, False))
+             d_edge: Dimension edge vectors (365 par défaut = vocab.d_edge_closed_loop(79, 7, 0, False))
+             freeze_layers: Nombre de couches Transformer à geler (10/12 par défaut)
+             learning_rate: Learning rate AdamW (1e-5 recommandé)
+             device: "cuda", "cpu", ou None (auto-détection)
+             model_name: Modèle HuggingFace ("xlm-roberta-base" par défaut)
+             n_node_types: Nombre de types de nœuds (7 par défaut)
+             n_relation_types: Nombre de relations causales (11 par défaut)
+         """
+         # Instanciation du modèle HuggingFace AVANT super().__init__()
+         self.model = AutoModel.from_pretrained(model_name)
+         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+         # Init classe de base (configure heads, optimizer)
+         super().__init__(d_clause=d_clause, d_edge=d_edge, freeze_layers=freeze_layers,
+                         learning_rate=learning_rate, device=device,
+                         n_node_types=n_node_types, n_relation_types=n_relation_types)
+
+     # forward_batch, backward_node_dx, etc. hérités de TransformerEncoderBase
+
+ ---
+
+ 3. src/gcn_transformers/camembert.py (80 lignes)
+
+ Identique à XLMRoberta, modèle "camembert-base" (français uniquement).
+
+ from transformers import AutoModel, AutoTokenizer
+ from .base import TransformerEncoderBase
+
+ class CamembertEncoder(TransformerEncoderBase):
+     """Encodeur CamemBERT français (110M params)."""
+
+     def __init__(self, d_clause: int = 79, d_edge: int = 365,
+                  freeze_layers: int = 10, learning_rate: float = 1e-5,
+                  device: str | None = None, model_name: str = "camembert-base",
+                  n_node_types: int = 7, n_relation_types: int = 11):
+         self.model = AutoModel.from_pretrained(model_name)
+         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+         super().__init__(d_clause=d_clause, d_edge=d_edge, freeze_layers=freeze_layers,
+                         learning_rate=learning_rate, device=device,
+                         n_node_types=n_node_types, n_relation_types=n_relation_types)
+
+ ---
+
+ 4. src/gcn_transformers/codebert.py (80 lignes)
+
+ Identique, modèle "microsoft/codebert-base" (code Python/Rust).
+
+ from transformers import AutoModel, AutoTokenizer
+ from .base import TransformerEncoderBase
+
+ class CodeBERTEncoder(TransformerEncoderBase):
+     """Encodeur CodeBERT (code Python/Rust, 125M params)."""
+
+     def __init__(self, d_clause: int = 79, d_edge: int = 365,
+                  freeze_layers: int = 10, learning_rate: float = 1e-5,
+                  device: str | None = None, model_name: str = "microsoft/codebert-base",
+                  n_node_types: int = 7, n_relation_types: int = 11):
+         self.model = AutoModel.from_pretrained(model_name)
+         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+         super().__init__(d_clause=d_clause, d_edge=d_edge, freeze_layers=freeze_layers,
+                         learning_rate=learning_rate, device=device,
+                         n_node_types=n_node_types, n_relation_types=n_relation_types)
+
+ ---
+
+ 5. pyproject.toml
+
+ [build-system]
+ requires = ["hatchling"]
+ build-backend = "hatchling.build"
+
+ [project]
+ name = "gcn-transformers"
+ version = "1.0.0"
+ description = "Transformer-based encoders for GCN Causal Engine"
+ readme = "README.md"
+ requires-python = ">=3.10"
+ license = "Apache-2.0"
+ authors = [
+     {name = "Michel Tendeng", email = "devmail0561-web@gcn-engine.org"},
+ ]
+ dependencies = [
+     "gcn-python>=2.5.0",
+     "transformers>=4.30.0",
+     "torch>=2.0.0",
+ ]
+ classifiers = [
+     "Development Status :: 4 - Beta",
+     "Intended Audience :: Science/Research",
+     "License :: OSI Approved :: Apache Software License",
+     "Programming Language :: Python :: 3.10",
+     "Programming Language :: Python :: 3.11",
+     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+ ]
+
+ [project.urls]
+ Homepage = "https://github.com/devmail0561-web/gcn_engine"
+ Repository = "https://github.com/devmail0561-web/gcn_engine"
+
+ [project.optional-dependencies]
+ dev = ["pytest>=7.4", "ruff>=0.1"]
+
+ [project.entry-points."gcn_python.encoders"]
+ xlm_roberta = "gcn_transformers:XLMRobertaEncoder"
+ camembert = "gcn_transformers:CamembertEncoder"
+ codebert = "gcn_transformers:CodeBERTEncoder"
+
+ [tool.hatch.build.targets.wheel]
+ packages = ["src/gcn_transformers"]
+
+ ---
+
+ Migration Utilisateur (1 Ligne Changée)
+
+ IMPORTANT : Nécessite modification mineure de gcn-python (~40 lignes) pour ajouter la factory.
+ Voir section "Modifications gcn-python Requises" ci-dessous.
+
+ Avant (gcn-python seul) :
+ from gcn_python.layer1.features import FeatureVocabulary
+ from gcn_python.layer2.reference import MLPEncoder
+ from gcn_python.layer3.reference import RGCNLayer
+ from gcn_python.pipeline.cgnp import CGNPipeline
+
+ vocab = FeatureVocabulary()
+ d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
+ d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=7, d_emb=0,
+                                     subject_object_emb=False)  # 365
+ encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+ graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)
+ pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+
+ Après (avec gcn-transformers) :
+ from gcn_python.layer1.features import FeatureVocabulary
+ from gcn_transformers import XLMRobertaEncoder  # ← SEUL CHANGEMENT
+ from gcn_python.layer3.reference import RGCNLayer
+ from gcn_python.pipeline.cgnp import CGNPipeline
+
+ vocab = FeatureVocabulary()
+ d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
+ d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=7, d_emb=0,
+                                     subject_object_emb=False)  # 365
+ encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge)  # ← Transformers
+ # ATTENTION : d_out DOIT rester == d_eff (79), PAS 768 !
+ # Le pipeline impose cette contrainte (vérification stricte).
+ graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)  # ← INCHANGÉ
+ pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+
+ # Le reste (forward, backward, checkpoint) fonctionne sans modification
+
+ Entraînement :
+ # Nécessite --encoder-class après modification gcn-python
+ gcn-train --data-dir train/ --val-dir val/ --epochs 20 --seed 7 \
+           --encoder-class gcn_transformers.XLMRobertaEncoder
+
+ Le pipeline détecte automatiquement backward_node_dx, accumule les gradients, appelle update_node(). L'AdamW interne gère l'optimisation.
+
+ ---
+
+ Tests de Compatibilité
+
+ tests/test_protocol_compliance.py
+
+ Vérifie que les encodeurs implémentent le Protocol CausalEncoder.
+
+ import pytest
+ import numpy as np
+ transformers = pytest.importorskip("transformers")
+ torch = pytest.importorskip("torch")
+
+ from gcn_transformers import XLMRobertaEncoder, CamembertEncoder, CodeBERTEncoder
+ from gcn_python.layer2.interface import CausalEncoder
+
+ @pytest.mark.parametrize("encoder_class", [
+     XLMRobertaEncoder, CamembertEncoder, CodeBERTEncoder
+ ])
+ def test_implements_causal_encoder_protocol(encoder_class):
+     """Vérifie compliance avec CausalEncoder Protocol."""
+     encoder = encoder_class(d_clause=79, d_edge=365)
+     assert isinstance(encoder, CausalEncoder)
+
+     # Méthodes obligatoires
+     assert hasattr(encoder, 'forward_node')
+     assert hasattr(encoder, 'forward_edge')
+     assert hasattr(encoder, 'parameters')
+     assert hasattr(encoder, 'update_node')
+     assert hasattr(encoder, 'update_edge')
+     assert hasattr(encoder, 'update')
+
+     # Méthodes optionnelles critiques
+     assert hasattr(encoder, 'backward_node_dx')
+     assert hasattr(encoder, 'backward_edge_dx')
+     assert hasattr(encoder, 'forward_batch')
+     assert hasattr(encoder, 'snapshot_node_cache')
+     assert hasattr(encoder, 'snapshot_edge_cache')
+     assert hasattr(encoder, 'restore_node_cache')
+     assert hasattr(encoder, 'restore_edge_cache')
+     assert hasattr(encoder, 'training')
+     assert hasattr(encoder, 'n_node_types')
+     assert hasattr(encoder, 'n_relation_types')
+
+ tests/test_integration.py
+
+ Tests avec CGNPipeline complet (forward, backward, update).
+
+ import numpy as np
+ import pytest
+ transformers = pytest.importorskip("transformers")
+ torch = pytest.importorskip("torch")
+
+ def test_pipeline_forward_backward():
+     """Test forward+backward avec CGNPipeline."""
+     from gcn_python.layer1.features import FeatureVocabulary
+     from gcn_python.layer3.reference import RGCNLayer
+     from gcn_python.pipeline.cgnp import CGNPipeline
+     from gcn_transformers import XLMRobertaEncoder
+
+     vocab = FeatureVocabulary()
+     d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
+     d_edge = vocab.d_edge_closed_loop(d_eff, 7, 0, False)  # 365
+     encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge)
+     graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)
+     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+
+     # Sample forward
+     from gcn_python.layer1.representation import UDRepresentation
+     reps = [
+         UDRepresentation(
+             tokens=[{"lemma": "baisser", "pos": "VERB", "dep_rel": "root", "morph": {}}],
+             root_lemma="baisser", root_pos="VERB", root_dep_rel="root",
+             root_morph={}, subject_pos=None,
+             has_object=False, has_advcl=False, has_temporal_obl=False,
+             token_span=(0, 1),
+         ),
+         UDRepresentation(
+             tokens=[{"lemma": "inondation", "pos": "NOUN", "dep_rel": "root", "morph": {}}],
+             root_lemma="inondation", root_pos="NOUN", root_dep_rel="root",
+             root_morph={}, subject_pos=None,
+             has_object=False, has_advcl=False, has_temporal_obl=False,
+             token_span=(1, 2),
+         ),
+     ]
+
+     result = pipeline.forward(reps, "La pluie cause l'inondation.")
+     assert "nodes" in result
+     assert len(result["nodes"]) == 2
+
+     # Backward (API CORRECTE : loss() puis backward())
+     gold_node_labels = np.array([0, 1], dtype=np.int64)  # action, condition
+     gold_edge_map = {(0, 1): 0}  # cause
+
+     # 1. Calcul loss (retourne d_node_logits, d_edge_logits)
+     loss, d_node, d_edge = pipeline.loss(
+         gold_node_labels=gold_node_labels,
+         gold_edge_map=gold_edge_map
+     )
+
+     # 2. Backward avec gradients
+     pipeline.backward(d_node, d_edge, lr=1e-5)
+
+     assert loss > 0
+
+ ---
+
+ Trade-Offs Documentés
+
+ ┌────────────────────────────┬─────────────────────────────────────────────────────┬──────────────────────────────────────┬───────────────────────────────────────────────────┐
+ │          Décision          │                      Avantage                       │             Inconvénient             │                   Justification                   │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ Classe de base abstraite   │ Factorisation backward_node_dx (100 lignes          │ Moins flexible que composition       │ backward_node_dx trop complexe pour dupliquer     │
+ │                            │ complexes)                                          │                                      │ dans 3 sous-classes                               │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ Option B (tokenization)    │ Exploite embeddings pré-entraînés                   │ Nécessite raw_text dans              │ Seule façon d'atteindre val_edge_f1 > 0.70       │
+ │                            │                                                     │ UDRepresentation                     │                                                   │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ AdamW vs Pipeline lr       │ Meilleur pour Transformers (standard HF)            │ Ignore lr dynamique du pipeline      │ Warning UNE FOIS si différent, flag opt-in futur  │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ Snapshot avec graphe       │ Backward efficace sans re-run forward               │ Consomme ~2× mémoire (input +        │ N ≤ 40 nœuds → acceptable (typique dataset)       │
+ │                            │                                                     │ output)                              │                                                   │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ Gel partiel                │ Économie calcul/mémoire, fine-tuning ciblé          │ Risque sous-apprendre si domaine     │ Configurable via paramètre (seulement avec       │
+ │ (freeze_layers=10)         │                                                     │ très différent                       │ Option B)                                         │
+ ├────────────────────────────┼─────────────────────────────────────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────┤
+ │ Package séparé + factory   │ Utilisateurs légers (MLPEncoder) ne téléchargent    │ Modification gcn-python requise (~40 │ Standard Python (ex: scikit-learn vs              │
+ │                            │ pas PyTorch (500 MB)                                │ lignes)                              │ scikit-learn-extra)                               │
+ └────────────────────────────┴─────────────────────────────────────────────────────┴──────────────────────────────────────┴───────────────────────────────────────────────────┘
+
+ ---
+
+ Modifications gcn-python Requises (~40 lignes)
+
+ Pour permettre l'injection d'encodeurs externes via entry-point setuptools.
+
+ 1. gcn-python/src/gcn_python/training/checkpoint.py
+
+ Ajouter "encoder_class" dans _arch_json (ligne ~117) :
+
+ arch = {
+     # ... existant ...
+     "mlp_hidden": int(getattr(pipeline.encoder, 'mlp_hidden', 128)),
+     "encoder_class": type(pipeline.encoder).__name__,  # ← AJOUT
+     # ... reste ...
+ }
+
+ 2. gcn-python/src/gcn_python/training/train.py
+
+ Ajouter option --encoder-class et factory (ligne ~315) :
+
+ @click.option('--encoder-class', type=str, default=None,
+               help="Classe d'encodeur externe (ex: gcn_transformers.XLMRobertaEncoder)")
+ def train(..., encoder_class):
+     # ... calcul d_effective, d_edge_closed ...
+
+     if encoder_class is not None:
+         encoder = _load_encoder_class(encoder_class, d_effective, d_edge_closed, ...)
+     elif global_attention:
+         encoder = TransformerMLPEncoder(...)
+     else:
+         encoder = MLPEncoder(...)
+
+ def _load_encoder_class(class_path: str, d_clause: int, d_edge: int, **kwargs):
+     """Charge un encodeur externe via import dynamique."""
+     module_name, class_name = class_path.rsplit('.', 1)
+     module = __import__(module_name, fromlist=[class_name])
+     encoder_cls = getattr(module, class_name)
+     return encoder_cls(d_clause=d_clause, d_edge=d_edge, **kwargs)
+
+ 3. gcn-python/src/gcn_python/evaluation/eval_runner.py
+
+ Ajouter factory dans load (ligne ~97) :
+
+ _encoder_class = _arch.get("encoder_class", "MLPEncoder")
+ if _encoder_class not in ("MLPEncoder", "TransformerMLPEncoder"):
+     encoder = _load_encoder_class(f"gcn_transformers.{_encoder_class}",
+                                    _d_eff, d_edge_closed)
+ elif _encoder_class == "TransformerMLPEncoder":
+     # ... existant ...
+ else:
+     encoder = MLPEncoder(...)
+
+ 4. gcn-python/src/gcn_python/engine.py
+
+ Similaire à eval_runner.py (ligne ~170).
+
+ Total : ~40 lignes ajoutées/modifiées.
+
+ ---
+
+ Limitation Majeure v1 : Option A (Projection UD)
+
+ Problème : Sans texte brut (raw_text), l'Option A projette les features UD → hidden_size mais perd les embeddings pré-entraînés.
+
+ Impact : Le Transformer voit uniquement la projection des features syntaxiques 79-dim → 768-dim, pas les tokens bruts. Il ne peut pas utiliser ses embeddings de "pluie", "soleil", etc.
+
+ Solution v1.0 (projection UD) :
+ - Publiée avec fallback Option A
+ - Fonctionne mais performance attendue ≈ MLPEncoder (0.47)
+ - Documenter clairement la limitation
+
+ Solution v1.1 (tokenization) :
+ - Ajouter raw_text: str | None à UDRepresentation dans gcn-python==2.6.0
+ - Passer texts=... à forward_batch()
+ - Atteindre objectif val_edge_f1 > 0.70
+
+ Recommandation : Publier v1.0 avec Option A (simple), documenter la limitation, implémenter Option B dans v1.1 après avoir modifié UDRepresentation.
+
+ ---
+
+ Documentation à Ajouter à gcn-python README
+
+ Après publication de gcn-transformers, ajouter cette section au README de gcn-python :
+
+ ## Extensions
+
+ Le moteur GCN est extensible via des Protocols Python. Les encodeurs et graphes peuvent être remplacés sans modifier le code du moteur.
+
+ ### Encodeurs Disponibles
+
+ | Package | Encodeur | Langue | Paramètres | Performance | Installation |
+ |---------|----------|--------|------------|-------------|--------------|
+ | **gcn-python** (inclus) | `MLPEncoder` | FR/EN/Code | 50k | val_edge_f1=0.47 | pip install gcn-python |
+ | **gcn-transformers** | `XLMRobertaEncoder` | FR/EN/Code | 280M | val_edge_f1~0.47 (v1.0, Option A) | pip install gcn-transformers |
+ | **gcn-transformers** | `CamembertEncoder` | FR | 110M | val_edge_f1~0.47 (v1.0, Option A) | pip install gcn-transformers |
+ | **gcn-transformers** | `CodeBERTEncoder` | Code | 125M | val_edge_f1~0.47 (v1.0, Option A) | pip install gcn-transformers |
+
+ Note : v1.0 utilise la projection UD (Option A) sans embeddings textuels. Performance attendue ≈ MLPEncoder.
+ v1.1 (roadmap) : tokenization texte (Option B) → objectif val_edge_f1 > 0.70.
+
+ ### Migration vers Transformers
+
+ ```python
+ # Avant (MLPEncoder, features syntaxiques)
+ from gcn_python.layer2.reference import MLPEncoder
+ encoder = MLPEncoder(d_clause=79, d_edge=365)
+
+ # Après (XLMRoberta, embeddings sémantiques)
+ from gcn_transformers import XLMRobertaEncoder
+ encoder = XLMRobertaEncoder(d_clause=79, d_edge=365)
+
+ # ATTENTION : d_out du graphe DOIT rester == d_clause (79)
+ graph = RGCNLayer(d_in=79, d_out=79, n_relations=11)  # PAS 768 !
+
+ Le reste du code (pipeline, training, eval) reste inchangé.
+
+ Entraînement CLI :
+ gcn-train --data-dir train/ --val-dir val/ --epochs 20 --seed 7 \
+           --encoder-class gcn_transformers.XLMRobertaEncoder
+
+ Créer Votre Propre Encodeur
+
+ Implémentez le Protocol CausalEncoder :
+
+ from gcn_python.layer2.interface import CausalEncoder
+
+ class MonEncodeur:
+     def forward_node(self, x: np.ndarray) -> np.ndarray: ...
+     def forward_edge(self, x: np.ndarray) -> np.ndarray: ...
+     def backward_node_dx(self, d_logits: np.ndarray) -> tuple[list[tuple], np.ndarray]: ...
+     def backward_edge_dx(self, d_logits: np.ndarray) -> tuple[list[tuple], np.ndarray]: ...
+     def parameters(self) -> list[np.ndarray]: ...
+     def update_node(self, grads: list[tuple], lr: float) -> None: ...
+     def update_edge(self, grads: list[tuple], lr: float) -> None: ...
+     def snapshot_node_cache(self) -> dict: ...
+     def restore_node_cache(self, snapshot: dict) -> None: ...
+     def snapshot_edge_cache(self) -> dict: ...
+     def restore_edge_cache(self, snapshot: dict) -> None: ...
+
+ Voir layer2/interface.py pour la spec complète.
+
+ ---
+
+ ## Timeline de Publication
+
+ | Semaine | Action | Livrables |
+ |---------|--------|-----------|
+ | **S0** | PR gcn-python (factory) | train.py, checkpoint.py, eval_runner.py, engine.py (~40 lignes) |
+ | **S1-2** | Implémenter `TransformerEncoderBase` | `src/gcn_transformers/base.py` (350 lignes), tests unitaires |
+ | **S3** | Implémenter 3 sous-classes | `xlm_roberta.py`, `camembert.py`, `codebert.py` (~300 lignes total) |
+ | **S4** | Tests d'intégration | `test_integration.py`, `test_backward.py` (torch.autograd.gradcheck) |
+ | **S5** | Benchmarks v1.0 (Option A) | Fine-tuning sur 2000 phrases, comparer à MLPEncoder baseline |
+ | **S6** | Documentation | README gcn-transformers, mise à jour README gcn-python |
+ | **S7** | Publication v1.0 | `pip install gcn-transformers`, annonce |
+ | **S8+** | Roadmap v1.1 (Option B) | Ajouter raw_text à UDRepresentation (gcn-python 2.6.0) |
+
+ ---
+
+ ## Vérification End-to-End
+
+ ### Installation
+ ```bash
+ # Terminal 1 — publier localement
+ cd gcn-transformers/
+ pip install -e .
+
+ # Vérifier imports
+ python -c "from gcn_transformers import XLMRobertaEncoder; print('OK')"
+
+ Test Forward/Backward
+
+ # Terminal 2 — test intégration
+ pytest gcn-transformers/tests/test_integration.py -v
+
+ # Test gradients (torch.autograd.gradcheck)
+ pytest gcn-transformers/tests/test_backward.py -v
+
+ Test Training
+
+ # Terminal 3 — entraînement complet
+ gcn-train --data-dir gcn-datasets/real/train/ \
+           --val-dir gcn-datasets/real/val/ \
+           --epochs 5 --seed 7 --log-csv bench_xlmroberta.csv \
+           --encoder-class gcn_transformers.XLMRobertaEncoder
+
+ # Vérifier que backward_node_dx est appelé (pas de warning "sans backward_node_dx")
+ # Vérifier que les métriques progressent (loss décroît)
+
+ Test Checkpoint
+
+ # Terminal 4 — save/load
+ gcn-eval --data-dir gcn-datasets/real/val/ --model output.npz \
+          --encoder-class gcn_transformers.XLMRobertaEncoder
+ # Pas de crash, métriques cohérentes
+
+ ---
+
+ Fichiers Critiques Référence (gcn-python)
+
+ Ces fichiers ne doivent PAS être modifiés (sauf factory), mais servent de référence pour comprendre les contraintes :
+
+ - gcn-python/src/gcn_python/layer2/interface.py — Protocol CausalEncoder (contraintes d'interface)
+ - gcn-python/src/gcn_python/layer2/reference.py — MLPEncoder (référence backward_node_dx, format gradients)
+ - gcn-python/src/gcn_python/pipeline/cgnp.py — Pipeline (lignes 869-943 : appels backward_node_dx, accumulation gradients)
+ - gcn-python/src/gcn_python/training/checkpoint.py — Checkpoint (lignes 85-118 : _arch_json, 426-429 : restauration params)
+ - gcn-python/tests/test_update_phases.py — Tests TransformerMLPEncoder (patterns à reproduire)
+
+ ---
+
+ Résumé Exécutif
+
+ Problème : MLPEncoder (50k params, features syntaxiques) plafonne à val_edge_f1=0.47 car aveugle au sens des mots.
+
+ Solution : Package gcn-transformers avec XLMRoberta/Camembert/CodeBERT (110M-280M params, embeddings sémantiques).
+
+ Architecture : Classe de base TransformerEncoderBase factorise PyTorch↔NumPy + backward_node_dx/backward_edge_dx (autograd). 3 sous-classes concrètes (~80-150 lignes chacune).
+
+ Migration : Modification mineure gcn-python (~40 lignes : factory + entry-point). Utilisateur change 1 ligne (import encodeur) + option CLI --encoder-class.
+
+ Timeline : S0 (PR gcn-python) + 7 semaines (implémentation → benchmarks → publication PyPI v1.0).
+
+ Limitation v1.0 : Option A (projection UD) → performance ≈ MLPEncoder (0.47). Option B (tokenization) dans v1.1 → objectif val_edge_f1 > 0.70.
+
+ CORRECTIONS MAJEURES vs VERSION ORIGINALE :
+ - Dimensions réelles : 79 (d_clause), 365 (d_edge), pas 80/100
+ - API backward correcte : loss() puis backward(d_node, d_edge, lr)
+ - snapshot_edge_cache + restore_edge_cache implémentés
+ - Ordre init correct : self.model AVANT super().__init__()
+ - Edge head reçoit d_edge (365), pas hidden*2 (1536)
+ - Pas de torch.no_grad() en training (graphe requis)
+ - optimizer.zero_grad() dans update_node, PAS dans backward_node_dx
+ - proj_ud persistant (nn.Module), pas recréé à chaque forward
+ - backward_edge_dx implémenté (pas pass)
+ - n_node_types et n_relation_types ajoutés
+ - Warning lr émis UNE FOIS
+ - d_out RGCNLayer reste == d_clause (79), PAS 768
+ - URLs réelles (devmail0561-web/gcn_engine)
+ - Factory gcn-python requise (Option 1 retenue)
+ - Performance v1.0 réaliste : ~0.47 (Option A), roadmap v1.1 : >0.70 (Option B)
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
