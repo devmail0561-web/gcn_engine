@@ -454,4 +454,20 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   « seul » piégé) ; abréviations (« p. », « vol. » — hors scope, lexique) ;
   liste EN hygiène incomplète (v2-194 passé H2 — sans gravité, jugé non).
 
+## Ph5-ECE — calibration GO (2026-10-16, RÉSULTAT HISTORIQUE)
+
+- Vague 3 (220 phrases fraîches + H, pipeline v2) : 95 phrases, 145 paires,
+  PV1 exhaustif → **19 oui + 35 corriger = 54 golds (37.2%)**, cohérent v2.
+- Cumul : **52 + 54 = 106 golds**. Gate `require_production_sample(N>=100)` :
+  **FRANCHI**.
+- `optimize_temperature` : **ECE brut 0.154 → T*=2.50 → ECE-temp 0.088 ≤ 0.15 :
+  GO** (isotonie non requise). Distribution : causale 37, negative 30,
+  restrictive 16, systemique 12, sequentielle 11 (classes <30 : ECE global
+  valide, ECE par classe non garanti — noté).
+- Checkpoint calibré : `DATA/supervision/v4/mesures/e9ter_calibre.npz`
+  (T=2.5 + provenance) — vérifié : 0.618 → 0.374 sur exemple.
+- T*=2.5 = modèle très surconfiant : cohérent avec les 14 surconfiants v1.
+- Aveugle humain 10% (11 cas, seed 20261021, `silver_ph5_AVEUGLE.md`) :
+  **EN ATTENTE — gate ≥95% (11/11 requis)**. Si échec : golds humains intégraux.
+
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis
