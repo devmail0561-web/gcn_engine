@@ -425,4 +425,33 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   documenté — le gate change l'adjacence, c'est son objet).
 - Restant : précision 11.5% << exploitable → chantier segmentation B ensuite.
 
+## Seg-B — pipeline v2 : précision ×7 (2026-10-16, FAIT et MESURÉ)
+
+- Diagnostic : clauses inférence = phrases (spaCy sents) vs clauses train =
+  propositions (nœuds gold) → mismatch de granularité ; spaCy sur-fragmente
+  les titres/références (17 clauses sur un titre EN).
+- B-a (garde-fusion, `engine_b.fusionner_clauses`, socle — bénéficie aux deux
+  chemins) : refusionne toute coupure sans ponctuation forte (.!?…؟？).
+  Forme seule, zéro lexique, idempotent, no-op fallback. Effet : 257/270
+  phrases mono-clause (fini les paires sur fragments de titres).
+- B-b (subdivision connecteurs, `nlu/tok.subdiviser_connecteurs`, chemin tok
+  seul) : coupe aux connecteurs des tables existantes (aucun lexique nouveau),
+  connecteur avec la partie droite ; re-gate ensuite. Effet : 174/71/22/3
+  clauses/phrase, 152 paires dont la structure est saine (vs 57).
+- Gate resserré (1 token au lieu de 2 — « Il reste » S+V conservé).
+- PV1 manuel exhaustif v2 (152 paires, motifs/sid en
+  `validation_pv1/verdicts_ph5_v2.json`) : **24 oui + 28 corriger = 52 golds,
+  précision 0.342 (×7 vs 0.049)**. Golds : causale 20, negative 14,
+  restrictive 8, sequentielle 6, systemique 4.
+- Confusions systématiques (signal réentraînement tête) : restrictive→causale
+  ×7 (« donc », « car », « permet », « conduit à »), negative→causale ×6,
+  causale→systemique ×3/negative ×3, negative→sequentielle ×3.
+- ECE : N=52 <100 → toujours NO-GO, mais à 52% du gate (contre 6%).
+  Chemin : ~150 paires v2 de plus à juger (nouveaux candidats du réservoir).
+- Résidus B-c (documentés, non implémentés) : connecteurs en tête de phrase
+  (« Parce que X, Y », « Si X, Y » — la causale intra-phrase est manquée,
+  cf. v2-254) ; connecteurs discursifs qui miettent (« enfin », « donc »,
+  « seul » piégé) ; abréviations (« p. », « vol. » — hors scope, lexique) ;
+  liste EN hygiène incomplète (v2-194 passé H2 — sans gravité, jugé non).
+
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis

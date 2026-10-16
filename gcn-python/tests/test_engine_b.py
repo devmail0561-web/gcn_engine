@@ -162,3 +162,22 @@ def test_runtime_appris_n_importe_jamais_moteur_b():
             if "engine_b" in texte or "fallback_regex" in texte:
                 fautifs.append(str(f))
     assert fautifs == []
+
+
+def test_fusion_sans_ponctuation_forte():
+    from gcn_python.layer0.engine_b import fusionner_clauses
+    t = "Respect for Private and Family Life under article"
+    c1, c2, c3 = "Respect for Private and Family", "Life", "under article"
+    cl = [{"id": "c001", "texte": c1, "span": [0, len(c1)], "lang": "fr"},
+          {"id": "c002", "texte": c2,
+           "span": [t.index(c2), t.index(c2) + len(c2)], "lang": "fr"},
+          {"id": "c003", "texte": c3,
+           "span": [t.index(c3), t.index(c3) + len(c3)], "lang": "fr"}]
+    f = fusionner_clauses(cl, t, "fr")
+    assert len(f) == 1 and f[0]["texte"] == t and f[0]["id"] == "c001"
+    # Frontière forte préservée + idempotence.
+    t2 = "Il pleut. Il reste."
+    cl2 = [{"id": "c001", "texte": "Il pleut.", "span": [0, 9], "lang": "fr"},
+           {"id": "c002", "texte": "Il reste.", "span": [10, 19], "lang": "fr"}]
+    assert len(fusionner_clauses(cl2, t2, "fr")) == 2
+    assert fusionner_clauses(f, t, "fr") == f

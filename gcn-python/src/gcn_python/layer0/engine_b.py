@@ -181,6 +181,42 @@ def _clauses_spacy(doc, lang: str) -> list[dict]:
     return clauses
 
 
+#: Ponctuation forte : seule frontière de phrase légitime (miroir du fallback
+#: ``_ENDERS`` — une coupure sans .!?… est un artefact du segmenteur).
+PONCTUATION_FORTE = frozenset(".!?…؟？")
+
+
+def fusionner_clauses(clauses: list[dict], text: str, lang: str) -> list[dict]:
+    """Garde-fusion B-a (2026-10-16) : refusionne les coupures sans ponctuation
+    forte (spaCy sur-fragmente titres/références : « Life | under article »,
+    « Cheikha Mozah bint | Nasser », « « | contenu »).
+
+    Règle de forme seule, zéro lexique : on fusionne cur dans prev sauf si un
+    caractère de ``PONCTUATION_FORTE`` termine prev ou occupe l'interstice.
+    Idempotente ; no-op sur le fallback (qui ne coupe déjà qu'au fort).
+    Les ids sont renumérotés (c001…). À appliquer AVANT rattachement des
+    connecteurs (spans fusionnés → rattachement correct).
+    """
+    if len(clauses) < 2:
+        return list(clauses)
+    fusionnees = [dict(clauses[0])]
+    for cur in clauses[1:]:
+        prev = fusionnees[-1]
+        interstice = text[prev["span"][1]:cur["span"][0]]
+        fin_prev = prev["texte"][-1:] if prev["texte"] else ""
+        if fin_prev in PONCTUATION_FORTE or any(
+            ch in PONCTUATION_FORTE for ch in interstice
+        ):
+            fusionnees.append(dict(cur))
+        else:
+            prev["span"] = [prev["span"][0], cur["span"][1]]
+            prev["texte"] = text[prev["span"][0]:prev["span"][1]].strip()
+    for i, c in enumerate(fusionnees, 1):
+        c["id"] = f"c{i:03d}"
+        c["lang"] = lang
+    return fusionnees
+
+
 def _connecteurs_rattaches(text: str, lang: str, clauses: list[dict]) -> list[dict]:
     from .fallback_regex import find_connectors  # stdlib, sans spaCy
 
@@ -214,13 +250,14 @@ def analyze(text: str, lang: str = "fr", *, timeout: float = ENGINE_TIMEOUT_S,
     if not text.strip() or force_fallback:
         _compte(True, True)
         clauses, connecteurs, source = analyze_fallback(text, lang)
+        clauses = fusionner_clauses(clauses, text, lang)  # no-op (fort seul)
         return EngineBOutput(clauses, connecteurs, source)
     try:
         spacy = _import_spacy()  # absent → ImportError → fallback
         _exige_pin(spacy)  # pin 3.8 non respecté → RuntimeError → fallback
         nlp = _charge_modele(spacy, lang, timeout)  # modèle absent → OSError → fallback
         doc = _with_timeout(lambda: _parse_spacy(nlp, text), timeout)  # lent → fallback
-        clauses = _clauses_spacy(doc, lang)
+        clauses = fusionner_clauses(_clauses_spacy(doc, lang), text, lang)
         connecteurs = _connecteurs_rattaches(text, lang, clauses)
         _compte(True, False)
         return EngineBOutput(clauses, connecteurs, SOURCE_SILVER_B)

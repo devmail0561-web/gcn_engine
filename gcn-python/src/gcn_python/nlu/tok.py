@@ -18,15 +18,15 @@ from __future__ import annotations
 import re as _re
 
 from ..layer0 import engine_b
+from ..layer0.fallback_regex import find_connectors
 from ..layer0.tokenizer import split as tok_split
 from ..layer2.act import detect_act
 
-#: Clause dégénérée (gate d'entrée Ph5, 2026-10-16) : ≤2 tokens ou ponctuation
-#: pure (aucun alphanumérique). Forme seule, jamais de lexique : une clause
-#: ≤2 tokens ne porte pas de proposition donc aucune arête la touchant ne peut
-#: être un gold (vérifié : 71/71 abstentions non-gold sur Ph5, 0 gold perdu,
-#: 13/14 surconfiants interceptés). Le train (gold) n'est jamais concerné —
-#: seule l'entrée inférence est filtrée.
+#: Clause dégénérée (gate d'entrée Ph5, 2026-10-16, resserré 2026-10-16) :
+#: vide, 1 token ou ponctuation pure. Forme seule, jamais de lexique : un token
+#: isolé ne porte pas de prédication (S+V exige ≥2 tokens — « Il reste » est
+#: conservé). Le train (gold) n'est jamais concerné — seule l'entrée
+#: inférence est filtrée.
 _RE_ALNUM = _re.compile(r"[A-Za-zÀ-ÿ0-9]")
 
 
@@ -36,7 +36,7 @@ def clause_degeneree(texte_clause: str) -> str | None:
     if not t:
         return "vide"
     _ids, _offs, _toks = tok_split(t)
-    if len(_toks) <= 2:
+    if len(_toks) <= 1:
         return f"court({len(_toks)}tok)"
     if not _RE_ALNUM.search(t):
         return "ponctuation-pure"
@@ -81,16 +81,68 @@ def parse_text(text: str, lang: str = "fr") -> dict:
         else:
             spans.append(list(c["span"]))
             textes.append(txt)
+    # B-b : subdivision aux connecteurs (tables existantes, aucun lexique
+    # nouveau) — aligne la granularité inférence sur le train (nœuds =
+    # propositions, pas phrases). Le connecteur reste avec la partie droite.
+    spans, textes = subdiviser_connecteurs(text, spans, textes, lang)
+    # Re-gate : la subdivision peut isoler des fragments.
+    spans2, textes2 = [], []
+    for sp, tx in zip(spans, textes):
+        motif = clause_degeneree(tx)
+        if motif is not None:
+            rejetees.append((tx, motif))
+        else:
+            spans2.append(sp)
+            textes2.append(tx)
     return {
         "ids": ids,
         "offsets": offsets,
-        "clause_spans": spans,
-        "clause_textes": textes,
+        "clause_spans": spans2,
+        "clause_textes": textes2,
         "connecteurs": list(sortie_b.connecteurs or []),
         "source": sortie_b.source,
         "intent": intent,
         "clauses_rejetees": rejetees,
     }
+
+
+def subdiviser_connecteurs(text: str, spans: list, textes: list,
+                           lang: str) -> tuple[list, list]:
+    """Scinde chaque clause aux connecteurs détectés (mécanisme, pas lexique :
+    les tables sont celles, existantes et auditées, de ``fallback_regex``).
+
+    Pour chaque clause, points de coupe = débuts des connecteurs strictement
+    intérieurs (ni en tête ni en queue de clause) ; le connecteur reste avec
+    la partie droite (« X parce que Y » → [« X », « parce que Y »]).
+    Connecteurs qui se recouvrent : le plus long gagne (comme
+    ``find_connectors``). Retourne (spans, textes) absolus ; jamais d'exception
+    (incident → clause intacte).
+    """
+    try:
+        conns = find_connectors(text, lang)
+    except Exception:
+        return spans, textes
+    nspans, ntextes = [], []
+    for sp, tx in zip(spans, textes):
+        debut, fin = sp[0], sp[1]
+        coupes = sorted({c["span"][0] for c in conns
+                         if debut < c["span"][0] and c["span"][1] <= fin
+                         and c["span"][0] > debut})
+        # Filtre : coupe trop proche des bords (<3 caractères de matière).
+        coupes = [p for p in coupes if p - debut >= 3 and fin - p >= 3]
+        if not coupes:
+            nspans.append(sp)
+            ntextes.append(tx)
+            continue
+        bornes = [debut] + coupes + [fin]
+        for a, b in zip(bornes, bornes[1:]):
+            brut = text[a:b]
+            morceau = brut.strip()
+            if morceau:
+                decal = brut.find(morceau)
+                nspans.append([a + decal, a + decal + len(morceau)])
+                ntextes.append(morceau)
+    return nspans, ntextes
 
 
 def analyze_tok_text(tok_engine, text: str, lang: str = "fr") -> dict:
