@@ -1,0 +1,1443 @@
+{
+ "cond000": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond001": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond003": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond004": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond005": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond006": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond007": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond008": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond009": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond010": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond011": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond012": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond013": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond014": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond015": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond017": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond018": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond019": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond020": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond021": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond022": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond023": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond024": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond025": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond026": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond027": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond028": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond029": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond030": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond031": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond032": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond033": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond034": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond035": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond036": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond037": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond038": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond039": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond040": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond041": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond042": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond043": {
+  "verdict": "non",
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond045": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond046": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond048": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond049": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond050": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond051": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond052": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond053": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond054": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond055": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond056": {
+  "verdict": "non",
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond057": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond058": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond059": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond060": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond061": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond062": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond063": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R5",
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond064": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond065": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond067": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond068": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond069": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond070": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond071": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond072": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond073": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond074": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond075": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond076": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond077": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond078": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond079": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond081": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond082": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond083": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond084": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond085": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond086": {
+  "verdict": "non",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond087": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond088": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond089": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond090": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond091": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond092": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond093": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond094": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond095": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond096": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond097": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond098": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond099": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond100": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto",
+  "motif": null
+ },
+ "cond101": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond102": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond103": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond104": {
+  "verdict": "oui",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond105": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond106": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond107": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond108": {
+  "verdict": "non",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond109": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond110": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond111": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond112": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond113": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond114": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel",
+  "motif": "R6-connecteur-isolé (doctrine)"
+ },
+ "cond115": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond116": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond117": {
+  "verdict": "non",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ },
+ "cond118": {
+  "verdict": "oui",
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1",
+  "motif": null
+ },
+ "cond119": {
+  "verdict": "non",
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel",
+  "motif": null
+ }
+}
