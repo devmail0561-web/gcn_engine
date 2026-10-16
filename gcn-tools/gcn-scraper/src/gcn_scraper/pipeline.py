@@ -229,6 +229,8 @@ class ScrapingPipeline:
             ("hal",          f"hal_{timestamp}.jsonl"),
             ("arxiv",        f"arxiv_{timestamp}.jsonl"),
             ("news",         f"news_rss_{timestamp}.jsonl"),
+            ("so",           f"stackoverflow_{timestamp}.jsonl"),
+            ("education",    f"education_{timestamp}.jsonl"),
             ("github",       f"github_{timestamp}.jsonl"),
             ("doc",          f"doc_{timestamp}.jsonl"),
             ("web_search",   f"web_search_{timestamp}.jsonl"),
@@ -260,6 +262,8 @@ class ScrapingPipeline:
 
             # Imports scraper (hors threads pour éviter les conflits d'import)
             from .sources.wikipedia import WikipediaLangScraper
+            from .sources.education_web import EducationScraper
+            from .sources.so_qa import StackOverflowScraper
             from .sources.hal_scientific import HALScraper
             from .sources.arxiv import ArXivScraper
             from .sources.news_rss import NewsRSSScraper
@@ -358,6 +362,18 @@ class ScrapingPipeline:
                          output_file=_fname_map.get("news", "")),
                 ))
 
+            # Sites éducatifs (Vikidia/Wikiversité/Sésamath — C6)
+            if "education" in config and _yaml_enabled("education"):
+                _tasks.append((
+                    "education",
+                    (lambda: EducationScraper(self.user_agent).scrape_all()),
+                    dict(default_lang="auto",
+                         source_out=_src_files.get("education"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("education", "")),
+                ))
+
             # Recherche web
             if "web_search" in config and _yaml_enabled("web_search"):
                 _ws_langs = list(selected_langs)
@@ -373,23 +389,85 @@ class ScrapingPipeline:
                          output_file=_fname_map.get("web_search", "")),
                 ))
 
+            # StackOverflow Q&A (C1-doc)
+            if "so" in config and _yaml_enabled("so"):
+                _so_max = _src_opt("so", "max_per_query", 50)
+                _so_langs = [l for l in selected_prog_langs] or ["python"]
+                _tasks.append((
+                    "so",
+                    (lambda ll=_so_langs, mx=_so_max: StackOverflowScraper(
+                        self.user_agent).scrape(
+                            languages=ll, max_per_query=mx,
+                            seed=seed_eff, tracker=tracker)),
+                    dict(default_lang="en",
+                         extra_fields=("licence", "auteur"),
+                         source_out=_src_files.get("so"),
+                         seen_urls=seen_urls, registry=registry,
+                         campaign_id=campaign_id,
+                         output_file=_fname_map.get("so", "")),
+                ))
+
             # GitHub Code
             if "github" in config and _yaml_enabled("github") and selected_prog_langs:
                 _gh_token = config["github"].get("token")
                 _gh_max = _src_opt("github", "max_per_query", 30)
                 _gh_langs = list(selected_prog_langs)
-                _tasks.append((
-                    "github",
-                    (lambda tok=_gh_token, mx=_gh_max, ll=_gh_langs:
-                     GitHubCodeScraper(self.user_agent, github_token=tok)
-                     .scrape(languages=ll, max_per_query=mx,
-                             seed=seed_eff, tracker=tracker)),
-                    dict(skip_split=True, default_lang="code",
-                         source_out=_src_files.get("github"),
-                         seen_urls=seen_urls, registry=registry,
-                         campaign_id=campaign_id,
-                         output_file=_fname_map.get("github", "")),
-                ))
+
+                def _run_github_sequential() -> tuple:
+                    """GitHub par langage, écriture incrémentale (durabilité C1).
+
+                    Un kill ne perd que le langage en cours (vs toute la campagne
+                    si scrape() accumule les 7 langages avant écriture). Fetch
+                    séquentiel : pas de martèlement parallèle du rate-limit
+                    secondaire code-search. Fix C1 2026-10-12.
+                    """
+                    _total = 0
+                    for _lang in _gh_langs:
+                        if tracker.is_globally_full():
+                            break
+                        _key = f"github_{_lang}"
+                        if resume and checkpoint.is_done(_key):
+                            print(f"=== {_key}: déjà fait "
+                                  f"({checkpoint.get_count(_key)} phrases), skip ===")
+                            _total += checkpoint.get_count(_key)
+                            continue
+                        print(f"=== {_key} : démarrage ===", flush=True)
+                        _scraper = GitHubCodeScraper(
+                            self.user_agent, github_token=_gh_token)
+                        try:
+                            _items = _scraper.scrape(
+                                languages=[_lang], max_per_query=_gh_max,
+                                seed=seed_eff, tracker=tracker)
+                            _flapping = (not _items and _scraper.last_failures > 0)
+                        except Exception as exc:
+                            warnings.warn(
+                                f"Source '{_key}': erreur scraping ({exc})",
+                                UserWarning, stacklevel=2)
+                            _items = []
+                            _flapping = True
+                        with write_lock:
+                            if tracker.is_globally_full():
+                                checkpoint.mark_done(_key, 0, dict(tracker.counts))
+                                continue
+                            _n = self._process_texts(
+                                _items, out, scorer, dedup, tracker, min_quality,
+                                skip_split=True, default_lang="code",
+                                source_out=_src_files.get("github"),
+                                seen_urls=seen_urls, registry=registry,
+                                campaign_id=campaign_id,
+                                output_file=_fname_map.get("github", ""))
+                            self._warn_zero(_key, _n)
+                            if _flapping and _n == 0:
+                                # Panne transitoire : ne pas marquer done(0),
+                                # sinon --resume saute la vague (run 6, 2026-10-12).
+                                print(f"=== {_key}: échec transitoire, "
+                                      f"reprise à la prochaine relance ===")
+                                continue
+                            checkpoint.mark_done(_key, _n, dict(tracker.counts))
+                            _total += _n
+                    return "github", _total
+
+                _tasks.append(("github", _run_github_sequential, {"_direct": True}))
 
             # Documentation
             if "doc" in config and _yaml_enabled("doc") and selected_prog_langs:
@@ -409,10 +487,13 @@ class ScrapingPipeline:
             print(f"=== Scraping parallèle : {len(_tasks)} sources, {_max_workers} workers ===",
                   flush=True)
             with ThreadPoolExecutor(max_workers=_max_workers) as _pool:
-                _futures = {
-                    _pool.submit(_run_one, k, fn, kw): k
-                    for k, fn, kw in _tasks
-                }
+                _futures = {}
+                for k, fn, kw in _tasks:
+                    if kw.get("_direct"):
+                        # Tâche autonome (retourne (clé, n)) : GitHub séquentiel.
+                        _futures[_pool.submit(fn)] = k
+                    else:
+                        _futures[_pool.submit(_run_one, k, fn, kw)] = k
                 for _future in as_completed(_futures):
                     _key = _futures[_future]
                     try:
@@ -495,6 +576,15 @@ class ScrapingPipeline:
             if seen_urls is not None and url and url in seen_urls:
                 continue
             item_lang = item.get("lang", default_lang)
+            if item_lang == "code":
+                # Bucket code_* : déduit du suffixe source (github_python →
+                # code_python, cf. doc_scrape). Repli "code" si non budgété
+                # (rétro-compat budget global {"code"}). Fix C1 2026-10-11 :
+                # sans routage, is_full("code") rejetait 100 % du code.
+                src_suffix = item.get("source", "").rsplit("_", 1)
+                cand = f"code_{src_suffix[1]}" if len(src_suffix) == 2 else "code"
+                if cand in tracker.budget:
+                    item_lang = cand
 
             sentences = [raw_text] if skip_split else split_sentences(raw_text)
 
@@ -532,6 +622,11 @@ class ScrapingPipeline:
                     source_out.write(line)
                 tracker.add(lang)
                 written += 1
+                if written % 100 == 0:
+                    # Durabilité : un kill (redémarrage) ne perd que <100 phrases.
+                    out.flush()
+                    if source_out is not None:
+                        source_out.flush()
 
                 # Enregistrer l'URL une seule fois par item (première phrase retenue).
                 if url and not url_registered:

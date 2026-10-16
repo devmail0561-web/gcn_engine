@@ -105,3 +105,25 @@ def test_from_dict_rejette():
         TokEmbedding.from_dict({**d, "E": [[0.0] * 4, [0.0] * 4]})
     with pytest.raises(ValueError):
         TokEmbedding(d_model=0)
+
+
+def test_oov_hash_deterministe_et_appris():
+    e = TokEmbedding(d_model=4, seed=1, oov_mode="hash")
+    e.build_vocab([5])
+    a = e.lookup(999)
+    assert not np.array_equal(a, np.zeros(4, dtype=np.float32))
+    assert np.array_equal(a, e.lookup(999))  # déterministe
+    assert e.oov_rate == 1.0  # couverture comptée comme OOV
+    avant = e._B.copy()
+    e.backward(np.ones((1, 4), dtype=np.float32), [999])
+    e.update(1.0)
+    assert not np.array_equal(e._B, avant)  # seau appris
+    assert e._E.shape == (1, 4)  # vocab intact
+
+
+def test_oov_hash_rejet_mode():
+    try:
+        TokEmbedding(d_model=4, oov_mode="tfidf")
+    except ValueError:
+        return
+    raise AssertionError("aurait dû lever")

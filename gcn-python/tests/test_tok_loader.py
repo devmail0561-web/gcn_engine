@@ -124,3 +124,43 @@ def test_couverture_vocab():
     oov, total = couverture_vocab(lambda i: i in {1, 2, 3}, samples)
     assert (oov, total) == (1, 5)
     assert couverture_vocab(lambda i: True, []) == (0, 0)
+
+
+def test_loader_passe_third_et_joints():
+    from gcn_python.data.tok_loader import charger_split as _charger
+
+    samples, stats = _charger("gcn-datasets/silver_ternary_proposal_20.json")
+    assert stats["phrases"] == 20 and stats["rejetees"] == []
+    assert sum(len(s["edge_third"]) for s in samples) == 8
+    assert {v for s in samples for v in s["edge_joint"].values()} != set()
+    roles = {v["role"] for s in samples for v in s["edge_third"].values()}
+    assert roles <= {"Condition", "Mediator"}
+
+
+def test_loader_rejette_third_inconnu():
+    from gcn_python.data.gold_spans import SpanError
+    from gcn_python.data.tok_loader import convertir_phrase
+
+    base = {
+        "id": "x", "text": "Il pleut donc je reste.",
+        "tokens": [
+            {"id": 1, "form": "Il"}, {"id": 2, "form": "pleut"},
+            {"id": 3, "form": "donc"}, {"id": 4, "form": "je"},
+            {"id": 5, "form": "reste."},
+        ],
+        "cir": {
+            "nodes": [
+                {"id": "n1", "type": "evenement", "token_span": [1, 2]},
+                {"id": "n2", "type": "evenement", "token_span": [4, 5]},
+            ],
+            "edges": [
+                {"source": "n1", "target": "n2", "relation": "cause",
+                 "third": {"role": "Telepati", "node": "n1"}},
+            ],
+        },
+    }
+    try:
+        convertir_phrase(base)
+    except SpanError:
+        return
+    raise AssertionError("aurait dû lever")

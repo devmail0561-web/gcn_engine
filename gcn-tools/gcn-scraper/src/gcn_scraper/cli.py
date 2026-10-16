@@ -40,12 +40,16 @@ from .pipeline import ScrapingPipeline
                help="Activer/désactiver arXiv (abstracts scientifiques EN)")
 @click.option("--news/--no-news", default=True, show_default=True,
                help="Activer/désactiver les flux News RSS (FR/EN)")
+@click.option("--education/--no-education", default=True, show_default=True,
+              help="Activer/désactiver les sites éducatifs (Vikidia/Wikiversité/Sésamath)")
 @click.option("--github/--no-github", default=False, show_default=True,
               help="Scraping GitHub (token recommandé pour éviter le rate-limit public)")
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN",
               help="Token GitHub (ou variable d'env GITHUB_TOKEN)")
 @click.option("--doc/--no-doc", default=True, show_default=True,
                help="Activer/désactiver la documentation officielle des langages")
+@click.option("--so/--no-so", default=False, show_default=True,
+              help="Activer/désactiver StackOverflow Q&A (C1-doc, quota API 300 req/j)")
 @click.option("--web-search/--no-web-search", default=False, show_default=True,
               help="Recherche web multi-sources (DuckDuckGo + OpenAlex + PubMed)")
 @click.option("--user-agent", default="GCN-Dataset/3.0 (research; contact: gcn-research@example.org)", show_default=True)
@@ -61,7 +65,7 @@ from .pipeline import ScrapingPipeline
               help="Désactiver le registre URL (pas de déduplication cross-campagnes).")
 def scrape_cmd(
     output_dir, target_total, resume, langs, prog_langs, code_ratio, min_quality,
-    max_per_query, wiki, hal, arxiv, news, github, github_token, doc,
+    max_per_query, wiki, hal, arxiv, news, education, github, github_token, doc, so,
     web_search, user_agent, contact_email, seed, registry_db, no_registry,
 ):
     """
@@ -156,6 +160,10 @@ def scrape_cmd(
             config["doc"] = {}
     if web_search:
         config["web_search"] = {}
+    if so:
+        config["so"] = {"max_per_query": max_per_query}
+    if education:
+        config["education"] = {}
     if not wiki:
         config["wikipedia"] = {"enabled": False}
 

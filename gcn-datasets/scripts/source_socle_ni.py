@@ -67,7 +67,8 @@ RE_CONNECTEURS = re.compile(
     re.IGNORECASE,
 )
 RE_IMPERATIF = re.compile(
-    r"^(?:[A-ZÉÈÊ][a-zéèê]+(?:ez|ons|e|ez-vous|ons-nous)\b|Il faut\b|Prière de\b)"
+    r"^(?:Il faut\b|Prière de\b|Veuillez\b|S['’]il (?:vous |te )?plaît\b|STP\b)",
+    re.IGNORECASE,
 )
 RE_EXCLUS = re.compile(r"\bse\s+limit|\blimit(er|era|ait|ant)\b", re.IGNORECASE)
 

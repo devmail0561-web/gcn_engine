@@ -37,6 +37,10 @@ class GitHubCodeScraper:
         self._queries_by_lang: dict = cfg.get("queries", {})
         self._max_chars: int = int(cfg.get("max_chars_per_file", 5000))
 
+    #: Intervalle min entre deux appels /search/code (10 req/min authed —
+    #: à 2s on prend HTTP 429 en rafale, run 7, 2026-10-12).
+    SEARCH_MIN_INTERVAL = 7.0
+
     def search_code(self, query: str, language: str, max_results: int = 30) -> list[dict]:
         """Recherche du code sur GitHub Search API, avec pagination."""
         items: list[dict] = []
@@ -52,7 +56,7 @@ class GitHubCodeScraper:
             resp, self.session = retry_get(
                 self.session, self._api_url, params,
                 user_agent=self.user_agent,
-                min_interval=self._delay, base_delay=2.0,
+                min_interval=self.SEARCH_MIN_INTERVAL, base_delay=2.0,
             )
             if resp is None:
                 break
@@ -188,6 +192,7 @@ class GitHubCodeScraper:
 
         from ..diversity import shuffled as _shuffled
         results: list[dict] = []
+        self.last_failures = 0  # panne transitoire vs épuisement (pipeline C1)
         if not self._has_token:
             print("  GitHub: pas de token → quota 10 req/min, délais 6s imposés (export GITHUB_TOKEN recommandé).")
         if seed is not None:
@@ -209,6 +214,7 @@ class GitHubCodeScraper:
                 items = self.search_code(query, lang, max_per_query)
                 if not items:
                     consecutive_failures += 1
+                    self.last_failures += 1
                     print("0 extrait (rate-limit/échec)")
                     if consecutive_failures >= 3:
                         print(f"  GitHub/{lang}: 3 échecs consécutifs, langage suivant (cooldown actif).")

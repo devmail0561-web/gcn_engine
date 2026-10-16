@@ -31,7 +31,12 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
     """Phrase gold → sample tok (lève ``SpanError`` : rejet explicite).
 
     Sample : ``{id, text, ids, offsets, clause_spans, clause_textes,
-    node_gold: [idx], edge_gold: {(i,j): rel_idx}, hors_fenetre, arrieres}``.
+    node_gold: [idx], edge_gold: {(i,j): rel_idx},
+    edge_third: {(i,j): {"role": Condition|Mediator, "node": rang}},
+    edge_joint: {(i,j): group_id}, hors_fenetre, arrieres}``.
+    ``third`` inconnu (rôle hors {Condition, Mediator}, nœud absent) =
+    ``SpanError`` (jamais deviné). Joints = sources multiples même
+    (cible, relation) → même ``group_id`` déterministe.
     """
     if window_k < 1:
         raise ValueError(f"window_k doit être ≥ 1 (reçu {window_k!r}).")
@@ -47,7 +52,7 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
             ngold.append(NODE_TYPES.index(n["type"]))
         except ValueError:
             raise SpanError(f"type de nœud inconnu : {n['type']!r}.") from None
-    egold, hors, arrieres = {}, 0, 0
+    egold, ethird, hors, arrieres = {}, {}, 0, 0
     for e in s["cir"]["edges"]:
         srcs = e.get("sources") or ([e["source"]] if "source" in e else [])
         for src in srcs:
@@ -63,6 +68,24 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
                 hors += 1
                 continue
             egold[(i, j)] = r
+            _third = e.get("third") or {}
+            if _third.get("role") is not None or _third.get("node") is not None:
+                _role = _third.get("role")
+                if _role not in ("Condition", "Mediator"):
+                    raise SpanError(f"rôle third inconnu : {_role!r}.") from None
+                if _third.get("node") not in rangs:
+                    raise SpanError(f"nœud third absent : {_third.get('node')!r}.") from None
+                ethird[(i, j)] = {"role": _role, "node": rangs[_third["node"]]}
+    # Joints : même (cible, relation) depuis ≥2 sources → même groupe.
+    _par_cible: dict = {}
+    for (i, j), r in egold.items():
+        _par_cible.setdefault((j, r), []).append(i)
+    ejoint = {}
+    for (j, r), _srcs in _par_cible.items():
+        if len(_srcs) >= 2:
+            _gid = f"j{ j}x{r}x{'-'.join(str(i) for i in sorted(_srcs))}"
+            for i in _srcs:
+                ejoint[(i, j)] = _gid
     ids, offsets, _ = tok_split(s["text"])
     return {
         "id": s.get("id", "?"),
@@ -73,6 +96,8 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
         "clause_textes": ctextes,
         "node_gold": ngold,
         "edge_gold": egold,
+        "edge_third": ethird,
+        "edge_joint": ejoint,
         "hors_fenetre": hors,
         "arrieres": arrieres,
     }
