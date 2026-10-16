@@ -252,9 +252,9 @@ GCN_BIN = _find_gcn_bin()
     reason="Binaire gcn-cli absent (cargo build --workspace)",
 )
 def test_bootstrap_cmd_integration(tmp_path):
-    """Issue #1 : gcn-bootstrap appelle `gcn analyze --data-dir … -- <texte>`.
-
-    Issue #2 : sortie UTF-8 décodée puis écrite en JSON gcn-nl valide.
+    """Bootstrap symbolique texte→CIR retiré : `gcn analyze` émet un lattice,
+    pas un CausalIR. La commande doit échouer vite avec un message clair,
+    pas produire du garbage silencieux.
     """
     from click.testing import CliRunner
 
@@ -263,29 +263,18 @@ def test_bootstrap_cmd_integration(tmp_path):
     input_file = tmp_path / "phrases.txt"
     input_file.write_text("Les ventes baissent.\n", encoding="utf-8")
     out_dir = tmp_path / "out"
-    taxonomy_dir = Path(__file__).resolve().parents[2] / "gcn-references" / "taxonomies"
 
     result = CliRunner().invoke(
         bootstrap_cmd,
         [
             "--input", str(input_file),
             "--out-dir", str(out_dir),
-            "--taxonomy-dir", str(taxonomy_dir),
             "--gcn-bin", GCN_BIN,
         ],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0, f"exit={result.exit_code}\n{result.output}"
-
-    produced = sorted(out_dir.glob("generated_*.json"))
-    assert len(produced) == 1, f"1 fichier attendu, {len(produced)} produit(s)\n{result.output}"
-
-    doc = json.loads(produced[0].read_text(encoding="utf-8"))
-    sentences = doc["document"]["sentences"]
-    assert len(sentences) == 1
-    assert sentences[0]["text"] == "Les ventes baissent."
-    assert sentences[0]["tokens"], "aucun token synthétique"
-    assert sentences[0]["cir"]["nodes"], "aucun nœud CIR"
+    assert result.exit_code != 0, f"bootstrap aurait dû refuser :\n{result.output}"
+    assert "lattice" in result.output.lower(), f"message attendu sur lattice :\n{result.output}"
 
 
 # ── Tests B1 : données bootstrappées utilisables à l'entraînement ────────────
@@ -315,7 +304,6 @@ def test_cir_to_doc_has_tokens():
 
 def test_cir_to_doc_bootstrapped_data_trainable():
     """B1 régression : données bootstrappées doivent produire des reps valides via reps_from_sentence."""
-    import json
     import tempfile
     from pathlib import Path
 

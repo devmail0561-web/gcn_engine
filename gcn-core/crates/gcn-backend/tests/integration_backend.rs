@@ -1,7 +1,11 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_backend::{BackendError, Query, QueryResult, TemporalLinkDto, execute, to_dot, to_json};
+use gcn_backend::LinkFilter;
+use gcn_backend::analogy::{DEFAULT_ANALOGY_MIN_SCORE, DEFAULT_ANALOGY_WEIGHTS};
+use gcn_backend::pearl::DEFAULT_AMBIGUITY_LIMIT;
+use gcn_backend::query::DEFAULT_TOPK;
+use gcn_backend::{BackendError, Query, QueryResult, execute, to_dot, to_json};
 use gcn_ir::temporal::GapNature;
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, NaturalLanguage, NodeAttributes, NodeId,
@@ -46,6 +50,7 @@ fn node(id: u32, label: &str, node_type: NodeType) -> CausalNode {
         temporal_index: Some(id as i32),
         origin: NodeOrigin::Explicit,
         attributes: NodeAttributes::default(),
+        kind: None,
     }
 }
 
@@ -84,6 +89,7 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
             pipeline: vec!["gcn-frontend-fr".to_string()],
             created_at: None,
         },
+        intent: None,
     };
     // Run through middleend to populate cycles, in_cycle, etc.
     process(ir).unwrap().ir
@@ -95,7 +101,12 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
 fn parse_why() {
     assert_eq!(
         Query::parse("WHY ventes?").unwrap(),
-        Query::Why("ventes".into())
+        Query::Why {
+            label: "ventes".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -118,7 +129,12 @@ fn parse_why_trailing_space_only_returns_error() {
 fn parse_what() {
     assert_eq!(
         Query::parse("WHAT coûts?").unwrap(),
-        Query::What("coûts".into())
+        Query::What {
+            label: "coûts".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -126,7 +142,12 @@ fn parse_what() {
 fn parse_chain() {
     assert_eq!(
         Query::parse("CHAIN qualité -> ventes?").unwrap(),
-        Query::Chain("qualité".into(), "ventes".into())
+        Query::Chain {
+            from: "qualité".into(),
+            to: "ventes".into(),
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -159,7 +180,16 @@ fn why_finds_direct_cause() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Why("ventes".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Why {
+            label: "ventes".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Causes { links, .. } = result {
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].from, "chute(qualité)");
@@ -172,7 +202,15 @@ fn why_finds_direct_cause() {
 #[test]
 fn why_node_not_found_errors() {
     let ir = make_ir(vec![node(0, "chute(qualité)", NodeType::Processus)], vec![]);
-    let err = execute(&Query::Why("inexistant".into()), &ir);
+    let err = execute(
+        &Query::Why {
+            label: "inexistant".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    );
     assert!(matches!(err, Err(BackendError::NodeNotFound(_))));
 }
 
@@ -190,7 +228,16 @@ fn what_finds_direct_effect() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::What("qualité".into()), &ir).unwrap();
+    let result = execute(
+        &Query::What {
+            label: "qualité".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Effects { links, .. } = result {
         assert_eq!(links.len(), 2);
     } else {
@@ -213,7 +260,16 @@ fn chain_finds_path() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::Chain("qualité".into(), "coûts".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Chain {
+            from: "qualité".into(),
+            to: "coûts".into(),
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Path { found, links, .. } = result {
         assert!(found);
         assert_eq!(links.len(), 2);
@@ -231,7 +287,16 @@ fn chain_no_path() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Chain("ventes".into(), "qualité".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Chain {
+            from: "ventes".into(),
+            to: "qualité".into(),
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Path { found, .. } = result {
         assert!(!found);
     } else {
@@ -347,7 +412,9 @@ fn dot_export_contains_nodes_and_edges() {
     assert!(dot.contains("n0"));
     assert!(dot.contains("n1"));
     assert!(dot.contains("n0 -> n1"));
-    assert!(dot.contains("Cause"));
+    // §2.11 ETUDE : snake_case serde, cohérent avec le JSON (plus de PascalCase Debug).
+    assert!(dot.contains("cause"));
+    assert!(!dot.contains("Cause"));
 }
 
 #[test]
@@ -371,11 +438,17 @@ fn json_roundtrip() {
 fn parse_do() {
     assert_eq!(
         Query::parse("DO crise?").unwrap(),
-        Query::Intervene("crise".into())
+        Query::Intervene {
+            label: "crise".into(),
+            filter: LinkFilter::default()
+        }
     );
     assert_eq!(
         Query::parse("DO hausse").unwrap(),
-        Query::Intervene("hausse".into())
+        Query::Intervene {
+            label: "hausse".into(),
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -394,7 +467,14 @@ fn intervene_cuts_incoming_and_propagates_forward() {
             edge(1, 2, RelationType::Cause),
         ],
     );
-    let result = execute(&Query::Intervene("B".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Intervene {
+            label: "B".into(),
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Intervention {
         severed_count,
         severed,
@@ -423,7 +503,14 @@ fn intervene_no_incoming_zero_severed() {
         ],
         vec![edge(0, 1, RelationType::Cause)],
     );
-    let result = execute(&Query::Intervene("racine".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Intervene {
+            label: "racine".into(),
+            filter: LinkFilter::default(),
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Intervention {
         severed_count,
         effects,
@@ -441,7 +528,13 @@ fn intervene_no_incoming_zero_severed() {
 fn intervene_node_not_found() {
     let ir = make_ir(vec![node(0, "A", NodeType::Processus)], vec![]);
     assert!(matches!(
-        execute(&Query::Intervene("INEXISTANT".into()), &ir),
+        execute(
+            &Query::Intervene {
+                label: "INEXISTANT".into(),
+                filter: LinkFilter::default()
+            },
+            &ir
+        ),
         Err(BackendError::NodeNotFound(_))
     ));
 }
@@ -544,8 +637,7 @@ fn fix_c4_unique_effects_two_same_label_nodes_both_unique() {
         assert_eq!(
             unique_effects.len(),
             2,
-            "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {:?}",
-            unique_effects
+            "deux nœuds 'doublon' distincts et uniques → 2 unique_effects attendus, obtenu {unique_effects:?}"
         );
         assert_eq!(
             unique_effects
@@ -576,8 +668,7 @@ fn fix_bug2_counterfactual_duplicate_labels() {
     if let QueryResult::CounterfactualDiff { unique_effects, .. } = result {
         assert!(
             unique_effects.contains(&"doublon".to_string()),
-            "doublon(id=2) est unique à trigger : {:?}",
-            unique_effects
+            "doublon(id=2) est unique à trigger : {unique_effects:?}"
         );
     } else {
         panic!("résultat inattendu");
@@ -604,7 +695,17 @@ fn analogy_same_relation_type_scores_high() {
             edge(4, 5, RelationType::Enable),
         ],
     );
-    let result = execute(&Query::Analogy("A".into(), "B".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Analogy {
+            from: "A".into(),
+            to: "B".into(),
+            weights: DEFAULT_ANALOGY_WEIGHTS,
+            min_score: DEFAULT_ANALOGY_MIN_SCORE,
+            hops: 1,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::AnalogyReport { matches, .. } = result {
         assert!(!matches.is_empty(), "au moins un analogue attendu");
         // C→D (Cause) doit scorer plus haut que E→F (Enable)
@@ -638,7 +739,17 @@ fn analogy_unknown_pattern_returns_empty() {
         vec![],
     );
     // Patron X→Y n'existe pas dans le graphe (pas d'arête)
-    let result = execute(&Query::Analogy("X".into(), "Y".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Analogy {
+            from: "X".into(),
+            to: "Y".into(),
+            weights: DEFAULT_ANALOGY_WEIGHTS,
+            min_score: DEFAULT_ANALOGY_MIN_SCORE,
+            hops: 1,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::AnalogyReport { matches, .. } = result {
         assert!(matches.is_empty(), "pas d'arête patron → aucun analogue");
     } else {
@@ -797,7 +908,7 @@ fn spof_bridge_node_detected() {
             .find(|n| n.label == "B")
             .expect("B dans les résultats");
         // Supprimer B coupe A→B, A→C, B→C = 3 paires
-        assert_eq!(b.paths_cut, 3, "B coupe les 3 paires : {:?}", b);
+        assert_eq!(b.paths_cut, 3, "B coupe les 3 paires : {b:?}");
         // B est premier dans le classement (score maximal)
         assert_eq!(nodes[0].label, "B", "B doit être premier SPOF");
     } else {
@@ -1012,8 +1123,18 @@ fn explain_ranks_direct_cause_first() {
     let mut ir2 = ir.clone();
     ir2.edges[0].2.confidence = 0.9;
     ir2.edges[1].2.confidence = 0.5;
-    let result = execute(&Query::Explain("C".into()), &ir2).unwrap();
-    if let QueryResult::Abduction { effect, hypotheses } = result {
+    let result = execute(
+        &Query::Explain {
+            effect: "C".into(),
+            contrast: None,
+        },
+        &ir2,
+    )
+    .unwrap();
+    if let QueryResult::Abduction {
+        effect, hypotheses, ..
+    } = result
+    {
         assert_eq!(effect, "C");
         assert!(!hypotheses.is_empty());
         // A (conf=0.9) doit être classé avant B (conf=0.5)
@@ -1022,8 +1143,7 @@ fn explain_ranks_direct_cause_first() {
         let pos_b = labels.iter().position(|&l| l == "B");
         assert!(
             pos_a < pos_b,
-            "A (conf=0.9) doit précéder B (conf=0.5): {:?}",
-            labels
+            "A (conf=0.9) doit précéder B (conf=0.5): {labels:?}"
         );
     } else {
         panic!("résultat EXPLAIN inattendu");
@@ -1033,7 +1153,14 @@ fn explain_ranks_direct_cause_first() {
 #[test]
 fn explain_no_causes_returns_empty() {
     let ir = make_ir(vec![node(0, "isolé", NodeType::EtatLocal)], vec![]);
-    let result = execute(&Query::Explain("isolé".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Explain {
+            effect: "isolé".into(),
+            contrast: None,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Abduction { hypotheses, .. } = result {
         assert!(hypotheses.is_empty());
     } else {
@@ -1058,7 +1185,14 @@ fn explain_prefers_close_over_distant() {
     );
     ir.edges[0].2.confidence = 0.8;
     ir.edges[1].2.confidence = 0.8;
-    let result = execute(&Query::Explain("C".into()), &ir).unwrap();
+    let result = execute(
+        &Query::Explain {
+            effect: "C".into(),
+            contrast: None,
+        },
+        &ir,
+    )
+    .unwrap();
     if let QueryResult::Abduction { hypotheses, .. } = result {
         assert!(hypotheses.len() >= 2);
         let pos_b = hypotheses.iter().position(|h| h.label == "B");
@@ -1199,20 +1333,59 @@ fn delay_sums_temporal_gaps() {
 #[test]
 fn parse_all_21_query_types() {
     let cases = vec![
-        ("WHY feu", Query::Why("feu".into())),
-        ("WHAT feu", Query::What("feu".into())),
+        (
+            "WHY feu",
+            Query::Why {
+                label: "feu".into(),
+                ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+                topk: None,
+                filter: LinkFilter::default(),
+            },
+        ),
+        (
+            "WHAT feu",
+            Query::What {
+                label: "feu".into(),
+                ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+                topk: None,
+                filter: LinkFilter::default(),
+            },
+        ),
         (
             "CHAIN feu -> fumée",
-            Query::Chain("feu".into(), "fumée".into()),
+            Query::Chain {
+                from: "feu".into(),
+                to: "fumée".into(),
+                topk: DEFAULT_TOPK,
+                filter: LinkFilter::default(),
+            },
         ),
         ("CYCLES", Query::Cycles),
         ("GAPS", Query::Gaps),
-        ("DO feu", Query::Intervene("feu".into())),
+        (
+            "DO feu",
+            Query::Intervene {
+                label: "feu".into(),
+                filter: LinkFilter::default(),
+            },
+        ),
         ("COUNTERFACTUAL feu", Query::Counterfactual("feu".into())),
-        ("EXPLAIN fumée", Query::Explain("fumée".into())),
+        (
+            "EXPLAIN fumée",
+            Query::Explain {
+                effect: "fumée".into(),
+                contrast: None,
+            },
+        ),
         (
             "ANALOGY feu -> fumée",
-            Query::Analogy("feu".into(), "fumée".into()),
+            Query::Analogy {
+                from: "feu".into(),
+                to: "fumée".into(),
+                weights: DEFAULT_ANALOGY_WEIGHTS,
+                min_score: DEFAULT_ANALOGY_MIN_SCORE,
+                hops: 1,
+            },
         ),
         ("ZOOM_IN feu", Query::ZoomIn("feu".into())),
         ("ZOOM_OUT feu", Query::ZoomOut("feu".into())),
@@ -1255,10 +1428,23 @@ fn parse_all_21_query_types() {
 
 #[test]
 fn parse_case_insensitive_verb() {
-    assert_eq!(Query::parse("why feu").unwrap(), Query::Why("feu".into()));
+    assert_eq!(
+        Query::parse("why feu").unwrap(),
+        Query::Why {
+            label: "feu".into(),
+            ambiguity_limit: DEFAULT_AMBIGUITY_LIMIT,
+            topk: None,
+            filter: LinkFilter::default()
+        }
+    );
     assert_eq!(
         Query::parse("chain feu -> fumée").unwrap(),
-        Query::Chain("feu".into(), "fumée".into())
+        Query::Chain {
+            from: "feu".into(),
+            to: "fumée".into(),
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
+        }
     );
 }
 
@@ -1289,10 +1475,219 @@ fn parse_unknown_query() {
 fn parse_comma_separator_for_pair_queries() {
     assert_eq!(
         Query::parse("CHAIN feu, fumée").unwrap(),
-        Query::Chain("feu".into(), "fumée".into())
+        Query::Chain {
+            from: "feu".into(),
+            to: "fumée".into(),
+            topk: DEFAULT_TOPK,
+            filter: LinkFilter::default()
+        }
     );
     assert_eq!(
         Query::parse("DELAY feu, fumée").unwrap(),
         Query::Delay("feu".into(), "fumée".into())
     );
+}
+
+// ─── P0-1 : WHY/WHAT agrègent TOUS les matchs (pas le premier seul) ──────────
+
+#[test]
+fn p01_why_returns_all_matching_targets() {
+    // Deux nœuds "ventes" EXACTS, ancêtres distincts (Ph2 [D2] : exacts tous
+    // répondus ; l'agrégation P0-1 porte sur l'ensemble exact).
+    let ir = make_ir(
+        vec![
+            node(0, "hausse prix", NodeType::Processus),
+            node(1, "ventes", NodeType::Processus),
+            node(2, "promo", NodeType::Processus),
+            node(3, "ventes", NodeType::Processus),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHY ventes?").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes {
+        links,
+        matched_targets,
+        ..
+    } = result
+    {
+        assert_eq!(
+            matched_targets.len(),
+            2,
+            "les 2 nœuds matchés doivent apparaître, obtenu {matched_targets:?}"
+        );
+        // Les ancêtres des DEUX cibles doivent être présents (avant : 1er seul).
+        assert!(
+            links.iter().any(|l| l.from == "hausse prix"),
+            "ancêtre de 'ventes' manquant : {links:?}"
+        );
+        assert!(
+            links.iter().any(|l| l.from == "promo"),
+            "ancêtre du 2e 'ventes' manquant (P0-1) : {links:?}"
+        );
+    } else {
+        panic!("expected Causes result");
+    }
+}
+
+#[test]
+fn p01_what_returns_all_matching_sources() {
+    // Deux sources "pluie" EXACTES (Ph2 [D2] : voir test WHY ci-dessus).
+    let ir = make_ir(
+        vec![
+            node(0, "pluie", NodeType::Processus),
+            node(1, "inondation", NodeType::Evenement),
+            node(2, "pluie", NodeType::Processus),
+            node(3, "corrosion", NodeType::Processus),
+        ],
+        vec![
+            edge(0, 1, RelationType::Cause),
+            edge(2, 3, RelationType::Cause),
+        ],
+    );
+    let result = execute(&Query::parse("WHAT pluie?").unwrap(), &ir).unwrap();
+    if let QueryResult::Effects {
+        links,
+        matched_sources,
+        ..
+    } = result
+    {
+        assert_eq!(matched_sources.len(), 2, "obtenu {matched_sources:?}");
+        assert!(links.iter().any(|l| l.to == "inondation"), "{links:?}");
+        assert!(
+            links.iter().any(|l| l.to == "corrosion"),
+            "effet de la 2e 'pluie' manquant (P0-1) : {links:?}"
+        );
+    } else {
+        panic!("expected Effects result");
+    }
+}
+
+// ─── P0-2 : chain_strict Err(NoPath) vs execute found:false ──────────────────
+
+#[test]
+fn p02_chain_strict_errors_on_missing_path_while_execute_reports_not_found() {
+    use gcn_backend::chain_strict;
+    let ir = make_ir(
+        vec![
+            node(0, "soleil", NodeType::Processus),
+            node(1, "lune", NodeType::Processus),
+        ],
+        vec![],
+    );
+    // Chemin non-strict : found:false, pas d'erreur.
+    let result = execute(&Query::parse("CHAIN soleil -> lune?").unwrap(), &ir).unwrap();
+    if let QueryResult::Path { found, .. } = result {
+        assert!(!found);
+    } else {
+        panic!("expected Path result");
+    }
+    // Strict : Err(NoPath).
+    let err = chain_strict(&ir, "soleil", "lune").unwrap_err();
+    assert!(
+        matches!(err, BackendError::NoPath(_, _)),
+        "attendu NoPath, obtenu {err:?}"
+    );
+}
+
+// ─── P1-5 : third_node_label résolu (plus None systématique) ─────────────────
+
+#[test]
+fn p15_third_node_label_resolved_in_why() {
+    use gcn_ir::{TernaryRole, TernaryThird};
+    let third_id = 2u32;
+    let (s, d, mut e) = edge(0, 1, RelationType::MediatedCause);
+    e.third = Some(TernaryThird {
+        role: TernaryRole::Mediator,
+        node: third_id as u64,
+        polarity: None,
+    });
+    let ir = make_ir(
+        vec![
+            node(0, "stress", NodeType::Processus),
+            node(1, "burnout", NodeType::Processus),
+            node(third_id, "sommeil", NodeType::Processus),
+            // Arête vers le médiateur pour que le contrefactuel ne le purge pas
+            // (sans objet ici — WHY seulement).
+        ],
+        vec![(s, d, e), edge(third_id, 1, RelationType::Enable)],
+    );
+    let result = execute(&Query::parse("WHY burnout?").unwrap(), &ir).unwrap();
+    if let QueryResult::Causes { links, .. } = result {
+        let mediated = links
+            .iter()
+            .find(|l| l.relation == "mediated_cause")
+            .expect("arête mediated_cause attendue");
+        assert_eq!(
+            mediated.third_node_label,
+            Some("sommeil".to_string()),
+            "third_node_label doit être résolu (P1-5), obtenu {links:?}"
+        );
+    } else {
+        panic!("expected Causes result");
+    }
+}
+
+// ─── DTOs : relations/types en snake_case serde (pas Debug PascalCase) ───────
+
+#[test]
+fn dto_relations_and_kinds_are_snake_case() {
+    use gcn_ir::temporal::GapNature;
+    // GAPS : arête avec temporal_gap → GapDto.relation.
+    let (s, d, mut e) = edge(0, 1, RelationType::ConditionalCause);
+    e.temporal_gap = Some(gcn_ir::TemporalGap {
+        min: Some(1),
+        max: Some(2),
+        nature: GapNature::Deferred,
+    });
+    let ir = make_ir(
+        vec![
+            node(0, "pluie", NodeType::Processus),
+            node(1, "recolte", NodeType::Processus),
+        ],
+        vec![(s, d, e), edge(1, 0, RelationType::Cause)],
+    );
+    // GAPS
+    if let QueryResult::GapList { gap_edges, .. } =
+        execute(&Query::parse("GAPS?").unwrap(), &ir).unwrap()
+    {
+        assert!(!gap_edges.is_empty());
+        assert_eq!(gap_edges[0].relation, "conditional_cause", "{gap_edges:?}");
+    } else {
+        panic!("expected GapList");
+    }
+    // CYCLES (0→1→0) : kind snake_case.
+    if let QueryResult::CycleList { cycles, .. } =
+        execute(&Query::parse("CYCLES?").unwrap(), &ir).unwrap()
+    {
+        assert!(!cycles.is_empty());
+        for c in &cycles {
+            assert!(
+                ["feedback_positive", "feedback_negative", "oscillation"]
+                    .contains(&c.kind.as_str()),
+                "kind snake_case attendu, obtenu {:?}",
+                c.kind
+            );
+        }
+    } else {
+        panic!("expected CycleList");
+    }
+    // EXPLAIN : relation snake_case.
+    if let QueryResult::Abduction { hypotheses, .. } =
+        execute(&Query::parse("EXPLAIN recolte?").unwrap(), &ir).unwrap()
+    {
+        assert!(!hypotheses.is_empty());
+        for h in &hypotheses {
+            assert!(
+                h.relation.chars().all(|c| !c.is_uppercase()),
+                "relation snake_case attendue (pas de PascalCase), obtenu {:?}",
+                h.relation
+            );
+        }
+    } else {
+        panic!("expected Abduction");
+    }
+    // WHY chaîné : third/relations passent par link_to_dto (déjà couvert p15).
 }

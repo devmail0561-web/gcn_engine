@@ -41,9 +41,13 @@ v4.0    ████████████████████  100%  ETUD
 AuditC  ████████████████████  100%  Correctifs audit C1-C5 : D5 renommage, hash joint, metrics K2, Pearl serde, T5-min
 AuditD2 ████████████████████  100%  Post-audit D5/D10 : dead code analogy, serde 8 types, calibration §D.5, datasets D4→D5
 ```
+> **Note 2026-10-09** : le tableau ci-dessus fige l'histoire pré-refacto (≤ v4.0, sept. 2026).
+> Travail en cours : **refacto-2026-10** (branche `refacto/arch-cible-refacto-2026-10`) —
+> socle B/L0/L1/tête act, backend P0–Ph8+6b+7, dialogue Ph9 agnostic, perfs Ph10 M4→M3,
+> R4-fix F2. Source de vérité live : `CHANGELOG.md` + `docs/refactory/` (locaux).
 
-**Tests Python : 685 / 685 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
-**Tests Rust : 0 échec** (`cargo test --workspace`)
+**Tests Python : 855 / 855 passent** (`PYTHONPATH=src pytest gcn-python/tests/`, 3 xfailed — checkpoints v2, attendu)
+**Tests Rust : 0 échec** (`cargo test --workspace`, 258 passés)
 
 ---
 
@@ -114,14 +118,14 @@ AuditD2 ████████████████████  100%  Post
 | RGCNLayer référence NumPy | `gcn-python/layer3/reference.py` | ✅ |
 | CGNPipeline.forward() | `gcn-python/pipeline/cgnp.py` | ✅ |
 | ir_emitter (→ JSON Rust) | `gcn-python/pipeline/ir_emitter.py` | ✅ |
-| gcn-forward CLI | `gcn-python/pipeline/cli.py` | ✅ |
+| gcn-forward CLI | supprimé (v2.5.1) | ~~✅~~ |
 | backward() rétropropagation + SGD | `gcn-python/pipeline/cgnp.py` | ✅ |
 | loss() cross-entropie NumPy | `gcn-python/pipeline/cgnp.py` | ✅ |
 | GCNDataLoader + TrainingSample | `gcn-python/data/loader.py` | ✅ |
 | gcn-train CLI (boucle SGD) | `gcn-python/training/train.py` | ✅ |
 | gcn-bootstrap CLI (génération JSON) | `gcn-python/training/bootstrap.py` | ✅ |
 | checkpoint save/load (.npz) | `gcn-python/training/checkpoint.py` | ✅ |
-| gcn-forward --model-path | `gcn-python/pipeline/cli.py` | ✅ |
+| gcn-forward --model-path | supprimé (v2.5.1) | ~~✅~~ |
 | backward_message_pass RGCNLayer | `gcn-python/layer3/reference.py` | ✅ |
 | Protocol CausalGraph backward | `gcn-python/layer3/interface.py` | ✅ |
 
@@ -211,7 +215,7 @@ AuditD2 ████████████████████  100%  Post
 
 **Limites connues :**
 - Pearl niveau 1 uniquement (association / observationnel)
-- `gcn forward` requiert que `gcn-python` soit installé et `gcn-forward` dans le PATH
+- `gcn forward` : supprimé en v2.5.1 (redondant avec `gcn-train`/`gcn-eval`)
 
 ---
 
@@ -1071,3 +1075,12 @@ Discours  : discourse.py — Éq.10, connecteurs inter-phrasaux depuis lang_mark
 | K2 macro-F1 11 classes partagées v2↔v3 | Mesure post-entraînement | `edge_macro_f1(class_subset=RELATION_TYPES_V2)` |
 | K3 T4 e2e bridge fix | Mesure + 20 phrases conditionnelles | — |
 | D.0-médical 25 phrases OOV | Annotation humaine (owner Michel) | Si D.0-min F1 < 70% |
+
+### Reporté — décisions owner (session chemin tok, 2026-10-13)
+
+| Tâche | Nature | Déclencheur / condition |
+|---|---|---|
+| Annotation `concept` / `evenement` / `contrainte` (~30-50 phrases) | Annotation humaine | Seul levier vers un run tok réel (GEL R8 actuel : 3 types à 0) |
+| Suppression legacy (`bridge.py`, `vectorize_*`, frontends NL) | Décision + exécution | Après F1 tok mesuré (re-mesure harnais unique) — prématuré avant |
+| Re-pin SA (`engine-compat.md`, pin `20163da` → release/head) | Décision owner SA | 14+ commits de drift (compatibilité vérifiée, pas de casse) |
+| Réduction de périmètre R8 (ex. 5 types nœuds) | Décision owner | Alternative à l'annotation — modifie le gate, jamais en solo |

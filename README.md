@@ -3,9 +3,9 @@
 [![crates.io](https://img.shields.io/crates/v/gcn-ir?label=gcn-ir)](https://crates.io/crates/gcn-ir)
 [![PyPI](https://img.shields.io/pypi/v/gcn-python)](https://pypi.org/project/gcn-python/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Rust tests](https://img.shields.io/badge/tests%20Rust-186%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Python tests](https://img.shields.io/badge/tests%20Python-467%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://pypi.org/project/gcn-python/)
+[![Rust tests](https://img.shields.io/badge/tests%20Rust-260%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Python tests](https://img.shields.io/badge/tests%20Python-887%20%E2%9C%85-brightgreen)](https://github.com/devmail0561-web/gcn_engine)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://pypi.org/project/gcn-python/)
 
 **Moteur de raisonnement causal** — infrastructure sur laquelle les data scientists et analystes construisent et entraînent leurs propres modèles causaux.
 
@@ -19,10 +19,17 @@
 GCN est un **engine**, pas un modèle. Il fournit le cadre formel et les briques techniques pour :
 
 1. **Extraire** la structure causale depuis du texte naturel ou du code
-2. **Raisonner** sur des graphes causaux (niveaux de Pearl)
+2. **Raisonner** sur des graphes causaux (requêtes GCN-QL : association, intervention, contrefactuel)
 3. **Générer** du texte et du code depuis une vérité causale vérifiée
 
 Contrairement aux LLMs qui corrèlent des tokens, GCN représente **explicitement** les relations causales — qui cause quoi, à quel moment, sous quelle condition.
+
+> **Portée causale (borné 2026-10-11).** Le graphe stocke des **assertions sourcées,
+> pas des faits** : `DO` (chirurgie de graphe : arêtes entrantes coupées, effets propagés)
+> et `COUNTERFACTUAL` (monde-sans-X sur assertions citées) sont des calculs sur
+> assertions avec preuves, **sans contrôle de confondeurs ni modèle structurel** —
+> ce n'est pas du do-calculus identifié au sens statistique (cf. `docs/refactory/ETUDE_SA.md §2.1`).
+> Tout contrefactuel est étiqueté comme tel, jamais présenté comme fait établi.
 
 ---
 
@@ -72,6 +79,8 @@ projet_CNM/
 │   │   ├── gcn-frontend-fr/    Parser français symbolique (bootstrap annotation)
 │   │   ├── gcn-frontend-en/    Parser anglais symbolique (bootstrap annotation)
 │   │   ├── gcn-frontend-code/  Parser code AST (Python, Rust, JS via tree-sitter)
+│   │   ├── gcn-frontend-graph/ Parser graphes typés STIX 2.x → CausalIR (P2.1, zéro ML)
+│   │   ├── gcn-frontend-table/ Parser tabulaire CSV cause/effet → CausalIR (P2.3, zéro ML)
 │   │   ├── gcn-middleend/      Construction graphe, cycles, validation
 │   │   ├── gcn-backend/        Raisonnement Pearl étendu + GCN-QL (21 requêtes) + export
 │   │   ├── gcn-verbalizer/     Décodeur CausalIR → surface (pont Rust)
@@ -234,9 +243,9 @@ gcn-discuss --checkpoint model.npz
 # Générer des données d'entraînement (JSON annoté) depuis des textes bruts
 gcn-bootstrap --input phrases_fr.txt --out-dir gcn-datasets/generated/
 
-# Lancer l'entraînement — configuration de référence v2.4.0
-# (val_edge_f1=0.468 mesuré sous l'harnais d'alors — non comparable, 0.1867
-#  sous le harnais actuel ; voir BENCHMARK.md §9b et la caveat plus bas)
+# Lancer l'entraînement — config de référence (harnais pré-refacto, historique)
+# Mesure courante : v4 finale gold-only quota64, 3 seeds, moy val_edge_macro_f1=0.239±0.04
+# (voir § Performances ML ; protocole docs/PROTOCOLE_MESURE.md)
 gcn-train \
   --data-dir  gcn-datasets/real/augmented/c1_oversampled/ \
   --val-dir   gcn-datasets/real/val/ \
@@ -312,13 +321,18 @@ pub struct CausalIR {
     pub metadata: IrMetadata,
 }
 
-// Types de nœuds
-pub enum NodeType { Etat, Action, Transition, Processus, Condition, Entite, EtatSystemique }
+// Types de nœuds (8 — v3.0)
+pub enum NodeType { Processus, EtatLocal, EtatGlobal, Entite, Condition, Concept, Evenement, Contrainte }
 
-// Types de relations
+// Types de relations (19 — v3.0)
 pub enum RelationType {
+    // 11 directes
     Cause, Enable, Prevent, Condition, Concession, Sequence,
-    Motivation, Filter, Opposition, DataDependency, ControlDependency
+    Motivation, Filter, Opposition, DataDependency, ControlDependency,
+    // 8 ternaires/counterfactual
+    Analogy, Counterfactual,
+    ConditionalCause, MediatedCause, JointCause,
+    ConditionalPrevent, MediatedPrevent, JointPrevent,
 }
 
 // CIR v2 — traçabilité sur chaque arête (champs optionnels, backward compat)
@@ -408,11 +422,11 @@ class MyEncoder:
     """Implémentation PyTorch, JAX ou autre — à vous de choisir."""
 
     def forward_node(self, x: np.ndarray) -> np.ndarray:
-        # x: (D_clause = 80,) → retourne (7,) logits sur NodeType
+        # x: (D_clause = 106,) → retourne (8,) logits sur NodeType
         ...
 
     def forward_edge(self, x: np.ndarray) -> np.ndarray:
-        # x: (D_edge ≈ 346,) → retourne (11,) logits sur RelationType
+        # x: (D_edge ≈ 475,) → retourne (19,) logits sur RelationType
         ...
 
     def parameters(self) -> list[np.ndarray]: ...
@@ -553,21 +567,25 @@ Structure minimale d'un exemple annoté :
 ## Tests
 
 ```bash
-# Suite complète Rust (185 tests)
+# Suite complète Rust (260 tests, 0 échec — mesuré 2026-10-13, branche refacto)
 cd gcn-core && cargo test --workspace
 
 # Par crate
-cargo test -p gcn-ir              # 10 tests (dont normalize_label, provenance serde)
+cargo test -p gcn-ir              # 11 tests (dont normalize_label, provenance serde, from_name)
 cargo test -p gcn-knowledge        # 26 tests (dont AliasTable)
-cargo test -p gcn-frontend-fr      # 21 tests
+cargo test -p gcn-frontend-fr      # 23 tests
 cargo test -p gcn-frontend-en      # 17 tests (dont isomorphisme fr↔en)
-cargo test -p gcn-frontend-code    # 30 tests (Python, Rust, JS)
+cargo test -p gcn-frontend-code    # 31 tests (Python, Rust, JS)
+cargo test -p gcn-frontend-graph   #  6 tests (STIX → CIR, tables, roundtrip)
+cargo test -p gcn-frontend-table   #  6 tests (CSV → CIR, RFC-4180, transparence)
 cargo test -p gcn-middleend        # 17 tests (dont MissingProvenance)
-cargo test -p gcn-backend          # 49 tests (Pearl 1-2-3 + temporel, abductif, méta, analogie)
+cargo test -p gcn-backend          # 149 tests (association, chirurgie graphe, contrefactuel assertions, temporel, abductif, méta, analogie, always-answer)
 cargo test -p gcn-verbalizer       #  3 tests
-cargo test -p gcn-cli              #  0 test (binaire seul)
+cargo test -p gcn-cli              #  9 tests (extract-text : HTML/phrases/notebooks)
 
-# Python — gcn-python (425 tests, 0 skipped, 1 xfail strict)
+# Python — gcn-python (887 tests, 1 skipped, 3 xfailed — mesuré 2026-10-13, branche refacto)
+# Invocation canonique DEPUIS LA RACINE (chemins relatifs exigés par test_nlu_infer/test_engine_b) :
+#   PYTHONPATH=gcn-python/src python3 -m pytest gcn-python/tests/ -q
 cd gcn-python && python -m pytest
 # Dont :
 #   test_regression_v230.py  — 17 tests régression correctifs v2.3.0
@@ -603,28 +621,35 @@ cd ../gcn-tools/gcn-annotate && python -m pytest   # 26 tests, 4 skipped
 
 ---
 
-## Performances ML — État actuel (v2.4.0)
+## Performances ML — État actuel (branche `refacto/arch-cible-refacto-2026-10`)
 
-### Checkpoint de production
+### Mesure unique v4 finale (gold-only, quota64, 3 seeds)
 
-| Fichier | `gcn-datasets/checkpoints/model_v2.4.0.npz` |
-|---------|---------------------------------------------|
-| Métriques | `gcn-datasets/checkpoints/model_v2.4.0_metrics.json` |
-| Chargement | `GCNEngine.from_pretrained("model_v2.4.0.npz", trusted=True)` |
+Split figé `v4/final/` : `make_split.py --quota 64 --seed 42` (65 `_none` exclus) →
+**train 572 / val 132**, uniforme exact 52/12 × 11 relations.
+Manifests SHA : train `be315eff47b0b96c`, val `497fca8f46607c0c`.
+Protocole : `docs/PROTOCOLE_MESURE.md` (dataset figé, N_min figé, seeds ×3, effet < 0.05 = bruit).
 
-### Résultats sur le val set (combined_v2, 350 phrases)
+| Seed | `val_edge_macro_f1` | @epoch | Train edge F1 |
+|------|---------------------|--------|---------------|
+| 7 | 0.184 | 119 | ~0.98 |
+| 42 | 0.265 | 36 | ~0.99 |
+| 123 | 0.269 | 128 | ~0.99 |
+| **moyenne** | **0.239 ± 0.04** | — | — |
 
-| Métrique | Valeur | Cible prod | Statut |
-|---------|--------|-----------|--------|
-| `val_edge_macro_f1` | **0.1867** | > 0.40 | ✗ (non convergé) |
-| `val_node_macro_f1` | 0.274 | > 0.60 | ✗ (données insuffisantes) |
-| `val_graph_exact_match` | 0.123 | > 0.20 | ✗ (bloqué par node) |
+| Métrique | Valeur (v4) | Cible prod | Statut |
+|---------|-------------|-----------|--------|
+| `val_edge_macro_f1` | **0.239 ± 0.04** | > 0.40 | ✗ loin (facteur ~1,7×) |
+| `val_node_macro_f1` | non re-mesuré sur `v4/final` | > 0.60 | ⏳ re-mesure requise, harnais unique |
+| `val_graph_exact_match` | non re-mesuré sur `v4/final` | > 0.20 | ⏳ idem |
+| train ~0.98-0.99 vs val 0.24 | overfit massif | gap < 0.15 | ✗ mémorisation, pas généralisation |
 
-> **Note de calibration (audit v2.5.0).** L'ancien chiffre `0.468` avait été
-> mesuré sur le harnais d'époque avec un état de données non reproductible
-> (`real/` git-ignoré, `train.json` modifié post-run). Sous le harnais actuel
-> avec le même `val.json`, ce checkpoint donne `0.1867`. L'ancien chiffre est
-> **archivé et ne doit plus être cité comme performance courante**.
+> Lecture : 0.239 vs merge gold+silver quota140 (0.229, Δ=0.01 = bruit).
+> Prochain levier documenté : campagne control/prevent/condition (+30-50 phrases),
+> pas les hyperparamètres (piste données épuisée à volume constant).
+> Les anciens chiffres `0.468` (harnais v2.4.0, `real/` git-ignoré, non reproductible)
+> et `0.1867` (harnais v2.5.0, autre split) sont **archivés : harnais distincts,
+> incomparables — ne plus les citer comme performance courante**.
 
 ### Meilleure configuration d'entraînement
 
@@ -653,10 +678,12 @@ embeddings aléatoires (−0.10 vs GAT sans emb), `--rgcn-dropout` (−0.05).
 
 ### Bloquant restant pour la production complète
 
-`val_node_macro_f1 = 0.274` (cible 0.60) est un **problème de données, pas de modèle**.
-Les 5 types de nœuds rares (etat, action, transition, etat_systemique, condition) n'ont que
-9 à 35 exemples chacun. Aucun hyperparamètre ne peut compenser l'absence de données.
-Solution : annoter ~800 phrases supplémentaires ciblant ces types.
+Le gap train (~0.99) vs val (0.24) est un **problème de données, pas de modèle** :
+à volume constant, la piste hyperparamètres est épuisée (voir leviers ci-dessous,
+tous validés sur harnais pré-refacto). Le split v4 respecte N_min=30/classe
+(52 train/classe), mais les 8 relations v3 (ternaires, analogy, counterfactual)
+sont à 0 occurrence au niveau gold → gel R8/R10 actif (pas de seuils, pas de
+calibration avant gold-3000). Prochain levier : campagne control/prevent/condition.
 
 ---
 
@@ -710,6 +737,7 @@ Solution : annoter ~800 phrases supplémentaires ciblant ces types.
 | Audit 1 | 7 correctifs scripts post-restructuration (paths, spans, edges) | ✅ Terminé |
 | v2.4.1 | Mise à niveau infra : edge_norm, graph_vecs, schéma v2.0, checkpoint atomique (256 tests) | ✅ Terminé |
 | Pearl+ | Extensions Pearl P1–P3 : CIR v2 provenance, normalize_label, 14 nouvelles requêtes GCN-QL, analogie O(E) (185 tests Rust, 425 tests Python) | ✅ Terminé |
+| refacto-2026-10 | Remodelage moteur (branche dédiée) : socle B/L0/L1/tête act, backend P0–Ph8+6b+7, dialogue Ph9 agnostic, perfs Ph10 M4→M3 (258 Rust, 855 Python) — dataset/annotation ensuite | ✅ Moteur terminé 2026-10-09, suivi live : CHANGELOG.md |
 
 ---
 

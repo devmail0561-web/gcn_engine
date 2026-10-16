@@ -82,6 +82,12 @@ class SentenceRecord:
     causal_pattern: str = ""  # métadonnée pour split stratifié uniquement, pas propagé aux features
     weight: float = 1.0  # Amélioration F : pondération gold=1.0 / silver=silver_weight
     intent: str = ""    # Éq.6 : label d'intention pour la tête NLU ; "" = non annoté
+    # P4a : type de phrase annoté (declarative/interrogative/imperative/exclamative).
+    # "" = non annoté → dérivation bootstrap par règle (ponctuation) dans le loader,
+    # remplacée par l'annotation dès qu'elle existe. Jamais deviné en silence :
+    # la source (annoté vs règle) est traçable via sentence_type_source.
+    sentence_type: str = ""
+    sentence_type_source: str = ""  # "annotated" | "rule" | ""
     # §11.6 ETUDE — profil phrastique et saillance
     sentence_profile: dict | None = None   # SentenceProfile sérialisé (optionnel)
     salience: dict | None = None           # {topic_node, focus_node, condition_prominence}

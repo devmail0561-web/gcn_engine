@@ -41,11 +41,29 @@ RELATION_TYPES_V2: list[str] = [
 # Indices 0-18 = forward, indices 19-37 = backward (r_inv = r + 19)
 RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES]
 ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 38 types
+
+
+def rgcn_n_relations(n_types: int, bidirectional: bool) -> int:
+    """Dimension relationnelle du R-GCN : +1 type no-edge explicite.
+
+    Le type no-edge (indice n_types en forward) sert au message passing
+    des paires sans gold — jamais prédit par la tête edge (19 sorties).
+    Remplace le typage fantôme 0=cause.
+    """
+    _fwd = n_types + 1
+    return 2 * _fwd if bidirectional else _fwd
+
+
+def rgcn_no_edge_idx(n_types: int) -> int:
+    """Indice forward du type no-edge R-GCN (jamais une classe prédite)."""
+    return n_types
 SCOPE_VALUES = ["universal", "existential", "partial", "null", "specific", "unknown"]
 
 NODE_ORIGIN_VALUES = ["explicit", "inferred", "hypothetical"]
 TEMPORAL_REF_DEFAULT = "unresolved"
-AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]  # RÉSERVÉ — non utilisé v2.0
+# P2-5 : AGENT_TYPE_VALUES supprimé (listait human/collective/institutional/natural
+# sans aucun usage — grep nul hors définition ; agent_type reste un champ libre
+# Option<String> côté Rust et une clé attributes côté Python).
 
 # Universal Dependencies constants
 UPOS_TAGS = ["ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM",
@@ -63,6 +81,17 @@ UD_MOOD_VALUES = ["Ind", "Sub", "Cnd", "Imp", "_absent"]          # 5 (S-3 : UD 
 UD_POLARITY_VALUES = ["Neg"]                                       # 1 binaire
 UD_VOICE_VALUES    = ["Act", "Pass", "_absent"]                    # 3 — v3.0
 UD_PRONTYPE_VALUES = ["Int", "Rel", "Prs", "Dem", "Ind", "Art", "_absent"]  # 7 — ETUDE §7.2
+
+# P4 quals — qualifications d'arête comme cibles (têtes en dortoir N_min).
+# Valeurs alignées sur EdgeRecord (schema.py) : défauts positive/active/indicative.
+QUAL_POLARITY = ["positive", "negative"]
+QUAL_VOICE = ["active", "passive"]
+QUAL_MODALITY = ["indicative", "subjunctive", "conditional", "imperative"]
+QUALIFIERS: dict[str, list[str]] = {
+    "polarity": QUAL_POLARITY,
+    "voice": QUAL_VOICE,
+    "modality": QUAL_MODALITY,
+}
 
 # d_clause (v3.0) = 18(UPOS) + 38(dep_rel) + 5(subject_pos) + 5(tense) + 4(aspect)
 #                 + 5(mood) + 3(voice) + 7(prontype) + 1(polarity) + 3(flags)
@@ -141,4 +170,15 @@ INTENT_TYPES: list[str] = [
     "verbalize",
     # Extraction (déclaratif → CIR)
     "none",
+]
+
+# P4a — types de phrases (tête MLP apprise, n_sentence_types=0 = désactivé).
+# Détecter l'intention exige de voir la structure : interrogative→explain/chain,
+# impérative→modalité, exclamative→saillance. Les mêmes règles vivent en
+# sentence_type.classify (symbolique) ; la tête les apprend depuis les vecteurs.
+SENTENCE_TYPES: list[str] = [
+    "declarative",
+    "interrogative",
+    "imperative",
+    "exclamative",
 ]

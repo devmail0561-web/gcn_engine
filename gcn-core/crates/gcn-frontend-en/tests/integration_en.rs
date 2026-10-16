@@ -1,237 +1,67 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use gcn_frontend_en::EnglishParser;
-use gcn_ir::{NaturalLanguage, RelationType, SourceLanguage};
-use std::path::PathBuf;
+//! EN lattice integration — état réel, zéro dictionnaire.
+//! Remplace l'ancien suite symbolique EnglishParser (supprimé avec gcn-knowledge).
 
-fn taxonomy_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../gcn-references/taxonomies")
-}
-
-fn parser() -> EnglishParser {
-    EnglishParser::new(&taxonomy_dir()).expect("failed to load English taxonomies")
-}
+use gcn_frontend_en::parse_lattice;
+use gcn_ir::{LatticeDep, LatticePos};
 
 // ─── Basic API ───────────────────────────────────────────────────────────────
 
 #[test]
-fn empty_input_errors() {
-    let p = parser();
-    assert!(p.parse("").is_err());
-    assert!(p.parse("   ").is_err());
+fn empty_input_gives_empty_lattice() {
+    let lat = parse_lattice("");
+    assert!(lat.tokens.is_empty());
+    assert!(lat.clauses.is_empty());
+    let lat2 = parse_lattice("   ");
+    assert!(lat2.tokens.is_empty());
 }
 
 #[test]
-fn source_language_is_english() {
-    let p = parser();
-    let ir = p.parse("Sales fall because costs rise.").unwrap();
-    assert!(
-        matches!(
-            ir.source_lang,
-            SourceLanguage::Natural {
-                lang: NaturalLanguage::English
-            }
-        ),
-        "source_lang should be English"
-    );
+fn simple_sentence_roles_by_position() {
+    let lat = parse_lattice("The drug reduces pain.");
+    let by_form = |f: &str| lat.tokens.iter().find(|t| t.form == f).unwrap().clone();
+    assert_eq!(by_form("reduces").pos, LatticePos::Verb);
+    assert_eq!(by_form("reduces").dep_rel, LatticeDep::Root);
+    assert!(lat.tokens.iter().all(|t| !t.lemma.is_empty()));
 }
 
 #[test]
-fn pipeline_tag_is_gcn_frontend_en() {
-    let p = parser();
-    let ir = p.parse("The crisis causes unemployment.").unwrap();
-    assert!(
-        ir.metadata
-            .pipeline
-            .contains(&"gcn-frontend-en".to_string())
-    );
-}
-
-// ─── Cause backward ("because") ─────────────────────────────────────────────
-
-#[test]
-fn because_backward_cause() {
-    let p = parser();
-    let ir = p.parse("Sales fell because costs rose.").unwrap();
-    assert_eq!(ir.edges.len(), 1);
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Cause);
-    assert!(edge.explicit);
-}
-
-// ─── Consequence forward ("therefore") ──────────────────────────────────────
-
-#[test]
-fn therefore_forward_consequence() {
-    let p = parser();
-    let ir = p.parse("Costs rose, therefore sales fell.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Cause);
-}
-
-// ─── Condition ("if") ───────────────────────────────────────────────────────
-
-#[test]
-fn if_condition() {
-    let p = parser();
-    let ir = p.parse("If costs rise, sales fall.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Condition);
-}
-
-// ─── Concession ("although") ────────────────────────────────────────────────
-
-#[test]
-fn although_concession() {
-    let p = parser();
-    let ir = p.parse("Sales fell although costs decreased.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert!(matches!(
-        edge.relation,
-        RelationType::Concession | RelationType::Opposition
-    ));
-}
-
-// ─── Causal verbs ───────────────────────────────────────────────────────────
-
-#[test]
-fn causal_verb_causes() {
-    let p = parser();
-    let ir = p.parse("The recession causes unemployment.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Cause);
-    assert!(edge.confidence >= 0.9);
-}
-
-#[test]
-fn causal_verb_enables() {
-    let p = parser();
-    let ir = p.parse("The policy enables growth.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Enable);
-}
-
-#[test]
-fn causal_verb_prevents() {
-    let p = parser();
-    let ir = p.parse("The intervention prevents collapse.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Prevent);
-}
-
-// ─── Node count ─────────────────────────────────────────────────────────────
-
-#[test]
-fn two_clauses_produce_two_nodes() {
-    let p = parser();
-    let ir = p.parse("Costs rise because demand increases.").unwrap();
-    assert_eq!(ir.nodes.len(), 2);
-}
-
-// ─── Negation ───────────────────────────────────────────────────────────────
-
-#[test]
-fn negation_on_edge() {
-    let p = parser();
-    let ir = p.parse("The policy does not prevent recession.").unwrap();
-    // Negation detected; edge may be negated or node may carry negation modifier
-    assert!(!ir.nodes.is_empty());
-}
-
-// ─── Empty-parse fallback ────────────────────────────────────────────────────
-
-#[test]
-fn single_word_still_produces_one_node() {
-    let p = parser();
-    let ir = p.parse("Recession.").unwrap();
-    assert_eq!(ir.nodes.len(), 1);
-}
-
-// ─── Motivation ("in order to") ──────────────────────────────────────────────
-
-#[test]
-fn in_order_to_motivation() {
-    let p = parser();
-    let ir = p
-        .parse("The government intervened in order to prevent collapse.")
-        .unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Motivation);
-}
-
-// ─── Enable preposition ("thanks to") ───────────────────────────────────────
-
-#[test]
-fn thanks_to_enable() {
-    let p = parser();
-    let ir = p.parse("The economy grew thanks to the reform.").unwrap();
-    assert!(!ir.edges.is_empty());
-    let (_, _, edge) = &ir.edges[0];
-    assert_eq!(edge.relation, RelationType::Enable);
-}
-
-// ─── Cross-modal isomorphism with French ─────────────────────────────────────
-
-#[test]
-fn en_fr_condition_isomorphism() {
-    use gcn_frontend_fr::FrenchParser;
-
-    let en_parser = parser();
-    let fr_parser = FrenchParser::new(&taxonomy_dir()).expect("failed to load French taxonomies");
-
-    let en_ir = en_parser.parse("If costs rise, sales fall.").unwrap();
-    let fr_ir = fr_parser
-        .parse("Si les coûts augmentent, les ventes baissent.")
-        .unwrap();
-
-    assert_eq!(
-        en_ir.nodes.len(),
-        fr_ir.nodes.len(),
-        "même nombre de nœuds fr↔en"
-    );
-    let (_, _, en_edge) = &en_ir.edges[0];
-    let (_, _, fr_edge) = &fr_ir.edges[0];
-    assert_eq!(
-        en_edge.relation, fr_edge.relation,
-        "même type de relation Condition"
-    );
-}
-
-// T-3 : chaîne A→B→C — temporal_index strictement croissant
-#[test]
-fn three_clause_chain_temporal_indices_strictly_increasing() {
-    let p = parser();
-    let ir = p
-        .parse("Sales fall because costs rise because wages increased.")
-        .unwrap();
-
-    if ir.nodes.len() < 3 || ir.edges.len() < 2 {
-        return;
-    }
-
-    let ti: Vec<i32> = ir
-        .nodes
+fn subordinate_mark_and_advcl() {
+    // "we" court entre les verbes → "if" marqueur positionnel, subordonnée advcl.
+    // (Verbes réguliers -ed : les irréguliers "fell/rose" sont invisibles
+    // sans liste — limite documentée du lattice.)
+    let lat = parse_lattice("Sales dropped if we crashed.");
+    let marks: Vec<_> = lat
+        .tokens
         .iter()
-        .map(|n| n.temporal_index.unwrap_or(-1))
+        .filter(|t| t.dep_rel == LatticeDep::Mark)
         .collect();
+    assert_eq!(marks.len(), 1, "un seul marqueur attendu: {:?}", lat.tokens);
+    assert_eq!(marks[0].form, "if");
+    let sub: Vec<_> = lat
+        .tokens
+        .iter()
+        .filter(|t| t.dep_rel == LatticeDep::Advcl)
+        .collect();
+    assert!(!sub.is_empty(), "subordonnée advcl attendue");
+}
 
-    for edge_pair in ir.edges.windows(2) {
-        let (src_a, dst_a, _) = &edge_pair[0];
-        let (src_b, dst_b, _) = &edge_pair[1];
-        if dst_a.0 == src_b.0 {
-            let ti_a = ti[src_a.0 as usize];
-            let ti_b = ti[dst_a.0 as usize];
-            let ti_c = ti[dst_b.0 as usize];
-            assert!(ti_a < ti_b, "ti(A)={} must be < ti(B)={}", ti_a, ti_b);
-            assert!(ti_b < ti_c, "ti(B)={} must be < ti(C)={}", ti_b, ti_c);
-        }
+#[test]
+fn lattice_carries_clauses_and_indexing() {
+    let lat = parse_lattice("Sales fell, costs rose.");
+    assert!(!lat.clauses.is_empty());
+    for (i, t) in lat.tokens.iter().enumerate() {
+        assert_eq!(t.index, (i + 1) as u32);
     }
+}
+
+#[test]
+fn no_lexical_decision_in_lattice() {
+    // Le lattice ne décide ni type de nœud ni relation : que forme + positions.
+    let lat = parse_lattice("Sales fell because costs rose.");
+    assert!(!lat.tokens.is_empty());
+    // `because` long : invisible comme marqueur (limite documentée), pas d'erreur.
+    assert!(lat.tokens.iter().all(|t| !t.lemma.is_empty()));
 }

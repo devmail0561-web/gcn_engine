@@ -93,6 +93,18 @@ def optimize_temperature(
     return best_t, float(best_ece)
 
 
+def require_production_sample(n: int, n_min: int = 100) -> None:
+    """Gate production : N >= 100 requis pour une calibration fiable.
+
+    En dessous (~8 pts/bin à N=81), bruit estimateur — voir Ph5 NO-GO
+    (ECE 0.33-0.55). Les tests unitaires restent à N >= 10.
+    """
+    if int(n) < int(n_min):
+        raise ValueError(
+            f"calibration production : N >= {n_min} requis (reçu N={n})."
+        )
+
+
 def apply_isotonic_params(
     confidence_raw: np.ndarray,
     checkpoint_data: dict,

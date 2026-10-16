@@ -17,9 +17,10 @@ class TextParser(Protocol):
     (Tense/Aspect/Mood/Polarity) depuis un vrai parser UD.
     Les implémentations bridge laissent ces champs à _absent / False.
 
-    Contrainte : NE JAMAIS importer spaCy dans gcn_python.*
-    spaCy peut implémenter ce Protocol en code utilisateur mais ne doit
-    jamais être importé dans le package gcn_python.
+    Contrainte (amendée 2026-10-08, D-SPACY) : import spaCy autorisé UNIQUEMENT en lazy
+    et optionnel (moteur B, T1 : pin + timeout + fallback + test sans-spacy vert) ;
+    jamais d'import au top-level ni de dépendance dure dans `gcn_python`.
+    spaCy peut aussi implémenter ce Protocol en code utilisateur.
     """
 
     def parse(

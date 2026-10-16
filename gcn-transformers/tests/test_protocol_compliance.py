@@ -70,8 +70,12 @@ def test_implements_causal_encoder_protocol(encoder_class, dimensions):
     pytest.param(CodeBERTEncoder, marks=skip_codebert),
 ])
 def test_forward_node_shape(encoder_class, dimensions, vocab):
-    """Vérifie shapes forward_node."""
-    encoder = encoder_class(d_clause=dimensions["d_clause"], d_edge=dimensions["d_edge"])
+    """Vérifie shapes forward_node (contrat v4 : 8 types, embedding requis D10)."""
+    from gcn_python.layer1.embedding import WordEmbedding
+    we = WordEmbedding(d_emb=8)
+    d_eff = vocab.d_clause_effective(8, False)
+    encoder = encoder_class(d_clause=d_eff, d_edge=vocab.d_edge_closed_loop(
+        d_eff, 8, 0, False))
 
     # Générer un vecteur UD
     from gcn_python.layer1.features import vectorize_clause
@@ -83,13 +87,13 @@ def test_forward_node_shape(encoder_class, dimensions, vocab):
         has_object=False, has_advcl=False, has_temporal_obl=False,
         token_span=(0, 1),
     )
-    vec = vectorize_clause(rep, vocab, word_embedding=None, subject_object_emb=False)
+    vec = vectorize_clause(rep, vocab, word_embedding=we, subject_object_emb=False)
 
     # Forward
     logits = encoder.forward_node(vec)
 
     # Vérifier shape
-    assert logits.shape == (7,), f"Expected (7,), got {logits.shape}"
+    assert logits.shape == (8,), f"Expected (8,), got {logits.shape}"
     assert logits.dtype == np.float32 or logits.dtype == np.float64
 
 
@@ -109,7 +113,7 @@ def test_forward_edge_shape(encoder_class, dimensions):
     logits = encoder.forward_edge(edge_vec)
 
     # Vérifier shape
-    assert logits.shape == (11,), f"Expected (11,), got {logits.shape}"
+    assert logits.shape == (19,), f"Expected (19,), got {logits.shape}"
 
 
 @pytest.mark.parametrize("encoder_class", [

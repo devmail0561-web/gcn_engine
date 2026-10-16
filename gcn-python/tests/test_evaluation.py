@@ -54,9 +54,10 @@ def test_node_macro_f1_perfect():
 
 
 def test_empty_inputs():
-    assert node_accuracy([], []) == 0.0
-    assert node_macro_f1([], []) == 0.0
-    assert edge_accuracy([], []) == 0.0
+    import math
+    assert math.isnan(node_accuracy([], []))
+    assert math.isnan(node_macro_f1([], []))
+    assert math.isnan(edge_accuracy([], []))
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +290,8 @@ def test_graph_exact_match_nodes_correct_edges_wrong():
 
 
 def test_graph_exact_match_empty_list():
-    assert graph_exact_match([], [], [], []) == 0.0
+    import math
+    assert math.isnan(graph_exact_match([], [], [], []))
 
 
 def test_graph_exact_match_mismatched_lengths():

@@ -104,6 +104,8 @@ def test_val_loader_receives_silver_weight(tmp_path: Path):
             "--val-dir", str(val_dir),
             "--epochs", "1",
             "--silver-weight", "0.5",
+            # Fixture jouet sous N_min=30 : opt-out explicite du gate v5.
+            "--min-class-count", "1",
             "--output", str(out),
         ])
     assert result.exit_code == 0, f"gcn-train a échoué :\n{result.output}\n{result.exception}"
@@ -174,6 +176,8 @@ def test_train_cmd_logs_assembler_avg_loss(tmp_path: Path):
         "--verbalize-dir", str(verb_dir),
         "--connectors-file", str(connectors),
         "--epochs", "1",
+        # Fixture jouet sous N_min=30 : opt-out explicite du gate v5.
+        "--min-class-count", "1",
         "--log-csv", str(log_csv),
         "--output", str(out),
     ])

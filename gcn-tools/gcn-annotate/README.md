@@ -18,15 +18,42 @@ pip install gcn-annotate[anthropic,openai]
 ## Usage
 
 ```bash
-# Annotation depuis un fichier de phrases (une par ligne)
+# Annotation LLM (Anthropic par défaut)
 gcn-annotate annotate --input phrases.txt --output dataset/ --lang fr
 
-# Avec backend spécifique
+# Avec backend OpenAI
 gcn-annotate annotate --input phrases.txt --output dataset/ \
   --llm-backend openai --model gpt-4o
 
+# Annotation UD structurelle (sans LLM — zéro coût API)
+gcn-annotate ud-annotate --input phrases.txt --output dataset/ --lang fr
+
+# Équilibrage des quotas (±10% par relation, N_min=20 pour ternaires)
+gcn-annotate balance --input dataset/ --output dataset_balanced/
+
+# Découpage train/val/test stratifié
+gcn-annotate split --input dataset/ --output splits/ \
+  --train 0.70 --val 0.15 --test 0.15 --seed 42
+
 # Évaluation vs gold
 gcn-annotate eval --gold gold.json --pred pred.json
+```
+
+### API Python — normalisation
+
+```python
+from gcn_annotate.normalize import normalize_node_type, normalize_relation_type
+
+# Migration v2 → v4 automatique
+normalize_node_type("action")          # → "processus"
+normalize_node_type("etat")            # → "etat_local"
+normalize_node_type("etat_systemique") # → "etat_global"
+normalize_node_type("concept")         # → "concept"   (v4 valide)
+
+# Relations — aliases PascalCase + anglais
+normalize_relation_type("Cause")               # → "cause"
+normalize_relation_type("ConditionalCause")    # → "conditional_cause"
+normalize_relation_type("joint_cause")         # → "joint_cause"
 ```
 
 ---

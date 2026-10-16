@@ -1,0 +1,376 @@
+Plan : gcn-frontend-es, gcn-frontend-de, gcn-frontend-code Go/TS/Java
+
+ Analyse des frontends existants
+
+ Chargement des ressources lexicales
+
+ LexicalResources::load(dir) appelle Lexicon::load_from_dir(dir) → std::fs::read_dir(dir).
+ - Si le répertoire n'existe pas → KnowledgeError::Io → SpanishParser::new() échoue.
+ - Si le répertoire existe mais est vide → HashMap vide → toutes les tables (causal_markers, causal_verb_relations, etc.) sont vides → annotateur produit des nœuds mais pas d'arêtes.
+ - Conséquence : les répertoires gcn-references/taxonomies/es/ et gcn-references/taxonomies/de/ doivent exister (vides suffit pour que le crate compile et les tests passent avec assertions sur les nœuds).
+
+ Différences FR ↔ EN (exhaustives)
+
+ ┌──────────────┬─────────────────────────────────────────────────────────────────────────────────────────────┬────────────────────────────────────────────────────────────────┐
+ │   Fichier    │                                             FR                                              │                               EN                               │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ resources.rs │ FR_INFINITIVE_MARKERS = ["pour"] ; lit class.examples_fr                                    │ EN_INFINITIVE_MARKERS = ["to","in order to","so as to"] ; lit  │
+ │              │                                                                                             │ class.examples                                                 │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ rules.rs     │ is_imparfait, is_infinitive, lemmatize_verb FR                                              │ is_past_tense, is_infinitive_or_base, lemmatize_verb EN        │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ annotator.rs │ has_depuis/is_imparfait dans ClauseAnnotation ; FR_UNIVERSAL_SUBJECT_LEMMAS=["on"] ;        │ is_progressive dans ClauseAnnotation ; pas de duratif ; pas de │
+ │              │ FR_DURATIVE_MARKERS=["depuis"] ; normalize_clitic() ; stratégie : verbe d'abord             │  normalize_clitic ; stratégie : marqueur d'abord               │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ emitter.rs   │ NaturalLanguage::French ; temporal depuis/imparfait                                         │ NaturalLanguage::English ; temporal progressive                │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ tokenizer.rs │ Split sur apostrophe pour clitics FR                                                        │ Pas de split apostrophe                                        │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+ │ tagger.rs    │ Second pass pro-drop (disambiguation positionnelle)                                         │ Pas de second pass                                             │
+ └──────────────┴─────────────────────────────────────────────────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────┘
+
+ gcn-frontend-code : pattern d'ajout d'un langage
+
+ 1. Cargo.toml : ajouter tree-sitter-<lang>
+ 2. gcn-references/taxonomies/<lang>/<lang>_ast.yaml : fichier YAML avec sections transparent et mappings (kind → node_type, edge_type, label_strategy)
+ 3. resources.rs : ajouter load_<lang>() qui appelle Self::load_from(&taxonomies_root.join("<lang>/<lang>_ast.yaml"))
+ 4. <lang>.rs : nouveau parseur (bloc container + walk fonctions + dispatch)
+ 5. lib.rs : mod <lang>; + pub fn parse_<lang>(...)
+
+ ---
+
+ Phase 1 — gcn-ir : nouveaux variants d'enum
+
+ Fichier : gcn-core/crates/gcn-ir/src/ir.rs
+
+ Ajouter à NaturalLanguage (après English, avant Und) :
+ Spanish,
+ German,
+
+ Ajouter à ProgrammingLanguage (après JavaScript) :
+ Go,
+ TypeScript,
+ Java,
+
+ Audit P1 : cargo check --workspace → 0 erreur.
+
+ ---
+
+ Phase 2 — gcn-frontend-es
+
+ Structure
+
+ Nouveau crate gcn-core/crates/gcn-frontend-es/ copié de gcn-frontend-en/.
+ Répertoire taxonomy vide : gcn-references/taxonomies/es/ (doit exister).
+
+ Cargo.toml
+
+ name = "gcn-frontend-es"
+ # mêmes dépendances que EN + unicode-normalization = "0.1"
+
+ src/lib.rs
+
+ Copie EN avec :
+ - EnglishParser → SpanishParser
+ - EnParseError → EsParseError
+ - taxonomies_root.join("en") → taxonomies_root.join("es")
+ - commentaire : outil bootstrap ES
+
+ src/error.rs
+
+ - EnParseError → EsParseError (deux variants : EmptyInput, NoParseable(String))
+
+ src/resources.rs
+
+ Copie EN avec :
+ - EN_INFINITIVE_MARKERS → ES_INFINITIVE_MARKERS: &[&str] = &["para", "a fin de"]
+ - Partout entry.lemma.as_str() dans EN_INFINITIVE_MARKERS.contains(...) → ES_INFINITIVE_MARKERS
+ - Négation hardcodée (ligne neg_particles.insert("not"...)) → neg_particles.insert("no".to_string()); neg_particles.insert("ni".to_string());
+ - Tout le reste identique (lit class.examples)
+
+ src/rules.rs
+
+ Copie EN, type-mappings IDENTIQUES. Changer uniquement les fonctions morphologiques :
+
+ pub fn is_past_tense(form: &str) -> bool {
+     let f = form.to_lowercase();
+     // Prétérit ES : -ó -aron -ió -ieron -aste -isteis
+     f.ends_with('ó') || f.ends_with("aron") || f.ends_with("ió")
+         || f.ends_with("ieron") || f.ends_with("aste") || f.ends_with("isteis")
+         // Imparfait : -aba -aban -ía -ían
+         || f.ends_with("aba") || f.ends_with("aban")
+         || f.ends_with("ía") || f.ends_with("ían")
+ }
+
+ pub fn lemmatize_verb(form: &str) -> String {
+     let f = form.to_lowercase();
+     // Gérondif → infinitif -ar
+     if let Some(s) = f.strip_suffix("ando") { return format!("{}ar", s); }
+     // Gérondif -er/-ir
+     if let Some(s) = f.strip_suffix("iendo") { return format!("{}er", s); }
+     // Participe passé
+     if let Some(s) = f.strip_suffix("ado") { return format!("{}ar", s); }
+     if let Some(s) = f.strip_suffix("ido") { return format!("{}ir", s); }
+     // Imparfait -ar
+     for suf in &["aba","abas","ábamos","aban"] {
+         if let Some(s) = f.strip_suffix(suf) { return format!("{}ar", s); }
+     }
+     // Imparfait -er/-ir
+     for suf in &["ía","ías","íamos","ían"] {
+         if let Some(s) = f.strip_suffix(suf) { return s.to_string(); }
+     }
+     // Prétérit -ar
+     if let Some(s) = f.strip_suffix('ó') { return format!("{}ar", s); }
+     if let Some(s) = f.strip_suffix("aron") { return format!("{}ar", s); }
+     // Prétérit -ir/-er
+     if let Some(s) = f.strip_suffix("ió") { return format!("{}ir", s); }
+     if let Some(s) = f.strip_suffix("ieron") { return format!("{}ir", s); }
+     // Présent : strip désinences
+     for suf in &["amos","áis","an","as","a","o"] {
+         if let Some(s) = f.strip_suffix(suf) {
+             if s.len() > 2 { return format!("{}ar", s); }
+         }
+     }
+     f.to_string()
+ }
+
+ pub fn looks_like_verb_morphologically(form: &str) -> bool {
+     let f = form.to_lowercase();
+     f.ends_with("ar") || f.ends_with("er") || f.ends_with("ir")
+         || f.ends_with("ando") || f.ends_with("iendo")
+         || f.ends_with("ado") || f.ends_with("ido")
+         || f.ends_with('ó') || f.ends_with("aba") || f.ends_with("ía")
+ }
+
+ src/tokenizer.rs
+
+ Copie EN avec :
+ - Strip initial ¿ et ¡ comme ponctuation (ajout dans strip_leading_punct)
+ - Strip « et » comme guillemets
+ - Expansion de clitics "al" → ["a","el"], "del" → ["de","el"] dans la boucle de tokenisation
+
+ src/tagger.rs
+
+ Copie EN (pas de second pass nécessaire pour ES).
+
+ src/annotator.rs
+
+ Copie EN avec :
+ - fn hypothetical_clause() : label: "causa_oculta(?)".to_string()
+ - fn build_label(...) : branche NodeType::Condition → "causa_oculta(?)" (deux occurrences : dans hypothetical_clause() ET dans build_label())
+ - has_progressive() : détecter -ando et -iendo au lieu de -ing
+ - Stratégie : marqueur en premier (comme EN)
+
+ src/emitter.rs
+
+ Copie EN avec :
+ - NaturalLanguage::English → NaturalLanguage::Spanish
+ - "gcn-frontend-en" → "gcn-frontend-es"
+
+ tests/integration_es.rs
+
+ // Tests vérifient : parsing ne plante pas + ≥1 nœud produit
+ // (pas d'arêtes attendues : YAML vide = pas de marqueurs chargés)
+ fn test_basic_phrase() // "El precio aumenta."
+ fn test_no_crash_empty_like() // "Texto sin marcadores causales."
+ fn test_parse_returns_ok() // "La temperatura sube."
+
+ Audit P2 : cargo test -p gcn-frontend-es → tous les tests passent.
+
+ ---
+
+ Phase 3 — gcn-frontend-de
+
+ Identique à Phase 2 mais pour l'allemand. Nouveau crate gcn-core/crates/gcn-frontend-de/.
+ Répertoire taxonomy vide : gcn-references/taxonomies/de/.
+
+ Différences spécifiques DE vs EN
+
+ Cargo.toml : name = "gcn-frontend-de" + unicode-normalization = "0.1"
+
+ lib.rs : GermanParser, DeParseError, taxonomies_root.join("de")
+
+ resources.rs : DE_INFINITIVE_MARKERS: &[&str] = &["um zu"] ; négation : neg_particles.insert("nicht".to_string()); neg_particles.insert("kein".to_string());
+
+ rules.rs — morphologie DE :
+ pub fn is_past_tense(form: &str) -> bool {
+     let f = form.to_lowercase();
+     // Prétérit faible : -te -ten -test -tet
+     f.ends_with("te") || f.ends_with("ten") || f.ends_with("test") || f.ends_with("tet")
+     // Participe II : -t -et -en (heuristique grossière — suffisant pour bootstrap)
+         || (f.ends_with('t') && f.len() > 3)
+ }
+
+ pub fn lemmatize_verb(form: &str) -> String {
+     let f = form.to_lowercase();
+     // Participe II : ge- préfixe + -t/-et/-en suffixe
+     if f.starts_with("ge") {
+         for suf in &["et","t","en"] {
+             if let Some(s) = f.strip_prefix("ge").and_then(|s| s.strip_suffix(suf)) {
+                 return format!("{}en", s);
+             }
+         }
+     }
+     // Prétérit faible : -te/-ten → infinitif
+     if let Some(s) = f.strip_suffix("ten") { return format!("{}en", s); }
+     if let Some(s) = f.strip_suffix("te")  { return format!("{}en", s); }
+     // Infinitif déjà : -en/-ern → retour direct
+     if f.ends_with("en") || f.ends_with("ern") { return f.to_string(); }
+     // Présent : -st/-t (2e/3e pers. sing.)
+     if let Some(s) = f.strip_suffix("est") { return format!("{}en", s); }
+     if let Some(s) = f.strip_suffix("st")  { return format!("{}en", s); }
+     if let Some(s) = f.strip_suffix('t')  {
+         if s.len() > 2 { return format!("{}en", s); }
+     }
+     f.to_string()
+ }
+
+ pub fn looks_like_verb_morphologically(form: &str) -> bool {
+     let f = form.to_lowercase();
+     f.ends_with("en") || f.ends_with("ern")
+         || f.ends_with("te") || f.ends_with("ten")
+         || f.ends_with("end") // présent participial
+         || f.starts_with("ge") // participe II
+ }
+
+ tokenizer.rs : strip „ et " comme guillemets DE ; expansion contractions : "zum"→["zu","dem"], "beim"→["bei","dem"], "ins"→["in","das"], "ans"→["an","das"]
+
+ annotator.rs :
+ - hypothetical_clause() : "versteckte_ursache(?)"
+ - build_label Condition → "versteckte_ursache(?)"
+ - has_progressive() : détecter -end (participe présent DE)
+
+ emitter.rs : NaturalLanguage::German, "gcn-frontend-de"
+
+ Audit P3 : cargo test -p gcn-frontend-de → tous les tests passent.
+
+ ---
+
+ Phase 4 — gcn-frontend-code : Go, TypeScript, Java
+
+ 4a. Cargo.toml (gcn-frontend-code)
+
+ Ajouter :
+ tree-sitter-go = "0.25.0"
+ tree-sitter-java = "0.23.5"
+ tree-sitter-typescript = { version = "0.23.2", features = ["typescript"] }
+
+ 4b. AST YAML (fichiers d'ingénierie — mappings mécaniques tree-sitter kinds → enums GCN)
+
+ gcn-references/taxonomies/go/go_ast.yaml :
+ transparent: [source_file, block, expression_statement, parenthesized_expression, expression_list]
+ mappings:
+   - {node_kind: if_statement,          node_type: condition,        edge_type: condition,        label_strategy: condition_field}
+   - {node_kind: for_statement,         node_type: processus,        edge_type: sequence,         label_strategy: full_text}
+   - {node_kind: func_literal,          node_type: action,           edge_type: cause,            label_strategy: full_text}
+   - {node_kind: function_declaration,  node_type: action,           edge_type: cause,            label_strategy: name_field}
+   - {node_kind: method_declaration,    node_type: action,           edge_type: cause,            label_strategy: name_field}
+   - {node_kind: go_statement,          node_type: action,           edge_type: enable,           label_strategy: full_text}
+   - {node_kind: defer_statement,       node_type: action,           edge_type: enable,           label_strategy: full_text}
+   - {node_kind: select_statement,      node_type: condition,        edge_type: condition,        label_strategy: full_text}
+   - {node_kind: type_declaration,      node_type: entite,           edge_type: cause,            label_strategy: name_field}
+   - {node_kind: short_var_declaration, node_type: etat,             edge_type: data_dependency,  label_strategy: full_text}
+   - {node_kind: assignment_statement,  node_type: etat,             edge_type: data_dependency,  label_strategy: full_text}
+   - {node_kind: return_statement,      node_type: action,           edge_type: data_dependency,  label_strategy: full_text}
+
+ gcn-references/taxonomies/typescript/typescript_ast.yaml :
+ Copie de js_ast.yaml + ajout :
+   - {node_kind: interface_declaration,      node_type: entite,   edge_type: cause,   label_strategy: name_field}
+   - {node_kind: type_alias_declaration,     node_type: entite,   edge_type: cause,   label_strategy: name_field}
+   - {node_kind: enum_declaration,           node_type: entite,   edge_type: cause,   label_strategy: name_field}
+   - {node_kind: abstract_class_declaration, node_type: action,   edge_type: cause,   label_strategy: name_field}
+   - {node_kind: decorator,                  node_type: action,   edge_type: enable,  label_strategy: full_text}
+
+ gcn-references/taxonomies/java/java_ast.yaml :
+ transparent: [program, block, expression_statement, parenthesized_expression, formal_parameters]
+ mappings:
+   - {node_kind: if_statement,              node_type: condition,  edge_type: condition,       label_strategy: condition_field}
+   - {node_kind: for_statement,             node_type: processus,  edge_type: sequence,        label_strategy: full_text}
+   - {node_kind: enhanced_for_statement,    node_type: processus,  edge_type: sequence,        label_strategy: full_text}
+   - {node_kind: while_statement,           node_type: processus,  edge_type: sequence,        label_strategy: full_text}
+   - {node_kind: do_statement,              node_type: processus,  edge_type: sequence,        label_strategy: full_text}
+   - {node_kind: method_declaration,        node_type: action,     edge_type: cause,           label_strategy: name_field}
+   - {node_kind: class_declaration,         node_type: action,     edge_type: cause,           label_strategy: name_field}
+   - {node_kind: interface_declaration,     node_type: entite,     edge_type: cause,           label_strategy: name_field}
+   - {node_kind: try_statement,             node_type: condition,  edge_type: concession,      label_strategy: full_text}
+   - {node_kind: catch_clause,              node_type: transition, edge_type: concession,      label_strategy: full_text}
+   - {node_kind: throw_statement,           node_type: transition, edge_type: concession,      label_strategy: full_text}
+   - {node_kind: synchronized_statement,    node_type: action,     edge_type: enable,          label_strategy: full_text}
+   - {node_kind: local_variable_declaration,node_type: etat,       edge_type: data_dependency, label_strategy: full_text}
+   - {node_kind: assignment_expression,     node_type: etat,       edge_type: data_dependency, label_strategy: full_text}
+   - {node_kind: return_statement,          node_type: action,     edge_type: data_dependency, label_strategy: full_text}
+
+ 4c. resources.rs (gcn-frontend-code)
+
+ Ajouter après load_js :
+ pub fn load_go(taxonomies_root: &Path) -> Result<Self, CodeParserError> {
+     Self::load_from(&taxonomies_root.join("go").join("go_ast.yaml"))
+ }
+ pub fn load_typescript(taxonomies_root: &Path) -> Result<Self, CodeParserError> {
+     Self::load_from(&taxonomies_root.join("typescript").join("typescript_ast.yaml"))
+ }
+ pub fn load_java(taxonomies_root: &Path) -> Result<Self, CodeParserError> {
+     Self::load_from(&taxonomies_root.join("java").join("java_ast.yaml"))
+ }
+
+ 4d. Nouveaux parseurs (pattern : copier python.rs/js.rs et adapter)
+
+ src/go.rs — modèle : python.rs (bloc container = block)
+ - Pas de walk_try (Go gère les erreurs via if err != nil, traité comme if_statement)
+ - walk_body_of : premier enfant block
+ - Dispatch : if_statement, for_statement, function_declaration, func_literal, method_declaration, go_statement, select_statement, defer_statement, type_declaration
+ - Émet ProgrammingLanguage::Go
+
+ src/typescript.rs — modèle : js.rs (bloc container = statement_block)
+ - walk_if, walk_try, walk_body_of identiques à js.rs
+ - Dispatch supplémentaire : interface_declaration, type_alias_declaration, enum_declaration, abstract_class_declaration
+ - Émet ProgrammingLanguage::TypeScript
+
+ src/java.rs — modèle : python.rs (bloc container = block)
+ - walk_body_of_class : premier enfant class_body
+ - walk_try : try_statement → block + catch_clause + finally_clause
+ - Dispatch : if_statement, try_statement, for_statement, enhanced_for_statement, while_statement, do_statement, method_declaration, class_declaration, interface_declaration, throw_statement, synchronized_statement
+ - Émet ProgrammingLanguage::Java
+
+ 4e. lib.rs (gcn-frontend-code)
+
+ Ajouter :
+ mod go;
+ mod typescript;
+ mod java;
+
+ pub fn parse_go(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
+     go::parse(source, taxonomies_root)
+ }
+ pub fn parse_typescript(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
+     typescript::parse(source, taxonomies_root)
+ }
+ pub fn parse_java(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
+     java::parse(source, taxonomies_root)
+ }
+
+ 4f. Tests (integration_code.rs)
+
+ Ajouter ≥2 snippets par langage (if/function minimum), vérifier CausalIR non vide.
+
+ Audit P4 : cargo test -p gcn-frontend-code
+
+ ---
+
+ Workspace Cargo.toml
+
+ gcn-core/Cargo.toml — ajouter :
+ "crates/gcn-frontend-es",
+ "crates/gcn-frontend-de",
+
+ ---
+
+ Ordre d'exécution
+
+ 1. Créer répertoires vides : gcn-references/taxonomies/es/ et gcn-references/taxonomies/de/
+ 2. Phase 1 : gcn-ir enums → cargo check --workspace
+ 3. Phase 2 : gcn-frontend-es → cargo test -p gcn-frontend-es
+ 4. Phase 3 : gcn-frontend-de → cargo test -p gcn-frontend-de
+ 5. Phase 4 : gcn-frontend-code → cargo test -p gcn-frontend-code
+ 6. Audit final : cargo test --workspace
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌

@@ -68,7 +68,9 @@ def test_checkpoint_allpairs_roundtrip(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4),
+                   n_relations=rgcn_n_relations(len(RELATION_TYPES), True))
     pipeline = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                            all_pairs=True, bidirectional=True, word_embedding=make_word_embedding())
     ckpt = tmp_path / "model.npz"
@@ -568,7 +570,9 @@ def test_e2e_train_save_reload_inference(tmp_path: Path):
 
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4))
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4),
+                   n_relations=rgcn_n_relations(len(RELATION_TYPES), True))
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        all_pairs=True, bidirectional=True, word_embedding=make_word_embedding())
     reps = [_rep("baisser"), _rep("augmenter", "advcl")]

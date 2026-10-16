@@ -12,12 +12,14 @@ import click
 import numpy as np
 
 from ..constants import (
-    ALL_RELATION_TYPES,
     INTENT_TYPES,
     NODE_TYPES,
+    QUALIFIERS,
     RELATION_TYPES,
+    SENTENCE_TYPES,
     coarse_node,
     coarse_relation,
+    rgcn_n_relations,
 )
 from ..data.loader import GCNDataLoader, reps_from_sentence
 from ..evaluation.metrics import (
@@ -25,6 +27,7 @@ from ..evaluation.metrics import (
     edge_macro_f1,
     node_accuracy,
     node_macro_f1,
+    per_class_report,
 )
 from ..evaluation.metrics import (
     graph_exact_match as _gem,
@@ -35,6 +38,66 @@ from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from .checkpoint import save_checkpoint
+
+
+def collect_val_logits_for_calibration(val_loader, pipeline, all_pairs: bool = True):
+    """Collecte (logits arêtes, labels gold) sur le val set pour T5-min (B2 audit).
+
+    Chemin forward direct via `reps_from_sentence` (même chemin que
+    `_run_eval_pass`) + alignement logits↔gold via `edge_map`. Les phrases en
+    échec émettent `UserWarning` (jamais de `except: pass` silencieux).
+
+    Retourne `(_val_logits, _val_labels, _t5_skipped)` — la décision
+    (gate N>=10, `optimize_temperature`, messages) reste à l'appelant.
+    """
+    _val_logits, _val_labels = [], []
+    _t5_skipped = 0
+    for _vs in val_loader:
+        try:
+            _reps, _valid_idxs, _conn_reps = reps_from_sentence(_vs.sentence)
+            if not _reps or len(_reps) < 2:
+                continue
+            pipeline.forward(
+                _reps, _vs.sentence.text,
+                clause_positions=_valid_idxs,
+                n_total_clauses=len(_vs.sentence.clauses),
+                connector_reps=_conn_reps,
+            )
+            _logits = pipeline._cached_edge_logits
+            if _logits is None or len(_logits) == 0 or not _vs.edge_map:
+                continue
+            # Aligner logits ↔ gold comme _run_eval_pass : les paires
+            # sont ordonnées sur les reps, les clés edge_map sur les
+            # indices de clauses originaux.
+            if all_pairs:
+                _pairs = [
+                    (_valid_idxs[i], _valid_idxs[j])
+                    for i in range(len(_valid_idxs))
+                    for j in range(i + 1, len(_valid_idxs))
+                ]
+            else:
+                _pairs = [
+                    (_valid_idxs[k], _valid_idxs[k + 1])
+                    for k in range(len(_valid_idxs) - 1)
+                ]
+            _gold_full = np.array(
+                [_vs.edge_map.get(p, -1) for p in _pairs], dtype=np.int64
+            )
+            _mask = _gold_full >= 0
+            if _mask.any():
+                _idxs = np.where(_mask)[0]
+                # Garde : le forward peut filtrer (seuil) — ne garder
+                # que les indices valides dans la plage des logits.
+                _idxs = _idxs[_idxs < len(_logits)]
+                if len(_idxs) > 0:
+                    _val_logits.append(_logits[_idxs])
+                    _val_labels.extend(_gold_full[_idxs].tolist())
+        except Exception as _e:  # noqa: BLE001
+            _t5_skipped += 1
+            warnings.warn(f"T5-min : phrase {_vs.sentence.id!r} ignorée — {_e}",
+                          UserWarning, stacklevel=2)
+            continue
+    return _val_logits, _val_labels, _t5_skipped
 
 
 def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> list:
@@ -53,223 +116,8 @@ def _minimal_reps_from_labels(node_labels: list[str], node_types: list[str]) -> 
     return reps
 
 
-@click.command("gcn-train")
-@click.option("--data-dir", required=True, type=click.Path(path_type=Path),
-              help="Répertoire contenant les fichiers JSON d'entraînement")
-@click.option("--epochs", default=50, show_default=True, type=int)
-@click.option("--lr", default=0.001, show_default=True, type=float)
-@click.option("--output", default="model.npz", show_default=True,
-              type=click.Path(path_type=Path), help="Chemin du checkpoint de sortie")
-@click.option("--log-csv", default=None, type=click.Path(path_type=Path),
-              help="CSV des métriques par epoch (optionnel)")
-@click.option("--verbalize-dir", default=None, type=click.Path(path_type=Path),
-              help="Répertoire contenant les paires verbalize JSON (optionnel, active l'entraînement conjoint)")
-@click.option("--decoder-only", is_flag=True, default=False,
-              help="Entraîne uniquement le décodeur (l'encodeur et le R-GCN sont gelés)")
-@click.option("--encoder-checkpoint", default=None, type=click.Path(path_type=Path),
-              help="Checkpoint à charger pour initialiser l'encodeur (utilisé avec --decoder-only)")
-@click.option("--all-pairs/--no-all-pairs", default=True, show_default=True,
-              help="Superviser toutes les paires (i,j) avec i<j, pas seulement consécutives. "
-                   "Requiert dataset re-annoté avec des arêtes gap>1.")
-@click.option("--embedding-dim", default=128, show_default=True, type=int,
-              help="Dimension des word embeddings apprenables (S1/S2), ACTIVÉS PAR DÉFAUT. "
-                   "0 = désactivé (DÉCONSEILLÉ : aucun signal lexical, "
-                   "cf REMEDIATION-DIAGNOSTIC.md).")
-@click.option("--embedding-file", default=None, type=click.Path(path_type=Path),
-               help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
-                    "Active automatiquement --embedding-dim si non précisé.")
-@click.option("--fasttext", default=None, type=click.Path(path_type=Path),
-               help="Modèle fastText multilingue .bin (cc.XX.300.bin, 157 langues, même API). "
-                    "Mutuellement exclusif avec --embedding-file. Impose d_emb=300, "
-                    "frozen=True par défaut. Préserve l'agnosticisme langue (pas de CamemBERT).")
-@click.option("--mini-batch-size", default=4, show_default=True, type=int,
-              help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
-@click.option("--use-attention/--no-attention", default=False, show_default=True,
-              help="Activer la couche R-GCN+GAT avec attention par relation.")
-@click.option("--bidirectional/--no-bidirectional", default=False, show_default=True,
-              help="Activer le message passing bidirectionnel (arêtes inverses, 22 types de relations).")
-@click.option("--edge-loss-weight", default=1.0, show_default=True, type=float,
-              help="Pondération relative de la loss arêtes dans la loss totale.")
-@click.option("--weighted-loss/--no-weighted-loss", default=False, show_default=True,
-              help="Activer les class weights inversement proportionnels à la fréquence (rééquilibre les classes rares).")
-@click.option("--val-dir", default=None, type=click.Path(path_type=Path),
-              help="Répertoire val JSON (optionnel). Métriques val calculées à chaque epoch.")
-@click.option("--patience", default=0, show_default=True, type=int,
-              help="Epochs sans amélioration de val_node_macro_f1 avant arrêt. "
-                   "0 = désactivé (défaut). Requiert --val-dir.")
-@click.option("--weight-decay", default=1e-4, show_default=True, type=float,
-              help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
-@click.option("--rgcn-dropout", default=0.1, show_default=True, type=float,
-              help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
-@click.option("--label-smoothing", default=0.05, show_default=True, type=float,
-              help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
-@click.option("--link-pred/--no-link-pred", default=False, show_default=True,
-              help="Entraîne la tête LinkPredHead (BCE auxiliaire positifs/négatifs).")
-@click.option("--neg-ratio", default=1.0, show_default=True, type=float,
-              help="Négatifs par positif pour la tête de liens.")
-@click.option("--src-aggregation", default="mean", show_default=True, type=click.Choice(["mean", "max"]),
-              help="Agrégation multi-sources de la tête de liens.")
-@click.option("--bfs-depth", default=None, show_default=True, type=int,
-              help="Profondeur BFS des candidats de predict_links (engine). "
-                   "None = tous les candidats (défaut, illimité). "
-                   "Stocké dans _arch_json et repris par défaut en prédiction.")
-@click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
-              help="Nombre de couches R-GCN empilées (≥1). Avec n>1 et GAT, "
-                   "recommander --rgcn-dropout 0.2 --weight-decay 1e-4 pour limiter "
-                   "l'overfitting sur petits datasets (avertissement, pas de contrainte).")
-@click.option("--clause-pooling", default="root", show_default=True,
-              type=click.Choice(["root", "mean", "max"]),
-              help="Pooling des embeddings de clause (A) : root (défaut), mean ou max "
-                   "sur les tokens de contenu. Requiert --embedding-dim > 0.")
-@click.option("--subject-object-emb/--no-subject-object-emb", default=False, show_default=True,
-              help="Concaténer les embeddings sujet/objet (B, +2*d_emb, _absent appris). "
-                   "Requiert --embedding-dim > 0.")
-@click.option("--mlp-hidden", default=128, show_default=True, type=int,
-              help="Première couche cachée du MLP nœuds. Recommandé : 256 avec "
-                   "--subject-object-emb (d_effective=226).")
-@click.option("--freeze-embeddings/--no-freeze-embeddings", default=False, show_default=True,
-              help="Geler les embeddings pré-entraînés (C). Requiert --embedding-file. "
-                   "Les spéciaux _subj_absent/_obj_absent restent entraînables.")
-@click.option("--silver-weight", default=1.0, show_default=True, type=float,
-              help="Poids des phrases silver dans la loss arêtes (F). 1.0 = aucun effet. "
-                   "Variante immédiate : 0.7.")
-@click.option("--n-gat-heads", default=1, show_default=True, type=int,
-              help="Nombre de têtes d'attention GAT (D). Requiert --use-attention. "
-                   "d_out doit être divisible (d_emb=49 → d_out=128 → {1,2,4,8}).")
-@click.option("--gat-residual/--no-gat-residual", default=False, show_default=True,
-              help="Connexions résiduelles entre couches graphe (E3).")
-@click.option("--gat-layernorm/--no-gat-layernorm", default=False, show_default=True,
-              help="LayerNorm après concaténation des têtes GAT (E2).")
-@click.option("--legacy-decoder", is_flag=True, default=False,
-              help="Choix explicite du TrainableDecoder déprécié (G). Défaut : legacy "
-                   "tant que --connectors-file est absent.")
-@click.option("--connectors-file", default=None, type=click.Path(path_type=Path),
-              help="Vocabulaire de connecteurs JSON (G2, connectors_fr.json). "
-                   "Active l'entraînement de l'assembleur lexical.")
-@click.option("--verbalize-source-dir", default=None, type=click.Path(path_type=Path),
-              help="Dataset source des paires verbalize (G1, défaut : --data-dir).")
-@click.option("--edge-threshold", default=0.0, show_default=True, type=float,
-              help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
-@click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
-               help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
-                    "pour simuler le bridge heuristique (parité train/inférence).")
-@click.option("--global-attention/--no-global-attention", default=False, show_default=True,
-               help="Phase C : MHA globale sur les nœuds UD avant le MLP nœuds "
-                    "(TransformerMLPEncoder, poids fixes + résidu). Capte les arcs "
-                    "distants au-delà du voisinage k-hop R-GCN.")
-@click.option("--mha-heads", default=4, show_default=True, type=int,
-               help="Nombre de têtes de la MHA globale (Phase C). Requiert --global-attention. "
-                    "d_effective doit être divisible par cette valeur.")
-@click.option("--pairnorm/--no-pairnorm", default=False, show_default=True,
-               help="Phase B : PairNorm anti-over-smoothing dans RGCNLayerPT "
-                    "(recentrage + normalisation L2 avant activation).")
-@click.option("--drop-edge", default=0.0, show_default=True, type=float,
-               help="Phase B : probabilité de suppression d'arête en train (DropEdge, "
-                    "RGCNLayerPT uniquement). 0.0 = désactivé.")
-@click.option("--use-compgcn/--no-compgcn", default=False, show_default=True,
-               help="Phase D : embeddings relationnels continus (CompGCN, RGCNLayerPT). "
-                    "W_effective = Linear(E_r). Généralisation entre relations proches.")
-@click.option("--d-rel-emb", default=32, show_default=True, type=int,
-               help="Dimension des embeddings de relations CompGCN (Phase D). "
-                    "Requiert --use-compgcn.")
-@click.option("--two-pass-val/--no-two-pass-val", default=True, show_default=True,
-              help="Passage préliminaire d'arêtes en val/inférence pour prédire les types "
-                   "avant le R-GCN (corrige l'asymétrie teacher forcing BUG-1).")
-@click.option("--rgcn-activation", default="sigmoid", show_default=True,
-              type=click.Choice(["sigmoid", "relu", "none"]),
-              help="Activation de sortie du R-GCN NumPy. relu débloque les gradients "
-                   "(sigmoid max 0.25). GAT utilise --gat-output-activation séparément.")
-@click.option("--rgcn-layernorm/--no-rgcn-layernorm", default=False, show_default=True,
-              help="LayerNorm après l'activation dans le R-GCN NumPy. "
-                   "Stabilise les magnitudes des features entre couches.")
-@click.option("--max-grad-norm", default=5.0, show_default=True, type=float,
-              help="Norme maximale des gradients (gradient clipping). 0 = désactivé.")
-@click.option("--max-class-weight", default=5.0, show_default=True, type=float,
-              help="Plafond des class weights avec --weighted-loss. Évite qu'une classe "
-                   "ultra-rare domine la loss. 0 = pas de plafond.")
-@click.option("--scheduled-sampling/--no-scheduled-sampling", default=False, show_default=True,
-              help="Scheduled sampling : réduit linéairement la probabilité d'injecter "
-                   "gold_edge_map en entraînement (1.0 → 0.0 sur ss-final-epoch epochs). "
-                   "Réduit l'asymétrie train/val due au teacher forcing R-GCN. "
-                   "Requiert --two-pass-val (actif par défaut).")
-@click.option("--ss-final-epoch", default=50, show_default=True, type=int,
-              help="Epoch (incluse) où p_gold atteint 0.0 avec --scheduled-sampling. "
-                   "Avant : p_gold = 1 - (epoch-1)/ss_final_epoch. Après : p_gold = 0.0.")
-@click.option("--n-intent-types", default=0, show_default=True, type=int,
-              help="Éq.6 : active la tête d'intention (0=désactivé). "
-                   "Doit correspondre à len(INTENT_TYPES) si > 0. "
-                   "Requiert des phrases annotées avec SentenceRecord.intent.")
-@click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
-              help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
-                   "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
-@click.option("--coarse-n-min", default=400, show_default=True, type=int,
-              help="Nombre minimum d'exemples par type fin pour promotion coarse→fine.")
-@click.option("--seed", default=None, type=int,
-              help="Graine pour la reproductibilité (numpy + torch si disponible).")
-def train_cmd(
-    data_dir: Path,
-    epochs: int,
-    lr: float,
-    output: Path,
-    log_csv: Path | None,
-    verbalize_dir: Path | None,
-    decoder_only: bool,
-    encoder_checkpoint: Path | None,
-    all_pairs: bool,
-    embedding_dim: int,
-    embedding_file: Path | None,
-    fasttext: Path | None,
-    mini_batch_size: int,
-    use_attention: bool,
-    bidirectional: bool,
-    edge_loss_weight: float,
-    weighted_loss: bool,
-    val_dir: Path | None,
-    patience: int,
-    weight_decay: float,
-    rgcn_dropout: float,
-    label_smoothing: float,
-    link_pred: bool,
-    neg_ratio: float,
-    src_aggregation: str,
-    bfs_depth: int | None,
-    n_rgcn_layers: int,
-    edge_threshold: float,
-    drop_morph: bool,
-    seed: int | None,
-    clause_pooling: str,
-    subject_object_emb: bool,
-    mlp_hidden: int,
-    freeze_embeddings: bool,
-    silver_weight: float,
-    n_gat_heads: int,
-    gat_residual: bool,
-    gat_layernorm: bool,
-    legacy_decoder: bool,
-    connectors_file: Path | None,
-    verbalize_source_dir: Path | None,
-    global_attention: bool,
-    mha_heads: int,
-    pairnorm: bool,
-    drop_edge: float,
-    two_pass_val: bool,
-    rgcn_activation: str,
-    rgcn_layernorm: bool,
-    max_grad_norm: float,
-    max_class_weight: float,
-    use_compgcn: bool,
-    d_rel_emb: int,
-    scheduled_sampling: bool,
-    ss_final_epoch: int,
-    n_intent_types: int,
-    coarse_phase: bool,
-    coarse_n_min: int,
-) -> None:
-    """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
-    from ..data.verbalize_loader import VerbalizerDataLoader
-    from ..verbalizer.trainable import TrainableDecoder
-
-    # R9 : reproductibilité — seed numpy + torch si disponible
+def _train_init_seed(seed: int | None) -> int:
+    """S1 — R9 reproductibilité (seed numpy + torch si disponible)."""
     _init_seed = seed if seed is not None else 42
     if seed is not None:
         np.random.seed(seed)
@@ -279,12 +127,19 @@ def train_cmd(
         except ImportError:
             pass
         click.echo(f"Seed : {seed}")
+    return _init_seed
 
-    vocab = FeatureVocabulary()
 
-    # Embeddings NON OPTIONNELS (REMEDIATION-DIAGNOSTIC.md §2/§11) : activés par
-    # défaut (--embedding-dim 128). _dim_from_cli distingue le défaut d'une valeur
-    # passée explicitement (pour --fasttext/--embedding-file seuls).
+def _train_validate_cli(*, embedding_dim: int, fasttext, embedding_file,
+                        clause_pooling: str, subject_object_emb: bool,
+                        freeze_embeddings: bool, silver_weight: float,
+                        mlp_hidden: int, mlp_hidden2: int, qual_hidden: int,
+                        edge_hidden: str) -> tuple[bool, tuple]:
+    """S1 — préconditions A/B/C/F + parsing edge_hidden (lève ClickException).
+
+    Retourne (_dim_from_cli, _edge_hidden). `_dim_from_cli` distingue le défaut
+    d'une valeur passée explicitement (pour --fasttext/--embedding-file seuls).
+    """
     try:
         _dim_source = click.get_current_context().get_parameter_source("embedding_dim")
         _dim_from_cli = _dim_source != click.core.ParameterSource.DEFAULT
@@ -307,23 +162,40 @@ def train_cmd(
         raise click.ClickException(f"--silver-weight doit être dans ]0, 1] (reçu {silver_weight}).")
     if mlp_hidden < 1:
         raise click.ClickException(f"--mlp-hidden doit être ≥ 1 (reçu {mlp_hidden}).")
+    if mlp_hidden2 < 1:
+        raise click.ClickException(f"--mlp-hidden2 doit être ≥ 1 (reçu {mlp_hidden2}).")
+    if qual_hidden < 1:
+        raise click.ClickException(f"--qual-hidden doit être ≥ 1 (reçu {qual_hidden}).")
+    _edge_parts = [h.strip() for h in edge_hidden.split(",")]
+    if (not _edge_parts or any(not h.isdigit() or int(h) < 1 for h in _edge_parts)):
+        raise click.ClickException(
+            f"--edge-hidden doit être une liste d'entiers ≥ 1 séparés par des virgules "
+            f"(reçu {edge_hidden!r}).")
+    _edge_hidden = tuple(int(h) for h in _edge_parts)
     if not _has_emb:
         raise click.ClickException(
             "word_embedding obligatoire (D10 ETUDE). "
             "Utilisez --embedding-dim 128 (défaut) ou --embedding-file chemin.bin"
         )
+    return _dim_from_cli, _edge_hidden
 
+
+def _train_build_embeddings(*, fasttext, embedding_file, embedding_dim: int,
+                            _dim_from_cli: bool, freeze_embeddings: bool,
+                            _init_seed: int):
+    """S1 — word embeddings (S1/S2/S9 + Phase A fastText). Retourne (we|None, d_emb)."""
     # S1/S2/S9 + Phase A (fastText multilingue) : word embeddings activés par défaut
     word_embedding = None
     d_emb = 0
     _fasttext_path: Path | None = fasttext
+    _has_emb = embedding_file is not None or embedding_dim > 0 or fasttext is not None
     if _has_emb:
         from ..layer1.embedding import WordEmbedding
         if _fasttext_path is not None:
             # Phase A : d_emb=300 imposé, frozen=True par défaut.
             # Les vecteurs sont remplis après build_vocab (lemmes connus).
             d_emb = 300
-            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True)
+            word_embedding = WordEmbedding(d_emb=d_emb, frozen=True, seed=_init_seed)
             click.echo(f"Embeddings fastText : {fasttext} (d_emb=300, frozen)")
         elif embedding_file is not None and (embedding_dim == 0 or not _dim_from_cli):
             # Détecter la dimension depuis la première ligne du fichier
@@ -337,7 +209,7 @@ def train_cmd(
         else:
             d_emb = embedding_dim
         if d_emb > 0:
-            word_embedding = WordEmbedding(d_emb=d_emb)
+            word_embedding = WordEmbedding(d_emb=d_emb, seed=_init_seed)
             if embedding_file is not None:
                 n_loaded = word_embedding.load_from_file(str(embedding_file))
                 click.echo(f"Embeddings : {n_loaded} vecteurs chargés (d_emb={d_emb})")
@@ -345,13 +217,315 @@ def train_cmd(
                 # C : gel des pré-entraînés (spéciaux _absent toujours entraînables)
                 word_embedding.frozen = True
                 click.echo("Embeddings pré-entraînés gelés (--freeze-embeddings)")
+    return word_embedding, d_emb
+
+
+def _train_finalize(*, csv_file, val_loader, best_edge_epoch: int,
+                    best_edge_checkpoint_path: str, best_val_edge_f1: float,
+                    output: Path, pipeline, all_pairs: bool,
+                    epoch_edge_gold, epoch_edge_preds,
+                    val_edge_gold, val_edge_preds,
+                    epoch_sent_type_gold, epoch_sent_type_preds,
+                    epoch_sent_intent_gold,
+                    log_csv, recorder, history) -> None:
+    """S1 — restore best + T5-min + rapports (après try/finally, cf. protocole gelé)."""
+    # Protocole gelé : restore aligné sur val_edge_macro_f1 (même critère
+    # que best et patience — le checkpoint final EST le meilleur edge).
+    # Restauré dès qu'un val existe (même patience=0) : sinon le fichier
+    # final serait la dernière epoch, pas le best.
+    if val_loader is not None:
+        import shutil
+        if best_edge_epoch > 0:
+            _tmp = Path(str(output) + ".tmp.restore")
+            shutil.copy2(best_edge_checkpoint_path, str(_tmp))
+            Path(_tmp).replace(output)  # atomique POSIX
+            click.echo(f"Best checkpoint restauré (epoch {best_edge_epoch}, val_edge_macro_f1={best_val_edge_f1:.4f})")
+        else:
+            save_checkpoint(pipeline, output)
+            click.echo("Aucune amélioration val — checkpoint final sauvegardé")
+    else:
+        save_checkpoint(pipeline, output)
+
+    # T5-min : optimiser la température sur le val set si disponible (C5 fix)
+    # §2.7 ETUDE : chemin forward direct via reps (pas de passage str via le
+    # bridge — _cached_edge_logits restait vide et `except: pass` masquait tout).
+    if val_loader is not None:
+        try:
+            from ..evaluation.calibration import optimize_temperature
+            _val_logits, _val_labels, _t5_skipped = collect_val_logits_for_calibration(
+                val_loader, pipeline, all_pairs)
+            if _t5_skipped > 0:
+                click.echo(f"T5-min : {_t5_skipped} phrase(s) ignorée(s) (voir warnings).")
+            if not _val_logits:
+                click.echo("T5-min : aucun logit collecté — chemin forward incorrect ou val sans arêtes")
+            if _val_logits and len(_val_labels) >= 10:
+                import numpy as _np
+                _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
+                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=np.int64)
+                best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
+                pipeline.temperature = best_t
+                click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
+                # Fichier SÉPARÉ : `output` reste le best restauré, jamais réécrit.
+                save_checkpoint(pipeline, Path(str(output) + ".calibrated.npz"))
+                click.echo(f"Checkpoint calibré : {output}.calibrated.npz")
+        except Exception as _t5_err:  # noqa: BLE001
+            click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
+
+    click.echo(f"Checkpoint sauvegardé : {output}")
+    # B (dérive orphelins) : compteur module rendu visible — chaque token
+    # rattaché recalcule feat[11] (relative_depth) et le pooling lexical.
+    from ..data.loader import _ORPHAN_STATS as _ORPHAN_STATS_RUN
+    click.echo(
+        f"Orphelins rattachés : {_ORPHAN_STATS_RUN['attached']} tokens "
+        f"sur {_ORPHAN_STATS_RUN['sentences']} phrases (train+val)"
+    )
+    if val_loader is not None and best_edge_epoch > 0:
+        click.echo(
+            f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
+            f"→ {best_edge_checkpoint_path}"
+        )
+
+    # v5.6 : visibilité par classe — plus aucune classe en échec silencieux.
+    # Dernière epoch (pas best) : honnête sur l'état final, supports visibles.
+    if epoch_edge_gold:
+        click.echo("Rapport edge/train (dernière epoch) :\n"
+                   + per_class_report(epoch_edge_preds, epoch_edge_gold,
+                                      pipeline.relation_types))
+    if val_loader is not None and val_edge_gold:
+        click.echo("Rapport edge/val (dernière epoch) :\n"
+                   + per_class_report(val_edge_preds, val_edge_gold,
+                                      pipeline.relation_types))
+    # P4a/b : confusion type de phrase + co-occurrences gold (sentence × intent).
+    # Dernière epoch : matrice des relations supposées, pas des preuves.
+    if epoch_sent_type_gold:
+        click.echo("Confusion sentence/train (dernière epoch) :\n"
+                   + per_class_report(epoch_sent_type_preds, epoch_sent_type_gold,
+                                      SENTENCE_TYPES))
+    if epoch_sent_intent_gold:
+        from collections import Counter as _Counter
+        _co = _Counter(epoch_sent_intent_gold)
+        _rows = ["sentence × intent (gold, dernière epoch) :"]
+        for (_s, _i) in sorted(_co):
+            _rows.append(f"  {_s:<14s} × {_i:<14s} : {_co[(_s, _i)]}")
+        click.echo("\n".join(_rows))
+
+    if log_csv:
+        json_path = Path(log_csv).with_suffix(".json")
+        recorder.to_json(json_path)
+        click.echo(f"Courbe d'entraînement : {json_path}")
+
+    if len(history) >= 10:
+        first = sum(r["loss"] for r in history[:5]) / 5
+        last = sum(r["loss"] for r in history[-5:]) / 5
+        if last < first:
+            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
+        else:
+            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+
+
+    if len(history) >= 10:
+        first = sum(r["loss"] for r in history[:5]) / 5
+        last = sum(r["loss"] for r in history[-5:]) / 5
+        if last < first:
+            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
+        else:
+            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+
+
+def _train_load_and_count(*, data_dir: Path, val_dir, all_pairs: bool,
+                          silver_weight: float, strict_directions: bool,
+                          _init_seed: int, n_intent_types: int,
+                          n_sentence_types: int, word_embedding,
+                          clause_pooling: str, subject_object_emb: bool):
+    """S1 — chargeur + passe unique de comptage (v5.8 P3 : avant dimensionnement).
+
+    Retourne (loader, val_loader, node_counts, edge_counts, intent_counts,
+    sentence_counts, all_lemmas). Lève ClickException si corpus vide.
+    """
+    # v5.8 (P3) : le chargeur et la passe de comptage précèdent la construction —
+    # le remap coarse doit être connu AVANT de dimensionner encodeur/graphe.
+    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
+                           silver_weight=silver_weight, seed=_init_seed,
+                           strict_directions=strict_directions)
+    if len(loader) == 0:
+        raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    val_loader = None
+    if val_dir is not None:
+        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
+                                   silver_weight=silver_weight,
+                                   strict_directions=strict_directions)
+        if len(val_loader) == 0:
+            raise click.ClickException(f"Aucune sentence dans {val_dir}")
+        click.echo(f"Val : {len(val_loader)} sentences")
+
+    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
+    from collections import Counter
+    node_counts: Counter = Counter()
+    edge_counts: Counter = Counter()
+    intent_counts: Counter = Counter()
+    sentence_counts: Counter = Counter()
+    all_lemmas: list[str] = []
+    for sample in loader:
+        for rel in sample.edge_map.values():
+            edge_counts[int(rel)] += 1
+        # v5.8 (P3) : node_counts toujours rempli — le gate weighted_loss
+        # laissait _promoted_node vide et basculait tout en coarse.
+        for label in sample.gold_node_labels:
+            node_counts[int(label)] += 1
+        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
+        if n_intent_types > 0 and sample.sentence.intent:
+            with contextlib.suppress(ValueError):
+                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
+        # P4a : comptage des types de phrases (annotés ou règle bootstrap).
+        if n_sentence_types > 0 and sample.sentence_type:
+            with contextlib.suppress(ValueError):
+                sentence_counts[SENTENCE_TYPES.index(sample.sentence_type)] += 1
+        if word_embedding is not None:
+            reps_s, _, conn_s = reps_from_sentence(sample.sentence)
+            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
+            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
+            if clause_pooling == "root" and not subject_object_emb:
+                all_lemmas.extend(r.root_lemma for r in reps_s)
+            else:
+                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
+                for r in reps_s:
+                    if clause_pooling == "root":
+                        all_lemmas.append(r.root_lemma)
+                    else:
+                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
+                    if subject_object_emb:
+                        all_lemmas.extend(_find_subj_obj_lemmas(r))
+            # P4a : marques illocutoires "?" / "!" au vocabulaire — sinon
+            # le pooling mean de la tête phrase les résout en zéros OOV et
+            # l'interrogative reste invisible (vecteurs figés à l'init si le
+            # routage embeddings est en mode root : séparables mais non appris —
+            # même statut assumé que les connecteurs orphelins, cf. garde).
+            from ..layer1.features import SENTENCE_MARK_FORMS as _SENT_MARKS
+            all_lemmas.extend(
+                t.get("lemma", "") for r in reps_s for t in r.tokens
+                if t.get("form") in _SENT_MARKS and t.get("lemma")
+            )
+            # Marqueurs : les lemmes de connecteurs (gold ou redécouverts) entrent
+            # au vocabulaire pour que WordEmbedding apprenne leurs vecteurs.
+            # Sans connecteur annoté ni gap syntaxique, rien n'est ajouté.
+            # v5.3 : ces vecteurs s'entraînent par le chemin nœuds (vocab partagé),
+            # pas par le chemin arête (gradient edge_vec_base non routé — assumé :
+            # routage dédié seulement si un lemme exclusif apparaît, cf. garde).
+            _conn_lemmas = [
+                _c.root_lemma for _c in conn_s
+                if _c is not None and getattr(_c, "root_lemma", "") not in ("", "_unknown")
+            ]
+            all_lemmas.extend(_conn_lemmas)
+            _clause_lemmas = {t.get("lemma", "") for r in reps_s for t in r.tokens}
+            _orphans = sorted(set(_conn_lemmas) - _clause_lemmas - {""})
+            if _orphans:
+                import warnings as _w_orph
+                _w_orph.warn(
+                    f"Lemmes connecteurs sans chemin de gradient (hors vocab clauses) : "
+                    f"{_orphans} — vecteurs gelés tant que le routage edge n'existe pas.",
+                    UserWarning, stacklevel=2,
+                )
+    return (loader, val_loader, node_counts, edge_counts, intent_counts,
+            sentence_counts, all_lemmas)
+
+
+def _train_coarse_and_dims(*, node_counts, edge_counts, coarse_phase: bool,
+                           coarse_n_min: int, vocab, d_emb: int,
+                           subject_object_emb: bool,
+                           n_intent_types: int, n_sentence_types: int,
+                           edge_dropout: float, theta_ambiguity: float,
+                           temperature: float):
+    """S1 — remap coarse (D4) + point de vérité des dims (B) + validations seuils.
+
+    Retourne (_active_node_types, _active_relation_types, _node_remap,
+    _edge_remap, d_effective, n_node_types, n_relation_types, d_edge_closed,
+    _intent_conditioned). Lève ClickException (seuils).
+    """
+    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min.
+    # v5.8 (P3) : calculé ici (comptes connus) pour dimensionner encodeur/graphe.
+    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
+    _active_node_types = NODE_TYPES
+    _active_relation_types = RELATION_TYPES
+    _node_remap: dict[int, int] | None = None
+    _edge_remap: dict[int, int] | None = None
+    if coarse_phase:
+        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
+        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
+        # Types actifs = promoted (fine) + groupes coarse des non-promoted
+        _fine_to_active_rel: dict[str, str] = {}
+        _fine_to_active_node: dict[str, str] = {}
+        for r in RELATION_TYPES:
+            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
+        for n in NODE_TYPES:
+            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
+        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
+                                        key=lambda x: (x not in RELATION_TYPES, x))
+        _active_node_types = sorted(set(_fine_to_active_node.values()),
+                                    key=lambda x: (x not in NODE_TYPES, x))
+        # Tables de remapping (index fin → index actif)
+        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
+        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
+        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
+                       for i, r in enumerate(RELATION_TYPES)}
+        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
+                       for i, n in enumerate(NODE_TYPES)}
+        click.echo(
+            f"  [coarse] {len(_active_relation_types)} relations actives, "
+            f"{len(_active_node_types)} nœuds actifs. "
+            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
+        )
 
     # B : point unique de vérité pour la dimension effective
     d_effective = vocab.d_clause_effective(d_emb, subject_object_emb)
-    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs
-    n_node_types = len(NODE_TYPES)
+    # Closed-loop : edge MLP reçoit features + enriched vectors + node probs.
+    # v5.8 (P3) : dims sur types ACTIFS (post-remap), pas sur 19/8.
+    n_node_types = len(_active_node_types)
+    n_relation_types = len(_active_relation_types)
     d_edge_closed = vocab.d_edge_closed_loop(d_effective, n_node_types, d_emb,
                                                  subject_object_emb)
+    # P4b : couplage intent←sentence automatique quand les deux têtes sont
+    # actives (distribution détachée en entrée intent). Persisté en arch.
+    _intent_conditioned = bool(n_intent_types > 0 and n_sentence_types > 0)
+    if _intent_conditioned:
+        click.echo("  [P4b] intent conditionnée par sentence_type (concat distribution).")
+    if not (0.0 <= edge_dropout < 1.0):
+        raise click.ClickException(f"--edge-dropout doit être dans [0, 1[ (reçu {edge_dropout}).")
+    if not (0.0 <= theta_ambiguity <= 1.0):
+        raise click.ClickException(f"--theta-ambiguity doit être dans [0, 1] (reçu {theta_ambiguity}).")
+    if not (temperature > 0):
+        raise click.ClickException(f"--temperature doit être > 0 (reçu {temperature}).")
+    return (_active_node_types, _active_relation_types, _node_remap,
+            _edge_remap, d_effective, n_node_types, n_relation_types,
+            d_edge_closed, _intent_conditioned)
+
+
+def _train_build_models(*, d_effective: int, d_edge_closed: int,
+                        n_node_types: int, n_relation_types: int,
+                        _intent_conditioned: bool, weight_decay: float,
+                        mlp_hidden: int, mlp_hidden2: int, _edge_hidden,
+                        qual_hidden: int, decoupled_wd: bool,
+                        edge_dropout: float, global_attention: bool,
+                        mha_heads: int, use_attention: bool,
+                        pairnorm: bool, drop_edge: float, use_compgcn: bool,
+                        d_rel_emb: int, rgcn_dropout: float,
+                        rgcn_activation: str, rgcn_layernorm: bool,
+                        n_gat_heads: int, gat_layernorm: bool,
+                        bidirectional: bool,
+                        n_sentence_types: int, n_intent_types: int,
+                        qual_heads: bool,
+                        _init_seed: int, connectors_file, verbalize_dir,
+                        verbalize_source_dir, data_dir: Path,
+                        legacy_decoder: bool, decoder_only: bool,
+                        scheduled_sampling: bool, two_pass_val: bool,
+                        ss_final_epoch: int, patience: int, val_dir,
+                        n_rgcn_layers: int, bfs_depth):
+    """S1 — encodeur (Phase C) + graphe (couche 3) + verbalize + validations.
+
+    Retourne (encoder, graph, decoder, assembler, verb_loader,
+    verb_source_map, verbalize_mode). Lève ClickException (options incohérentes).
+    """
+    from ..data.verbalize_loader import VerbalizerDataLoader
+    from ..verbalizer.trainable import TrainableDecoder
     # Phase C : substitution MLPEncoder → TransformerMLPEncoder (MHA globale).
     # d_clause = D_effective (inclut déjà d_emb), jamais vocabulary.d_clause brut.
     if global_attention:
@@ -360,6 +534,15 @@ def train_cmd(
             encoder = TransformerMLPEncoder(
                 d_clause=d_effective, d_edge=d_edge_closed,
                 weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+                edge_dropout=edge_dropout,
+                n_node_types=n_node_types,
+                n_relation_types=n_relation_types,
+                n_sentence_types=n_sentence_types,
+                n_intent_types=n_intent_types,
+                intent_conditioned=_intent_conditioned,
+                qual_heads=qual_heads,
                 n_heads=mha_heads, seed=_init_seed)
         except ValueError as _e:
             raise click.ClickException(str(_e)) from _e
@@ -369,6 +552,15 @@ def train_cmd(
             raise click.ClickException("--mha-heads requiert --global-attention.")
         encoder = MLPEncoder(d_clause=d_effective, d_edge=d_edge_closed,
                              weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+                             mlp_hidden2=mlp_hidden2, edge_hidden=_edge_hidden,
+                             qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+                             edge_dropout=edge_dropout,
+                             n_node_types=n_node_types,
+                             n_relation_types=n_relation_types,
+                             n_sentence_types=n_sentence_types,
+                             n_intent_types=n_intent_types,
+                             intent_conditioned=_intent_conditioned,
+                             qual_heads=qual_heads,
                              seed=_init_seed)
 
     # Couche 3 : choix du graph selon les flags
@@ -381,7 +573,10 @@ def train_cmd(
         raise click.ClickException(f"--drop-edge doit être dans [0, 1[ (reçu {drop_edge}).")
     if d_rel_emb < 1:
         raise click.ClickException(f"--d-rel-emb doit être ≥ 1 (reçu {d_rel_emb}).")
-    n_rel = len(ALL_RELATION_TYPES) if bidirectional else len(RELATION_TYPES)  # L-6
+    # v5.2 : +1 type no-edge R-GCN (jamais prédit, message passing seul).
+    # v5.8 (P3) : sur types actifs (coarse) — pas 19/8 figés.
+    # Anciens checkpoints (38/19) refusés bruyamment au chargement (triplet).
+    n_rel = rgcn_n_relations(n_relation_types, bidirectional)  # L-6
     if use_attention:
         from ..layer3.gat import RGCNLayerGAT
         graph = RGCNLayerGAT(d_in=d_effective, d_out=d_effective, n_relations=n_rel,
@@ -438,7 +633,7 @@ def train_cmd(
         click.echo(f"Verbalize : {len(verb_loader)} paires | vocab={len(verb_loader.vocab)} tokens")
         if connector_vocab is not None:
             from ..verbalizer.trainable import LexicalConnectorAssembler
-            assembler = LexicalConnectorAssembler(connector_vocab)
+            assembler = LexicalConnectorAssembler(connector_vocab, n_relations=len(RELATION_TYPES))
             verbalize_mode = "lexical"
             click.echo(f"Assembleur lexical : {len(connector_vocab)} connecteurs (mode lexical)")
         elif legacy_decoder:
@@ -468,16 +663,48 @@ def train_cmd(
         click.echo("R-GCN désactivé (--n-rgcn-layers 0) — pipeline MLP seul.")
     if bfs_depth is not None and bfs_depth < 1:
         raise click.ClickException(f"--bfs-depth doit être ≥ 1 (reçu {bfs_depth}).")
+    return encoder, graph, decoder, assembler, verb_loader, verb_source_map, verbalize_mode
 
+
+def _train_assemble_pipeline(*, encoder, graph, vocab, decoder, all_pairs: bool,
+                             word_embedding, bidirectional: bool,
+                             n_rgcn_layers: int, edge_threshold: float,
+                             drop_morph: bool, theta_ambiguity: float,
+                             temperature: float, bfs_depth,
+                             clause_pooling: str, subject_object_emb: bool,
+                             _active_node_types, _active_relation_types,
+                             gat_residual: bool, assembler, coarse_phase: bool,
+                             no_mood_flag: bool, no_tense_flag: bool,
+                             no_positional: bool, no_ternary: bool,
+                             n_intent_types: int, n_sentence_types: int,
+                             _init_seed: int, silver_weight: float,
+                             verbalize_mode: str, global_attention: bool,
+                             mha_heads: int, pairnorm: bool, drop_edge: float,
+                             use_compgcn: bool, d_rel_emb: int,
+                             two_pass_val: bool, link_pred: bool,
+                             d_effective: int, src_aggregation: str,
+                             neg_ratio: float, encoder_checkpoint,
+                             data_dir: Path, epochs: int):
+    """S1 — assemblage CGNPipeline + arch + linkpred + checkpoint + provenance.
+
+    Retourne (pipeline, link_pred_head)."""
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                            decoder=decoder, all_pairs=all_pairs, word_embedding=word_embedding,
                            bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
                            edge_threshold=edge_threshold, drop_morph=drop_morph,
+                           theta_ambiguity=theta_ambiguity,
+                           temperature=temperature,
                            bfs_depth=bfs_depth, clause_pooling=clause_pooling,
                            subject_object_emb=subject_object_emb,
-                           gat_residual=gat_residual, assembler=assembler,
-                           no_mood=coarse_phase, no_tense=coarse_phase,
-                           n_intent_types=n_intent_types)
+                           node_types=_active_node_types,
+                           relation_types=_active_relation_types,
+                            gat_residual=gat_residual, assembler=assembler,
+                            no_mood=(coarse_phase or no_mood_flag),
+                            no_tense=(coarse_phase or no_tense_flag),
+                            no_positional=no_positional,
+                            no_ternary=no_ternary,
+                           n_intent_types=n_intent_types,
+                           n_sentence_types=n_sentence_types, seed=_init_seed)
     # §1 : métadonnées d'arch (checkpoint) — silver_weight / verbalize_mode
     pipeline.silver_weight = silver_weight
     pipeline.verbalize_mode = verbalize_mode
@@ -493,7 +720,8 @@ def train_cmd(
     link_pred_head = None
     if link_pred:
         from ..layer3.link_pred import LinkPredHead
-        link_pred_head = LinkPredHead(d_in=d_effective, src_aggregation=src_aggregation)
+        link_pred_head = LinkPredHead(d_in=d_effective, seed=_init_seed,
+                                      src_aggregation=src_aggregation)
         pipeline.link_predictor = link_pred_head
         click.echo(f"LinkPredHead : d_in={d_effective} src_agg={src_aggregation} "
                    f"neg_ratio={neg_ratio} bfs_depth={bfs_depth}")
@@ -503,10 +731,8 @@ def train_cmd(
         load_checkpoint(pipeline, encoder_checkpoint, trusted=True)
         click.echo(f"Checkpoint encodeur chargé : {encoder_checkpoint}")
 
-    loader = GCNDataLoader(data_dir, all_pairs=all_pairs, shuffle=True,
-                           silver_weight=silver_weight, seed=_init_seed)
-    if len(loader) == 0:
-        raise click.ClickException(f"Aucune sentence dans {data_dir}")
+    # (Chargeur déjà construit avant l'encodeur — v5.8 P3 : le remap coarse
+    # doit précéder le dimensionnement.)
     # Provenance — enregistrée dans _arch_json pour traçabilité complète.
     import datetime as _dt
     import hashlib as _hl
@@ -517,66 +743,40 @@ def train_cmd(
     pipeline.training_data_hash = _h.hexdigest()[:16]
     pipeline.training_n_epochs = epochs
     pipeline.training_timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
-    if silver_weight < 1.0:
-        click.echo(f"Silver-weight : {silver_weight} (F — loss arêtes pondérée)")
-    # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
-    _n_hyper = sum(1 for s in loader if s.hyperedge_map)
-    if _n_hyper:
-        warnings.warn(
-            f"{_n_hyper} phrase(s) avec des N-arêtes (sources multiples) dans {data_dir}. "
-            "Ces arêtes sont collectées dans hyperedge_map mais jamais supervisées "
-            "par l'entraînement (gradient 0). Utilisez des arêtes binaires ou "
-            "implémentez une tête N-aire.",
-            UserWarning, stacklevel=2,
-        )
+    return pipeline, link_pred_head
 
-    val_loader = None
-    if val_dir is not None:
-        val_loader = GCNDataLoader(val_dir, all_pairs=all_pairs, shuffle=False,
-                                   silver_weight=silver_weight)
-        if len(val_loader) == 0:
-            raise click.ClickException(f"Aucune sentence dans {val_dir}")
-        click.echo(f"Val : {len(val_loader)} sentences")
 
-    # Passe unique sur le dataset : edge logit mask + optional weights/vocab
-    node_class_weights = None
-    edge_class_weights = None
-    _edge_logit_mask: np.ndarray | None = None
+def _train_build_masks(*, edge_counts, intent_counts, sentence_counts,
+                       qual_heads: bool, _edge_remap, encoder,
+                       _active_relation_types, min_class_count: int,
+                       n_intent_types: int, n_sentence_types: int,
+                       loader, pipeline):
+    """S1 — masques v3.0/Éq.6/P4a/P4 quals (classes vues seulement).
+
+    Retourne (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+    _qual_logit_masks, _active_edge_counts, n_edge_classes). Attache le
+    masque arête au pipeline. Lève ClickException si aucune classe ne survit.
+    """
     from collections import Counter
-    node_counts: Counter = Counter()
-    edge_counts: Counter = Counter()
-    intent_counts: Counter = Counter()
-    all_lemmas: list[str] = []
-    for sample in loader:
-        for rel in sample.edge_map.values():
-            edge_counts[int(rel)] += 1
-        if weighted_loss:
-            for label in sample.gold_node_labels:
-                node_counts[int(label)] += 1
-        # Éq.6 : comptage des labels d'intention (pour le masque et l'activation N_min)
-        if n_intent_types > 0 and sample.sentence.intent:
-            with contextlib.suppress(ValueError):
-                intent_counts[INTENT_TYPES.index(sample.sentence.intent)] += 1
-        if word_embedding is not None:
-            reps_s, _, _ = reps_from_sentence(sample.sentence)
-            # A : avec pooling != root, élargir le vocab aux lemmes de contenu ;
-            # B : ajouter les lemmes sujet/objet (les _absent sont pré-enregistrés)
-            if clause_pooling == "root" and not subject_object_emb:
-                all_lemmas.extend(r.root_lemma for r in reps_s)
-            else:
-                from ..layer1.features import _find_subj_obj_lemmas, _pool_lemmas
-                for r in reps_s:
-                    if clause_pooling == "root":
-                        all_lemmas.append(r.root_lemma)
-                    else:
-                        all_lemmas.extend(_pool_lemmas(r, clause_pooling))
-                    if subject_object_emb:
-                        all_lemmas.extend(_find_subj_obj_lemmas(r))
+    _edge_logit_mask: np.ndarray | None = None
+    _active_edge_counts: dict[int, int] = {}
+    n_edge_classes: int = 0
     if edge_counts:
+        # v5.8 (P3) : comptes en espace ACTIF (fines remappées si coarse).
+        _active_edge_counts: dict[int, int] = {}
+        if _edge_remap is not None:
+            for _fc, _n in edge_counts.items():
+                _ac = _edge_remap.get(int(_fc), int(_fc))
+                _active_edge_counts[_ac] = _active_edge_counts.get(_ac, 0) + _n
+        else:
+            _active_edge_counts = {int(c): int(n) for c, n in edge_counts.items()}
         n_edge_classes = encoder.n_relation_types
+        assert n_edge_classes == len(_active_relation_types), (
+            f"encodeur {n_edge_classes} ≠ {len(_active_relation_types)} types actifs — "
+            "construction incohérente (P3).")
         _edge_logit_mask = np.zeros(n_edge_classes, dtype=bool)
         for c in range(n_edge_classes):
-            if edge_counts.get(c, 0) > 0:
+            if _active_edge_counts.get(c, 0) > 0:
                 _edge_logit_mask[c] = True
         n_active = int(_edge_logit_mask.sum())
         n_inactive = n_edge_classes - n_active
@@ -585,6 +785,44 @@ def train_cmd(
                 f"  [v3.0] {n_inactive} classe(s) arête vide(s) masquées du softmax "
                 f"(N=0 dans le dataset) — masquées tant que N=0."
             )
+        # v5 : coupe aux prouvées — 0 < N < N_min ni apprise ni prédite.
+        # Le moteur ne prédit que ce qu'il peut apprendre ; annotez jusqu'à
+        # N_min pour réactiver (0 = désactive la coupe, comportement historique).
+        if min_class_count > 0:
+            _rare = [(_active_relation_types[c], _active_edge_counts.get(c, 0))
+                     for c in range(n_edge_classes)
+                     if _edge_logit_mask[c] and _active_edge_counts.get(c, 0) < min_class_count]
+            for _rel, _n in _rare:
+                _edge_logit_mask[_active_relation_types.index(_rel)] = False
+            if _rare:
+                _names = ", ".join(f"{r} (N={n})" for r, n in _rare)
+                click.echo(
+                    f"  [v5] {len(_rare)} classe(s) sous N_min={min_class_count} "
+                    f"coupée(s) du softmax : {_names}."
+                )
+            if not _edge_logit_mask.any():
+                raise click.ClickException(
+                    "Aucune classe d'arête ne survit (vides + sous N_min="
+                    f"{min_class_count}) : annotez au moins {min_class_count} "
+                    "exemples d'une relation, ou baissez --min-class-count "
+                    "(0 = désactive la coupe)."
+                )
+        # Couverture marqueurs (guide réannotation v5) : gold annotés vs
+        # connecteurs retrouvés vs gaps sans connecteur.
+        _n_gold = _n_found = _n_gaps = 0
+        for _s in loader:
+            _rs, _, _cs = reps_from_sentence(_s.sentence)
+            _n_gaps += max(0, len(_rs) - 1)
+            _n_gold += sum(1 for _e in _s.sentence.edges
+                           if getattr(_e, "marker_token", None) is not None)
+            _n_found += sum(1 for _c in _cs if _c is not None)
+        click.echo(
+            f"  [v5] marqueurs : {_n_gold} gold annotés, {_n_found}/{_n_gaps} "
+            f"gaps avec connecteur."
+        )
+        # Masque forward+loss : le pipeline émet et apprend uniquement sur les
+        # classes vues (persisté au checkpoint, appliqué à l'inférence).
+        pipeline.edge_logit_mask = _edge_logit_mask
     # Éq.6 — masque intent logits (même logique que _edge_logit_mask)
     _intent_logit_mask: np.ndarray | None = None
     if n_intent_types > 0 and intent_counts:
@@ -594,66 +832,91 @@ def train_cmd(
                 _intent_logit_mask[c] = True
         n_active_intent = int(_intent_logit_mask.sum())
         click.echo(f"  [Éq.6] {n_active_intent}/{n_intent_types} types d'intention actifs.")
+    # P4a — masque types de phrases (même logique que _intent_logit_mask ;
+    # N_min v5 s'applique aussi : pas d'apprentissage sous le seuil).
+    _sentence_logit_mask: np.ndarray | None = None
+    if n_sentence_types > 0 and sentence_counts:
+        _sentence_logit_mask = np.zeros(n_sentence_types, dtype=bool)
+        for c in range(n_sentence_types):
+            if sentence_counts.get(c, 0) > 0:
+                _sentence_logit_mask[c] = True
+        n_active_sent = int(_sentence_logit_mask.sum())
+        click.echo(f"  [P4a] {n_active_sent}/{n_sentence_types} types de phrases actifs.")
+    # P4 quals — comptage par (qual, classe) et masques N_min.
+    # Sans annotations variées, tout est masqué : dortoir, pas de loss.
+    qual_counts: dict[str, Counter] = {q: Counter() for q in QUALIFIERS}
+    if qual_heads:
+        for _smp in loader:
+            for _qm in _smp.qual_map.values():
+                for _qn, _qi in _qm.items():
+                    if _qn in qual_counts:
+                        qual_counts[_qn][int(_qi)] += 1
+    _qual_logit_masks: dict[str, np.ndarray] | None = None
+    if qual_heads:
+        _qual_logit_masks = {}
+        for _qn, _classes in QUALIFIERS.items():
+            _m = np.zeros(len(_classes), dtype=bool)
+            for c in range(len(_classes)):
+                if qual_counts[_qn].get(c, 0) >= min_class_count > 0 or (min_class_count <= 0 and qual_counts[_qn].get(c, 0) > 0):
+                    _m[c] = True
+            _qual_logit_masks[_qn] = _m
+        click.echo("  [P4 quals] actives : " + ", ".join(
+            f"{_qn}={int(_qual_logit_masks[_qn].sum())}/{len(_c)}"
+            for _qn, _c in QUALIFIERS.items()))
+    return (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+            _qual_logit_masks, _active_edge_counts, n_edge_classes)
 
-    # D4/§15 ETUDE — mode coarse : promotion des types ayant N≥coarse_n_min
-    # Types promus gardent leur label fin ; les autres sont remappés vers le groupe coarse.
-    _active_node_types = NODE_TYPES
-    _active_relation_types = RELATION_TYPES
-    _node_remap: dict[int, int] | None = None
-    _edge_remap: dict[int, int] | None = None
-    if coarse_phase:
-        _promoted_rel = {RELATION_TYPES[c] for c, n in edge_counts.items() if n >= coarse_n_min}
-        _promoted_node = {NODE_TYPES[c] for c, n in node_counts.items() if n >= coarse_n_min}
-        # Types actifs = promoted (fine) + groupes coarse des non-promoted
-        _fine_to_active_rel: dict[str, str] = {}
-        _fine_to_active_node: dict[str, str] = {}
-        for r in RELATION_TYPES:
-            _fine_to_active_rel[r] = r if r in _promoted_rel else coarse_relation(r)
-        for n in NODE_TYPES:
-            _fine_to_active_node[n] = n if n in _promoted_node else coarse_node(n)
-        _active_relation_types = sorted(set(_fine_to_active_rel.values()),
-                                        key=lambda x: (x not in RELATION_TYPES, x))
-        _active_node_types = sorted(set(_fine_to_active_node.values()),
-                                    key=lambda x: (x not in NODE_TYPES, x))
-        # Tables de remapping (index fin → index actif)
-        _active_rel_idx = {r: i for i, r in enumerate(_active_relation_types)}
-        _active_node_idx = {n: i for i, n in enumerate(_active_node_types)}
-        _edge_remap = {i: _active_rel_idx[_fine_to_active_rel[r]]
-                       for i, r in enumerate(RELATION_TYPES)}
-        _node_remap = {i: _active_node_idx[_fine_to_active_node[n]]
-                       for i, n in enumerate(NODE_TYPES)}
-        # Recompute pipeline types
-        pipeline.relation_types = _active_relation_types
-        pipeline.node_types = _active_node_types
-        # Reset edge logit mask for active types
-        _edge_logit_mask = np.ones(len(_active_relation_types), dtype=bool)
-        click.echo(
-            f"  [coarse] {len(_active_relation_types)} relations actives, "
-            f"{len(_active_node_types)} nœuds actifs. "
-            f"Promoted fine: rel={sorted(_promoted_rel)}, node={sorted(_promoted_node)}"
-        )
 
+def _train_build_weights_and_vocab(*, pipeline, _node_remap, _edge_remap,
+                                   coarse_phase: bool, coarse_n_min: int,
+                                   node_counts, edge_counts,
+                                   _active_edge_counts, n_edge_classes: int,
+                                   weighted_loss: bool, max_class_weight: float,
+                                   _active_node_types, _active_relation_types,
+                                   word_embedding, all_lemmas,
+                                   _fasttext_path):
+    """S1 — remaps exposés + poids de classes + vocab embeddings (+fastText).
+
+    Retourne (node_class_weights|None, edge_class_weights|None)."""
+    # (Remap coarse déjà calculé avant construction — v5.8 P3. L'encodeur
+    # est dimensionné sur types actifs ; le masque suit en espace actif.
+    # Remaps exposés sur le pipeline pour la passe éval.)
+    pipeline._coarse_node_remap = _node_remap
+    pipeline._coarse_edge_remap = _edge_remap
+    pipeline._coarse_phase = bool(coarse_phase)
+    pipeline._coarse_n_min = int(coarse_n_min)
+
+    node_class_weights = None
+    edge_class_weights = None
     if weighted_loss:
-        if node_counts:
-            total_nodes = sum(node_counts.values())
-            n_node_classes = len(NODE_TYPES)
+        # v5.8 (P3) : poids en espace ACTIF (coarse remappé), noms actifs.
+        _active_node_counts: dict[int, int] = {}
+        if _node_remap is not None:
+            for _fc, _n in node_counts.items():
+                _ac = _node_remap.get(int(_fc), int(_fc))
+                _active_node_counts[_ac] = _active_node_counts.get(_ac, 0) + _n
+        else:
+            _active_node_counts = {int(c): int(n) for c, n in node_counts.items()}
+        if _active_node_counts:
+            total_nodes = sum(_active_node_counts.values())
+            n_node_classes = len(_active_node_types)
             node_class_weights = np.zeros(n_node_classes, dtype=np.float32)
             for c in range(n_node_classes):
-                count = node_counts.get(c, 1)
+                count = _active_node_counts.get(c, 1)
                 node_class_weights[c] = total_nodes / (n_node_classes * count)
             if max_class_weight > 0:
                 node_class_weights = np.clip(node_class_weights, 0, max_class_weight)
-            click.echo(f"Node class weights : {dict(zip(NODE_TYPES, node_class_weights.round(3), strict=False))}")
+            click.echo(f"Node class weights : {dict(zip(_active_node_types, node_class_weights.round(3), strict=False))}")
         if edge_counts:
-            total_edges = sum(edge_counts.values())
+            total_edges = sum(_active_edge_counts.values())
             edge_class_weights = np.zeros(n_edge_classes, dtype=np.float32)
             for c in range(n_edge_classes):
-                count = edge_counts.get(c, 0)
+                count = _active_edge_counts.get(c, 0)
                 if count > 0:
                     edge_class_weights[c] = total_edges / (n_edge_classes * count)
             if max_class_weight > 0:
                 edge_class_weights = np.clip(edge_class_weights, 0, max_class_weight)
-            click.echo(f"Edge class weights : {dict(zip(RELATION_TYPES[:n_active], edge_class_weights[:n_active].round(3), strict=False))}")
+            click.echo(f"Edge class weights : {dict(zip(_active_relation_types, edge_class_weights.round(3), strict=False))}")
     if word_embedding is not None and all_lemmas:
         word_embedding.build_vocab(all_lemmas)
         click.echo(f"Embeddings vocab : {len(all_lemmas)} lemmes ({len(set(all_lemmas))} uniques)")
@@ -689,6 +952,595 @@ def train_cmd(
             word_embedding._pretrained_end = len(word_embedding._lemmas)
             word_embedding.frozen = True
             click.echo(f"Embeddings fastText : {_n_ft} vecteurs remplis (d_emb=300, frozen)")
+    return node_class_weights, edge_class_weights
+
+
+
+def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
+    """Bascule TOUS les composants avec dropout en mode eval ou train."""
+    def _toggle(obj, mode):
+        # nn.Module : appeler .train() pour propager récursivement aux sous-modules
+        if hasattr(obj, 'train') and callable(obj.train):
+            obj.train(mode)
+        elif hasattr(obj, 'training'):
+            obj.training = mode
+    _toggle(pipeline.encoder, training)
+    for layer in pipeline._graph_layers:
+        _toggle(layer, training)
+    # B9 : couvrir aussi decoder et link_predictor (omis avant)
+    if pipeline.decoder is not None:
+        _toggle(pipeline.decoder, training)
+    if getattr(pipeline, 'link_predictor', None) is not None:
+        _toggle(pipeline.link_predictor, training)
+
+
+def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
+                       epoch_edge_preds, epoch_edge_gold,
+                       epoch_sent_node_preds, epoch_sent_node_gold,
+                       epoch_sent_edge_preds, epoch_sent_edge_gold,
+                       _edge_logit_mask, all_pairs, edge_class_weights,
+                       edge_counts, edge_loss_weight, node_class_weights):
+    """Exécute un pass forward sur le val set et retourne les métriques."""
+    total_loss = 0.0
+    n = 0
+    n_skipped = 0
+    _n_cut_val = 0  # v5.1 : exemples val de classes coupées, hors mesure
+    for sample in loader:
+        if not sample.sentence.clauses:
+            n_skipped += 1
+            continue
+        try:
+            reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
+            if not reps:
+                n_skipped += 1
+                continue
+            # C2.3-doc : gold_edge_map intentionnellement absent ici —
+            # évaluation sans oracle (asymétrie teacher-forcing BUG-1).
+            # Ne pas symétriser par le gold : ferait passer le R-GCN val
+            # sur types réels → F1 val optimiste → early stopping biaisé.
+            pipeline.forward(
+                reps, sample.sentence.text,
+                clause_positions=valid_clause_idxs,
+                n_total_clauses=len(sample.sentence.clauses),
+                connector_reps=connector_reps,
+            )
+        except (ValueError, RuntimeError, IndexError, KeyError, TypeError) as _eval_exc:
+            n_skipped += 1
+            import warnings as _wv
+            _wv.warn(f"_run_eval_pass : phrase {sample.sentence.id!r} ignorée — {_eval_exc}",
+                     UserWarning, stacklevel=2)
+            continue
+
+        node_logits = pipeline._cached_node_logits
+        edge_logits = pipeline._cached_edge_logits
+        if node_logits is None or len(node_logits) == 0:
+            continue
+
+        if valid_clause_idxs:
+            gold_node = sample.gold_node_labels[
+                np.array(valid_clause_idxs, dtype=np.int64)
+            ]
+        else:
+            gold_node = sample.gold_node_labels
+        # v5.8 (P3) : remap coarse éval — mêmes tables que le train.
+        _ev_nremap = getattr(pipeline, '_coarse_node_remap', None)
+        if _ev_nremap is not None and gold_node is not None:
+            gold_node = np.array([_ev_nremap.get(int(i), int(i)) for i in gold_node],
+                                 dtype=np.int64)
+
+        gold_edge = None
+        edge_logits_arg = None
+        _val_edge_sw = None  # défaut si phrase sans paire supervisée (cf. boucle train)
+        if (valid_clause_idxs and len(valid_clause_idxs) >= 2
+                and sample.edge_map
+                and edge_logits is not None and len(edge_logits) > 0):
+            if all_pairs:
+                pairs = [
+                    (valid_clause_idxs[i], valid_clause_idxs[j])
+                    for i in range(len(valid_clause_idxs))
+                    for j in range(i + 1, len(valid_clause_idxs))
+                ]
+            else:
+                pairs = [
+                    (valid_clause_idxs[k], valid_clause_idxs[k + 1])
+                    for k in range(len(valid_clause_idxs) - 1)
+                ]
+            gold_edge_full = np.array(
+                [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
+            )
+            valid_edge_mask = gold_edge_full >= 0
+            if _edge_logit_mask is not None and valid_edge_mask.any():
+                # v5.1 : classes coupées hors supervision — ni apprises,
+                # ni prédites, ni punies (le masque seul punissait via -log(~0)).
+                _active = np.asarray(_edge_logit_mask, dtype=bool)
+                _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
+                _n_cut_val += int((valid_edge_mask & ~_keep).sum())
+                valid_edge_mask = valid_edge_mask & _keep
+            if valid_edge_mask.any():
+                valid_edge_idxs = np.where(valid_edge_mask)[0]
+                gold_edge = gold_edge_full[valid_edge_idxs]
+                _ev_eremap = getattr(pipeline, '_coarse_edge_remap', None)
+                if _ev_eremap is not None:
+                    gold_edge = np.array(
+                        [_ev_eremap.get(int(i), int(i)) for i in gold_edge],
+                        dtype=np.int64)
+                edge_logits_arg = edge_logits[valid_edge_idxs]
+                _val_edge_sw = (
+                    np.array([sample.edge_conf_map.get(pairs[i], 1.0)
+                              for i in valid_edge_idxs], dtype=np.float32)
+                    if sample.edge_conf_map else None
+                )
+            else:
+                _val_edge_sw = None
+
+        loss_val, _, _ = pipeline.loss(
+            node_logits, edge_logits_arg, gold_node, gold_edge,
+            edge_loss_weight=edge_loss_weight,
+            node_class_weights=node_class_weights,
+            edge_class_weights=edge_class_weights,
+            edge_logit_mask=_edge_logit_mask if edge_counts else None,
+            sample_weight=sample.sentence.weight,
+            edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
+        )
+        total_loss += loss_val
+        n += 1
+
+        node_pred_idxs = np.argmax(node_logits, axis=1)
+        epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+        epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node)
+
+        sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
+        sent_node_gold = [pipeline.node_types[i] for i in gold_node]
+        epoch_sent_node_preds.append(sent_node_pred)
+        epoch_sent_node_gold.append(sent_node_gold)
+
+        if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
+            edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
+            epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+            epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
+            epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
+            epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
+        else:
+            epoch_sent_edge_preds.append([])
+            epoch_sent_edge_gold.append([])
+
+    if n_skipped > 0:
+        import warnings as _wvs
+        _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
+                  f"val_f1 calculée sur {n} phrase(s) seulement.",
+                  UserWarning, stacklevel=3)
+    return total_loss / max(n, 1), _n_cut_val
+
+@click.command("gcn-train")
+@click.option("--data-dir", required=True, type=click.Path(path_type=Path),
+              help="Répertoire contenant les fichiers JSON d'entraînement")
+@click.option("--epochs", default=50, show_default=True, type=int)
+@click.option("--lr", default=0.001, show_default=True, type=float)
+@click.option("--output", default="model.npz", show_default=True,
+              type=click.Path(path_type=Path), help="Chemin du checkpoint de sortie")
+@click.option("--log-csv", default=None, type=click.Path(path_type=Path),
+              help="CSV des métriques par epoch (optionnel)")
+@click.option("--verbalize-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire contenant les paires verbalize JSON (optionnel, active l'entraînement conjoint)")
+@click.option("--decoder-only", is_flag=True, default=False,
+              help="Entraîne uniquement le décodeur (l'encodeur et le R-GCN sont gelés)")
+@click.option("--encoder-checkpoint", default=None, type=click.Path(path_type=Path),
+              help="Checkpoint à charger pour initialiser l'encodeur (utilisé avec --decoder-only)")
+@click.option("--all-pairs/--no-all-pairs", default=True, show_default=True,
+              help="Superviser toutes les paires (i,j) avec i<j, pas seulement consécutives. "
+                   "Requiert dataset re-annoté avec des arêtes gap>1.")
+@click.option("--embedding-dim", default=128, show_default=True, type=int,
+              help="Dimension des word embeddings apprenables (S1/S2), ACTIVÉS PAR DÉFAUT. "
+                   "0 = désactivé (DÉCONSEILLÉ : aucun signal lexical, "
+                   "cf REMEDIATION-DIAGNOSTIC.md).")
+@click.option("--embedding-file", default=None, type=click.Path(path_type=Path),
+               help="Fichier GloVe/FastText pour initialiser les embeddings (S9). "
+                    "Active automatiquement --embedding-dim si non précisé.")
+@click.option("--fasttext", default=None, type=click.Path(path_type=Path),
+               help="Modèle fastText multilingue .bin (cc.XX.300.bin, 157 langues, même API). "
+                    "Mutuellement exclusif avec --embedding-file. Impose d_emb=300, "
+                    "frozen=True par défaut. Préserve l'agnosticisme langue (pas de CamemBERT).")
+@click.option("--mini-batch-size", default=4, show_default=True, type=int,
+              help="Taille du mini-batch pour accumulation de gradients (S10). 1 = SGD standard.")
+@click.option("--use-attention/--no-attention", default=False, show_default=True,
+              help="Activer la couche R-GCN+GAT avec attention par relation.")
+@click.option("--bidirectional/--no-bidirectional", default=False, show_default=True,
+              help="Activer le message passing bidirectionnel (arêtes inverses, 22 types de relations).")
+@click.option("--edge-loss-weight", default=1.0, show_default=True, type=float,
+              help="Pondération relative de la loss arêtes dans la loss totale.")
+@click.option("--weighted-loss/--no-weighted-loss", default=False, show_default=True,
+              help="Activer les class weights inversement proportionnels à la fréquence (rééquilibre les classes rares).")
+@click.option("--val-dir", default=None, type=click.Path(path_type=Path),
+              help="Répertoire val JSON (optionnel). Métriques val calculées à chaque epoch.")
+@click.option("--patience", default=0, show_default=True, type=int,
+              help="Epochs sans amélioration de val_edge_macro_f1 avant arrêt "
+                   "(protocole gelé : best unique = val_edge). "
+                   "0 = désactivé (défaut). Requiert --val-dir.")
+@click.option("--weight-decay", default=1e-4, show_default=True, type=float,
+              help="Coefficient de régularisation L2 sur les poids MLP. 0 = désactivé.")
+@click.option("--rgcn-dropout", default=0.1, show_default=True, type=float,
+              help="Dropout sur les features d'entrée des couches R-GCN/GAT. 0 = désactivé.")
+@click.option("--edge-dropout", default=0.3, show_default=True, type=float,
+              help="Dropout des couches cachées de la tête edge (MLPEncoder). "
+                   "0 = désactivé (recommandé en few-shot : variance >> signal).")
+@click.option("--label-smoothing", default=0.05, show_default=True, type=float,
+              help="Lissage des labels [0, 1]. 0 = one-hot strict. Recommandé : 0.05–0.1.")
+@click.option("--link-pred/--no-link-pred", default=False, show_default=True,
+              help="Entraîne la tête LinkPredHead (BCE auxiliaire positifs/négatifs).")
+@click.option("--neg-ratio", default=1.0, show_default=True, type=float,
+              help="Négatifs par positif pour la tête de liens.")
+@click.option("--src-aggregation", default="mean", show_default=True, type=click.Choice(["mean", "max"]),
+              help="Agrégation multi-sources de la tête de liens.")
+@click.option("--bfs-depth", default=None, show_default=True, type=int,
+              help="Profondeur BFS des candidats de predict_links (engine). "
+                   "None = tous les candidats (défaut, illimité). "
+                   "Stocké dans _arch_json et repris par défaut en prédiction.")
+@click.option("--n-rgcn-layers", default=1, show_default=True, type=int,
+              help="Nombre de couches R-GCN empilées (≥1). Avec n>1 et GAT, "
+                   "recommander --rgcn-dropout 0.2 --weight-decay 1e-4 pour limiter "
+                   "l'overfitting sur petits datasets (avertissement, pas de contrainte).")
+@click.option("--clause-pooling", default="root", show_default=True,
+              type=click.Choice(["root", "mean", "max"]),
+              help="Pooling des embeddings de clause (A) : root (défaut), mean ou max "
+                   "sur les tokens de contenu. Requiert --embedding-dim > 0.")
+@click.option("--subject-object-emb/--no-subject-object-emb", default=False, show_default=True,
+              help="Concaténer les embeddings sujet/objet (B, +2*d_emb, _absent appris). "
+                   "Requiert --embedding-dim > 0.")
+@click.option("--mlp-hidden", default=128, show_default=True, type=int,
+              help="Première couche cachée du MLP nœuds. Recommandé : 256 avec "
+                   "--subject-object-emb (d_effective=226).")
+@click.option("--mlp-hidden2", default=64, show_default=True, type=int,
+              help="Deuxième couche cachée (nœuds/intent/sentence). 64 = défaut historique.")
+@click.option("--edge-hidden", default="256,128,64", show_default=True, type=str,
+              help="Couches cachées du MLP arêtes, séparées par des virgules. "
+                   "Défaut historique 256,128,64 (~320k params) ; few-shot : 128,64.")
+@click.option("--qual-hidden", default=32, show_default=True, type=int,
+              help="Couche cachée des têtes polarity/voice/modality. 32 = défaut historique.")
+@click.option("--decoupled-wd/--no-decoupled-wd", default=False, show_default=True,
+              help="Weight-decay découplé style AdamW (non scalé par lr). "
+                   "Défaut : couplé historique (W -= lr*dW + lr*wd*W).")
+@click.option("--freeze-embeddings/--no-freeze-embeddings", default=False, show_default=True,
+              help="Geler les embeddings pré-entraînés (C). Requiert --embedding-file. "
+                   "Les spéciaux _subj_absent/_obj_absent restent entraînables.")
+@click.option("--silver-weight", default=1.0, show_default=True, type=float,
+              help="Poids des phrases silver dans la loss arêtes (F). 1.0 = aucun effet. "
+                   "Variante immédiate : 0.7.")
+@click.option("--n-gat-heads", default=1, show_default=True, type=int,
+              help="Nombre de têtes d'attention GAT (D). Requiert --use-attention. "
+                   "d_out doit être divisible (d_emb=49 → d_out=128 → {1,2,4,8}).")
+@click.option("--gat-residual/--no-gat-residual", default=False, show_default=True,
+              help="Connexions résiduelles entre couches graphe (E3).")
+@click.option("--gat-layernorm/--no-gat-layernorm", default=False, show_default=True,
+              help="LayerNorm après concaténation des têtes GAT (E2).")
+@click.option("--legacy-decoder", is_flag=True, default=False,
+              help="Choix explicite du TrainableDecoder déprécié (G). Défaut : legacy "
+                   "tant que --connectors-file est absent.")
+@click.option("--connectors-file", default=None, type=click.Path(path_type=Path),
+              help="Vocabulaire de connecteurs JSON (G2, connectors_fr.json). "
+                   "Active l'entraînement de l'assembleur lexical.")
+@click.option("--verbalize-source-dir", default=None, type=click.Path(path_type=Path),
+              help="Dataset source des paires verbalize (G1, défaut : --data-dir).")
+@click.option("--edge-threshold", default=0.0, show_default=True, type=float,
+              help="Seuil de confiance minimum pour émettre une arête [0, 1[. 0 = tout émettre (défaut).")
+@click.option("--theta-ambiguity", default=0.65, show_default=True, type=float,
+              help="Seuil Éq.11 : sous ce niveau de confiance, top-2 candidats "
+                   "marqués ambigus. 0.65 = défaut historique calibré.")
+@click.option("--temperature", default=1.0, show_default=True, type=float,
+              help="Température softmax initiale de la confiance d'émission. "
+                   "T5-min l'optimise ensuite sur val si disponible.")
+@click.option("--drop-morph/--no-drop-morph", default=False, show_default=True,
+              help="Zéroter les features morphologiques (Tense/Aspect/Mood/Polarity) à l'entraînement "
+                   "pour simuler le bridge heuristique (parité train/inférence).")
+@click.option("--no-positional", is_flag=True, default=False, show_default=True,
+              help="v5.5 : zéroter les 12 features positionnelles Éq.9 (ablation structure).")
+@click.option("--no-ternary", is_flag=True, default=False, show_default=True,
+              help="v5.5 : zéroter les 5 features ternaires (ablation).")
+@click.option("--no-mood", "no_mood_flag", is_flag=True, default=False, show_default=True,
+              help="v5.5 : masquer Mood sans changer la granularité (contrairement à --coarse-phase).")
+@click.option("--no-tense", "no_tense_flag", is_flag=True, default=False, show_default=True,
+              help="v5.5 : masquer Tense sans changer la granularité (contrairement à --coarse-phase).")
+@click.option("--global-attention/--no-global-attention", default=False, show_default=True,
+               help="Phase C : MHA globale sur les nœuds UD avant le MLP nœuds "
+                    "(TransformerMLPEncoder, poids fixes + résidu). Capte les arcs "
+                    "distants au-delà du voisinage k-hop R-GCN.")
+@click.option("--mha-heads", default=4, show_default=True, type=int,
+               help="Nombre de têtes de la MHA globale (Phase C). Requiert --global-attention. "
+                    "d_effective doit être divisible par cette valeur.")
+@click.option("--pairnorm/--no-pairnorm", default=False, show_default=True,
+               help="Phase B : PairNorm anti-over-smoothing dans RGCNLayerPT "
+                    "(recentrage + normalisation L2 avant activation).")
+@click.option("--drop-edge", default=0.0, show_default=True, type=float,
+               help="Phase B : probabilité de suppression d'arête en train (DropEdge, "
+                    "RGCNLayerPT uniquement). 0.0 = désactivé.")
+@click.option("--use-compgcn/--no-compgcn", default=False, show_default=True,
+               help="Phase D : embeddings relationnels continus (CompGCN, RGCNLayerPT). "
+                    "W_effective = Linear(E_r). Généralisation entre relations proches.")
+@click.option("--d-rel-emb", default=32, show_default=True, type=int,
+               help="Dimension des embeddings de relations CompGCN (Phase D). "
+                    "Requiert --use-compgcn.")
+@click.option("--two-pass-val/--no-two-pass-val", default=True, show_default=True,
+              help="Passage préliminaire d'arêtes en val/inférence pour prédire les types "
+                   "avant le R-GCN (corrige l'asymétrie teacher forcing BUG-1).")
+@click.option("--rgcn-activation", default="sigmoid", show_default=True,
+              type=click.Choice(["sigmoid", "relu", "none"]),
+              help="Activation de sortie du R-GCN NumPy. relu débloque les gradients "
+                   "(sigmoid max 0.25). GAT utilise --gat-output-activation séparément.")
+@click.option("--rgcn-layernorm/--no-rgcn-layernorm", default=False, show_default=True,
+              help="LayerNorm après l'activation dans le R-GCN NumPy. "
+                   "Stabilise les magnitudes des features entre couches.")
+@click.option("--max-grad-norm", default=5.0, show_default=True, type=float,
+              help="Norme maximale des gradients (gradient clipping). 0 = désactivé.")
+@click.option("--max-class-weight", default=5.0, show_default=True, type=float,
+              help="Plafond des class weights avec --weighted-loss. Évite qu'une classe "
+                   "ultra-rare domine la loss. 0 = pas de plafond.")
+@click.option("--min-class-count", default=30, show_default=True, type=int,
+              help="N_min v5 : une classe d'arête avec 0 < N < N_min est coupée du "
+                   "softmax (ni apprise ni prédite) — le moteur ne prédit que ce "
+                   "qu'il peut apprendre. Annotez jusqu'à N_min pour réactiver.")
+@click.option("--strict-directions/--no-strict-directions", default=False, show_default=True,
+              help="Fail-closed sur arêtes gold en direction inverse (src > tgt) : "
+                   "ValueError au lieu du drop/swap historique. Défaut : warn.")
+@click.option("--scheduled-sampling/--no-scheduled-sampling", default=False, show_default=True,
+              help="Scheduled sampling : réduit linéairement la probabilité d'injecter "
+                   "gold_edge_map en entraînement (1.0 → 0.0 sur ss-final-epoch epochs). "
+                   "Réduit l'asymétrie train/val due au teacher forcing R-GCN. "
+                   "Requiert --two-pass-val (actif par défaut).")
+@click.option("--ss-final-epoch", default=50, show_default=True, type=int,
+              help="Epoch (incluse) où p_gold atteint 0.0 avec --scheduled-sampling. "
+                   "Avant : p_gold = 1 - (epoch-1)/ss_final_epoch. Après : p_gold = 0.0.")
+@click.option("--n-intent-types", default=0, show_default=True, type=int,
+              help="Éq.6 : active la tête d'intention (0=désactivé). "
+                   "Doit correspondre à len(INTENT_TYPES) si > 0. "
+                   "Requiert des phrases annotées avec SentenceRecord.intent.")
+@click.option("--n-sentence-types", default=0, show_default=True, type=int,
+              help="P4a : active la tête type de phrase (0=désactivé). "
+                   "Doit correspondre à len(SENTENCE_TYPES)=4 si > 0. "
+                   "Golds dérivés par règle (ponctuation) sauf annotation.")
+@click.option("--qual-heads/--no-qual-heads", default=False, show_default=True,
+              help="P4 quals : active les 3 têtes edge-qualifiers "
+                   "(polarity/2, voice/2, modality/4) sur vecteurs enrichis. "
+                   "Chaque (qual, classe) sous N_min est masquée.")
+@click.option("--coarse-phase/--no-coarse-phase", default=False, show_default=True,
+              help="D4/§15 ETUDE — entraînement au niveau coarse (5 relations, 4 nœuds). "
+                   "Masque Mood et Tense. Les types ayant N≥coarse-n-min restent au niveau fin.")
+@click.option("--coarse-n-min", default=400, show_default=True, type=int,
+              help="Nombre minimum d'exemples par type fin pour promotion coarse→fine.")
+@click.option("--seed", default=None, type=int,
+              help="Graine pour la reproductibilité (numpy + torch si disponible).")
+@click.option("--seed", default=None, type=int,
+              help="Graine pour la reproductibilité (numpy + torch si disponible).")
+def train_cmd(
+    data_dir: Path,
+    epochs: int,
+    lr: float,
+    output: Path,
+    log_csv: Path | None,
+    verbalize_dir: Path | None,
+    decoder_only: bool,
+    encoder_checkpoint: Path | None,
+    all_pairs: bool,
+    embedding_dim: int,
+    embedding_file: Path | None,
+    fasttext: Path | None,
+    mini_batch_size: int,
+    use_attention: bool,
+    bidirectional: bool,
+    edge_loss_weight: float,
+    weighted_loss: bool,
+    val_dir: Path | None,
+    patience: int,
+    weight_decay: float,
+    rgcn_dropout: float,
+    edge_dropout: float,
+    label_smoothing: float,
+    link_pred: bool,
+    neg_ratio: float,
+    src_aggregation: str,
+    bfs_depth: int | None,
+    n_rgcn_layers: int,
+    edge_threshold: float,
+    theta_ambiguity: float,
+    temperature: float,
+    drop_morph: bool,
+    no_positional: bool,
+    no_ternary: bool,
+    no_mood_flag: bool,
+    no_tense_flag: bool,
+    seed: int | None,
+    clause_pooling: str,
+    subject_object_emb: bool,
+    mlp_hidden: int,
+    mlp_hidden2: int,
+    edge_hidden: str,
+    qual_hidden: int,
+    decoupled_wd: bool,
+    freeze_embeddings: bool,
+    silver_weight: float,
+    n_gat_heads: int,
+    gat_residual: bool,
+    gat_layernorm: bool,
+    legacy_decoder: bool,
+    connectors_file: Path | None,
+    verbalize_source_dir: Path | None,
+    global_attention: bool,
+    mha_heads: int,
+    pairnorm: bool,
+    drop_edge: float,
+    two_pass_val: bool,
+    rgcn_activation: str,
+    rgcn_layernorm: bool,
+    max_grad_norm: float,
+    max_class_weight: float,
+    min_class_count: int,
+    strict_directions: bool,
+    use_compgcn: bool,
+    d_rel_emb: int,
+    scheduled_sampling: bool,
+    ss_final_epoch: int,
+    n_intent_types: int,
+    n_sentence_types: int,
+    qual_heads: bool,
+    coarse_phase: bool,
+    coarse_n_min: int,
+) -> None:
+    """Entraîne le pipeline CGNP (NumPy référence) par descente de gradient."""
+    # S1 — phases extraites (helpers ci-dessus, ordre et valeurs inchangés).
+    _init_seed = _train_init_seed(seed)
+
+    vocab = FeatureVocabulary()
+
+    _dim_from_cli, _edge_hidden = _train_validate_cli(
+        embedding_dim=embedding_dim, fasttext=fasttext,
+        embedding_file=embedding_file, clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb,
+        freeze_embeddings=freeze_embeddings, silver_weight=silver_weight,
+        mlp_hidden=mlp_hidden, mlp_hidden2=mlp_hidden2,
+        qual_hidden=qual_hidden, edge_hidden=edge_hidden)
+    word_embedding, d_emb = _train_build_embeddings(
+        fasttext=fasttext, embedding_file=embedding_file,
+        embedding_dim=embedding_dim, _dim_from_cli=_dim_from_cli,
+        freeze_embeddings=freeze_embeddings, _init_seed=_init_seed)
+    _fasttext_path: Path | None = fasttext  # S1 : conservé pour le remplissage différé (cf. build_vocab)
+
+    # S1 — chargeur + comptes (helper ci-dessus, avant dimensionnement).
+    (loader, val_loader, node_counts, edge_counts, intent_counts,
+     sentence_counts, all_lemmas) = _train_load_and_count(
+        data_dir=data_dir, val_dir=val_dir, all_pairs=all_pairs,
+        silver_weight=silver_weight, strict_directions=strict_directions,
+        _init_seed=_init_seed, n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, word_embedding=word_embedding,
+        clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb)
+    # S1 — défauts poids de classes (assignés plus loin sous conditions ;
+    # l'ancien code les initalisait ici : même valeur, sans UnboundLocalError).
+    node_class_weights = None
+    edge_class_weights = None
+
+    # S1 — coarse + dims (helper ci-dessus, avant construction).
+    (_active_node_types, _active_relation_types, _node_remap,
+     _edge_remap, d_effective, n_node_types, n_relation_types,
+     d_edge_closed, _intent_conditioned) = _train_coarse_and_dims(
+        node_counts=node_counts, edge_counts=edge_counts,
+        coarse_phase=coarse_phase, coarse_n_min=coarse_n_min,
+        vocab=vocab, d_emb=d_emb,
+        subject_object_emb=subject_object_emb,
+        n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types,
+        edge_dropout=edge_dropout, theta_ambiguity=theta_ambiguity,
+        temperature=temperature)
+    # S1 — modèles (helper ci-dessus : encodeur + graphe + verbalize + validations).
+    (encoder, graph, decoder, assembler, verb_loader, verb_source_map,
+     verbalize_mode) = _train_build_models(
+        d_effective=d_effective, d_edge_closed=d_edge_closed,
+        n_node_types=n_node_types, n_relation_types=n_relation_types,
+        _intent_conditioned=_intent_conditioned,
+        weight_decay=weight_decay, mlp_hidden=mlp_hidden,
+        mlp_hidden2=mlp_hidden2, _edge_hidden=_edge_hidden,
+        qual_hidden=qual_hidden, decoupled_wd=decoupled_wd,
+        edge_dropout=edge_dropout, global_attention=global_attention,
+        mha_heads=mha_heads, use_attention=use_attention,
+        pairnorm=pairnorm, drop_edge=drop_edge, use_compgcn=use_compgcn,
+        d_rel_emb=d_rel_emb, rgcn_dropout=rgcn_dropout,
+        rgcn_activation=rgcn_activation, rgcn_layernorm=rgcn_layernorm,
+        n_gat_heads=n_gat_heads, gat_layernorm=gat_layernorm,
+        bidirectional=bidirectional,
+        n_sentence_types=n_sentence_types,
+        n_intent_types=n_intent_types, qual_heads=qual_heads,
+        _init_seed=_init_seed, connectors_file=connectors_file,
+        verbalize_dir=verbalize_dir,
+        verbalize_source_dir=verbalize_source_dir, data_dir=data_dir,
+        legacy_decoder=legacy_decoder, decoder_only=decoder_only,
+        scheduled_sampling=scheduled_sampling, two_pass_val=two_pass_val,
+        ss_final_epoch=ss_final_epoch, patience=patience, val_dir=val_dir,
+        n_rgcn_layers=n_rgcn_layers, bfs_depth=bfs_depth)
+
+    # S1 — assemblage pipeline + arch + linkpred + checkpoint + provenance.
+    pipeline, link_pred_head = _train_assemble_pipeline(
+        encoder=encoder, graph=graph, vocab=vocab, decoder=decoder,
+        all_pairs=all_pairs, word_embedding=word_embedding,
+        bidirectional=bidirectional, n_rgcn_layers=n_rgcn_layers,
+        edge_threshold=edge_threshold, drop_morph=drop_morph,
+        theta_ambiguity=theta_ambiguity, temperature=temperature,
+        bfs_depth=bfs_depth, clause_pooling=clause_pooling,
+        subject_object_emb=subject_object_emb,
+        _active_node_types=_active_node_types,
+        _active_relation_types=_active_relation_types,
+        gat_residual=gat_residual, assembler=assembler,
+        coarse_phase=coarse_phase, no_mood_flag=no_mood_flag,
+        no_tense_flag=no_tense_flag, no_positional=no_positional,
+        no_ternary=no_ternary, n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, _init_seed=_init_seed,
+        silver_weight=silver_weight, verbalize_mode=verbalize_mode,
+        global_attention=global_attention, mha_heads=mha_heads,
+        pairnorm=pairnorm, drop_edge=drop_edge, use_compgcn=use_compgcn,
+        d_rel_emb=d_rel_emb, two_pass_val=two_pass_val,
+        link_pred=link_pred, d_effective=d_effective,
+        src_aggregation=src_aggregation, neg_ratio=neg_ratio,
+        encoder_checkpoint=encoder_checkpoint, data_dir=data_dir,
+        epochs=epochs)
+    # Provenance CSV (protocole §1+§3) : constantes du run, une valeur par ligne.
+    try:
+        from gcn_python import __version__ as _gcn_ver
+    except Exception:  # noqa: BLE001 — provenance best-effort (voir ci-dessous)
+        _gcn_ver = "?"
+    try:
+        import subprocess as _sp
+        # Provenance best-effort : ne doit JAMAIS échouer le run
+        # (pas de git/pas de binaire = "?") — pas de check, PATH volontaire.
+        _git_sha = _sp.run(["git", "rev-parse", "--short", "HEAD"],  # noqa: PLW1510, S607
+                           capture_output=True, text=True, timeout=10).stdout.strip() or "?"
+    except Exception:  # noqa: BLE001 — voir ci-dessus
+        _git_sha = "?"
+    _prov = {
+        "run_seed": _init_seed,
+        "gcn_version": _gcn_ver,
+        "git_sha": _git_sha,
+        "training_data_hash": pipeline.training_data_hash,
+        "cfg_epochs": epochs,
+        "cfg_lr": lr,
+        "cfg_patience": patience,
+        "cfg_min_class_count": min_class_count,
+        "cfg_edge_loss_weight": edge_loss_weight,
+        "cfg_weighted_loss": int(bool(weighted_loss)),
+        "cfg_embedding_dim": embedding_dim,
+    }
+    if silver_weight < 1.0:
+        click.echo(f"Silver-weight : {silver_weight} (F — loss arêtes pondérée)")
+    # R6 : détecter les N-arêtes (hyperedge_map) non supervisées
+    _n_hyper = sum(1 for s in loader if s.hyperedge_map)
+    if _n_hyper:
+        warnings.warn(
+            f"{_n_hyper} phrase(s) avec des N-arêtes (sources multiples) dans {data_dir}. "
+            "Ces arêtes sont collectées dans hyperedge_map mais jamais supervisées "
+            "par l'entraînement (gradient 0). Utilisez des arêtes binaires ou "
+            "implémentez une tête N-aire.",
+            UserWarning, stacklevel=2,
+        )
+
+    # S1 — masques (helper ci-dessus : v3.0/Éq.6/P4a/P4 quals).
+    (_edge_logit_mask, _intent_logit_mask, _sentence_logit_mask,
+     _qual_logit_masks, _active_edge_counts, n_edge_classes) = _train_build_masks(
+        edge_counts=edge_counts, intent_counts=intent_counts,
+        sentence_counts=sentence_counts, qual_heads=qual_heads,
+        _edge_remap=_edge_remap, encoder=encoder,
+        _active_relation_types=_active_relation_types,
+        min_class_count=min_class_count,
+        n_intent_types=n_intent_types,
+        n_sentence_types=n_sentence_types, loader=loader,
+        pipeline=pipeline)
+
+    # S1 — poids + vocab (helper ci-dessus : remap exposés, classes, fastText).
+    node_class_weights, edge_class_weights = _train_build_weights_and_vocab(
+        pipeline=pipeline, _node_remap=_node_remap, _edge_remap=_edge_remap,
+        coarse_phase=coarse_phase, coarse_n_min=coarse_n_min,
+        node_counts=node_counts, edge_counts=edge_counts,
+        _active_edge_counts=_active_edge_counts,
+        n_edge_classes=n_edge_classes, weighted_loss=weighted_loss,
+        max_class_weight=max_class_weight,
+        _active_node_types=_active_node_types,
+        _active_relation_types=_active_relation_types,
+        word_embedding=word_embedding, all_lemmas=all_lemmas,
+        _fasttext_path=_fasttext_path)
 
     click.echo(f"Données : {len(loader)} sentences | epochs={epochs} lr={lr}")
 
@@ -703,146 +1555,15 @@ def train_cmd(
     csv_writer = None
     csv_file = None
 
-    best_val_f1 = -1.0
-    best_epoch_num = 0
-    best_checkpoint_path = str(output) + ".best.npz"
-    _patience_counter = 0
     best_val_edge_f1 = -1.0
     best_edge_epoch = 0
     best_edge_checkpoint_path = str(output) + ".best_edge.npz"
+    _patience_counter = 0
+    # S1 — défauts val (sans val_loader, la boucle ne les assigne jamais ;
+    # l'ancien code survivait par court-circuit `if val_loader is not None and ...`,
+    # l'appel explicite exige des noms liés : même valeur, sans UnboundLocalError).
+    val_edge_preds, val_edge_gold = [], []
 
-    def _set_training_mode(pipeline: CGNPipeline, training: bool) -> None:
-        """Bascule TOUS les composants avec dropout en mode eval ou train."""
-        def _toggle(obj, mode):
-            # nn.Module : appeler .train() pour propager récursivement aux sous-modules
-            if hasattr(obj, 'train') and callable(obj.train):
-                obj.train(mode)
-            elif hasattr(obj, 'training'):
-                obj.training = mode
-        _toggle(pipeline.encoder, training)
-        for layer in pipeline._graph_layers:
-            _toggle(layer, training)
-        # B9 : couvrir aussi decoder et link_predictor (omis avant)
-        if pipeline.decoder is not None:
-            _toggle(pipeline.decoder, training)
-        if getattr(pipeline, 'link_predictor', None) is not None:
-            _toggle(pipeline.link_predictor, training)
-
-    def _run_eval_pass(pipeline, loader, epoch_node_preds, epoch_node_gold,
-                       epoch_edge_preds, epoch_edge_gold,
-                       epoch_sent_node_preds, epoch_sent_node_gold,
-                       epoch_sent_edge_preds, epoch_sent_edge_gold):
-        """Exécute un pass forward sur le val set et retourne les métriques."""
-        total_loss = 0.0
-        n = 0
-        n_skipped = 0
-        for sample in loader:
-            if not sample.sentence.clauses:
-                n_skipped += 1
-                continue
-            try:
-                reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
-                if not reps:
-                    n_skipped += 1
-                    continue
-                # C2.3-doc : gold_edge_map intentionnellement absent ici —
-                # évaluation sans oracle (asymétrie teacher-forcing BUG-1).
-                # Ne pas symétriser par le gold : ferait passer le R-GCN val
-                # sur types réels → F1 val optimiste → early stopping biaisé.
-                pipeline.forward(
-                    reps, sample.sentence.text,
-                    clause_positions=valid_clause_idxs,
-                    n_total_clauses=len(sample.sentence.clauses),
-                    connector_reps=connector_reps,
-                )
-            except (ValueError, RuntimeError, IndexError, KeyError, TypeError) as _eval_exc:
-                n_skipped += 1
-                import warnings as _wv
-                _wv.warn(f"_run_eval_pass : phrase {sample.sentence.id!r} ignorée — {_eval_exc}",
-                         UserWarning, stacklevel=2)
-                continue
-
-            node_logits = pipeline._cached_node_logits
-            edge_logits = pipeline._cached_edge_logits
-            if node_logits is None or len(node_logits) == 0:
-                continue
-
-            if valid_clause_idxs:
-                gold_node = sample.gold_node_labels[
-                    np.array(valid_clause_idxs, dtype=np.int64)
-                ]
-            else:
-                gold_node = sample.gold_node_labels
-
-            gold_edge = None
-            edge_logits_arg = None
-            if (valid_clause_idxs and len(valid_clause_idxs) >= 2
-                    and sample.edge_map
-                    and edge_logits is not None and len(edge_logits) > 0):
-                if all_pairs:
-                    pairs = [
-                        (valid_clause_idxs[i], valid_clause_idxs[j])
-                        for i in range(len(valid_clause_idxs))
-                        for j in range(i + 1, len(valid_clause_idxs))
-                    ]
-                else:
-                    pairs = [
-                        (valid_clause_idxs[k], valid_clause_idxs[k + 1])
-                        for k in range(len(valid_clause_idxs) - 1)
-                    ]
-                gold_edge_full = np.array(
-                    [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
-                )
-                valid_edge_mask = gold_edge_full >= 0
-                if valid_edge_mask.any():
-                    valid_edge_idxs = np.where(valid_edge_mask)[0]
-                    gold_edge = gold_edge_full[valid_edge_idxs]
-                    edge_logits_arg = edge_logits[valid_edge_idxs]
-                    _val_edge_sw = (
-                        np.array([sample.edge_conf_map.get(pairs[i], 1.0)
-                                  for i in valid_edge_idxs], dtype=np.float32)
-                        if sample.edge_conf_map else None
-                    )
-                else:
-                    _val_edge_sw = None
-
-            loss_val, _, _ = pipeline.loss(
-                node_logits, edge_logits_arg, gold_node, gold_edge,
-                edge_loss_weight=edge_loss_weight,
-                node_class_weights=node_class_weights,
-                edge_class_weights=edge_class_weights,
-                edge_logit_mask=_edge_logit_mask if edge_counts else None,
-                sample_weight=sample.sentence.weight,
-                edge_sample_weights=_val_edge_sw,  # S-5 cohérence val
-            )
-            total_loss += loss_val
-            n += 1
-
-            node_pred_idxs = np.argmax(node_logits, axis=1)
-            epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-            epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node)
-
-            sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
-            sent_node_gold = [NODE_TYPES[i] for i in gold_node]
-            epoch_sent_node_preds.append(sent_node_pred)
-            epoch_sent_node_gold.append(sent_node_gold)
-
-            if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
-                edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
-                epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
-                epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
-                epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
-            else:
-                epoch_sent_edge_preds.append([])
-                epoch_sent_edge_gold.append([])
-
-        if n_skipped > 0:
-            import warnings as _wvs
-            _wvs.warn(f"_run_eval_pass : {n_skipped} phrase(s) ignorée(s) sur {n + n_skipped} — "
-                      f"val_f1 calculée sur {n} phrase(s) seulement.",
-                      UserWarning, stacklevel=3)
-        return total_loss / max(n, 1)
 
     try:
         # B2 : ouverture du CSV ici (dans le try) pour garantir la fermeture
@@ -851,6 +1572,10 @@ def train_cmd(
             csv_fieldnames = [
                 "epoch", "loss", "node_accuracy", "node_macro_f1",
                 "edge_accuracy", "edge_macro_f1", "graph_exact_match",
+                "edge_cut_train", "sentence_accuracy",
+                "qual_polarity_accuracy", "qual_voice_accuracy",
+                "qual_modality_accuracy",
+                *_prov.keys(),
             ]
             if pipeline.decoder is not None:
                 csv_fieldnames.append("decoder_loss")  # L-3 : séparé de loss
@@ -861,6 +1586,7 @@ def train_cmd(
                 csv_fieldnames.extend([
                     "val_loss", "val_node_accuracy", "val_node_macro_f1",
                     "val_edge_accuracy", "val_edge_macro_f1", "val_graph_exact_match",
+                    "edge_cut_val",
                 ])
             csv_file = open(log_csv, "w", newline="", encoding="utf-8")  # noqa: SIM115  # handle référencé puis fermé dans le finally de train()
             # C1.5 : extrasaction='ignore' — un resume avec headers différents
@@ -881,20 +1607,33 @@ def train_cmd(
             epoch_node_gold: list[str] = []
             epoch_edge_preds: list[str] = []
             epoch_edge_gold: list[str] = []
+            epoch_sent_type_preds: list[str] = []  # P4a
+            epoch_sent_type_gold: list[str] = []  # P4a
+            epoch_intent_preds: list[str] = []  # P4b (noms, "(none)" si sans gold)
+            epoch_intent_gold: list[str] = []  # P4b
+            epoch_sent_intent_gold: list[tuple[str, str]] = []  # P4b co-occurrences
+            epoch_qual_preds: dict[str, list[str]] = {}  # P4 quals (noms par tête)
+            epoch_qual_gold: dict[str, list[str]] = {}  # P4 quals
             epoch_sent_node_preds: list[list[str]] = []
             epoch_sent_node_gold: list[list[str]] = []
             epoch_sent_edge_preds: list[list[str]] = []
             epoch_sent_edge_gold: list[list[str]] = []
             _asm_pred_idxs: list[int] = []  # G3 : connecteurs prédits (par arête)
             _asm_gold_idxs: list = []       # G3 : connecteurs gold (None exclus)
+            # P0-6 : compteur de samples sautés SANS warn (clauses vides, reps
+            # vides, logits vides) — une epoch à 0 sample ne doit pas être silencieuse.
+            _n_skip_silent = 0
+            epoch_n_cut = 0  # v5.1 : exemples train de classes coupées, hors loss
 
             for sample in loader:
                 if not sample.sentence.clauses:
+                    _n_skip_silent += 1
                     continue
 
                 try:
                     reps, valid_clause_idxs, connector_reps = reps_from_sentence(sample.sentence)
                     if not reps:
+                        _n_skip_silent += 1
                         continue
                     if scheduled_sampling and ss_final_epoch > 0:
                         _p_gold = max(0.0, 1.0 - (epoch - 1) / ss_final_epoch)
@@ -921,7 +1660,9 @@ def train_cmd(
                 node_logits = pipeline._cached_node_logits
                 edge_logits = pipeline._cached_edge_logits
                 if node_logits is None or len(node_logits) == 0:
+                    _n_skip_silent += 1
                     continue
+                _gold_quals = None  # P4 quals : défini dans la branche paires ci-dessous
 
                 if valid_clause_idxs:
                     gold_node = sample.gold_node_labels[
@@ -947,6 +1688,12 @@ def train_cmd(
                         [sample.edge_map.get(p, -1) for p in pairs], dtype=np.int64
                     )
                     valid_edge_mask = gold_edge_full >= 0
+                    if _edge_logit_mask is not None and valid_edge_mask.any():
+                        # v5.1 : voir passe éval — classes coupées hors loss.
+                        _active = np.asarray(_edge_logit_mask, dtype=bool)
+                        _keep = _active[np.clip(gold_edge_full, 0, len(_active) - 1)]
+                        epoch_n_cut += int((valid_edge_mask & ~_keep).sum())
+                        valid_edge_mask = valid_edge_mask & _keep
                     if valid_edge_mask.any():
                         valid_edge_idxs = np.where(valid_edge_mask)[0]
                         gold_edge = gold_edge_full[valid_edge_idxs]
@@ -959,14 +1706,27 @@ def train_cmd(
                         ]
                         _edge_sw = np.array(_edge_confs, dtype=np.float32) if any(
                             p in sample.edge_conf_map for p in pairs) else None
+                        # P4 quals — golds alignés sur les paires valides.
+                        _gold_quals = None
+                        if qual_heads and sample.qual_map:
+                            _gold_quals = {}
+                            for _qn in QUALIFIERS:
+                                _gq = np.array([
+                                    sample.qual_map.get(pairs[i], {}).get(_qn, 0)
+                                    for i in valid_edge_idxs
+                                ], dtype=np.int64)
+                                if len(_gq):
+                                    _gold_quals[_qn] = _gq
                     else:
                         gold_edge = None
                         edge_logits_arg = None
                         _edge_sw = None
+                        _gold_quals = None
                 else:
                     gold_edge = None
                     edge_logits_arg = None
                     _edge_sw = None
+                    _gold_quals = None
 
                 # D4 — remapping labels coarse si actif
                 if _node_remap is not None and gold_node is not None:
@@ -990,6 +1750,14 @@ def train_cmd(
                             [INTENT_TYPES.index(sample.sentence.intent)], dtype=np.int64
                         )
 
+                # P4a — label type de phrase (annoté > règle bootstrap, cf. loader).
+                _gold_sentence = None
+                if n_sentence_types > 0 and sample.sentence_type:
+                    with contextlib.suppress(ValueError):
+                        _gold_sentence = np.array(
+                            [SENTENCE_TYPES.index(sample.sentence_type)], dtype=np.int64
+                        )
+
                 loss_val, d_node, d_edge = pipeline.loss(
                     node_logits, edge_logits_arg, gold_node, gold_edge,
                     edge_loss_weight=edge_loss_weight,
@@ -1002,7 +1770,55 @@ def train_cmd(
                     edge_sample_weights=_edge_sw,  # S-5 : confidence par arête
                     gold_intent=_gold_intent,
                     intent_logit_mask=_intent_logit_mask,
+                    gold_sentence=_gold_sentence,
+                    sentence_logit_mask=_sentence_logit_mask,
+                    gold_quals=_gold_quals if qual_heads else None,
+                    qual_logit_masks=_qual_logit_masks,
                 )
+                # P4a : exactitude type de phrase (tête supervisée si gold).
+                # P4 quals : exactitudes par tête (dortoir sans annotations variées).
+                _ql_cached = pipeline._cached_qual_logits or {}
+                for _qn, _classes in QUALIFIERS.items():
+                    _gq_all = (_gold_quals or {}).get(_qn)
+                    _ql_all = _ql_cached.get(_qn)
+                    if _gq_all is None or _ql_all is None or len(_gq_all) == 0:
+                        continue
+                    _nq = min(len(_gq_all), len(_ql_all))
+                    for _gi, _li in zip(_gq_all[:_nq], _ql_all[:_nq], strict=False):
+                        _gi, _li = int(_gi), int(np.argmax(_li))
+                        if 0 <= _gi < len(_classes) and 0 <= _li < len(_classes):
+                            epoch_qual_preds.setdefault(_qn, []).append(_classes[_li])
+                            epoch_qual_gold.setdefault(_qn, []).append(_classes[_gi])
+                _sent_logits = pipeline._cached_sentence_logits
+                if (_gold_sentence is not None and _sent_logits is not None
+                        and len(_sent_logits) > 0):
+                    _sp = int(np.argmax(_sent_logits[0]))
+                    _sg = int(_gold_sentence[0])
+                    if 0 <= _sp < len(SENTENCE_TYPES) and 0 <= _sg < len(SENTENCE_TYPES):
+                        epoch_sent_type_preds.append(SENTENCE_TYPES[_sp])
+                        epoch_sent_type_gold.append(SENTENCE_TYPES[_sg])
+                # P4b : prédictions intent + co-occurrence gold (sentence × intent).
+                _intent_logits = pipeline._cached_intent_logits
+                if (_gold_intent is not None and _intent_logits is not None
+                        and len(_intent_logits) > 0):
+                    _ip = int(np.argmax(_intent_logits[0]))
+                    _ig = int(_gold_intent[0])
+                    if 0 <= _ip < len(INTENT_TYPES) and 0 <= _ig < len(INTENT_TYPES):
+                        epoch_intent_preds.append(INTENT_TYPES[_ip])
+                        epoch_intent_gold.append(INTENT_TYPES[_ig])
+                        if _gold_sentence is not None:
+                            _sg = int(_gold_sentence[0])
+                            if 0 <= _sg < len(SENTENCE_TYPES):
+                                epoch_sent_intent_gold.append(
+                                    (SENTENCE_TYPES[_sg], INTENT_TYPES[_ig]))
+                # P0-7 : loss non finie → STOP avec contexte (pas de training
+                # continué sur gradients corrompus ; loss() ne fait que warner).
+                if not np.isfinite(loss_val):
+                    raise ValueError(
+                        f"[epoch {epoch}] loss non finie ({loss_val!r}) sur phrase "
+                        f"{sample.sentence.id!r} — arrêt (overflow softmax, labels "
+                        "corrompus ?). Corrigez les données ou l'architecture."
+                    )
 
                 if not decoder_only:
                     _mgn = max_grad_norm if max_grad_norm > 0 else None
@@ -1058,20 +1874,20 @@ def train_cmd(
                     ]
                 else:
                     gold_node_aligned = sample.gold_node_labels
-                epoch_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-                epoch_node_gold.extend(NODE_TYPES[i] for i in gold_node_aligned)
+                epoch_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+                epoch_node_gold.extend(pipeline.node_types[i] for i in gold_node_aligned)
 
-                sent_node_pred = [NODE_TYPES[i] for i in node_pred_idxs]
-                sent_node_gold = [NODE_TYPES[i] for i in gold_node_aligned]
+                sent_node_pred = [pipeline.node_types[i] for i in node_pred_idxs]
+                sent_node_gold = [pipeline.node_types[i] for i in gold_node_aligned]
                 epoch_sent_node_preds.append(sent_node_pred)
                 epoch_sent_node_gold.append(sent_node_gold)
 
                 if gold_edge is not None and edge_logits_arg is not None and len(edge_logits_arg) > 0:
                     edge_pred_idxs = np.argmax(edge_logits_arg, axis=1)
-                    epoch_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                    epoch_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
-                    epoch_sent_edge_preds.append([RELATION_TYPES[i] for i in edge_pred_idxs])
-                    epoch_sent_edge_gold.append([RELATION_TYPES[i] for i in gold_edge])
+                    epoch_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+                    epoch_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
+                    epoch_sent_edge_preds.append([pipeline.relation_types[i] for i in edge_pred_idxs])
+                    epoch_sent_edge_gold.append([pipeline.relation_types[i] for i in gold_edge])
                 else:
                     epoch_sent_edge_preds.append([])
                     epoch_sent_edge_gold.append([])
@@ -1136,16 +1952,61 @@ def train_cmd(
                             epoch_asm_loss += _a_loss   # C2.4 : séparé de epoch_loss
                             n_asm_samples += 1          # C2.4 : n_samples reste par phrase
 
+            # P0-6 : skips silencieux visibles par epoch ; epoch vide = STOP
+            # (avant : avg_loss = 0.0 enregistré sans aucun signal).
+            if _n_skip_silent:
+                warnings.warn(
+                    f"[epoch {epoch}] {_n_skip_silent} sample(s) ignoré(s) sans signal "
+                    "(clauses vides, reps vides ou logits vides).",
+                    UserWarning, stacklevel=2,
+                )
+            if n_samples == 0:
+                raise ValueError(
+                    f"[epoch {epoch}] 0 sample entraîné ({_n_skip_silent} ignoré(s)) — "
+                    "arrêt : données vides ou 100% filtrées. Vérifiez --data-dir."
+                )
             avg_loss = epoch_loss / max(n_samples, 1)
+            # Métriques train HONNÊTES : passe eval à modèle figé sur le train
+            # (sans oracle, comme le val). L'accumulation online (dropout actif,
+            # poids mouvants) est conservée pour sentence/qual uniquement.
+            _set_training_mode(pipeline, False)
+            _fz_node_preds, _fz_node_gold = [], []
+            _fz_edge_preds, _fz_edge_gold = [], []
+            _fz_sent_node_preds, _fz_sent_node_gold = [], []
+            _fz_sent_edge_preds, _fz_sent_edge_gold = [], []
+            _run_eval_pass(
+                pipeline, loader,
+                _fz_node_preds, _fz_node_gold,
+                _fz_edge_preds, _fz_edge_gold,
+                _fz_sent_node_preds, _fz_sent_node_gold,
+                _fz_sent_edge_preds, _fz_sent_edge_gold,
+                _edge_logit_mask, all_pairs, edge_class_weights,
+                edge_counts, edge_loss_weight, node_class_weights,
+            )
+            _set_training_mode(pipeline, True)
             metrics = {
-                "node_accuracy": node_accuracy(epoch_node_preds, epoch_node_gold),
-                "node_macro_f1": node_macro_f1(epoch_node_preds, epoch_node_gold),
-                "edge_accuracy": edge_accuracy(epoch_edge_preds, epoch_edge_gold),
-                "edge_macro_f1": edge_macro_f1(epoch_edge_preds, epoch_edge_gold),
+                "node_accuracy": node_accuracy(_fz_node_preds, _fz_node_gold),
+                "node_macro_f1": node_macro_f1(_fz_node_preds, _fz_node_gold),
+                "edge_accuracy": edge_accuracy(_fz_edge_preds, _fz_edge_gold),
+                "edge_macro_f1": edge_macro_f1(_fz_edge_preds, _fz_edge_gold),
                 "graph_exact_match": _gem(
-                    epoch_sent_node_preds, epoch_sent_node_gold,
-                    epoch_sent_edge_preds, epoch_sent_edge_gold,
+                    _fz_sent_node_preds, _fz_sent_node_gold,
+                    _fz_sent_edge_preds, _fz_sent_edge_gold,
                 ),
+                "edge_cut_train": epoch_n_cut,  # v5.1 : hors loss, comptés pas punis
+                # P4a : exactitude type de phrase (vide si tête inactive).
+                "sentence_accuracy": (
+                    sum(p == g for p, g in zip(epoch_sent_type_preds,
+                                               epoch_sent_type_gold, strict=False))
+                    / max(len(epoch_sent_type_gold), 1)
+                    if epoch_sent_type_gold else 0.0),
+                # P4 quals : une exactitude par tête (0.0 si inactive/sans gold).
+                **{f"qual_{_qn}_accuracy": (
+                    sum(p == g for p, g in zip(epoch_qual_preds.get(_qn, []),
+                                               epoch_qual_gold.get(_qn, []), strict=False))
+                    / max(len(epoch_qual_gold.get(_qn, [])), 1)
+                    if epoch_qual_gold.get(_qn) else 0.0)
+                   for _qn in QUALIFIERS},
             }
             if pipeline.decoder is not None:
                 metrics["decoder_loss"] = (  # L-3 : séparé, non mélangé dans loss
@@ -1168,13 +2029,16 @@ def train_cmd(
                 val_edge_preds, val_edge_gold = [], []
                 val_sent_node_preds, val_sent_node_gold = [], []
                 val_sent_edge_preds, val_sent_edge_gold = [], []
-                val_loss = _run_eval_pass(
+                val_loss, _val_n_cut = _run_eval_pass(
                     pipeline, val_loader,
                     val_node_preds, val_node_gold,
                     val_edge_preds, val_edge_gold,
                     val_sent_node_preds, val_sent_node_gold,
                     val_sent_edge_preds, val_sent_edge_gold,
+                    _edge_logit_mask, all_pairs, edge_class_weights,
+                    edge_counts, edge_loss_weight, node_class_weights,
                 )
+                metrics["edge_cut_val"] = _val_n_cut
                 _set_training_mode(pipeline, True)
                 metrics["val_loss"] = val_loss
                 metrics["val_node_accuracy"] = node_accuracy(val_node_preds, val_node_gold)
@@ -1190,7 +2054,7 @@ def train_cmd(
             history.append({"epoch": epoch, "loss": avg_loss, **metrics})
 
             if csv_writer:
-                csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics})
+                csv_writer.writerow({"epoch": epoch, "loss": avg_loss, **metrics, **_prov})
 
             if epoch % max(1, epochs // 10) == 0 or epoch == 1:
                 msg = (
@@ -1206,89 +2070,37 @@ def train_cmd(
                     )
                 click.echo(msg)
 
-            # Sauver le meilleur checkpoint val_edge_macro_f1 (indépendant de l'early stopping)
+            # Protocole gelé : best UNIQUE = val_edge_macro_f1 — sauvegarde
+            # du meilleur ET compteur patience sur le même critère (pas de
+            # double standard node/edge). Actif même avec patience=0.
             if val_loader is not None:
                 _cur_edge_f1 = metrics.get("val_edge_macro_f1", 0.0)
                 if _cur_edge_f1 > best_val_edge_f1:
                     best_val_edge_f1 = _cur_edge_f1
                     best_edge_epoch = epoch
                     save_checkpoint(pipeline, Path(best_edge_checkpoint_path))
-
-            # Early stopping (surveille val_node_macro_f1 pour la patience)
-            if patience > 0 and val_loader is not None:
-                val_f1 = metrics.get("val_node_macro_f1", 0.0)
-                if val_f1 > best_val_f1:
-                    best_val_f1 = val_f1
-                    best_epoch_num = epoch
                     _patience_counter = 0
-                    save_checkpoint(pipeline, Path(best_checkpoint_path))
-                else:
+                elif patience > 0:
                     _patience_counter += 1
                     if _patience_counter >= patience:
                         click.echo(
                             f"Early stopping : {patience} epochs sans amélioration "
-                            f"(best val_node_macro_f1={best_val_f1:.4f} à epoch {best_epoch_num})"
+                            f"(best val_edge_macro_f1={best_val_edge_f1:.4f} à epoch {best_edge_epoch})"
                         )
                         break
     finally:
         if csv_file:
             csv_file.close()
 
-    # Early stopping : restaurer le meilleur checkpoint
-    if patience > 0 and val_loader is not None:
-        import shutil
-        if best_epoch_num > 0:
-            _tmp = Path(str(output) + ".tmp.restore")
-            shutil.copy2(best_checkpoint_path, str(_tmp))
-            Path(_tmp).replace(output)  # atomique POSIX
-            Path(best_checkpoint_path).unlink(missing_ok=True)
-            click.echo(f"Best checkpoint restauré (epoch {best_epoch_num}, val_f1={best_val_f1:.4f})")
-        else:
-            save_checkpoint(pipeline, output)
-            click.echo("Aucune amélioration val — checkpoint final sauvegardé")
-    else:
-        save_checkpoint(pipeline, output)
-
-    # T5-min : optimiser la température sur le val set si disponible (C5 fix)
-    if val_loader is not None:
-        try:
-            from ..evaluation.calibration import optimize_temperature
-            _val_logits, _val_labels = [], []
-            for _vs in val_loader:
-                try:
-                    pipeline.forward(_vs.sentence.text)
-                    if pipeline._cached_edge_logits is not None and len(_vs.edge_map) > 0:
-                        _val_logits.append(pipeline._cached_edge_logits)
-                        _val_labels.extend(list(_vs.edge_map.values()))
-                except Exception:  # noqa: S110, BLE001
-                    pass
-            if _val_logits and len(_val_labels) >= 10:
-                import numpy as _np
-                _all_logits = _np.vstack(_val_logits)[:len(_val_labels)]
-                _all_labels = _np.array(_val_labels[:len(_all_logits)], dtype=_np.int64)
-                best_t, best_ece = optimize_temperature(_all_logits, _all_labels)
-                pipeline.temperature = best_t
-                click.echo(f"T5-min : température optimisée = {best_t:.3f} (ECE={best_ece:.4f})")
-                save_checkpoint(pipeline, output)
-        except Exception as _t5_err:  # noqa: BLE001
-            click.echo(f"T5-min : échec ({_t5_err}) — température inchangée")
-
-    click.echo(f"Checkpoint sauvegardé : {output}")
-    if val_loader is not None and best_edge_epoch > 0:
-        click.echo(
-            f"Best val_edge_macro_f1={best_val_edge_f1:.4f} (epoch {best_edge_epoch}) "
-            f"→ {best_edge_checkpoint_path}"
-        )
-
-    if log_csv:
-        json_path = Path(log_csv).with_suffix(".json")
-        recorder.to_json(json_path)
-        click.echo(f"Courbe d'entraînement : {json_path}")
-
-    if len(history) >= 10:
-        first = sum(r["loss"] for r in history[:5]) / 5
-        last = sum(r["loss"] for r in history[-5:]) / 5
-        if last < first:
-            click.echo(f"Loss décroissante : {first:.4f} → {last:.4f}  ✓")
-        else:
-            click.echo(f"Avertissement : loss non décroissante ({first:.4f} → {last:.4f})")
+    _train_finalize(
+        csv_file=csv_file, val_loader=val_loader,
+        best_edge_epoch=best_edge_epoch,
+        best_edge_checkpoint_path=best_edge_checkpoint_path,
+        best_val_edge_f1=best_val_edge_f1, output=output,
+        pipeline=pipeline, all_pairs=all_pairs,
+        epoch_edge_gold=epoch_edge_gold, epoch_edge_preds=epoch_edge_preds,
+        val_edge_gold=val_edge_gold, val_edge_preds=val_edge_preds,
+        epoch_sent_type_gold=epoch_sent_type_gold,
+        epoch_sent_type_preds=epoch_sent_type_preds,
+        epoch_sent_intent_gold=epoch_sent_intent_gold,
+        log_csv=log_csv, recorder=recorder, history=history)

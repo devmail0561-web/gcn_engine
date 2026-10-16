@@ -4,6 +4,9 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+/// Verbalizer de secours déterministe (Ph8) : voir `fallback`.
+pub mod fallback;
+
 use gcn_ir::CausalIR;
 
 #[derive(Debug, thiserror::Error)]
@@ -91,6 +94,7 @@ mod tests {
             cycles: vec![],
             unresolved: vec![],
             metadata: IrMetadata::default(),
+            intent: None,
         };
         let original_path = std::env::var("PATH").unwrap_or_default();
         // SAFETY : test mono-thread, aucun autre thread ne lit PATH simultanément.

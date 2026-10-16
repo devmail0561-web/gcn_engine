@@ -1,0 +1,76 @@
+{
+  "type": "causes",
+  "target": "Gamma",
+  "links": [
+    {
+      "from": "Alpha",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    },
+    {
+      "from": "Beta",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    }
+  ],
+  "matched_targets": [
+    "Gamma"
+  ],
+  "blocked_by": [
+    {
+      "from": "Alpha",
+      "to": "Beta",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": true,
+      "motif": "negated",
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    }
+  ],
+  "match_scores": [
+    [
+      "Gamma",
+      0
+    ]
+  ],
+  "fuzzy": false,
+  "total": 2,
+  "caveats": [
+    {
+      "node": "Alpha",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Gamma",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Beta",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    }
+  ]
+}

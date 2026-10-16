@@ -1,0 +1,777 @@
+{
+ "pw-888": {
+  "verdict": "non",
+  "motif": "manière (sans altération)",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-911": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1436": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-9034": {
+  "verdict": "non",
+  "motif": "adjectif (nécessaire), pas de dépendance",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-547": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-15006": {
+  "verdict": "non",
+  "motif": "négation (n'empêche en rien)",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1414": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1372": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-859": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-4915": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-985": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1333": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1110": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1384": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-808": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-2162": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-292": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-260": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-9257": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-16634": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1135": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-6825": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-647": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1111": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1243": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-8298": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1075": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1432": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-11843": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-907": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-6819": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-950": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-7974": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1076": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-23437": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1027": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-914": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-790": {
+  "verdict": "non",
+  "motif": "disjonction, rien d'asserté",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-5241": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1107": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-846": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-968": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1359": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-4165": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-222": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-7757": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-809": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-754": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-450": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-11570": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-5572": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-3129": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1976": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1227": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-26252": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1283": {
+  "verdict": "non",
+  "motif": "négation (aucune loi n'empêche)",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-24919": {
+  "verdict": "non",
+  "motif": "réfléchi (se déclenche)",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-360": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1201": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-385": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-11135": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-139": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-2880": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-561": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-767": {
+  "verdict": "non",
+  "motif": "fragment + marqueur point",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1021": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-913": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1315": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-23431": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-429": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-6822": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-596": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-951": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-235": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-10738": {
+  "verdict": "non",
+  "motif": "pas d'effet empêché asserté",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1149": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-711": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1105": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-91": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1055": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-6106": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-904": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1096": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1213": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-580": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-97": {
+  "verdict": "non",
+  "motif": "sans avenir, pas de prévention",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-347": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-90": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-699": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-146": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-26800": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-662": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-8682": {
+  "verdict": "non",
+  "motif": "seul solitaire ≠ restrictif",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1162": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-811": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1212": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-489": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-11369": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-5659": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-12422": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-6782": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-10263": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-29": {
+  "verdict": "non",
+  "motif": "prévient=avertir",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-765": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-525": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-757": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-12311": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1029": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1159": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1302": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1285": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-447": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1012": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-15421": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-12411": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-8032": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1328": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1324": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-575": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1018": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1231": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-25465": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-848": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-677": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1392": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-64": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1048": {
+  "verdict": "non",
+  "motif": "sans empêcher explicite",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-120": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-25610": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-9563": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1126": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-167": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-1897": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-12583": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-99": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-990": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-621": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "pw-1": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "g0-5539": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "g0-15422": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "g0-13457": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-616": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-422": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-758": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-634": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-735": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-1325": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "pw-947": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "g0-2335": {
+  "verdict": "non",
+  "motif": "span dégénéré (Sauf seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "g0-8166": {
+  "verdict": "non",
+  "motif": "span dégénéré (Sauf seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "g0-13148": {
+  "verdict": "non",
+  "motif": "span dégénéré (Seuls seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "pw-1354": {
+  "verdict": "non",
+  "motif": "réflexif, pas d'effet sur tiers",
+  "validateur": "machine-PV1-R56"
+ },
+ "pw-124": {
+  "verdict": "non",
+  "motif": "hedge épistémique + span dégénéré",
+  "validateur": "machine-PV1-R56"
+ },
+ "pw-453": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1-R56"
+ },
+ "pw-716": {
+  "verdict": "non",
+  "motif": "span dégénéré (Seuls seul)",
+  "validateur": "machine-PV1-R56"
+ }
+}

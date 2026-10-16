@@ -6,6 +6,7 @@ Métriques d'évaluation CGNP — NumPy pur, framework-agnostique.
 Le data scientist appelle ces fonctions après chaque epoch pour
 mesurer la qualité des prédictions. Aucune dépendance à PyTorch/sklearn.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -13,12 +14,13 @@ import warnings
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
+from .recorder import _is_nan
 
 # ---------------------------------------------------------------------------
 # Types de base
 # ---------------------------------------------------------------------------
 
-Predictions = list[str]   # valeurs snake_case ex: ["action", "processus"]
+Predictions = list[str]  # valeurs snake_case ex: ["action", "processus"]
 GoldLabels = list[str]
 
 
@@ -26,10 +28,11 @@ GoldLabels = list[str]
 # Métriques nœuds
 # ---------------------------------------------------------------------------
 
+
 def node_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des NodeType."""
     if not gold:
-        return 0.0
+        return float("nan")  # vide ≠ 0 : 0.0 masquerait "aucun exemple"
     if len(pred) != len(gold):
         raise ValueError(
             f"node_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
@@ -40,32 +43,38 @@ def node_accuracy(pred: Predictions, gold: GoldLabels) -> float:
 
 
 def node_f1_per_class(
-    pred: Predictions, gold: GoldLabels
+    pred: Predictions, gold: GoldLabels, class_subset: list[str] | None = None
 ) -> dict[str, dict[str, float]]:
     """
     F1, précision, rappel par NodeType.
 
+    class_subset : restreindre aux types listés (miroir de l'API arêtes —
+    ex. COARSE_NODE_TYPES pour l'espace coarse D4).
+
     Retourne :
       {"action": {"precision": 0.9, "recall": 0.8, "f1": 0.85, "support": 12}, …}
     """
-    return _f1_per_class(pred, gold, NODE_TYPES)
+    return _f1_per_class(pred, gold, class_subset if class_subset is not None else NODE_TYPES)
 
 
-def node_macro_f1(pred: Predictions, gold: GoldLabels) -> float:
+def node_macro_f1(
+    pred: Predictions, gold: GoldLabels, class_subset: list[str] | None = None
+) -> float:
     """F1 macro-moyenné sur tous les NodeType présents dans gold."""
-    per_class = node_f1_per_class(pred, gold)
+    per_class = node_f1_per_class(pred, gold, class_subset=class_subset)
     scores = [v["f1"] for v in per_class.values() if v["support"] > 0]
-    return float(np.mean(scores)) if scores else 0.0
+    return float(np.mean(scores)) if scores else float("nan")
 
 
 # ---------------------------------------------------------------------------
 # Métriques arêtes
 # ---------------------------------------------------------------------------
 
+
 def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
     """Exactitude globale sur la prédiction des RelationType."""
     if not gold:
-        return 0.0
+        return float("nan")  # vide ≠ 0 : 0.0 masquerait "aucun exemple"
     if len(pred) != len(gold):
         raise ValueError(
             f"edge_accuracy: pred ({len(pred)} éléments) et gold ({len(gold)} éléments) "
@@ -76,7 +85,8 @@ def edge_accuracy(pred: Predictions, gold: GoldLabels) -> float:
 
 
 def edge_f1_per_class(
-    pred: Predictions, gold: GoldLabels,
+    pred: Predictions,
+    gold: GoldLabels,
     class_subset: list[str] | None = None,
 ) -> dict[str, dict[str, float]]:
     """F1, précision, rappel par RelationType.
@@ -88,7 +98,8 @@ def edge_f1_per_class(
 
 
 def edge_macro_f1(
-    pred: Predictions, gold: GoldLabels,
+    pred: Predictions,
+    gold: GoldLabels,
     class_subset: list[str] | None = None,
 ) -> float:
     """Macro-F1 sur les arêtes.
@@ -97,12 +108,13 @@ def edge_macro_f1(
     """
     per_class = edge_f1_per_class(pred, gold, class_subset=class_subset)
     scores = [v["f1"] for v in per_class.values() if v["support"] > 0]
-    return float(np.mean(scores)) if scores else 0.0
+    return float(np.mean(scores)) if scores else float("nan")
 
 
 # ---------------------------------------------------------------------------
 # Similarité de graphe causal
 # ---------------------------------------------------------------------------
+
 
 def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     """
@@ -123,13 +135,11 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     gold_edges = gold_ir.get("edges", [])
 
     # Node count ratio (capped at 1.0)
-    node_count_ratio = (
-        min(len(pred_nodes), len(gold_nodes)) / max(len(gold_nodes), 1)
-    )
+    node_count_ratio = min(len(pred_nodes), len(gold_nodes)) / max(len(gold_nodes), 1)
 
     # Node type accuracy : NaN quand tailles différentes (L-1 — alignement positionnel invalide)
     if len(pred_nodes) != len(gold_nodes):
-        node_type_acc = float('nan')
+        node_type_acc = float("nan")
     elif len(pred_nodes) == 0:
         node_type_acc = 1.0
     else:
@@ -139,9 +149,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
         ) / len(pred_nodes)
 
     # Edge count ratio
-    edge_count_ratio = (
-        min(len(pred_edges), len(gold_edges)) / max(len(gold_edges), 1)
-    )
+    edge_count_ratio = min(len(pred_edges), len(gold_edges)) / max(len(gold_edges), 1)
 
     def _edge_attrs(e) -> dict:
         if isinstance(e, dict):
@@ -152,20 +160,22 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
 
     # Edge relation accuracy : NaN quand tailles différentes (L-1)
     if len(pred_edges) != len(gold_edges):
-        edge_rel_acc = float('nan')
+        edge_rel_acc = float("nan")
     elif len(pred_edges) == 0:
         edge_rel_acc = 1.0
     else:
         edge_rel_acc = sum(
-            _edge_attrs(pred_edges[i]).get("relation")
-            == _edge_attrs(gold_edges[i]).get("relation")
+            _edge_attrs(pred_edges[i]).get("relation") == _edge_attrs(gold_edges[i]).get("relation")
             for i in range(len(pred_edges))
         ) / len(pred_edges)
 
     # overall : ignore NaN (L-1 — seules les valeurs définies contribuent)
-    defined = [v for v in [node_count_ratio, node_type_acc, edge_count_ratio, edge_rel_acc]
-               if not (isinstance(v, float) and v != v)]  # noqa: PLR0124  # test NaN idiomatique : v != v ↔ isnan
-    overall = float(np.mean(defined)) if defined else float('nan')
+    defined = [
+        v
+        for v in [node_count_ratio, node_type_acc, edge_count_ratio, edge_rel_acc]
+        if not (isinstance(v, float) and _is_nan(v))
+    ]
+    overall = float(np.mean(defined)) if defined else float("nan")
 
     # L-2 : edge_relation_f1 — macro F1 sur les types de relations (fiable même si |pred|≠|gold|)
     pred_rels = [_edge_attrs(e).get("relation", "") for e in pred_edges]
@@ -173,18 +183,21 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
     all_rel_types = sorted(set(pred_rels) | set(gold_rels))
     if all_rel_types:
         from collections import Counter as _C
+
         pc, gc = _C(pred_rels), _C(gold_rels)
         f1s = []
         for r in all_rel_types:
             tp = min(pc[r], gc[r])
             prec = tp / pc[r] if pc[r] else 0.0
-            rec  = tp / gc[r] if gc[r] else 0.0
+            rec = tp / gc[r] if gc[r] else 0.0
             f1s.append(2 * prec * rec / (prec + rec) if (prec + rec) else 0.0)
         edge_rel_f1 = float(np.mean(f1s))
     else:
         edge_rel_f1 = 1.0  # deux graphes sans arêtes sont identiques
 
-    def _r(v): return round(v, 4) if v == v else float('nan')  # noqa: PLR0124  # test NaN idiomatique : v == v ↔ not isnan
+    def _r(v):
+        return round(v, 4) if not _is_nan(v) else float("nan")
+
     return {
         "node_count_ratio": _r(node_count_ratio),
         "node_type_accuracy": _r(node_type_acc),
@@ -198,6 +211,7 @@ def causal_graph_similarity(pred_ir: dict, gold_ir: dict) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Métriques décodeur (CausalIR → texte)
 # ---------------------------------------------------------------------------
+
 
 def decoder_causal_fidelity(decoded_ir: dict, gold_ir: dict) -> dict[str, float]:
     """
@@ -298,12 +312,13 @@ def generation_bleu(hypothesis: str, references: list[str], max_n: int = 4) -> f
 
 
 def _ngrams(tokens: list[str], n: int) -> list[tuple]:
-    return [tuple(tokens[i: i + n]) for i in range(len(tokens) - n + 1)]
+    return [tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
 
 
 # ---------------------------------------------------------------------------
 # Métrique au niveau phrase : graph_exact_match
 # ---------------------------------------------------------------------------
+
 
 def graph_exact_match(
     sentences_node_pred: list[list[str]],
@@ -320,12 +335,18 @@ def graph_exact_match(
     3. Le nombre d'arêtes prédites == le nombre d'arêtes gold
     4. Chaque relation d'arête est correcte (alignée par paire)
 
-    Retourne float [0.0, 1.0]. Retourne 0.0 si la liste est vide.
+    Retourne float [0.0, 1.0]. Retourne NaN si la liste est vide.
     """
     if not sentences_node_gold:
-        return 0.0
-    if not (len(sentences_node_pred) == len(sentences_node_gold)
-            == len(sentences_edge_pred) == len(sentences_edge_gold)):
+        return float("nan")
+    if not sentences_node_gold:
+        return float("nan")
+    if not (
+        len(sentences_node_pred)
+        == len(sentences_node_gold)
+        == len(sentences_edge_pred)
+        == len(sentences_edge_gold)
+    ):
         raise ValueError(
             "graph_exact_match : les 4 listes doivent avoir la même longueur. "
             f"Reçu : node_pred={len(sentences_node_pred)}, "
@@ -335,9 +356,13 @@ def graph_exact_match(
         )
     n_exact = sum(
         node_pred == node_gold and edge_pred == edge_gold
-        for node_pred, node_gold, edge_pred, edge_gold
-        in zip(sentences_node_pred, sentences_node_gold,
-               sentences_edge_pred, sentences_edge_gold, strict=False)
+        for node_pred, node_gold, edge_pred, edge_gold in zip(
+            sentences_node_pred,
+            sentences_node_gold,
+            sentences_edge_pred,
+            sentences_edge_gold,
+            strict=False,
+        )
     )
     return n_exact / len(sentences_node_gold)
 
@@ -345,6 +370,7 @@ def graph_exact_match(
 # ---------------------------------------------------------------------------
 # Diagnostics : confusion matrix, per-class report
 # ---------------------------------------------------------------------------
+
 
 def confusion_matrix(pred: list[str], gold: list[str], classes: list[str]) -> np.ndarray:
     """
@@ -376,6 +402,7 @@ def per_class_report(pred: list[str], gold: list[str], classes: list[str]) -> st
 # Helpers internes
 # ---------------------------------------------------------------------------
 
+
 def _f1_per_class(
     pred: Predictions, gold: GoldLabels, classes: list[str]
 ) -> dict[str, dict[str, float]]:
@@ -388,8 +415,7 @@ def _f1_per_class(
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = (2 * precision * recall / (precision + recall)
-              if (precision + recall) > 0 else 0.0)
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
         result[cls] = {
             "precision": round(precision, 4),
@@ -400,9 +426,7 @@ def _f1_per_class(
     return result
 
 
-def connector_precision_at_1(
-    pred_idxs: list[int], gold_idxs: list[int | None]
-) -> float:
+def connector_precision_at_1(pred_idxs: list[int], gold_idxs: list[int | None]) -> float:
     """G3 : précision@1 du connecteur — le bon connecteur est-il choisi par arête ?
 
     Les gold None (aucun match vocab) sont exclus du calcul.

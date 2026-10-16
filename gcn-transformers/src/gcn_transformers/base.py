@@ -18,6 +18,48 @@ import torch
 import torch.nn as nn
 
 
+def _bump_analyze_epoch() -> None:
+    """Invalide le cache analyze M1a après mutation des poids.
+
+    gcn-python >= 4.0 : bump réel. Ancien gcn-python (< 4.0, sans
+    param_epoch) : no-op documenté — l'invalidation M1a n'existe pas
+    dans ce couplage (exigez gcn-python>=4.0.0, cf. pyproject).
+    """
+    try:
+        from gcn_python.param_epoch import bump as _bump
+    except ImportError:
+        return
+    _bump()
+
+
+def load_hf_model(model_name: str, revision: str | None = None):
+    """Charge (modèle, tokenizer) HuggingFace avec garde supply-chain.
+
+    - `revision` pinnée si fournie (reproductibilité, pas de ref flottante) ;
+    - `trust_remote_code=False` explicite (jamais de code distant exécuté) ;
+    - échec réseau/cache → RuntimeError clair (hors-ligne ?) au lieu du
+      traceback OSError brut.
+    """
+    try:
+        from transformers import AutoModel, AutoTokenizer
+    except ImportError as e:
+        raise ImportError(
+            "Le package 'transformers' est requis. "
+            "Installation : pip install transformers>=4.30.0"
+        ) from e
+    try:
+        model = AutoModel.from_pretrained(
+            model_name, revision=revision, trust_remote_code=False)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name, revision=revision, trust_remote_code=False)
+    except OSError as e:
+        raise RuntimeError(
+            f"Modèle '{model_name}' inaccessible (hors-ligne et absent du cache ?). "
+            f"Passez revision=<sha> pinné et pré-chargez le modèle. Cause : {e}"
+        ) from e
+    return model, tokenizer
+
+
 class TransformerEncoderBase:
     """
     Classe de base abstraite pour encodeurs Transformer → CausalEncoder Protocol.
@@ -60,6 +102,13 @@ class TransformerEncoderBase:
 
         Raises:
             RuntimeError: Si self.model n'existe pas (sous-classe doit l'instancier avant)
+            ValueError: Si model.config.hidden_size absent (structure HF attendue)
+
+        Reproductibilité : l'inférence (eval) est déterministe ; l'entraînement
+        ne l'est pas entre runs sauf `torch.manual_seed()` fixé par l'appelant
+        (threading + cuDNN restent des sources de variance — acte, pas de seed
+        global imposé ici). Mémoire : ~1.1 Go (poids fp32 280M) + états AdamW
+        (~2×) — prévoir ~3-4 Go ; aucun garde OOM, échec bruyant PyTorch.
         """
         self.d_clause = d_clause
         self.d_edge = d_edge
@@ -516,6 +565,7 @@ class TransformerEncoderBase:
                 f"({idx} chargés sur {len(params_list)})",
                 UserWarning
             )
+        _bump_analyze_epoch()  # M1a : poids restaurés → cache analyze invalide
 
     def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
         """
@@ -559,6 +609,10 @@ class TransformerEncoderBase:
         self.optimizer.step()
         # NE PAS zero_grad() ici : update_edge() est appelé juste après
         self._needs_zero_grad = True
+        # M1a (supporté moteur) : toute mutation invalide le cache analyze —
+        # sans bump, CGNPipeline._model_tag est réutilisé et analyze() sert
+        # des CIR pré-entraînement (staleness prouvée par sonde).
+        _bump_analyze_epoch()
 
     def update_edge(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
         """
@@ -579,6 +633,8 @@ class TransformerEncoderBase:
         if self._needs_zero_grad:
             self.optimizer.zero_grad()
             self._needs_zero_grad = False
+        # Pas de bump M1a ici : aucun poids muté (step déjà fait en
+        # update_node, zero_grad ne change pas les poids).
 
     def _warn_grad_contract(self, detail: str) -> None:
         """Émet UNE SEULE FOIS un warning d'incohérence de contrat de gradients."""
@@ -763,6 +819,7 @@ class TransformerEncoderBase:
             # Cas normal : update() utilisé seul (rétro-compatible)
             self.optimizer.step()
             self.optimizer.zero_grad()
+            _bump_analyze_epoch()  # M1a : step() mute → cache analyze invalide
 
     def snapshot_node_cache(self) -> dict:
         """

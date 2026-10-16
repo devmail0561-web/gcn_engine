@@ -50,12 +50,12 @@ from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 
 vocab = FeatureVocabulary()
-d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
-d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=7, d_emb=0,
-                                   subject_object_emb=False)  # 365
+d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 106
+d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=8, d_emb=0,
+                                   subject_object_emb=False)  # 475
 
 encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
-graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)
+graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=19)
 pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 ```
 
@@ -67,13 +67,13 @@ from gcn_python.layer3.reference import RGCNLayer
 from gcn_python.pipeline.cgnp import CGNPipeline
 
 vocab = FeatureVocabulary()
-d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 79
-d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=7, d_emb=0,
-                                   subject_object_emb=False)  # 365
+d_eff = vocab.d_clause_effective(d_emb=0, subject_object_emb=False)  # 106
+d_edge = vocab.d_edge_closed_loop(d_eff, n_node_types=8, d_emb=0,
+                                   subject_object_emb=False)  # 475
 
 encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge)  # ← Transformers
-# ATTENTION : d_out DOIT rester == d_eff (79), PAS 768 !
-graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)  # ← INCHANGÉ
+# ATTENTION : d_out DOIT rester == d_eff (106), PAS 768 !
+graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=19)  # ← INCHANGÉ
 pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
 # Le reste (forward, backward, checkpoint) fonctionne sans modification
@@ -98,12 +98,12 @@ from gcn_python.data.loader import reps_from_sentence
 from gcn_python.layer1.embedding import WordEmbedding
 vocab = FeatureVocabulary()
 d_emb = 128  # 0 = désactivé (déconseillé : aucun signal lexical)
-d_eff = vocab.d_clause_effective(d_emb, False)  # 79 + 128 = 207
-d_edge = vocab.d_edge_closed_loop(d_eff, 7, d_emb, False)
+d_eff = vocab.d_clause_effective(d_emb, False)  # 106 + 128 = 234
+d_edge = vocab.d_edge_closed_loop(d_eff, 8, d_emb, False)
 
 # Pipeline avec XLM-RoBERTa
 encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge, learning_rate=1e-5)
-graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)
+graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=19)
 word_embedding = WordEmbedding(d_emb=d_emb) if d_emb > 0 else None
 pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
                        word_embedding=word_embedding)
@@ -223,13 +223,13 @@ encoder.load_parameters(encoder_params)
 
 ```python
 encoder = XLMRobertaEncoder(
-    d_clause=79,              # Dimension features UD (vocab.d_clause_effective)
-    d_edge=365,               # Dimension edge vectors (vocab.d_edge_closed_loop)
+    d_clause=106,             # Dimension features UD (vocab.d_clause_effective, v4.0)
+    d_edge=475,               # Dimension edge vectors (vocab.d_edge_closed_loop, v4.0)
     freeze_layers=10,         # Geler 10/12 couches Transformer (économie calcul)
     learning_rate=1e-5,       # Learning rate AdamW (recommandé pour Transformers)
     device=None,              # "cuda", "cpu", ou None (auto-détection)
-    n_node_types=7,           # Nombre de types de nœuds (NODE_TYPES)
-    n_relation_types=11,      # Nombre de relations causales (RELATION_TYPES)
+    n_node_types=8,           # Nombre de types de nœuds D5 (NODE_TYPES v4.0)
+    n_relation_types=19,      # Nombre de relations causales (RELATION_TYPES v4.0)
 )
 ```
 
@@ -237,11 +237,11 @@ encoder = XLMRobertaEncoder(
 
 ## ⚠️ Limitation v1.0 : Option A (Projection UD)
 
-**Version actuelle (1.0.0)** : L'encodeur projette les **features de clause** vers hidden_size
-(768-dim), mais **ne tokenise PAS le texte brut**. Depuis la remédiation, les vecteurs de
-clause incluent les **embeddings lexicaux apprenables** (79-dim syntaxe + 128-dim lexical = 207-dim
-par défaut, comme `gcn-train`) — le déficit lexical total est corrigé, mais il n'y a toujours
-pas d'embeddings **contextuels pré-entraînés** (pas de tokenization XLM-RoBERTa du texte).
+**Version actuelle (1.1.0)** : L'encodeur projette les **features de clause** vers hidden_size
+(768-dim), mais **ne tokenise PAS le texte brut**. Les vecteurs de clause incluent les
+**embeddings lexicaux apprenables** (106-dim syntaxe + 128-dim lexical = 234-dim
+par défaut, comme `gcn-train` v4.0) — le déficit lexical total est corrigé, mais il n'y a
+toujours pas d'embeddings **contextuels pré-entraînés** (pas de tokenization XLM-RoBERTa du texte).
 
 **Impact** :
 - Les poids pré-entraînés XLM-RoBERTa sur texte brut ne sont **pas utilisés** (gelés sur autre chose)

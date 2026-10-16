@@ -1,0 +1,82 @@
+{
+  "type": "path",
+  "from": "Alpha",
+  "to": "Beta",
+  "found": true,
+  "links": [
+    {
+      "from": "Alpha",
+      "to": "Beta",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    }
+  ],
+  "blocked_by": [],
+  "path_confidence": 0.9,
+  "ranked_paths": [
+    {
+      "rank": 1,
+      "path_confidence": 0.9,
+      "links": [
+        {
+          "from": "Alpha",
+          "to": "Beta",
+          "relation": "cause",
+          "confidence": 0.9,
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "path_confidence": 0.80999994,
+      "links": [
+        {
+          "from": "Alpha",
+          "to": "Xi",
+          "relation": "cause",
+          "confidence": 0.9,
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
+        },
+        {
+          "from": "Xi",
+          "to": "Beta",
+          "relation": "cause",
+          "confidence": 0.9,
+          "negated": false,
+          "origin": "explicit",
+          "explicit": true,
+          "scope": "unknown"
+        }
+      ]
+    }
+  ],
+  "caveats": [
+    {
+      "node": "Alpha",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Beta",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    }
+  ]
+}

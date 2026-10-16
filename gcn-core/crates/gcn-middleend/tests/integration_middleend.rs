@@ -21,6 +21,7 @@ fn node(id: u32, node_type: NodeType) -> CausalNode {
         origin: NodeOrigin::Explicit,
         attributes: NodeAttributes::default(),
         parent: None,
+        kind: None,
     }
 }
 
@@ -71,6 +72,7 @@ fn make_ir(nodes: Vec<CausalNode>, edges: Vec<(NodeId, NodeId, CausalEdge)>) -> 
             pipeline: vec!["gcn-frontend-fr".to_string()],
             created_at: None,
         },
+        intent: None,
     }
 }
 

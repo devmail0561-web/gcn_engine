@@ -1,0 +1,940 @@
+Plan — Inventaire exhaustif des défauts du moteur GCN-Python
+
+ Contexte
+
+ Le moteur GCN-Python produit des graphes causaux (CIR) depuis des phrases en langage naturel.
+ Il prédit 7 types de nœuds et 11 types de relations. L'exploration systématique du code révèle
+ 3 catégories de défauts : (1) bugs actifs qui produisent des résultats incorrects, (2) champs
+ de schéma jamais renseignés (fonctionnalités annoncées mais vides), (3) limitations de design
+ qui plafonnent la qualité des prédictions. Toutes les améliorations A–G d'amelioration_v3.txt
+ sont déjà implémentées — ce plan couvre ce qui reste réellement défectueux.
+
+ ---
+
+ PRIORITÉ 1 — Bugs actifs (comportement incorrect, à corriger en premier)
+
+ ---
+
+ BUG-1 — R-GCN mono-relationnel : W_1..W_{R-1} sans gradient
+
+ Fichier : pipeline/cgnp.py:301-309
+
+ Problème :
+ edge_type_idxs_rgcn = np.zeros(len(_edge_pairs_rgcn), dtype=np.int64)
+ # commentaire : "types d'arêtes uniformes — type 0 uniquement"
+ Toutes les arêtes sont envoyées dans le type 0 (W_0). Les matrices W_1..W_{10} (pour les
+ 11 types de relations) sont initialisées aléatoirement mais ne reçoivent jamais de gradient.
+ L'avantage fondamental du R-GCN — distinguer les types de relations dans le message passing —
+ est entièrement perdu. Le modèle se comporte comme un GCN classique sans distinction relationnelle.
+
+ Impact : Le moteur ne peut pas apprendre que cause propage différemment de prevent.
+ C'est la limitation la plus grave pour la qualité des représentations enrichies.
+
+ Solution : Remplacer np.zeros(...) par les indices réels des relations :
+ edge_type_idxs_rgcn = np.array(
+     [edge_types_mp[k] for k in range(len(_edge_pairs_rgcn))],
+     dtype=np.int64
+ )
+ Vérifier que edge_types_mp contient bien des indices dans [0, n_relations).
+ Ajouter un test test_rgcn_multirelational_weights_receive_gradient.
+
+ ---
+
+ BUG-2 — GAT dropout avant requires_grad → gradients word_embedding incorrects
+
+ Fichier : layer3/gat.py:221-227
+
+ Problème :
+ if self.dropout_rate > 0.0 and self.training:
+     mask = torch.bernoulli(...)
+     H_in = H_in * mask        # nouveau tenseur, masque hors autograd
+ H_in.requires_grad_(True)     # H_in post-dropout devient une feuille
+ Le masque dropout n'est pas dans le graphe autograd. La rétropropagation retourne le gradient
+ par rapport au vecteur post-dropout. Quand cgnp.py utilise ce gradient pour mettre à jour
+ word_embedding, les dimensions zeroisées par le dropout reçoivent un gradient non nul.
+
+ Impact : Avec --rgcn-dropout > 0, les gradients remontant vers word_embedding sont
+ incorrects. L'entraînement converge mais apprend une mauvaise distribution de gradients.
+
+ Solution :
+ H_in.requires_grad_(True)
+ if self.dropout_rate > 0.0 and self.training:
+     mask = (torch.rand_like(H_in) > self.dropout_rate).float()
+     H_in_dropped = H_in * mask / (1.0 - self.dropout_rate)
+ else:
+     H_in_dropped = H_in
+ out = self._gat_forward(H_in_dropped, edge_index, edge_types)
+ Ainsi H_in reste la feuille, le masque est dans le graphe, le gradient remontant
+ vers H_in est correct (inclut les zeros du masque).
+
+ ---
+
+ BUG-3 — WordEmbedding.from_json perd la plage gelée → gel inopérant après restauration
+
+ Fichier : layer1/embedding.py:144-151
+
+ Problème :
+ @classmethod
+ def from_json(cls, s: str, d_emb: int = 50) -> "WordEmbedding":
+     obj = cls(d_emb=d_emb)
+     for lemma in lemmas[1:]:
+         obj.add_lemma(lemma)
+     return obj
+     # _pretrained_start et _pretrained_end restent None
+ _is_frozen_idx() retourne toujours False quand _pretrained_start is None.
+ Après sauvegarde/chargement d'un modèle avec --freeze-embeddings, les embeddings
+ pré-entraînés (wiki.fr.vec) redeviennent modifiables.
+
+ Impact : L'amélioration C (gel des pré-entraînés) est fonctionnelle à l'entraînement
+ initial, mais le gel est perdu dès qu'on reprend depuis un checkpoint.
+
+ Solution : Sérialiser _pretrained_start et _pretrained_end dans to_json() et
+ les restaurer dans from_json() :
+ # to_json() : ajouter "__pretrained_range": [start, end]
+ # from_json() : après add_lemma() loop :
+ obj._pretrained_start = data.get("__pretrained_start")
+ obj._pretrained_end = data.get("__pretrained_end")
+
+ ---
+
+ BUG-4 — confidence=None classée pire que confidence=0.0 dans find_causes/find_effects
+
+ Fichier : verbalizer/instructions.py:204-211
+
+ Problème :
+ conf_val = float(conf) if conf is not None else -1.0
+ scored.append((level, -conf_val, idx, ...))
+ Tri par (level, -conf_val) :
+ - confidence=0.0 → -conf_val = 0.0
+ - confidence=None → -conf_val = 1.0
+
+ None sort APRÈS 0.0. Sémantiquement, None = "non renseigné" ≠ "zéro confiance".
+ Une arête annotée à 0% est prioritaire sur une arête non annotée.
+
+ Impact : Le ranking des causes/effets dans l'interface verbalizer est incorrect.
+
+ Solution :
+ conf_val = float(conf) if conf is not None else 0.5  # défaut neutre
+ Ou mieux : trier les None en dernier explicitement :
+ conf_sort = float(conf) if conf is not None else float('inf')
+ scored.append((level, conf_sort, idx, ...))
+
+ ---
+
+ BUG-5 — closed-loop forward-only : node_type_probs hors autograd
+
+ Fichier : pipeline/cgnp.py:383-389
+
+ Problème :
+ enriched_edge = np.concatenate([
+     edge_vec_base,
+     enriched[src_i],
+     enriched[dst_i],
+     node_type_probs[src_i],   # softmax NumPy, hors autograd torch
+     node_type_probs[dst_i],
+ ])
+ node_type_probs est calculé via softmax NumPy. Le gradient de la loss d'arêtes
+ ne peut pas remonter vers les prédictions de types de nœuds via ce chemin.
+ La "boucle fermée" est en lecture seule côté gradient.
+
+ Impact : L'architecture CIR suppose que les prédictions nœuds influencent les prédictions
+ arêtes ET vice-versa. Seul le sens nœud→arête fonctionne.
+
+ Solution : Si torch est disponible dans ce chemin, utiliser torch.softmax avec
+ retain_graph=True. Sinon documenter explicitement cette limitation comme un choix de design
+ (compromis mémoire/vitesse) et supprimer la mention "closed-loop" de la documentation.
+
+ ---
+
+ BUG-6 — analyze_or_skip sans training=False → non-déterminisme en inférence
+
+ Fichier : pipeline/cgnp.py:555-562
+
+ Problème : analyze() bascule training=False avant le forward (lignes 525-536),
+ mais analyze_or_skip() appelle forward() directement sans ce basculement.
+ Avec --rgcn-dropout > 0, deux appels identiques à analyze_or_skip() sur la même phrase
+ peuvent produire des CIRs différents.
+
+ Impact : Inférence non-déterministe. Résultats non reproductibles.
+
+ Solution :
+ def analyze_or_skip(self, text, ...):
+     was_training = self.training
+     self._toggle(self, False)
+     try:
+         return self.forward(...)
+     finally:
+         self._toggle(self, was_training)
+
+ ---
+
+ BUG-7 — val_loss calculée sans sample_weight → non comparable à train_loss
+
+ Fichier : training/train.py:498-503
+
+ Problème :
+ loss_val, _, _ = pipeline.loss(
+     node_logits, edge_logits_arg, gold_node, gold_edge,
+     edge_loss_weight=edge_loss_weight,
+     # sample_weight manquant → 1.0 par défaut pour toutes les phrases
+ )
+ La train_loss applique silver_weight (ex. 0.7) aux phrases silver. La val_loss les traite
+ comme du gold (poids 1.0). Les deux courbes sont sur des échelles différentes.
+
+ Impact : Le suivi de la progression train/val est trompeur avec --silver-weight < 1.0.
+ L'early stopping basé sur val_loss est biaisé.
+
+ Solution : Passer sample_weight=sample.sentence.weight dans le calcul val également.
+
+ ---
+
+ BUG-8 — silver_weight n'affecte pas la node_loss
+
+ Fichier : pipeline/cgnp.py:618-621
+
+ Problème :
+ total_loss = node_loss + edge_loss_weight * sample_weight * edge_loss
+ d_edge = d_edge * edge_loss_weight * sample_weight
+ # node_loss et d_node ne sont pas pondérés par sample_weight
+ Les annotations de type de nœud dans les phrases silver pèsent autant que le gold.
+
+ Impact : Biais vers les erreurs de classification de nœuds silver (moins fiables).
+
+ Solution :
+ total_loss = sample_weight * node_loss + edge_loss_weight * sample_weight * edge_loss
+ d_node = d_node * sample_weight
+
+ ---
+
+ BUG-10 — --embedding-dim N incompatible avec --embedding-file (dim différente) → 0 vecteurs chargés silencieusement
+
+ Fichier : layer1/embedding.py:122
+
+ Problème :
+ if len(parts) - 1 != self.d_emb:
+     continue  # en-tête OU dimension incompatible — même traitement
+ Quand --embedding-dim 49 est passé avec --embedding-file wiki.fr.vec (300-dim),
+ CHAQUE ligne du fichier est ignorée (300 ≠ 49). Résultat : 0 vecteurs chargés, la plage
+ _pretrained_start == _pretrained_end, le freeze porte sur une plage vide → sans effet.
+ Le seul signal visible est "Embeddings : 0 vecteurs chargés (d_emb=49)" dans le terminal,
+ facilement ignoré. L'entraînement continue avec des embeddings random-init 49-dim comme si
+ --embedding-file n'avait pas été passé.
+
+ Impact : --embedding-dim 49 --embedding-file wiki.fr.vec --freeze-embeddings ne fait
+ rien de ce que l'utilisateur attend. Le gel est silencieusement inopérant. Les deux usages
+ légitimes sont :
+ - Random-init 49-dim : --embedding-dim 49 (sans --embedding-file) → d_eff=128 ✓ GAT multi-têtes
+ - Pré-entraîné wiki.fr.vec : --embedding-file wiki.fr.vec (sans --embedding-dim) → d_emb=300 depuis le fichier, d_eff=379
+
+ Ces deux usages sont mutuellement exclusifs avec le code actuel.
+
+ Solution : Détecter la mismatch au premier vecteur et lever une erreur explicite :
+ def load_from_file(self, path: str, ...) -> int:
+     ...
+     first_real_dim = None
+     for line in f:
+         parts = line.rstrip().split(" ")
+         if len(parts) < 2:
+             continue
+         dim = len(parts) - 1
+         if dim == 1 and first_real_dim is None:
+             # probablement l'en-tête "V d_emb" — détecter le vrai dim
+             continue
+         if first_real_dim is None:
+             first_real_dim = dim
+         if dim != self.d_emb:
+             if first_real_dim != self.d_emb:
+                 raise ValueError(
+                     f"Dimension du fichier ({first_real_dim}) ≠ d_emb ({self.d_emb}). "
+                     f"Utilisez --embedding-dim {first_real_dim} pour ce fichier, "
+                     f"ou omettez --embedding-file pour des embeddings aléatoires {self.d_emb}-dim."
+                 )
+             continue
+         ...
+ Également dans train.py : détecter la mismatch AVANT d'entraîner et lever une
+ ClickException si embedding_file est fourni et que load_from_file retourne 0.
+
+ ---
+
+ BUG-9 — TrainableDecoder.loss_decode gradient non normalisé (single-step)
+
+ Fichier : verbalizer/trainable.py:244-255
+
+ Problème :
+ for t in valid:
+     total_loss -= log(probs[t])
+     d_t = probs.copy(); d_t[t] -= 1.0
+     d_logits += d_t          # somme des gradients
+ N = len(valid)
+ return total_loss / N, d_logits   # loss / N mais gradient NON divisé
+ La loss est normalisée par N mais le gradient retourné est N fois trop grand.
+
+ Impact : Learning rate effectif pour le TrainableDecoder est N× trop grand quand
+ plusieurs tokens gold sont présents. Gradient instable sur les phrases longues.
+
+ Solution :
+ return total_loss / N, d_logits / N
+
+ ---
+
+ PRIORITÉ 2 — Champs de schéma jamais renseignés (fonctionnalités vides)
+
+ ---
+
+ S-1 — temporal_ref toujours "unresolved"
+
+ Fichier : pipeline/ir_emitter.py:51
+
+ Problème : "temporal_ref": TEMPORAL_REF_DEFAULT = "unresolved" sur chaque nœud prédit,
+ sans exception. Le signal Tense/Aspect/Mood est capturé dans d_clause mais ne remonte pas.
+
+ Solution : Calculer depuis UDRepresentation.tense + has_temporal_obl :
+ def _infer_temporal_ref(rep: UDRepresentation) -> str:
+     t = rep.tense
+     if t == "Past":   return "past"
+     if t == "Fut":    return "future"
+     if t == "Pres":   return "present"
+     if rep.has_temporal_obl: return "anchored"
+     return "unresolved"
+
+ ---
+
+ S-2 — temporal_index = position séquentielle + valeur gold ignorée
+
+ Fichier : pipeline/ir_emitter.py:52, data/json_reader.py:135
+
+ Problème : "temporal_index": i écrase la valeur gold annotée (présente dans 2884/4603
+ nœuds du dataset). La valeur annotée est chargée dans ClauseRecord.temporal_index puis ignorée.
+
+ Solution : Utiliser la valeur gold si disponible, sinon inférer depuis tense :
+ "temporal_index": node_records[i].temporal_index if node_records[i].temporal_index else i
+
+ ---
+
+ S-3 — origin "hypothetical" jamais produit
+
+ Fichier : pipeline/cgnp.py:1211-1215, constants.py:14
+
+ Problème :
+ def _infer_origin(node_type, connector_rep):
+     if node_type == "condition" and connector_rep is None:
+         return "inferred"
+     return "explicit"
+     # "hypothetical" n'est jamais retourné
+
+ Solution : Détecter mood=Cnd (subjonctif/conditionnel) :
+ def _infer_origin(node_type, connector_rep, rep=None):
+     if node_type == "condition" and connector_rep is None:
+         return "inferred"
+     if rep is not None and rep.mood in ("Cnd", "Sub"):
+         return "hypothetical"
+     return "explicit"
+ Transmettre rep dans l'appel de _infer_origin à cgnp.py:431.
+
+ ---
+
+ S-4 — scope/origin annotés dans les données, re-inférés → supervision gold perdue
+
+ Fichiers : data/json_reader.py:134-138, pipeline/cgnp.py:429-442
+
+ Problème : Les annotateurs ont renseigné scope et origin sur 2884 nœuds. Ces valeurs
+ sont chargées dans ClauseRecord. Mais le pipeline re-calcule ces champs depuis
+ _infer_scope(rep, scope_hints={}) et _infer_origin(node_type, connector_rep), ignorant
+ les valeurs gold.
+
+ Impact : Supervision gold pour scope/origin entièrement perdue. Les annotateurs
+ ont fait un travail non exploité.
+
+ Solution : Si ClauseRecord.scope != "specific" (non-défaut), passer la valeur gold
+ à _infer_scope via scope_hints. Idem pour origin. Ou, pour une solution plus propre,
+ passer directement la valeur annotée si elle est non-défaut :
+ origin = rec.origin if rec.origin != "explicit" else _infer_origin(node_type, connector_rep)
+ scope = rec.scope if rec.scope != "specific" else _infer_scope(rep, scope_hints)
+
+ ---
+
+ S-5 — confidence et negated des arêtes chargés mais jamais utilisés en entraînement
+
+ Fichiers : data/schema.py:39-41, data/loader.py:118-186, training/train.py:361
+
+ Problème : La boucle d'entraînement utilise uniquement sample.edge_map
+ ({(src, tgt): rel_idx}). EdgeRecord.confidence et EdgeRecord.negated sont chargés
+ mais pas transmis à edge_map. 71.6% des arêtes ont un confidence explicite (ex. 0.915).
+
+ Solution à court terme : Étendre edge_map vers
+ {(src, tgt): (rel_idx, confidence, negated)} et utiliser confidence comme poids
+ par arête dans la loss (distinct de silver_weight qui est par phrase) :
+ # Dans la loss arêtes :
+ edge_conf = edge_map[(src, tgt)][1]
+ w = edge_conf if edge_conf is not None else 1.0
+ edge_loss_k *= w
+
+ ---
+
+ S-6 — N-arêtes (hyperedge_map) jamais supervisées
+
+ Fichier : training/train.py:331-339
+
+ Problème : Les arêtes multi-sources sont chargées (hyperedge_map) et signalées par
+ un warning, mais aucune tête d'entraînement n'existe pour elles.
+
+ Solution minimum : Documenter explicitement dans le warning que c'est un défaut connu
+ et planifier une tête de classification N-aire. Court terme : projeter les N-arêtes en arêtes
+ binaires (source principale → cible) pour ne pas perdre entièrement le signal.
+
+ ---
+
+ S-7 — cycles, unresolved, temporal_gap, in_cycle, created_at toujours vides/None
+
+ Fichier : pipeline/ir_emitter.py:74-89
+
+ Problème :
+ "temporal_gap": None,
+ "in_cycle": None,
+ "cycles": [],
+ "unresolved": [],
+ "created_at": None,
+ Ces 5 champs sont définis dans l'IR output mais jamais calculés.
+
+ Solution par ordre de priorité :
+ - created_at : trivial — datetime.utcnow().isoformat()
+ - cycles : détection dans verbalizer/instructions.py via adjacency et DFS
+ - in_cycle : dériver depuis cycles après détection
+ - temporal_gap et unresolved : nécessitent plus de contexte — documenter comme "V2"
+
+ ---
+
+ S-8 — modifiers et gcn_causal_type/class jamais renseignés
+
+ Fichier : data/schema.py:17-18, 31, pipeline/ir_emitter.py:50
+
+ Problème : TokenRecord.gcn_causal_type, TokenRecord.gcn_causal_class,
+ ClauseRecord.modifiers sont définis mais jamais alimentés par aucun code.
+
+ Solution : Soit supprimer ces champs (si non planifiés), soit documenter clairement
+ qu'ils sont réservés pour une version future. Ne pas les laisser silencieusement vides.
+
+ ---
+
+ PRIORITÉ 3 — Limitations de design (qualité des métriques et architecture)
+
+ ---
+
+ L-1 — causal_graph_similarity : alignement positionnel invalide
+
+ Fichier : evaluation/metrics.py:117-162
+
+ Problème : node_type_acc est calculé en comparant pred_nodes[i] avec gold_nodes[i]
+ par position. Si le modèle insère un nœud supplémentaire en position 0, toutes les comparaisons
+ suivantes sont décalées. Un UserWarning est émis mais le calcul continue avec un résultat biaisé.
+
+ Impact : node_type_accuracy est sur-estimée quand |pred| ≠ |gold|.
+
+ Solution : Alignement par type + label (matching hongrois ou greedy par cosine des
+ embeddings de type). À court terme : retourner NaN si |pred| ≠ |gold| plutôt qu'un score
+ biaisé.
+
+ ---
+
+ L-2 — GEM (graph_exact_match) ignore les faux-positifs d'arêtes
+
+ Fichier : training/train.py:700-708, evaluation/metrics.py:307-313
+
+ Problème : Seules les arêtes avec label gold valide sont collectées pour GEM.
+ Une arête prédite sans correspondant gold n'est pas pénalisée dans cette métrique.
+
+ Impact : GEM est optimiste — le modèle peut prédire des arêtes fantaisistes sans
+ pénalité sur cette métrique.
+
+ Solution : Calculer un F1 d'arêtes (precision × recall) au lieu d'un accuracy.
+
+ ---
+
+ L-3 — TrainableDecoder : objectif invalide (génération de texte depuis embeddings structurels)
+
+ Fichier : training/train.py:740-752, verbalizer/trainable.py
+
+ Problème :
+
+ Le verbalizer a deux modes. Leur objectif est fondamentalement différent :
+
+ ┌─────────────────────────────────────┬────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────────┬──────────┐
+ │                Mode                 │                            Ce qu'il apprend                            │                       Gold                        │ Valide ? │
+ ├─────────────────────────────────────┼────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────┤
+ │ legacy (TrainableDecoder)           │ Choisir les tokens du texte de surface complet (autoregressif)         │ gold_tokens = tokens de la phrase entière         │ Non      │
+ ├─────────────────────────────────────┼────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────┤
+ │ lexical (LexicalConnectorAssembler) │ Sélectionner le connecteur (car, donc...) pour chaque type de relation │ connector_gold_idx = index dans vocab connecteurs │ Oui      │
+ └─────────────────────────────────────┴────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────────┴──────────┘
+
+ Note sur ce que le verbalizer produit : dans les deux modes, la sortie est une phrase
+ complète. Ex. : X = {clause1="le chat dort", clause2="il est fatigué", lien=cause} →
+ Y = "le chat dort car il est fatigué". Les deux moitiés de phrase sont recopiées depuis
+ le graphe ; seul le mot de liaison est appris. Ce n'est donc PAS de la génération pure —
+ c'est une assemblage avec sélection apprise du connecteur. Le mode legacy apprend le token
+ de liaison dans un décodeur autoregressif complet (coûteux, inutilement complexe). Le mode
+ lexical apprend directement relation_type → connecteur_idx par une tête de classification
+ légère (correct et suffisant).
+
+ Le type causal (cause/enable/prevent) est prédit par le décodeur principal (edge_logits),
+ PAS par le verbalizer. Le verbalizer reçoit le type déjà prédit et l'associe à un mot de surface.
+
+ Le mode legacy essaie de reconstruire une phrase de 50+ tokens depuis 2 vecteurs de clauses
+ structurels (d=79 ou 128). C'est informatiquement impossible — les vecteurs structurels ne
+ contiennent pas l'information lexicale nécessaire pour reconstruire la surface.
+ Conséquence : la dec_loss en mode legacy stagne proche de log(|vocab|) et ne converge pas,
+ mais est quand même ajoutée à epoch_loss :
+
+ epoch_loss += dec_loss     # pollue la loss principale
+ n_samples += 1             # compte comme un sample standard
+
+ Impact :
+ 1. epoch_loss mélange deux objectifs incompatibles (classification nœuds/arêtes + génération)
+ 2. La décroissance de la loss principale est masquée par la stagnation du décodeur legacy
+ 3. Le décodeur legacy n'améliore jamais la qualité des sorties (il est déprécié pour cette raison)
+
+ Solution :
+ - En mode legacy : logger dec_loss séparément dans le CSV (epoch_decoder_loss) et
+   ne PAS l'ajouter à epoch_loss. Le mode legacy est déprécié — sa loss ne doit pas
+   perturber l'entraînement principal.
+ - En mode lexical : assembler_loss est déjà séparée (ligne 764-765). Continuer ainsi.
+ - Ajouter dans le CSV : epoch_main_loss, epoch_decoder_loss (si mode legacy actif).
+
+ Test : avec mode legacy activé, epoch_loss doit être identique à une run sans
+ --verbalize-dir.
+
+ ---
+
+ L-4 — Négation analytique française ("ne…pas") non détectée
+
+ Fichier : pipeline/cgnp.py:1182-1184
+
+ Problème : _detect_negation repose sur rep.is_negative (Polarity=Neg UD). La
+ négation analytique française ("ne fait pas") dont "pas" n'est pas le root n'est détectée
+ que rarement.
+
+ Solution : Compléter la détection par la présence d'un token dépendant avec
+ lemma in {"pas", "plus", "jamais", "rien", "guère"} et dep_rel == "advmod" :
+ def _detect_negation(src_rep, dst_rep, connector_rep):
+     NEG_LEMMAS = {"pas", "plus", "jamais", "rien", "guère", "nullement"}
+     for rep in (src_rep, dst_rep):
+         if getattr(rep, 'is_negative', False):
+             return True
+         if any(t.get('lemma') in NEG_LEMMAS and t.get('dep_rel') == 'advmod'
+                for t in getattr(rep, 'tokens', [])):
+             return True
+     return False
+
+ ---
+
+ L-5 — scope toujours "specific" par défaut
+
+ Fichier : pipeline/cgnp.py:1194-1208
+
+ Problème : _infer_scope() retourne toujours "specific" quand scope_hints={}.
+ Les 5 autres valeurs de SCOPE_VALUES ne sont jamais auto-assignées.
+
+ Solution : Détection heuristique depuis les tokens UD :
+ - Présence de "tout", "tous", "chaque", "toujours" (dep_rel=advmod) → "universal"
+ - Présence de "parfois", "souvent", "généralement" → "existential"
+ - Modifier _infer_scope pour parcourir les tokens du rep.
+
+ ---
+
+ L-6 — ALL_RELATION_TYPES défini mais littéral 22 dans train.py
+
+ Fichier : constants.py:11, training/train.py:244
+
+ Problème :
+ # train.py :
+ n_rel = 22 if bidirectional else len(RELATION_TYPES)
+ # constants.py :
+ ALL_RELATION_TYPES = RELATION_TYPES + RELATION_TYPES_INV  # 22 types
+ Si RELATION_TYPES change (ex. nouveau type de relation), le littéral 22 ne se met pas
+ à jour automatiquement.
+
+ Solution :
+ from ..constants import ALL_RELATION_TYPES, RELATION_TYPES
+ n_rel = len(ALL_RELATION_TYPES) if bidirectional else len(RELATION_TYPES)
+
+ ---
+
+ L-7 — UD_POLARITY_VALUES défini mais polarity codée manuellement dans features.py
+
+ Fichier : constants.py:31, layer1/features.py:236
+
+ Problème : Tous les autres traits morphologiques utilisent _one_hot(value, vocab).
+ La polarity est codée directement : np.array([1.0 if rep.is_negative else 0.0]).
+ Si on étend UD_POLARITY_VALUES (ex. avec "Pos"), features.py n'en tient pas compte.
+
+ Solution : Utiliser _one_hot uniformément :
+ # features.py
+ parts.append(_one_hot("Neg" if rep.is_negative else "Pos", vocab.polarity_values))
+ Ajouter polarity_values: list[str] à FeatureVocabulary (défaut ["Pos", "Neg"]).
+ Cela change d_clause de 79 → 79+1=80, mais de manière correcte et extensible.
+ Attention : breaking change — re-entraîner les checkpoints existants.
+
+ ---
+
+ L-8 — Inter-phrases : accumulation sans apprentissage, liaison non apprise
+
+ Fichier : engine.py:308, pipeline/cgnp.py (analyze_batch), verbalizer/instructions.py:114
+
+ Problème :
+ Le moteur traite chaque phrase indépendamment. analyze_batch() boucle sur analyze()
+ phrase par phrase. add_discourse_block() concatène les CIRs avec des préfixes d'IDs mais
+ ne crée aucun lien inter-phrases. Le moteur est incapable de relier une cause dans la phrase 1
+ à son effet dans la phrase 2.
+
+ Ce qui ne doit PAS être implémenté : heuristique de coréférence par correspondance de
+ lemmes ("si le même lemme root apparaît dans deux phrases, créer une arête"). Ce serait
+ de la mémorisation de surface — fragile, non généralisable. La règle de liaison inter-phrases
+ doit être apprise depuis les données, pas imposée manuellement.
+
+ Ce que cela implique concrètement :
+
+ 1. Nouvelles données : Annoter des paragraphes (2-3 phrases) avec des CIRs unifiés dans
+    gcn-datasets. Un CIR de paragraphe = nœuds provenant de plusieurs phrases + arêtes gold
+    reliant ces nœuds, y compris des arêtes inter-phrases. Le moteur apprend depuis ces
+    exemples quel type d'entité dans la phrase N est lié à quel type dans la phrase N+1.
+ 2. Pipeline d'entrée : Modifier engine.py pour accepter une liste de phrases comme
+    unité d'analyse et construire un seul graphe UD sur le paragraphe entier :
+ def analyze_paragraph(self, sentences: list[str]) -> dict:
+     # Analyse UD de toutes les phrases → graphe unifié → pipeline R-GCN unique
+ 3. Entraînement : La loss sur les arêtes inter-phrases apprend au R-GCN les patterns
+    de continuité discursive. Aucune règle supplémentaire n'est nécessaire.
+
+ Effort : Élevé (nouvelles annotations + modification pipeline). Prérequis : 200-300
+ exemples de paragraphes annotés avec CIRs multi-phrases. Ne pas implémenter de heuristique
+ en attendant ces données — laisser analyze_batch() retourner une liste de CIRs disjoints
+ est honnête et correct.
+
+ ---
+
+ L-9 — Représentation de clause : 1 token décrit sur 8 (root seul)
+
+ Fichier : layer1/features.py:vectorize_clause(), mode par défaut clause_pooling="root"
+
+ Problème :
+
+ d_clause=79 n'est PAS un problème de sparsité — c'est un QCM à 7 questions sur la clause :
+ - nature du mot (UPOS) → 1 case cochée sur 18
+ - fonction syntaxique (dep_rel) → 1 case sur 38
+ - POS du sujet → 1 case sur 5
+ - temps / aspect / mode → 1 case chacun (3 cases)
+ - négation, drapeaux → 0 ou 1
+   Total : ~6 cases à 1.0, les 73 autres à 0.0. C'est normal et correct par construction.
+
+ Le vrai problème : ce QCM ne décrit que le token root de la clause (ex. le verbe principal).
+ Une clause de 8 mots ("le chat fatigué dort depuis hier matin") est réduite à la description
+ du seul verbe "dormir". Les 7 autres tokens (sujet, adverbes, modificateurs, contexte temporel)
+ sont ignorés.
+
+ Impact :
+ - La représentation d'une clause est appauvrie — deux clauses avec le même verbe root mais
+   des sujets/objets différents sont encodées de façon identique.
+ - Edge F1 stagne : le modèle ne peut pas distinguer "A cause B" de "A' cause B'" si root(A)=root(A').
+
+ Solutions par niveau d'effort :
+
+ Niveau 1 (déjà implémenté) :
+ - --clause-pooling mean : mean-pool sur les tokens de contenu (NOUN/VERB/ADJ/PROPN/ADV)
+   → ajoute d_emb dimensions depuis word_embedding
+ - --subject-object-emb : ajoute explicitement l'embedding du sujet et de l'objet
+   → d_effective passe de d_clause+d_emb à d_clause+3×d_emb
+
+ → Test en cours : si le run Phase 1+2 dépasse baseline+0.06/0.08 F1, ce niveau suffit.
+
+ Niveau 2 (non implémenté) :
+ - Encoder les tokens de la clause dans l'ordre → BiLSTM ou mini-Transformer
+ - Chaque token garde sa représentation séparée, le modèle apprend quoi agréger
+ - Plus puissant mais requiert plus de données et modifie l'architecture de l'encodeur
+
+ Niveau 3 (hors contraintes moteur) :
+ - Embeddings pré-entraînés contextuels (CamemBERT) → fossé structurel §11
+ - Incompatible avec les contraintes : pas de BERT/Transformers dans le moteur
+
+ Plan : Attendre le résultat du run Phase 1+2. Si amélioration insuffisante → implémenter
+ le niveau 2 (BiLSTM sur les tokens de clause).
+
+ ---
+
+ PRIORITÉ 4 — Code mort et incohérences mineures
+
+ ---
+
+ N-1 — generation_bleu encore exportée dans metrics.py
+
+ Fichier : evaluation/metrics.py:229-268
+
+ Problème : Fonction encore présente, non appelée depuis train.py (remplacée par
+ connector_precision_at_1). Risque de réutilisation accidentelle sur des labels courts
+ (BLEU-4 toujours 0.0 sur des labels 1-3 tokens).
+
+ Solution : Ajouter DeprecationWarning à l'entrée de la fonction ou supprimer.
+
+ ---
+
+ N-2 — AGENT_TYPE_VALUES, portions de SCOPE_VALUES jamais utilisées
+
+ Fichier : constants.py:16, 12
+
+ Problème : AGENT_TYPE_VALUES = ["human", "collective", "institutional", "natural"]
+ n'est importé nulle part. 5/6 valeurs de SCOPE_VALUES ne sont jamais produites.
+
+ Solution : Supprimer AGENT_TYPE_VALUES ou la marquer # RÉSERVÉ — V2.
+
+ ---
+
+ N-3 — 572 UserWarning individuels sur confidence absente au chargement
+
+ Fichier : data/json_reader.py:173-178
+
+ Problème : Un UserWarning distinct par arête sans confidence. Le chargement de
+ train.json produit 572 warnings identiques qui noient les vraies erreurs.
+
+ Solution : Agréger en un seul warning en fin de load_sentences() :
+ if n_missing_conf > 0:
+     warnings.warn(f"{n_missing_conf} arête(s) sans confidence dans {path.name}.")
+
+ ---
+
+ N-4 — EdgeRecord.explicit=True par défaut même sans connecteur
+
+ Fichier : data/schema.py:40
+
+ Problème : explicit: Optional[bool] = True — la valeur par défaut masque l'absence
+ de connecteur si EdgeRecord est construit sans argument explicit.
+
+ Solution : Changer le défaut à None (non renseigné) ou False.
+ ir_emitter.py calcule correctement explicit = marker_token is not None.
+
+ ---
+
+ N-5 — docstring préfixe "sNNN_nMMM" vs code "b00001_"
+
+ Fichiers : verbalizer/instructions.py:115, index.py:116, 143
+
+ Problème : Trois formulations différentes du format de préfixe pour les IDs inter-phrases.
+ Le code réel produit b00001_ (lettre b, 5 chiffres). La docstring dit sNNN_.
+
+ Solution : Aligner la docstring de add_discourse_block sur le format réel bNNNNN_.
+
+ ---
+
+ N-6 — gat.py load_state() : W_0 shape non vérifiée
+
+ Fichier : layer3/gat.py:319-346
+
+ Problème : W_r shape est vérifiée, mais W_0 (d_out, d_in) ne l'est pas.
+ Un checkpoint avec d_in/d_out différents provoque une erreur PyTorch cryptique.
+
+ Solution :
+ if arrays[1].shape != (self.d_out, self.d_in):
+     raise ValueError(f"W_0 shape {arrays[1].shape} ≠ ({self.d_out}, {self.d_in})")
+
+ ---
+
+ N-7 — _one_hot O(n) au lieu de O(1)
+
+ Fichier : layer1/features.py:116
+
+ Problème : list.index() fait deux parcours linéaires. Appelé pour chaque clause
+ × token × phrase × batch.
+
+ Solution : Construire un dict de lookup dans FeatureVocabulary.__post_init__() :
+ self._upos_idx = {v: i for i, v in enumerate(self.upos_tags)}
+ Remplacer _one_hot(value, vocab) par une version avec lookup dict.
+
+ ---
+
+ N-8 — TrainableDecoder._attn_vec init à zéro
+
+ Fichier : verbalizer/trainable.py:133
+
+ Problème : self._attn_vec = np.zeros(d_in) → attention uniforme au départ.
+
+ Solution : Init aléatoire :
+ self._attn_vec = rng.standard_normal(d_in).astype(np.float32) * 0.01
+
+ ---
+
+ N-9 — TrainableDecoder.from_json perd les poids si d_in absent
+
+ Fichier : verbalizer/trainable.py:481-488
+
+ Problème : Si data["d_in"] est None (checkpoint ancien), _layers reste None et
+ les poids ne sont pas restaurés, sans erreur ni warning.
+
+ Solution : Ajouter une vérification et un warning explicite :
+ if d_in is None:
+     warnings.warn("Checkpoint sans d_in : poids non restaurés (TrainableDecoder).")
+
+ ---
+
+ N-10 — Arêtes backward asymétriques inversées avec même relation
+
+ Fichier : data/loader.py:154-167
+
+ Problème : Quand src_idx > tgt_idx, la clé est inversée en (tgt_idx, src_idx) mais
+ la relation est conservée identique. Pour cause(A, B) annoté à l'envers (src=B, tgt=A),
+ l'entraînement reçoit cause(A, B) — la direction est corrigée mais potentiellement
+ l'intention de l'annotateur était cause(B, A).
+
+ Solution : Utiliser les types inverses RELATION_TYPES_INV pour les arêtes inversées :
+ if src_idx > tgt_idx:
+     rel_idx_stored = RELATION_TYPES.index(rel) + len(RELATION_TYPES)  # → version _inv
+     key = (tgt_idx, src_idx)
+ Nécessite une revue de la convention d'annotation dans le dataset.
+
+ ---
+
+ Tableau de priorisation
+
+ ┌────────┬─────────────────────────────────────────────────────────┬─────────────────────┬──────────┬───────────────────────────┐
+ │   #    │                          Titre                          │       Fichier       │ Priorité │          Bloque           │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-1  │ R-GCN mono-relationnel                                  │ cgnp.py:301         │ CRITIQUE │ qualité représentations   │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-2  │ GAT dropout → gradient incorrect                        │ gat.py:221          │ CRITIQUE │ entraînement avec dropout │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-3  │ from_json perd plage gelée                              │ embedding.py:144    │ HAUTE    │ freeze-embeddings         │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-4  │ confidence=None mal classée                             │ instructions.py:204 │ HAUTE    │ explain/effects           │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-5  │ closed-loop sans feedback                               │ cgnp.py:383         │ HAUTE    │ architecture CIR          │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-6  │ analyze_or_skip sans training=False                     │ cgnp.py:555         │ HAUTE    │ reproductibilité          │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-7  │ val_loss sans silver_weight                             │ train.py:498        │ HAUTE    │ monitoring                │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-8  │ silver_weight hors node_loss                            │ cgnp.py:618         │ MOYENNE  │ pondération silver        │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-10 │ --embedding-dim ≠ fichier → 0 vecteurs silencieux       │ embedding.py:122    │ HAUTE    │ freeze + pré-entraîné     │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ BUG-9  │ gradient TrainableDecoder /N                            │ trainable.py:244    │ MOYENNE  │ décodeur                  │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-1    │ temporal_ref "unresolved"                               │ ir_emitter.py:51    │ HAUTE    │ raisonnement temporel     │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-2    │ temporal_index séquentiel                               │ ir_emitter.py:52    │ HAUTE    │ ordonnancement            │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-3    │ origin "hypothetical" mort                              │ cgnp.py:1211        │ MOYENNE  │ modalité                  │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-4    │ scope/origin gold ignorés                               │ json_reader.py:134  │ HAUTE    │ supervision perdue        │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-5    │ confidence arête ignorée                                │ schema.py:39        │ HAUTE    │ pondération fine          │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-6    │ N-arêtes non supervisées                                │ train.py:331        │ MOYENNE  │ structures N-aires        │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-7    │ cycles/temporal_gap vides                               │ ir_emitter.py:74    │ FAIBLE   │ IR incomplet              │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ S-8    │ modifiers/gcn_causal vides                              │ schema.py:17        │ FAIBLE   │ champs fantômes           │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-1    │ alignement positionnel metrics                          │ metrics.py:117      │ HAUTE    │ métriques valides         │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-2    │ GEM optimiste faux-positifs                             │ train.py:700        │ HAUTE    │ évaluation                │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-3    │ decoder loss mélangée                                   │ train.py:752        │ MOYENNE  │ logging                   │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-4    │ négation analytique FR                                  │ cgnp.py:1182        │ HAUTE    │ français                  │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-5    │ scope toujours "specific"                               │ cgnp.py:1194        │ FAIBLE   │ scope                     │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-6    │ littéral 22 vs ALL_RELATION_TYPES                       │ constants.py:11     │ FAIBLE   │ fragilité                 │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-7    │ polarity codée manuellement                             │ features.py:236     │ FAIBLE   │ extensibilité             │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ L-8    │ inter-phrases non appris (nécessite données paragraphe) │ engine.py:308       │ HAUTE    │ paragraphes, discours     │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-1    │ generation_bleu non supprimée                           │ metrics.py:229      │ FAIBLE   │ code mort                 │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-2    │ AGENT_TYPE_VALUES mort                                  │ constants.py:16     │ FAIBLE   │ nettoyage                 │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-3    │ 572 warnings confidence                                 │ json_reader.py:173  │ FAIBLE   │ UX chargement             │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-4    │ EdgeRecord.explicit=True défaut                         │ schema.py:40        │ FAIBLE   │ cohérence                 │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-5    │ docstring préfixe incohérente                           │ instructions.py:115 │ FAIBLE   │ doc                       │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-6    │ W_0 shape non vérifiée                                  │ gat.py:319          │ FAIBLE   │ robustesse                │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-7    │ _one_hot O(n)                                           │ features.py:116     │ FAIBLE   │ perf                      │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-8    │ _attn_vec init zéro                                     │ trainable.py:133    │ FAIBLE   │ convergence               │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-9    │ from_json TrainableDecoder                              │ trainable.py:481    │ FAIBLE   │ checkpoint                │
+ ├────────┼─────────────────────────────────────────────────────────┼─────────────────────┼──────────┼───────────────────────────┤
+ │ N-10   │ arêtes backward inversées                               │ loader.py:154       │ MOYENNE  │ supervision               │
+ └────────┴─────────────────────────────────────────────────────────┴─────────────────────┴──────────┴───────────────────────────┘
+
+ ---
+
+ Ordre d'exécution recommandé
+
+ Phase A — Bugs actifs (1 semaine)
+ 1. BUG-10 (embedding-dim / fichier mismatch) — à corriger AVANT tout run avec embeddings
+ 2. BUG-1 (R-GCN multirelationnel) — sans ce fix, toute amélioration GAT est sous-exploitée
+ 3. BUG-2 (GAT dropout) — fix avant tout run avec --rgcn-dropout
+ 4. BUG-3 (embedding from_json) — fix avant tout run avec --freeze-embeddings + checkpoint
+ 5. BUG-6 (analyze_or_skip training=False) — 2 lignes
+ 6. BUG-7 + BUG-8 (silver_weight cohérence train/val + node_loss) — ensemble
+ 7. BUG-4 (confidence=None ranking) — 1 ligne
+
+ Phase B — Supervision gold perdue (1 semaine)
+ 7. S-4 (scope/origin gold ignorés) — impact immédiat sur qualité
+ 8. S-2 (temporal_index gold) — même pattern que S-4
+ 9. S-5 (confidence arête dans la loss) — nécessite modification edge_map
+ 10. L-4 (négation analytique FR)
+
+ Phase C — Métriques valides (3 jours)
+ 11. L-1 (alignement positionnel → F1 ou NaN)
+ 12. L-2 (GEM faux-positifs → precision/recall)
+ 13. L-3 (decoder loss séparée dans CSV)
+ 14. BUG-7 (val_loss silver)
+
+ Phase D — Schéma complet (1 semaine)
+ 15. S-1 (temporal_ref depuis tense/aspect)
+ 16. S-3 (origin "hypothetical" depuis mood=Cnd)
+ 17. S-7 (created_at + cycles + in_cycle)
+ 18. L-5 (scope heuristique)
+
+ Phase E — Nettoyage
+ 19. N-1 à N-10 en une seule PR
+
+ ---
+
+ Tests à écrire par correction
+
+ ┌────────────┬────────────────────────────────────────────────────────────┐
+ │ Correction │                            Test                            │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-1      │ test_rgcn_multirelational_gradients_nonzero_for_all_types  │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-2      │ test_gat_dropout_gradient_is_zero_on_zeroed_dims           │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-3      │ test_embedding_freeze_survives_from_json_roundtrip         │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-4      │ test_find_causes_ranks_none_conf_after_explicit_conf       │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-6      │ test_analyze_or_skip_deterministic_with_dropout            │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-7      │ test_val_loss_uses_sample_weight                           │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-8      │ test_node_loss_scaled_by_silver_weight                     │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ BUG-9      │ test_loss_decode_gradient_normalized_by_n                  │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ S-2        │ test_temporal_index_uses_gold_annotation_when_present      │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ S-4        │ test_scope_gold_annotation_not_overridden_by_inference     │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ S-5        │ test_edge_confidence_used_as_loss_weight                   │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ L-1        │ test_causal_graph_similarity_returns_nan_when_sizes_differ │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ L-4        │ test_detect_negation_catches_ne_pas_french                 │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ N-3        │ test_load_sentences_emits_single_aggregated_warning        │
+ ├────────────┼────────────────────────────────────────────────────────────┤
+ │ N-6        │ test_load_state_raises_on_wrong_W0_shape                   │
+ └────────────┴────────────────────────────────────────────────────────────┘
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌

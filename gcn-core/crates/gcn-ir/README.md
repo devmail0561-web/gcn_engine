@@ -1,6 +1,6 @@
 # gcn-ir — Représentation Intermédiaire Causale
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-ir)](https://crates.io/crates/gcn-ir)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -28,7 +28,7 @@ Tous les frontends produisent un `CausalIR`. Tous les backends le consomment. `g
 
 ```toml
 [dependencies]
-gcn-ir = "2.5.0"
+gcn-ir = "4.0.0"
 ```
 
 ---

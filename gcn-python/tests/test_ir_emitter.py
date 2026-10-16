@@ -148,12 +148,15 @@ def test_s7_temporal_gap_computed():
 
 
 def test_s7_cycles_detected():
-    """S-7 : cycle A→B→A détecté dans cycles[]."""
+    """S-7 : cycle A→B→A détecté (marquage in_cycle ; cycles[] vide, contrat M1)."""
     result = emit("test", ["processus", "processus"], ["a", "b"],
                   [(0, 1), (2, 3)], ["specific", "specific"],
                   [(0, 1, "cause", 1.0, False, None),
                    (1, 0, "enable", 1.0, False, None)])
-    assert len(result["cycles"]) > 0, "cycle A-B-A non détecté"
+    assert all(isinstance(e[2]["in_cycle"], int) for e in result["edges"]), \
+        "cycle A-B-A détecté (in_cycle marqué)"
+    assert result["cycles"] == [], \
+        "contrat M1 (socle 0b) : cycles non classés ici, middleend recalcule"
 
 
 def test_s7_in_cycle_marked_on_edges():
@@ -178,23 +181,25 @@ def test_s7_no_cycle_in_cycle_false():
 # ── L-5 scope heuristique ───────────────────────────────────────────────────
 
 def test_l5_scope_universal_token():
-    """L-5 : lemme 'tout' avec dep_rel=det → scope='universal'."""
+    """Doctrine : sans hints, lemme 'tout' → 'specific' (zéro word matching)."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
         tokens: ClassVar[list] = [{"lemma": "tout", "dep_rel": "det", "pos": "DET"}]
 
-    assert _infer_scope(MockRep(), {}) == "universal"
+    assert _infer_scope(MockRep(), {}) == "specific"
+    assert _infer_scope(MockRep(), {"tout": "universal"}) == "universal"
 
 
 def test_l5_scope_existential_token():
-    """L-5 : lemme 'parfois' avec dep_rel=advmod → scope='existential'."""
+    """Doctrine : sans hints, 'parfois' → 'specific'; hints explicites honorés."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
         tokens: ClassVar[list] = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
 
-    assert _infer_scope(MockRep(), {}) == "existential"
+    assert _infer_scope(MockRep(), {}) == "specific"
+    assert _infer_scope(MockRep(), {"parfois": "existential"}) == "existential"
 
 
 def test_l5_scope_specific_default():
@@ -208,10 +213,23 @@ def test_l5_scope_specific_default():
 
 
 def test_l5_scope_hints_override():
-    """L-5 : scope_hints externe prioritaire sur détection intégrée."""
+    """Hints externes : seule source de scope non-default (zéro liste interne)."""
     from gcn_python.pipeline.cgnp import _infer_scope
 
     class MockRep:
         tokens: ClassVar[list] = [{"lemma": "parfois", "dep_rel": "advmod", "pos": "ADV"}]
 
     assert _infer_scope(MockRep(), {"parfois": "partial"}) == "partial"
+
+
+# ── Socle 0b : contrat d'échange M1 ──────────────────────────────────────────
+
+def test_m1_contract_version_and_cycles():
+    """Socle 0b (D-S03) : version du contrat + cycles vides (middleend recalcule)."""
+    result = emit("test", ["processus"], ["a"], [(0, 1)], ["specific"], [])
+    assert result["metadata"]["schema_version"] == "2.0", \
+        "contrat M1 : schema_version == 2.0"
+    assert result["metadata"]["pipeline"], "pipeline tracé"
+    assert result["cycles"] == [], "contrat M1 : cycles non classés ici"
+    s = json.dumps(result)
+    assert json.loads(s)["metadata"]["schema_version"] == "2.0"

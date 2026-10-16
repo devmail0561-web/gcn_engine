@@ -3,69 +3,67 @@ from conftest import make_test_pipeline
 # Copyright 2026 Michel Tendeng
 # SPDX-License-Identifier: Apache-2.0
 """
-Tests e2e Phase D3 — texte brut → CIR JSON via pipeline CGNP.
+Tests e2e Phase D3 — lattice → CIR via pipeline CGNP.
 
 3 cas :
-  1. Phrase simple   : 2 clauses, 1 relation causale (cause)
-  2. Phrase complexe : 3 clauses, 2 relations (cause + enable)
-  3. Sans causalité  : 1 clause, 0 relation
+  1. Phrase simple   : 2 clauses, 1 connecteur (mark réel)
+  2. Phrase complexe : 3 clauses, 2 connecteurs
+  3. Sans causalité  : 1 clause, 0 connecteur
 
-Méthode : _cir_to_reps_and_connectors() remplace l'appel au binaire gcn
-(non disponible dans l'environnement de test). Le reste du pipeline est réel.
+Méthode : _reps_from_lattice() sur des lattices synthétiques (tokens
+observés, pas de dictionnaire). Le reste du pipeline est réel.
 """
 import json
 
 import pytest
 
-from gcn_python.frontend.bridge import _cir_to_reps_and_connectors
+from gcn_python.frontend.bridge import _reps_from_lattice
 from gcn_python.layer1.features import FeatureVocabulary
 
-# ─── CIR synthétiques ────────────────────────────────────────────────────────
+# ─── Lattices synthétiques ────────────────────────────────────────────────────
 
-def _node(i, ntype, label, start, end):
-    return {
-        "id": i, "node_type": ntype, "label": label,
-        "source_span": {"token_span": {"start": start, "end": end}},
-        "scope": "specific", "temporal_index": i, "temporal_ref": "unresolved",
-        "origin": "explicit",
-        "attributes": {"entity": None, "quality": None, "agent": None, "patient": None},
-    }
+def _tok(i, form, pos, dep, head, lemma, clause, flags=None):
+    return {"index": i, "form": form, "pos": pos, "dep_rel": dep,
+            "dep_head": head, "lemma": lemma, "clause": clause,
+            "flags": flags or []}
 
 
-_CIR_SIMPLE = {
-    "source_lang": {"natural": {"lang": "french"}},
+_LATTICE_SIMPLE = {
     "source_text": "Les ventes baissent donc les prix augmentent.",
-    "nodes": [
-        _node(0, "processus", "baisser", 1, 3),
-        _node(1, "processus", "augmenter", 5, 7),
+    "tokens": [
+        _tok(1, "ventes", "noun", "nsubj", 2, "vente", 0),
+        _tok(2, "baissent", "verb", "root", 0, "baisser", 0),
+        _tok(3, "donc", "other", "mark", 5, "donc", 1),
+        _tok(4, "prix", "noun", "nsubj", 5, "prix", 1),
+        _tok(5, "augmentent", "verb", "advcl", 2, "augmenter", 1),
     ],
-    "edges": [[0, 1, {
-        "relation": "cause", "confidence": 0.95,
-        "explicit": True, "negated": False, "marker_token": 4,
-    }]],
+    "clauses": [[1, 2], [3, 5]],
 }
 
-_CIR_COMPLEX = {
-    "source_lang": {"natural": {"lang": "french"}},
-    "source_text": "Le gel détruit les cultures, ce qui entraîne des pénuries et provoque une hausse des prix.",
-    "nodes": [
-        _node(0, "processus", "détruire",  1,  5),
-        _node(1, "etat_local",      "pénurie",   7, 12),
-        _node(2, "processus", "augmenter", 13, 18),
+_LATTICE_COMPLEX = {
+    "source_text": "Le gel detruit les cultures, ce qui entraine des penuries et provoque une hausse.",
+    "tokens": [
+        _tok(1, "gel", "noun", "nsubj", 2, "gel", 0),
+        _tok(2, "detruit", "verb", "root", 0, "detruire", 0),
+        _tok(3, "cultures", "noun", "obj", 2, "culture", 0),
+        _tok(4, ",", "punct", "punct", -1, ",", 0),
+        _tok(5, "qui", "other", "mark", 7, "qui", 1),
+        _tok(6, "penuries", "noun", "nsubj", 7, "penurie", 1),
+        _tok(7, "entraine", "verb", "advcl", 2, "entrainer", 1),
+        _tok(8, "et", "other", "mark", 10, "et", 2),
+        _tok(9, "hausse", "noun", "nsubj", 10, "hausse", 2),
+        _tok(10, "provoque", "verb", "advcl", 2, "provoquer", 2),
     ],
-    "edges": [
-        [0, 1, {"relation": "cause",  "confidence": 0.90, "explicit": True,  "negated": False, "marker_token": 6}],
-        [1, 2, {"relation": "enable", "confidence": 0.85, "explicit": False, "negated": False, "marker_token": None}],
-    ],
+    "clauses": [[1, 4], [5, 7], [8, 10]],
 }
 
-_CIR_NO_CAUSAL = {
-    "source_lang": {"natural": {"lang": "french"}},
-    "source_text": "La météo est agréable aujourd'hui.",
-    "nodes": [
-        _node(0, "etat_local", "agréable", 1, 5),
+_LATTICE_NO_CAUSAL = {
+    "source_text": "La meteo est agreable.",
+    "tokens": [
+        _tok(1, "meteo", "noun", "nsubj", 2, "meteo", 0),
+        _tok(2, "agreable", "noun", "root", 0, "agreable", 0),
     ],
-    "edges": [],
+    "clauses": [[1, 2]],
 }
 
 
@@ -83,9 +81,9 @@ def pipeline():
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def _reps_from_cir(cir):
-    reps, connectors = _cir_to_reps_and_connectors(cir)
-    return reps, connectors, cir.get("source_text", "")
+def _reps_from_lat(lat):
+    reps, connectors = _reps_from_lattice(lat)
+    return reps, connectors, lat.get("source_text", "")
 
 
 def _valid_cir_json(out: dict) -> None:
@@ -107,9 +105,10 @@ def _valid_cir_json(out: dict) -> None:
 # ─── Cas 1 : phrase simple ────────────────────────────────────────────────────
 
 def test_e2e_simple_phrase_structure(pipeline):
-    """Phrase simple (2 clauses, 1 relation) → CIR valide avec 2 nœuds et ≥0 arêtes."""
-    reps, connectors, text = _reps_from_cir(_CIR_SIMPLE)
+    """Phrase simple (2 clauses, 1 connecteur) → CIR valide avec 2 nœuds et ≥0 arêtes."""
+    reps, connectors, text = _reps_from_lat(_LATTICE_SIMPLE)
     assert len(reps) == 2, f"Attendu 2 reps, obtenu {len(reps)}"
+    assert connectors[0] is not None and connectors[0].root_lemma == "donc"
 
     out = pipeline.forward(reps, text, connector_reps=connectors)
     _valid_cir_json(out)
@@ -118,7 +117,7 @@ def test_e2e_simple_phrase_structure(pipeline):
 
 def test_e2e_simple_phrase_json_serializable(pipeline):
     """La sortie de forward() est sérialisable en JSON (pas de numpy scalaires)."""
-    reps, connectors, text = _reps_from_cir(_CIR_SIMPLE)
+    reps, connectors, text = _reps_from_lat(_LATTICE_SIMPLE)
     out = pipeline.forward(reps, text, connector_reps=connectors)
     serialized = json.dumps(out)
     assert len(serialized) > 10
@@ -126,7 +125,7 @@ def test_e2e_simple_phrase_json_serializable(pipeline):
 
 def test_e2e_simple_phrase_relation_field(pipeline):
     """Les arêtes prédites contiennent un champ 'relation' valide."""
-    reps, connectors, text = _reps_from_cir(_CIR_SIMPLE)
+    reps, connectors, text = _reps_from_lat(_LATTICE_SIMPLE)
     out = pipeline.forward(reps, text, connector_reps=connectors)
     from gcn_python.constants import RELATION_TYPES
     for edge in out["edges"]:
@@ -138,7 +137,7 @@ def test_e2e_simple_phrase_relation_field(pipeline):
 
 def test_e2e_complex_phrase_three_nodes(pipeline):
     """Phrase complexe (3 clauses) → CIR avec 3 nœuds."""
-    reps, connectors, text = _reps_from_cir(_CIR_COMPLEX)
+    reps, connectors, text = _reps_from_lat(_LATTICE_COMPLEX)
     assert len(reps) == 3, f"Attendu 3 reps, obtenu {len(reps)}"
 
     out = pipeline.forward(reps, text, connector_reps=connectors)
@@ -148,7 +147,7 @@ def test_e2e_complex_phrase_three_nodes(pipeline):
 
 def test_e2e_complex_phrase_edges_between_valid_nodes(pipeline):
     """Les arêtes référencent des ids de nœuds valides."""
-    reps, connectors, text = _reps_from_cir(_CIR_COMPLEX)
+    reps, connectors, text = _reps_from_lat(_LATTICE_COMPLEX)
     out = pipeline.forward(reps, text, connector_reps=connectors)
     node_ids = {n["id"] for n in out["nodes"]}
     for edge in out["edges"]:
@@ -161,7 +160,7 @@ def test_e2e_complex_phrase_edges_between_valid_nodes(pipeline):
 
 def test_e2e_no_causal_single_node(pipeline):
     """Phrase sans causalité (1 clause) → 1 nœud, 0 arête."""
-    reps, connectors, text = _reps_from_cir(_CIR_NO_CAUSAL)
+    reps, connectors, text = _reps_from_lat(_LATTICE_NO_CAUSAL)
     assert len(reps) == 1, f"Attendu 1 rep, obtenu {len(reps)}"
 
     out = pipeline.forward(reps, text, connector_reps=connectors)
@@ -172,14 +171,14 @@ def test_e2e_no_causal_single_node(pipeline):
 
 def test_e2e_no_causal_json_serializable(pipeline):
     """La sortie sans causalité est sérialisable en JSON."""
-    reps, connectors, text = _reps_from_cir(_CIR_NO_CAUSAL)
+    reps, connectors, text = _reps_from_lat(_LATTICE_NO_CAUSAL)
     out = pipeline.forward(reps, text, connector_reps=connectors)
     json.dumps(out)
 
 
 def test_e2e_no_causal_node_type_valid(pipeline):
-    """Le type de nœud retourné est dans les 7 types connus."""
-    reps, connectors, text = _reps_from_cir(_CIR_NO_CAUSAL)
+    """Le type de nœud retourné est dans les types connus."""
+    reps, connectors, text = _reps_from_lat(_LATTICE_NO_CAUSAL)
     out = pipeline.forward(reps, text, connector_reps=connectors)
     from gcn_python.constants import NODE_TYPES
     assert out["nodes"][0]["node_type"] in NODE_TYPES

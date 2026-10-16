@@ -1,0 +1,2397 @@
+{
+ "minage59#g0-1883": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-4120": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-4915": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-5453": {
+  "verdict": "non",
+  "motif": "pas d'effet empêché concret (loi abstraite)",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-7302": {
+  "verdict": "non",
+  "motif": "pas de prévention (manière, pas d'effet empêché)",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-8560": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-10738": {
+  "verdict": "non",
+  "motif": "pas d'effet empêché asserté",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-272": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-423": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-547": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-580": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-790": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-808": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-809": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-848": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-853": {
+  "verdict": "non",
+  "motif": "sens proposé inversé (convention P4)",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-1018": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1021": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1022": {
+  "verdict": "non",
+  "motif": "override aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minage59#g0-1075": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1082": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-1110": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1333": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1392": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1399": {
+  "verdict": "non",
+  "motif": "sens proposé inversé (convention P4)",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-1414": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1432": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1436": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1976": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-2162": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-2335": {
+  "verdict": "non",
+  "motif": "span dégénéré (Sauf seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "minage59#g0-2403": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-2424": {
+  "verdict": "non",
+  "motif": "sens proposé inversé + marqueur faible",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-2880": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-2890": {
+  "verdict": "non",
+  "motif": "spans inversés contrôleur/contrôlé",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-3129": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-3881": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-4492": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-4660": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-5739": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-5764": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-6106": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-6109": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-6112": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-7757": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-8520": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-743": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-1315": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-1897": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-2406": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-2957": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minage59#g0-4165": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-5241": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-5572": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-6819": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-6822": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-6825": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minage59#g0-7413": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-1883": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4120": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4915": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-5453": {
+  "verdict": "non",
+  "motif": "pas d'effet empêché concret (loi abstraite)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-7302": {
+  "verdict": "non",
+  "motif": "pas de prévention (manière, pas d'effet empêché)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-8560": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-10738": {
+  "verdict": "non",
+  "motif": "pas d'effet empêché asserté",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-11154": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11433": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11489": {
+  "verdict": "non",
+  "motif": "contre ne porte pas la prévention",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11886": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12296": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12411": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-12509": {
+  "verdict": "non",
+  "motif": "sans incident, pas de prévention",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12517": {
+  "verdict": "non",
+  "motif": "override aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagebig#g0-12650": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12713": {
+  "verdict": "non",
+  "motif": "adjectif, pas d'effet empêché",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15006": {
+  "verdict": "non",
+  "motif": "négation (n'empêche en rien)",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-15861": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-19449": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-20922": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-21027": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-21559": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-22550": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-22789": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-22850": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27859": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27861": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27918": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27981": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27995": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-28092": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-272": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-423": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-547": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-580": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-790": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-808": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-809": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-848": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-853": {
+  "verdict": "non",
+  "motif": "sens proposé inversé (convention P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-1018": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1021": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1022": {
+  "verdict": "non",
+  "motif": "override aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagebig#g0-1075": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1082": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-1110": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1333": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1392": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1399": {
+  "verdict": "non",
+  "motif": "sens proposé inversé (convention P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-1414": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1432": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1436": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1976": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-2162": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-2335": {
+  "verdict": "non",
+  "motif": "span dégénéré (Sauf seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagebig#g0-2403": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-2424": {
+  "verdict": "non",
+  "motif": "sens proposé inversé + marqueur faible",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-2957": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-2970": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-3478": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-3514": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4140": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4713": {
+  "verdict": "non",
+  "motif": "protester ≠ empêcher",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4793": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-5539": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagebig#g0-5659": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-5814": {
+  "verdict": "non",
+  "motif": "avant hiérarchique, pas séquence",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-5900": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-6263": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-6782": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-7974": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-8032": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-8166": {
+  "verdict": "non",
+  "motif": "span dégénéré (Sauf seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagebig#g0-8248": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-8298": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-8682": {
+  "verdict": "non",
+  "motif": "seul solitaire ≠ restrictif",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-10087": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-10654": {
+  "verdict": "non",
+  "motif": "ne..pas uniquement = anti-restriction",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-10886": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-10999": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11047": {
+  "verdict": "non",
+  "motif": "contre comparatif",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11135": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-11799": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11843": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-12277": {
+  "verdict": "non",
+  "motif": "ne..pas uniquement = anti-restriction",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12311": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-12422": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-12660": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-13005": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-13148": {
+  "verdict": "non",
+  "motif": "span dégénéré (Seuls seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagebig#g0-14336": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15319": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15342": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15421": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-15422": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagebig#g0-15427": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15879": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-15953": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-16513": {
+  "verdict": "non",
+  "motif": "contre comparatif",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-16622": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-16711": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-2880": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-2890": {
+  "verdict": "non",
+  "motif": "spans inversés contrôleur/contrôlé",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-3129": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-3881": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4492": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4660": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-5739": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-5764": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-6106": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-6109": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-6112": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-7757": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-8520": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-9428": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-10680": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-21160": {
+  "verdict": "non",
+  "motif": "pilote adjectif",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-23034": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-24919": {
+  "verdict": "non",
+  "motif": "réfléchi (se déclenche)",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-25818": {
+  "verdict": "non",
+  "motif": "appelle = nommer",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27333": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27955": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-743": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-1315": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-1897": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-2406": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-4165": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-5241": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-5572": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-6819": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-6822": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-6825": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-7413": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-9034": {
+  "verdict": "non",
+  "motif": "adjectif (nécessaire), pas de dépendance",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-9257": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-9563": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-10263": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-11369": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-11412": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-11570": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-12025": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12138": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12426": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-12583": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-13457": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagebig#g0-15876": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-16634": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-18516": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-23431": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-23437": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-23760": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-25465": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-25610": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-26248": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-26252": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-26800": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagebig#g0-27132": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27332": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagebig#g0-27554": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-14": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-28": {
+  "verdict": "non",
+  "motif": "négation",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-29": {
+  "verdict": "non",
+  "motif": "prévient=avertir",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-36": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-39": {
+  "verdict": "non",
+  "motif": "énumération, pas d'effet",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-75": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-97": {
+  "verdict": "non",
+  "motif": "sans avenir, pas de prévention",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-105": {
+  "verdict": "non",
+  "motif": "prévient=avertir",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-133": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-139": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-146": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-170": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-184": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-210": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-226": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-229": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-271": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-295": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-309": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-335": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-351": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-354": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-396": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-407": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-422": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-445": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-525": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-531": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-641": {
+  "verdict": "non",
+  "motif": "mauvaise relation",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-645": {
+  "verdict": "non",
+  "motif": "spans ne portent pas",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-662": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-677": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-717": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-735": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-754": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-757": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-758": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-765": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-767": {
+  "verdict": "non",
+  "motif": "fragment + marqueur point",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-771": {
+  "verdict": "non",
+  "motif": "négation",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-790": {
+  "verdict": "non",
+  "motif": "disjonction, rien d'asserté",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-811": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-819": {
+  "verdict": "non",
+  "motif": "illustration",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-820": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-827": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-843": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-846": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-859": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-888": {
+  "verdict": "non",
+  "motif": "manière (sans altération)",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-895": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-898": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-949": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-966": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-978": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-981": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-985": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1013": {
+  "verdict": "non",
+  "motif": "mention, pas d'acte",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1018": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1019": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1024": {
+  "verdict": "non",
+  "motif": "tronqué",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1027": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1029": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1035": {
+  "verdict": "non",
+  "motif": "négation+vide",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1038": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1043": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1046": {
+  "verdict": "non",
+  "motif": "négation+dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1048": {
+  "verdict": "non",
+  "motif": "sans empêcher explicite",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1049": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1050": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1052": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1053": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1055": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1065": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1136": {
+  "verdict": "non",
+  "motif": "négation+vide",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1145": {
+  "verdict": "non",
+  "motif": "parenthèse",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1159": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1160": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1185": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1200": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1212": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1229": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1243": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1249": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1256": {
+  "verdict": "non",
+  "motif": "pas de prévention",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1268": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1279": {
+  "verdict": "non",
+  "motif": "override aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-1283": {
+  "verdict": "non",
+  "motif": "négation (aucune loi n'empêche)",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1284": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1286": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1287": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1288": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1324": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1325": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-1328": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1347": {
+  "verdict": "non",
+  "motif": "manifester ≠ empêcher",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1354": {
+  "verdict": "non",
+  "motif": "réflexif, pas d'effet sur tiers",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagepw#pw-1384": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-49": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-50": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-64": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-70": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-71": {
+  "verdict": "non",
+  "motif": "mauvaise relation",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-84": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-90": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-91": {
+  "verdict": "non",
+  "motif": "seul solitaire",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-99": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-100": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-120": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-124": {
+  "verdict": "non",
+  "motif": "hedge épistémique + span dégénéré",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagepw#pw-136": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-167": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-168": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-169": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-183": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-185": {
+  "verdict": "non",
+  "motif": "devant locatif+inversé",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-217": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-221": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-222": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-245": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-292": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-293": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-294": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-308": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-310": {
+  "verdict": "non",
+  "motif": "devant locatif+inversé",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-342": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-346": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-347": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-370": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-401": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-413": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-414": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-429": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-441": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-447": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-450": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-452": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-453": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagepw#pw-465": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-481": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-490": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-502": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-517": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-518": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-546": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-551": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-561": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-575": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-596": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-617": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-621": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-634": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-639": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-647": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-659": {
+  "verdict": "non",
+  "motif": "override aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-664": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-699": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-708": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-711": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-716": {
+  "verdict": "non",
+  "motif": "span dégénéré (Seuls seul)",
+  "validateur": "machine-PV1-R56"
+ },
+ "minagepw#pw-743": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-115": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-408": {
+  "verdict": "non",
+  "motif": "spans ne portent pas",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-612": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-755": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-785": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-795": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-796": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-840": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-848": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-856": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-857": {
+  "verdict": "non",
+  "motif": "mention incidente",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-862": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-941": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-959": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1014": {
+  "verdict": "non",
+  "motif": "énumération",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1015": {
+  "verdict": "non",
+  "motif": "énumération",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1021": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1022": {
+  "verdict": "non",
+  "motif": "SI bogué",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1045": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1056": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1140": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1232": {
+  "verdict": "non",
+  "motif": "réfléchi",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1238": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1379": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1394": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1402": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1403": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-41": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-88": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-153": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-235": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-260": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-278": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-360": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-385": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-451": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-461": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-476": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-480": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-489": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-493": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-572": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-581": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-591": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-616": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-620": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-657": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-744": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-782": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-882": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-904": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-907": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-911": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-913": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-914": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-919": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-930": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-947": {
+  "verdict": "oui",
+  "motif": "re-jugement aveugle PV-4 (accord)",
+  "validateur": "machine-PV1-aveugle"
+ },
+ "minagepw#pw-950": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-951": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-961": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-968": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-990": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1007": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1010": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1012": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1025": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1041": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1044": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1051": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1076": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1096": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1105": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1107": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1111": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1126": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1135": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1148": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1149": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1156": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1162": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1168": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1199": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1201": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1213": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1225": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1226": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1227": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1228": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1231": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1282": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1285": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1301": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1302": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1326": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1335": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1359": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1364": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ },
+ "minagepw#pw-1372": {
+  "verdict": "oui",
+  "motif": "revue auto-oui PV-4-gate OK",
+  "validateur": "machine-PV1-gate"
+ },
+ "minagepw#pw-1404": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "validateur": "machine-PV1"
+ }
+}

@@ -1,6 +1,6 @@
 # gcn-middleend — Construction, Propagation et Validation du Graphe Causal
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-middleend)](https://crates.io/crates/gcn-middleend)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -33,7 +33,7 @@ CausalIR  (produit par FrenchParser / EnglishParser / parse_python...)
 
 ```toml
 [dependencies]
-gcn-middleend = "2.5.0"
+gcn-middleend = "4.0.0"
 ```
 
 ---

@@ -1,0 +1,17 @@
+{
+ "date": "2026-10-15",
+ "protocole": "docs/refactory/protocole-validation-machine.md v1",
+ "validations": {
+  "minage_juges": 479,
+  "minage_oui": 360,
+  "cdb2_juges": 50,
+  "cdb2_oui": 16,
+  "ternaire_juges": 20,
+  "ternaire_oui": 20,
+  "taux_oui_global": 0.721,
+  "dedup_intra_inter": 63,
+  "promus_lot27": 313,
+  "promus_lot28": 20,
+  "doublons_pool_exclus": []
+ }
+}

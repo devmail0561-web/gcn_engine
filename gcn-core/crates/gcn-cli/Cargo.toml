@@ -12,11 +12,18 @@ name = "gcn"
 path = "src/main.rs"
 
 [dependencies]
-gcn-ir = { path = "../gcn-ir", version = "2.5.0" }
-gcn-knowledge = { path = "../gcn-knowledge", version = "2.5.0" }
-gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "2.5.0" }
-gcn-frontend-code = { path = "../gcn-frontend-code", version = "2.5.0" }
-gcn-middleend = { path = "../gcn-middleend", version = "2.5.0" }
-gcn-backend = { path = "../gcn-backend", version = "2.5.0" }
+gcn-ir = { path = "../gcn-ir", version = "4.0.0" }
+gcn-frontend-fr = { path = "../gcn-frontend-fr", version = "4.0.0" }
+gcn-frontend-en = { path = "../gcn-frontend-en", version = "4.0.0" }
+gcn-frontend-code = { path = "../gcn-frontend-code", version = "4.0.0" }
+gcn-frontend-graph = { path = "../gcn-frontend-graph", version = "4.0.0" }
+gcn-frontend-table = { path = "../gcn-frontend-table", version = "4.0.0" }
+gcn-middleend = { path = "../gcn-middleend", version = "4.0.0" }
+gcn-backend = { path = "../gcn-backend", version = "4.0.0" }
+gcn-verbalizer = { path = "../gcn-verbalizer", version = "4.0.0" }
 clap = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -18,7 +18,7 @@
 
 schema:
   name: "gcn-nl"
-  version: "1.0"
+  version: "4.0"
   description: >
     Format de dataset pour l'annotation causale de textes en langues naturelles
     selon la Grammaire Causale Naturelle (GCN). Couvre le français, le wolof,
@@ -440,25 +440,30 @@ causal_node:
     type:
       type: enum
       required: true
-      values: [etat, action, transition, processus, condition, entite, etat_systemique]
+      values: [processus, etat_local, etat_global, entite, condition, concept, evenement, contrainte]
+      migration_aliases:
+        etat: etat_local
+        etat_systemique: etat_global
+        action: processus
+        transition: processus
       description: >
-        Type causal du noeud, déterminé par la classe verbale et le contexte :
-          etat            — situation stable, regarde en arrière
-                            ("Qu'est-ce qui a produit cet état ?")
-                            Direction causale : none
-          action          — intervention causale directe d'un agent, regarde en avant
-                            ("Qu'est-ce que ça va produire ?")
-                            Direction causale : forward
-          transition      — changement d'état ponctuel, charnière passé/futur
-                            Direction causale : forward
-          processus       — accumulation temporelle, cause continue
+        Type causal du noeud v4.0 (D5 ETUDE) :
+          processus       — action ou transformation dynamique (absorbe action + transition)
                             Direction causale : both (bidirectionnel)
-          condition       — suspend la chaîne causale jusqu'à déclenchement
-                            Direction causale : suspended
-          entite          — agent ou patient, peuple la chaîne sans être opérateur
-                            Direction causale : none
-          etat_systemique — contexte filtrant (crise, stabilité), affecte toutes les chaînes
+          etat_local      — propriété stable d'une entité spécifique
+                            Direction causale : backward
+          etat_global     — condition générale du système ou du domaine
                             Direction causale : accumulative
+          entite          — agent, objet ou institution identifiable
+                            Direction causale : none
+          condition       — précondition nécessaire ou suffisante, suspend la chaîne
+                            Direction causale : suspended
+          concept         — abstraction, mesure, grandeur systémique (NOUVEAU D5)
+                            Direction causale : none
+          evenement       — fait ponctuel daté ou datable (NOUVEAU D5)
+                            Direction causale : forward
+          contrainte      — restriction exclusive ou condition bloquante (NOUVEAU D5)
+                            Direction causale : suspended
 
     label:
       type: string
@@ -839,12 +844,86 @@ causal_edge:
         Identifiant du noeud cible (effet/conséquent).
         Format : "n001", "n002", etc.
 
+    sources:
+      type: list[string]
+      required: false
+      description: >
+        Identifiants des nœuds sources pour les relations multi-sources (joint_cause,
+        joint_prevent). Pour les relations directes, utiliser le champ source.
+        Format : ["n001", "n002"]. Requis si relation = joint_cause | joint_prevent.
+
+    source:
+      type: string
+      required: false
+      description: >
+        Identifiant du nœud source pour les relations directes (non-joint).
+        Utiliser sources[] pour joint_cause et joint_prevent.
+
+    third:
+      type: object
+      required: false
+      description: >
+        Tiers d'une relation ternaire (NOUVEAU v4.0 — D2 ETUDE).
+        Présent uniquement pour conditional_cause, mediated_cause et leurs variantes.
+      fields:
+        role:
+          type: enum
+          values: [condition, mediator]
+          description: "Rôle du nœud tiers : condition déclenchante ou médiateur mécaniste."
+        node:
+          type: string
+          description: "Identifiant du nœud tiers (ex: 'n003')."
+        polarity:
+          type: enum
+          values: [positive, negative]
+          required: false
+          description: "Polarité du tiers si négation R2 (§9.4 ETUDE). Absent = positif."
+
+    joint_group_id:
+      type: string
+      required: false
+      description: >
+        Identifiant de groupe pour les arêtes joint_cause / joint_prevent.
+        sha256(target|sorted_sources)[:16] — déterministe, reproductible.
+        Les deux arêtes d'un JOINT_CAUSE partagent le même joint_group_id.
+
+    intent:
+      type: string
+      required: false
+      description: >
+        Intention NLU de la phrase source (NOUVEAU v4.0 — Éq.6 ETUDE).
+        Valeurs : explain | find_causes | find_effects | counterfactual |
+                  chain | spof | do | analogy | other.
+        Requis pour l'entraînement de la tête NLU (21 intents).
+
     relation:
       type: enum
       required: true
-      values: [cause, enable, prevent, condition, concession, sequence, motivation, filter, opposition, data_dependency, control_dependency]
+      values:
+        # 11 relations directes (third=None)
+        - cause
+        - enable
+        - prevent
+        - condition
+        - concession
+        - sequence
+        - motivation
+        - filter
+        - opposition
+        - data_dependency
+        - control_dependency
+        # 8 relations v4.0 (ternaires + counterfactual + analogy)
+        - analogy
+        - counterfactual
+        - conditional_cause
+        - mediated_cause
+        - joint_cause
+        - conditional_prevent
+        - mediated_prevent
+        - joint_prevent
       description: >
-        Type de relation causale (langues naturelles uniquement) :
+        Type de relation causale v4.0 (19 total) :
+        — Relations directes (third=None) —
           cause             — causalité directe ("parce que", "car")
           enable            — facilitation sans forçage ("grâce à")
           prevent           — blocage de la chaîne causale ("empêcher")
@@ -852,11 +931,19 @@ causal_edge:
           concession        — lacune causale signalée ("bien que", "malgré")
           sequence          — succession temporelle ("quand", "après")
           motivation        — causalité intentionnelle inversée ("pour", "afin de")
-                              L'effet (but) est mentionné avant la cause (action)
-          filter            — état systémique filtrant globalement
+          filter            — restriction exclusive ("ne...que si")
           opposition        — rupture causale ("mais", "or")
-          data_dependency   — dépendance de données (domaine code/système)
-          control_dependency — dépendance de contrôle (domaine code/système)
+          data_dependency   — dépendance de données
+          control_dependency — dépendance de contrôle
+        — Relations v4.0 —
+          analogy           — structure causale similaire (Rung 1)
+          counterfactual    — raisonnement sans A (Rung 3)
+          conditional_cause — A→B uniquement sous condition C (third.role=condition)
+          mediated_cause    — A→B via médiateur C (third.role=mediator)
+          joint_cause       — (A₁∧A₂)→B nécessité conjointe (sources=[A₁,A₂])
+          conditional_prevent — empêche sous condition (third.role=condition)
+          mediated_prevent  — empêche via médiateur (third.role=mediator)
+          joint_prevent     — empêche conjointement (sources=[A₁,A₂])
 
     attributes:
       type: object

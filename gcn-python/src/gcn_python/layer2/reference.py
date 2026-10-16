@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..constants import NODE_TYPES, RELATION_TYPES
+from ..param_epoch import bump as _bump_param_epoch
 
 
 def _relu(x: np.ndarray) -> np.ndarray:
@@ -45,7 +46,8 @@ class _LinearLayer:
 class MLPEncoder:
     """
     Implémentation de référence de la Couche 2 en NumPy pur.
-    Architecture : fc(D_in→mlp_hidden)+ReLU → fc(mlp_hidden→64)+ReLU → fc(64→out)
+    Architecture (dims configurables, défauts historiques) :
+    fc(D_in→mlp_hidden)+ReLU → fc(mlp_hidden→mlp_hidden2)+ReLU → fc(mlp_hidden2→out) ;
 
     Le data scientist substitue par son propre CausalEncoder
     (PyTorch, JAX, etc.) sans modifier le pipeline.
@@ -64,19 +66,38 @@ class MLPEncoder:
         weight_decay: float = 0.0,
         grad_clip: float | None = None,
         mlp_hidden: int = 128,
+        mlp_hidden2: int = 64,
+        edge_hidden: tuple[int, ...] = (256, 128, 64),
+        qual_hidden: int = 32,
+        decoupled_wd: bool = False,
         n_intent_types: int = 0,
+        n_sentence_types: int = 0,
+        intent_conditioned: bool = False,
+        qual_heads: bool = False,
+        exist_head: bool = False,
     ):
+        # P4b : si conditionnée, la tête intent lit [vec_clause | probs_sentence].
+        # Dims fixées à la construction (persistées en arch) — jamais devinées.
+        if intent_conditioned and n_sentence_types <= 0:
+            raise ValueError(
+                "intent_conditioned=True requiert n_sentence_types > 0 "
+                "(distribution conditionnante)."
+            )
         if not (0.0 <= edge_dropout < 1.0):
-            raise ValueError(
-                f"edge_dropout doit être dans [0, 1[ (reçu {edge_dropout!r})."
-            )
+            raise ValueError(f"edge_dropout doit être dans [0, 1[ (reçu {edge_dropout!r}).")
         if not np.isfinite(weight_decay) or weight_decay < 0:
-            raise ValueError(
-                f"weight_decay doit être un nombre fini >= 0 (reçu {weight_decay!r})."
-            )
+            raise ValueError(f"weight_decay doit être un nombre fini >= 0 (reçu {weight_decay!r}).")
         if grad_clip is not None and (not np.isfinite(grad_clip) or grad_clip <= 0):
+            raise ValueError(f"grad_clip doit être > 0 ou None (reçu {grad_clip!r}).")
+        if mlp_hidden < 1 or mlp_hidden2 < 1 or qual_hidden < 1:
             raise ValueError(
-                f"grad_clip doit être > 0 ou None (reçu {grad_clip!r})."
+                "mlp_hidden/mlp_hidden2/qual_hidden doivent être ≥ 1 "
+                f"(reçus {mlp_hidden!r}, {mlp_hidden2!r}, {qual_hidden!r})."
+            )
+        _edge_hidden = tuple(int(h) for h in edge_hidden)
+        if not _edge_hidden or any(h < 1 for h in _edge_hidden):
+            raise ValueError(
+                f"edge_hidden doit être un tuple non vide d'entiers ≥ 1 (reçu {edge_hidden!r})."
             )
         self.grad_clip = grad_clip
         rng = np.random.default_rng(seed)
@@ -88,40 +109,86 @@ class MLPEncoder:
         self.weight_decay = weight_decay
         self.training = True
         self.mlp_hidden = mlp_hidden  # Amélioration B : 256 recommandé avec subj/obj
+        self.mlp_hidden2 = mlp_hidden2
+        self.edge_hidden = _edge_hidden
+        self.qual_hidden = qual_hidden
+        self.decoupled_wd = bool(decoupled_wd)
 
-        # Node MLP : d_clause → mlp_hidden → 64 → n_node_types
+        # Node MLP : d_clause → mlp_hidden → mlp_hidden2 → n_node_types
         self._node_layers = [
             _LinearLayer(d_clause, mlp_hidden, rng),
-            _LinearLayer(mlp_hidden, 64, rng),
-            _LinearLayer(64, n_node_types, rng),
+            _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+            _LinearLayer(mlp_hidden2, n_node_types, rng),
         ]
 
-        # Edge MLP : d_edge → 256 → 128 → 64 → n_relation_types (3 couches cachées pour closed-loop)
-        self._edge_layers = [
-            _LinearLayer(d_edge, 256, rng),
-            _LinearLayer(256, 128, rng),
-            _LinearLayer(128, 64, rng),
-            _LinearLayer(64, n_relation_types, rng),
-        ]
+        # Edge MLP : d_edge → edge_hidden → n_relation_types (closed-loop)
+        _prev = d_edge
+        self._edge_layers = []
+        for _h in _edge_hidden:
+            self._edge_layers.append(_LinearLayer(_prev, _h, rng))
+            _prev = _h
+        self._edge_layers.append(_LinearLayer(_prev, n_relation_types, rng))
 
         self._node_cache: list = []
         self._edge_cache: list = []
         self._edge_dropout_masks: list = []
 
-        # Intent MLP (Éq.6) : d_clause → mlp_hidden → 64 → n_intent_types
+        # Intent MLP (Éq.6) : d_clause → mlp_hidden → mlp_hidden2 → n_intent_types
         # n_intent_types=0 = désactivé (non-breaking)
         self.n_intent_types = n_intent_types
+        self.intent_conditioned = bool(intent_conditioned)
+        _intent_in_dim = d_clause + (n_sentence_types if intent_conditioned else 0)
         if n_intent_types > 0:
             self._intent_layers = [
-                _LinearLayer(d_clause, mlp_hidden, rng),
-                _LinearLayer(mlp_hidden, 64, rng),
-                _LinearLayer(64, n_intent_types, rng),
+                _LinearLayer(_intent_in_dim, mlp_hidden, rng),
+                _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+                _LinearLayer(mlp_hidden2, n_intent_types, rng),
             ]
             self._intent_cache: list = []
+        # P4a — tête type de phrase : d_clause → mlp_hidden → mlp_hidden2 → n_sentence_types
+        # n_sentence_types=0 = désactivé (non-breaking, même pattern Éq.6)
+        self.n_sentence_types = n_sentence_types
+        if n_sentence_types > 0:
+            self._sentence_layers = [
+                _LinearLayer(d_clause, mlp_hidden, rng),
+                _LinearLayer(mlp_hidden, mlp_hidden2, rng),
+                _LinearLayer(mlp_hidden2, n_sentence_types, rng),
+            ]
+            self._sentence_cache: list = []
+        # P4 quals — 3 petites têtes sur vecteur edge enrichi (d_edge) :
+        # polarity/2, voice/2, modality/4. qual_heads=False = désactivé.
+        self.qual_heads = bool(qual_heads)
+        if qual_heads:
+            from ..constants import QUALIFIERS as _QUALIFIERS
+
+            self._qual_layers: dict[str, list] = {}
+            self._qual_cache: dict[str, list] = {}
+            for _qn, _qclasses in _QUALIFIERS.items():
+                self._qual_layers[_qn] = [
+                    _LinearLayer(d_edge, qual_hidden, rng),
+                    _LinearLayer(qual_hidden, len(_qclasses), rng),
+                ]
+                self._qual_cache[_qn] = []
+        # Voie A (2026-10-16) — tête d'existence : d_edge → qual_hidden → 1
+        # logit (arête présente/absente). exist_head=False = désactivé
+        # (non-breaking : checkpoints sans clés exist chargent sans elle).
+        # Tête seule mise à jour (précédent R2 factor_aux : pas de reflux
+        # tronc) — le signal de détection ne déforme pas les représentations.
+        self.exist_head = bool(exist_head)
+        if exist_head:
+            self._exist_layers = [
+                _LinearLayer(d_edge, qual_hidden, rng),
+                _LinearLayer(qual_hidden, 1, rng),
+            ]
+            self._exist_cache: list = []
 
     def _forward_mlp(
-        self, x: np.ndarray, layers: list[_LinearLayer], cache_out: list,
-        dropout: float = 0.0, dropout_masks: list | None = None,
+        self,
+        x: np.ndarray,
+        layers: list[_LinearLayer],
+        cache_out: list,
+        dropout: float = 0.0,
+        dropout_masks: list | None = None,
     ) -> np.ndarray:
         cache_out.clear()
         if dropout_masks is not None:
@@ -159,12 +226,65 @@ class MLPEncoder:
         self._edge_cache = []
         self._edge_dropout_masks = []
         return self._forward_mlp(
-            x, self._edge_layers, self._edge_cache,
-            dropout=self.edge_dropout, dropout_masks=self._edge_dropout_masks,
+            x,
+            self._edge_layers,
+            self._edge_cache,
+            dropout=self.edge_dropout,
+            dropout_masks=self._edge_dropout_masks,
         )
 
+    def forward_exist(self, x: np.ndarray) -> np.ndarray:
+        """Logit d'existence (1,) — lève si tête désactivée."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("forward_exist sans tête d'existence (exist_head=False).")
+        self._exist_cache = []
+        return self._forward_mlp(
+            x,
+            self._exist_layers,
+            self._exist_cache,
+            dropout=self.edge_dropout,
+            dropout_masks=None,
+        )
+
+    def backward_exist(self, d_logit: np.ndarray) -> tuple[list, np.ndarray]:
+        """(grads, dx) — dx vers le tronc IGNORÉ par l'appelant (tête seule)."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("backward_exist sans tête d'existence.")
+        return self._backward_mlp(d_logit, self._exist_layers, self._exist_cache)
+
+    def update_exist(self, grads: list, lr: float) -> None:
+        """Mise à jour tête seule (précédent R2)."""
+        if not getattr(self, "exist_head", False):
+            raise ValueError("update_exist sans tête d'existence.")
+        self._apply_grads(self._exist_layers, grads, lr)
+
+    def forward_quals(self, x: np.ndarray) -> dict[str, np.ndarray]:
+        """P4 quals — dict {nom: logits} sur le même vecteur edge enrichi."""
+        out = {}
+        for _qn, _layers in self._qual_layers.items():
+            self._qual_cache[_qn] = []
+            out[_qn] = self._forward_mlp(x, _layers, self._qual_cache[_qn])
+        return out
+
+    def backward_quals(
+        self, d_map: dict[str, np.ndarray]
+    ) -> tuple[dict[str, list], dict[str, np.ndarray]]:
+        """Retourne (grads_par_tête, dx_par_tête) — dx couplé à d_enriched par l'appelant."""
+        grads, dxs = {}, {}
+        for _qn, _d in d_map.items():
+            _g, _dx = self._backward_mlp(_d, self._qual_layers[_qn], self._qual_cache[_qn])
+            grads[_qn], dxs[_qn] = _g, _dx
+        return grads, dxs
+
+    def update_quals(self, grads: dict[str, list], lr: float) -> None:
+        for _qn, _g in grads.items():
+            self._apply_grads(self._qual_layers[_qn], _g, lr)
+
     def _backward_mlp(
-        self, d_logits: np.ndarray, layers: list[_LinearLayer], cache: list,
+        self,
+        d_logits: np.ndarray,
+        layers: list[_LinearLayer],
+        cache: list,
         dropout_masks: list | None = None,
     ) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
         """Retourne (grads, d_input) où d_input est le gradient vers l'entrée."""
@@ -185,21 +305,29 @@ class MLPEncoder:
         grads, _ = self._backward_mlp(d_logits, self._node_layers, self._node_cache)
         return grads
 
-    def backward_node_dx(self, d_logits: np.ndarray) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
+    def backward_node_dx(
+        self, d_logits: np.ndarray
+    ) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
         """Comme backward_node mais retourne aussi le gradient vers l'entrée (pour R-GCN)."""
         return self._backward_mlp(d_logits, self._node_layers, self._node_cache)
 
     def backward_edge(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
         grads, _ = self._backward_mlp(
-            d_logits, self._edge_layers, self._edge_cache,
+            d_logits,
+            self._edge_layers,
+            self._edge_cache,
             dropout_masks=self._edge_dropout_masks,
         )
         return grads
 
-    def backward_edge_dx(self, d_logits: np.ndarray) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
+    def backward_edge_dx(
+        self, d_logits: np.ndarray
+    ) -> tuple[list[tuple[np.ndarray, np.ndarray]], np.ndarray]:
         """Comme backward_edge mais retourne aussi le gradient vers l'entrée (closed-loop → R-GCN)."""
         return self._backward_mlp(
-            d_logits, self._edge_layers, self._edge_cache,
+            d_logits,
+            self._edge_layers,
+            self._edge_cache,
             dropout_masks=self._edge_dropout_masks,
         )
 
@@ -211,6 +339,19 @@ class MLPEncoder:
     def backward_intent(self, d_logits: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
         grads, _ = self._backward_mlp(d_logits, self._intent_layers, self._intent_cache)
         return grads
+
+    def forward_sentence(self, x: np.ndarray) -> np.ndarray:
+        """P4a — tête type de phrase (duck-typé, disponible si n_sentence_types > 0)."""
+        self._sentence_cache = []
+        return self._forward_mlp(x, self._sentence_layers, self._sentence_cache)
+
+    def backward_sentence(self, d_logits: np.ndarray) -> tuple[list, np.ndarray]:
+        # Contrairement à backward_intent (tête découplée), le dx est retourné :
+        # la tête phrase supervise l'espace partagé (moyenne des clauses).
+        return self._backward_mlp(d_logits, self._sentence_layers, self._sentence_cache)
+
+    def update_sentence(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
+        self._apply_grads(self._sentence_layers, grads, lr)
 
     def update_intent(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
         self._apply_grads(self._intent_layers, grads, lr)
@@ -249,11 +390,14 @@ class MLPEncoder:
         return params
 
     def _apply_grads(
-        self, layers: list[_LinearLayer],
-        grads: list[tuple[np.ndarray, np.ndarray]], lr: float,
+        self,
+        layers: list[_LinearLayer],
+        grads: list[tuple[np.ndarray, np.ndarray]],
+        lr: float,
     ) -> None:
         if not np.isfinite(lr) or lr < 0:
             raise ValueError(f"lr doit être un nombre fini >= 0 (reçu {lr!r}).")
+        _bump_param_epoch()  # M1a : toute mutation invalide le cache analyze
         for layer, (dW, db) in zip(layers, grads, strict=False):
             if self.grad_clip is not None:
                 nW = float(np.linalg.norm(dW))
@@ -262,7 +406,12 @@ class MLPEncoder:
                 nb = float(np.linalg.norm(db))
                 if nb > self.grad_clip:
                     db = db * (self.grad_clip / nb)
-            layer.W -= lr * dW + lr * self.weight_decay * layer.W
+            if self.decoupled_wd:
+                # AdamW-style : decay non scalé par lr (défaut False = couplé historique).
+                layer.W -= lr * dW
+                layer.W -= self.weight_decay * layer.W
+            else:
+                layer.W -= lr * dW + lr * self.weight_decay * layer.W
             layer.b -= lr * db
 
     def update_node(self, grads: list[tuple[np.ndarray, np.ndarray]], lr: float) -> None:
@@ -272,6 +421,7 @@ class MLPEncoder:
         self._apply_grads(self._edge_layers, grads, lr)
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
+        _bump_param_epoch()  # M1a : toute mutation invalide le cache analyze
         for p, g in zip(self.parameters(), grads, strict=False):
             p -= lr * g
 
@@ -316,7 +466,7 @@ class TransformerMLPEncoder(MLPEncoder):
         if node_vecs.shape[0] == 0:  # FIX-3 : graphe vide → MHA lèverait RuntimeError
             return super().forward_batch(node_vecs)
         H = self._torch.as_tensor(node_vecs, dtype=self._torch.float32).unsqueeze(0)  # (1, N, d)
-        with self._torch.no_grad():   # poids fixes — pas de gradient à travers MHA
+        with self._torch.no_grad():  # poids fixes — pas de gradient à travers MHA
             H_att, _ = self._mha(H, H, H)
-        H_enriched = (H + H_att).squeeze(0).cpu().numpy()   # résidu, retour NumPy
+        H_enriched = (H + H_att).squeeze(0).cpu().numpy()  # résidu, retour NumPy
         return super().forward_batch(H_enriched)

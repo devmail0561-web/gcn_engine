@@ -152,7 +152,7 @@ def test_snapshot_restore_preserves_gradients(dimensions):
     encoder.restore_node_cache(snapshot)
 
     # Backward devrait fonctionner après restore
-    d_logits = np.ones((2, 7), dtype=np.float32)
+    d_logits = np.ones((2, 8), dtype=np.float32)
     grads, dx = encoder.backward_node_dx(d_logits)
 
     assert len(grads) > 0

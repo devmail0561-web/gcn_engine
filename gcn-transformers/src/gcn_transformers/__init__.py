@@ -13,11 +13,11 @@ Utilisation :
     from gcn_python.pipeline.cgnp import CGNPipeline
 
     vocab = FeatureVocabulary()
-    d_eff = vocab.d_clause_effective(0, False)  # 79
-    d_edge = vocab.d_edge_closed_loop(d_eff, 7, 0, False)  # 365
+    d_eff = vocab.d_clause_effective(0, False)  # 106
+    d_edge = vocab.d_edge_closed_loop(d_eff, 8, 0, False)  # 475
 
     encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge)
-    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=11)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=19)
     pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
 
     # Entraînement via script Python (pas de CLI)
@@ -27,7 +27,7 @@ from .camembert import CamembertEncoder
 from .codebert import CodeBERTEncoder
 from .xlm_roberta import XLMRobertaEncoder
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "XLMRobertaEncoder",
     "CamembertEncoder",

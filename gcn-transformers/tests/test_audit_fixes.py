@@ -86,7 +86,7 @@ def test_bug2_model_config_validation():
     with pytest.raises(ValueError, match="doit avoir un attribut 'config'"):
         encoder = TransformerEncoderBase.__new__(TransformerEncoderBase)
         encoder.model = FakeModelNoConfig()
-        encoder.__init__(d_clause=79, d_edge=365)
+        encoder.__init__(d_clause=106, d_edge=475)
 
     # Mock modèle avec config mais sans hidden_size
     class FakeModelNoHiddenSize:
@@ -96,7 +96,7 @@ def test_bug2_model_config_validation():
     with pytest.raises(ValueError, match="doit avoir 'hidden_size'"):
         encoder = TransformerEncoderBase.__new__(TransformerEncoderBase)
         encoder.model = FakeModelNoHiddenSize()
-        encoder.__init__(d_clause=79, d_edge=365)
+        encoder.__init__(d_clause=106, d_edge=475)
 
 
 def test_bug4_double_update_warning(dimensions, capfd):

@@ -1,0 +1,2283 @@
+{
+ "pw-14": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-28": {
+  "verdict": "non",
+  "motif": "négation",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-36": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-39": {
+  "verdict": "non",
+  "motif": "énumération, pas d'effet",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-75": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-105": {
+  "verdict": "non",
+  "motif": "prévient=avertir",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-133": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-170": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-184": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-210": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-226": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-229": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-271": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-295": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-309": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-335": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-351": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-354": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-396": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-407": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-445": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-531": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-641": {
+  "verdict": "non",
+  "motif": "mauvaise relation",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-645": {
+  "verdict": "non",
+  "motif": "spans ne portent pas",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-717": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-771": {
+  "verdict": "non",
+  "motif": "négation",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-819": {
+  "verdict": "non",
+  "motif": "illustration",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-820": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-827": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-843": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-895": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-898": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-949": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-966": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-978": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-981": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1013": {
+  "verdict": "non",
+  "motif": "mention, pas d'acte",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1018": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1019": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1024": {
+  "verdict": "non",
+  "motif": "tronqué",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1035": {
+  "verdict": "non",
+  "motif": "négation+vide",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1038": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1043": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1046": {
+  "verdict": "non",
+  "motif": "négation+dégénéré",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1049": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1050": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1052": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1053": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1065": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1136": {
+  "verdict": "non",
+  "motif": "négation+vide",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1145": {
+  "verdict": "non",
+  "motif": "parenthèse",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1160": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1185": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2",
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1200": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1229": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1249": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2",
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1256": {
+  "verdict": "non",
+  "motif": "pas de prévention",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1268": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1284": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1286": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2",
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1287": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1288": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1347": {
+  "verdict": "non",
+  "motif": "manifester ≠ empêcher",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2",
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-49": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2",
+   "R3"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-50": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-70": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-71": {
+  "verdict": "non",
+  "motif": "mauvaise relation",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-84": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-100": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-136": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-168": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-169": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-183": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-185": {
+  "verdict": "non",
+  "motif": "devant locatif+inversé",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-217": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-221": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-245": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-293": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-294": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-308": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-310": {
+  "verdict": "non",
+  "motif": "devant locatif+inversé",
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-342": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-346": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-370": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-401": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-413": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-414": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-441": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-452": {
+  "verdict": "non",
+  "motif": "anti-restriction",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-465": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-481": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-490": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-502": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-517": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-518": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-546": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-551": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-617": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-639": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-664": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-708": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-743": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-115": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-408": {
+  "verdict": "non",
+  "motif": "spans ne portent pas",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-612": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-755": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-785": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-795": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-796": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-840": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-848": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-856": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-857": {
+  "verdict": "non",
+  "motif": "mention incidente",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-862": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-941": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-959": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1014": {
+  "verdict": "non",
+  "motif": "énumération",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1015": {
+  "verdict": "non",
+  "motif": "énumération",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1021": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1022": {
+  "verdict": "non",
+  "motif": "SI bogué",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1045": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1056": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1140": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1232": {
+  "verdict": "non",
+  "motif": "réfléchi",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1238": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1379": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1394": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1402": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1403": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-41": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-88": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-153": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-278": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-451": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-461": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-476": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-480": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-493": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-572": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-581": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-591": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-620": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-657": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-744": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-782": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-882": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-919": {
+  "verdict": "non",
+  "motif": "sens inversé (P4)",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-930": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-961": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1007": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1010": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1025": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1041": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1044": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1051": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1148": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1156": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1168": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1199": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1225": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1226": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1228": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1282": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1301": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1326": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1335": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "validateur": "machine-PV1"
+ },
+ "pw-1364": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ },
+ "pw-1404": {
+  "verdict": "oui",
+  "motif": "paraphrase+contre-lecture OK",
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R2"
+  ],
+  "validateur": "machine-PV1"
+ }
+}

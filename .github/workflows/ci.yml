@@ -28,4 +28,57 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - run: pip install -e "gcn-python[dev]"
       - run: ruff check gcn-python/src/ gcn-python/tests/
-      - run: pytest gcn-python/tests/ -q
+      # PYTHONPATH obligatoire (cf. Makefile `test`) : sans lui, pytest résout
+      # gcn_python via le paquet installé (checkout stale) au lieu de la source.
+      - run: PYTHONPATH=gcn-python/src pytest gcn-python/tests/ -q
+
+  guards:
+    name: Guards I1 — socle sans transformers/torch
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # T5 : aucun import gcn_transformers au runtime du socle.
+      - run: '! grep -rq gcn_transformers gcn-python/src/'
+      # torch reste optionnel : aucun import top-level dans le socle (lazy seul).
+      - run: '! grep -rn "^import torch\|^from torch" gcn-python/src/'
+      # Acceptation A (cible finale = 0) : comptage publié, informatif pour l'instant.
+      - run: grep -rln 'subprocess\|gcn_bin\|Lattice' --include="*.py" gcn-python/src/ ; true
+      # R4 — ban final/ : aucun répertoire final/ sous les chemins de modèles.
+      - run: test ! -d gcn-python/models/final
+      - run: test ! -d gcn-datasets/checkpoints/final
+
+  transformers:
+    name: gcn-transformers — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-python[dev]"
+      - run: pip install -e "gcn-transformers[dev]"
+      - run: pytest gcn-transformers/tests/ -q
+
+  annotate:
+    name: gcn-annotate — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-python[dev]"
+      - run: pip install -e "gcn-tools/gcn-annotate[dev]"
+      - run: pytest gcn-tools/gcn-annotate/tests/ -q
+
+  scraper:
+    name: gcn-scraper — pytest
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-tools/gcn-scraper[dev]"
+      - run: pytest gcn-tools/gcn-scraper/tests/ -q
+
+  gates:
+    name: Gates v4 — données gelées + smoke sans NaN
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: pip install -e "gcn-python[dev]"
+      # Smoke sans NaN : mini-trains jouets (marqueurs, sentence, quals).
+      - run: pytest gcn-python/tests/test_marker_supervision.py gcn-python/tests/test_sentence_type.py gcn-python/tests/test_qual_heads.py -q
+      # Gates données : DATA/ hors git → `make gates` en local, pas en CI.

@@ -7,7 +7,7 @@ CamemBERT : 110M paramètres, pré-entraîné sur corpus français (OSCAR).
 """
 from __future__ import annotations
 
-from .base import TransformerEncoderBase
+from .base import TransformerEncoderBase, load_hf_model
 
 
 class CamembertEncoder(TransformerEncoderBase):
@@ -26,6 +26,7 @@ class CamembertEncoder(TransformerEncoderBase):
         learning_rate: float = 1e-5,
         device: str | None = None,
         model_name: str = "camembert-base",
+        revision: str | None = None,
         n_node_types: int = 8,
         n_relation_types: int = 19,
     ):
@@ -39,23 +40,18 @@ class CamembertEncoder(TransformerEncoderBase):
             learning_rate: Learning rate AdamW (1e-5 recommandé)
             device: "cuda", "cpu", ou None (auto-détection)
             model_name: Modèle HuggingFace ("camembert-base" par défaut, 440MB download)
-            n_node_types: Nombre de types de nœuds (7 par défaut)
-            n_relation_types: Nombre de relations causales (11 par défaut)
+            n_node_types: Nombre de types de nœuds (8 v3.0)
+            n_relation_types: Nombre de relations causales (19 v3.0)
+            revision: Révision HF pinnée (sha) — None = ref flottante (repro
+                non garantie). trust_remote_code=False toujours.
 
         Raises:
             ImportError: Si transformers n'est pas installé
         """
-        try:
-            from transformers import AutoModel, AutoTokenizer
-        except ImportError as e:
-            raise ImportError(
-                "Le package 'transformers' est requis pour CamembertEncoder.\n"
-                "Installation : pip install transformers>=4.30.0"
-            ) from e
-
         # Instanciation du modèle HuggingFace AVANT super().__init__()
-        self.model = AutoModel.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # (garde supply-chain : revision pinnée, trust_remote_code=False,
+        # erreur hors-ligne claire — cf. load_hf_model).
+        self.model, self.tokenizer = load_hf_model(model_name, revision)
 
         # Init classe de base
         super().__init__(

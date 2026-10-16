@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GCN — Pipeline du moteur : entraînement &amp; inférence</title>
+<style>
+  :root { --bg:#0f141b; --panel:#16202c; --ink:#e8eef4; --muted:#9fb0c0;
+          --blue:#4aa3ff; --green:#3fd68f; --amber:#ffb454; --violet:#b79bff; --red:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header, main { max-width:1180px; margin:0 auto; padding:24px 20px; }
+  header h1 { font-size:26px; margin:0 0 4px; }
+  header p, footer p { color:var(--muted); }
+  nav.toc { background:var(--panel); border:1px solid #263445; border-radius:10px; padding:12px 18px; }
+  nav.toc a { color:var(--blue); margin-right:18px; text-decoration:none; }
+  section.card { background:var(--panel); border:1px solid #263445; border-radius:12px;
+                 padding:20px; margin:22px 0; }
+  h2 { margin-top:0; font-size:20px; }
+  h3 { color:var(--muted); font-size:14px; text-transform:uppercase; letter-spacing:.06em; }
+  svg { width:100%; height:auto; display:block; background:#0c1219;
+        border:1px solid #263445; border-radius:8px; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; color:var(--muted); font-size:13px; margin-top:10px; }
+  .sw { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  code { background:#0c1219; padding:1px 6px; border-radius:6px; font-size:13px; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; margin-top:10px; }
+  th, td { border:1px solid #2b3c52; padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:#0c1219; color:var(--muted); }
+  footer { border-top:1px solid #263445; margin-top:26px; }
+  @media print { body { background:#fff; color:#111; } section.card, nav.toc { border-color:#ccc; background:#fff; } svg { background:#fff; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>GCN v4.0 — Pipeline du moteur</h1>
+  <p>Entraînement (<code>gcn-train</code>) vs inférence (<code>GCNEngine</code> + frontends symboliques) · zoom couches L0→L3 + dimensions.<br>
+  Données réelles hétérogènes (étude <code>docs/current/ETUDE_PROBLEMES_SOLUTIONS.md</code> §3) : prose NL, fragments, graphes typés, logs/séquences, enregistrements structurés, documents composites, tables, maths, stats — chaque format a son frontend vers le même <code>CausalIR</code>.<br>
+  Sources : <code>gcn-python/src/gcn_python/pipeline/cgnp.py</code>, <code>training/train.py</code>, <code>data/loader.py</code>, <code>engine.py</code>, <code>frontend/bridge.py</code>, <code>constants.py</code>, <code>gcn-cli/src/main.rs|extract.rs</code>, crates <code>gcn-frontend-*</code>.</p>
+  <nav class="toc">
+    <a href="#ingest">0 · Ingestion multi-formats</a>
+    <a href="#train">1 · Entraînement</a>
+    <a href="#infer">2 · Inférence</a>
+    <a href="#couches">3 · Couches &amp; dimensions</a>
+    <a href="#fichiers">4 · Fichiers sources</a>
+  </nav>
+</header>
+<main>
+
+<!-- ==================== 0. INGESTION ==================== -->
+<section class="card" id="ingest">
+<h2>0 · Ingestion multi-formats — un patron, un contrat (<code>CausalIR</code>)</h2>
+<svg viewBox="0 0 1120 430" role="img" aria-label="Ingestion multi-formats">
+  <defs>
+    <marker id="a0" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9fb0c0"/>
+    </marker>
+  </defs>
+  <!-- left: formats -->
+  <rect x="10" y="20" width="250" height="60" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="135" y="44" fill="#e8eef4" text-anchor="middle" font-size="12" font-weight="bold">NL prose / fragments</text>
+  <text x="135" y="61" fill="#9fb0c0" text-anchor="middle" font-size="11">rapports, notes, commits → fr/en</text>
+  <rect x="10" y="90" width="250" height="60" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="135" y="114" fill="#e8eef4" text-anchor="middle" font-size="12" font-weight="bold">Code AST (py/rs/js)</text>
+  <text x="135" y="131" fill="#9fb0c0" text-anchor="middle" font-size="11">tree-sitter → parse_python/rust/js</text>
+  <rect x="10" y="160" width="250" height="60" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="135" y="184" fill="#e8eef4" text-anchor="middle" font-size="12" font-weight="bold">Graphes typés (STIX…)</text>
+  <text x="135" y="201" fill="#9fb0c0" text-anchor="middle" font-size="11">analyze-graph · mapping compilé</text>
+  <rect x="10" y="230" width="250" height="60" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="135" y="254" fill="#e8eef4" text-anchor="middle" font-size="12" font-weight="bold">Tables CSV / SQL</text>
+  <text x="135" y="271" fill="#9fb0c0" text-anchor="middle" font-size="11">analyze-table · schéma en flags</text>
+  <rect x="10" y="300" width="250" height="60" rx="9" fill="#16202c" stroke="#ffb454" stroke-width="2"/>
+  <text x="135" y="324" fill="#e8eef4" text-anchor="middle" font-size="12" font-weight="bold">Documents (pdf/html/ipynb)</text>
+  <text x="135" y="341" fill="#9fb0c0" text-anchor="middle" font-size="11">extract-text → phrases → NL</text>
+  <!-- mid: pattern -->
+  <rect x="300" y="20" width="280" height="340" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="440" y="45" fill="#ffb454" text-anchor="middle" font-size="13" font-weight="bold">Patron générique (§3.1)</text>
+  <text x="320" y="75" fill="#e8eef4" font-size="12">unités = clauses / nœuds AST /</text>
+  <text x="320" y="95" fill="#e8eef4" font-size="12">événements / lignes CSV…</text>
+  <text x="320" y="125" fill="#e8eef4" font-size="12">signal = SCONJ / topologie AST /</text>
+  <text x="320" y="145" fill="#e8eef4" font-size="12">relationship_type / ordre Δt /</text>
+  <text x="320" y="165" fill="#e8eef4" font-size="12">colonnes cause→effet…</text>
+  <text x="320" y="195" fill="#e8eef4" font-size="12">→ RelationType (lookup / ML</text>
+  <text x="320" y="215" fill="#e8eef4" font-size="12">detect_ternary)</text>
+  <text x="320" y="245" fill="#9fb0c0" font-size="12">zéro YAML moteur : savoir</text>
+  <text x="320" y="265" fill="#9fb0c0" font-size="12">compilé ; graph inconnu→</text>
+  <text x="320" y="285" fill="#9fb0c0" font-size="12">Concept, table ligne ignorée</text>
+  <text x="320" y="315" fill="#ff6b6b" font-size="12">stream (logs) DIFFÉRÉ :</text>
+  <text x="320" y="333" fill="#9fb0c0" font-size="12">≥500 logs annotés/domaine</text>
+  <!-- right: outputs -->
+  <rect x="620" y="20" width="230" height="160" rx="9" fill="#16202c" stroke="#b79bff" stroke-width="2"/>
+  <text x="735" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">CausalIR direct</text>
+  <text x="735" y="65" fill="#9fb0c0" text-anchor="middle" font-size="11">symbolique, conf 1.0 si</text>
+  <text x="735" y="81" fill="#9fb0c0" text-anchor="middle" font-size="11">explicite (graph/table)</text>
+  <text x="735" y="110" fill="#e8eef4" text-anchor="middle" font-size="12">→ middleend → backend</text>
+  <text x="735" y="130" fill="#e8eef4" text-anchor="middle" font-size="12">Pearl + GCN-QL, DOT</text>
+  <text x="735" y="150" fill="#9fb0c0" text-anchor="middle" font-size="11">graph: inconnu→Concept ;</text>
+  <text x="735" y="166" fill="#9fb0c0" text-anchor="middle" font-size="11">table: défaut node_type,</text>
+  <rect x="620" y="200" width="230" height="160" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="735" y="225" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">Bootstrap → training</text>
+  <text x="735" y="245" fill="#9fb0c0" text-anchor="middle" font-size="11">CIR + tokens → JSON gcn-nl</text>
+  <text x="735" y="261" fill="#9fb0c0" text-anchor="middle" font-size="11">→ annotation humaine →</text>
+  <text x="735" y="290" fill="#e8eef4" text-anchor="middle" font-size="12">gcn-train (gold par</text>
+  <text x="735" y="310" fill="#e8eef4" text-anchor="middle" font-size="12">domaine : le vrai bloquant,</text>
+  <text x="735" y="330" fill="#e8eef4" text-anchor="middle" font-size="12">5k–50k phrases/dom.)</text>
+  <rect x="870" y="20" width="240" height="340" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="890" y="45" fill="#ffb454" font-size="13" font-weight="bold">Non-phrases : routage</text>
+  <text x="890" y="70" fill="#e8eef4" font-size="12">Produit le CIR sans passer</text>
+  <text x="890" y="90" fill="#e8eef4" font-size="12">par une phrase NL :</text>
+  <text x="890" y="120" fill="#e8eef4" font-size="12">· STIX relationship_type</text>
+  <text x="890" y="140" fill="#e8eef4" font-size="12">· CSV ligne → arête</text>
+  <text x="890" y="160" fill="#e8eef4" font-size="12">· AST kind → Condition /</text>
+  <text x="890" y="180" fill="#e8eef4" font-size="12">Sequence</text>
+  <text x="890" y="210" fill="#e8eef4" font-size="12">· logs : Sequence (Δt) +</text>
+  <text x="890" y="230" fill="#e8eef4" font-size="12">Cause (sévérité) — à</text>
+  <text x="890" y="250" fill="#e8eef4" font-size="12">venir, données d'abord.</text>
+  <text x="890" y="280" fill="#9fb0c0" font-size="12">NON implémenté (étude §4) :</text>
+  <text x="890" y="300" fill="#9fb0c0" font-size="12">stream/logs, maths opaque,</text>
+  <text x="890" y="320" fill="#9fb0c0" font-size="12">frontend stats — pistes,</text>
+  <text x="890" y="340" fill="#9fb0c0" font-size="12">pas du code.</text>
+  <!-- arrows -->
+  <line x1="260" y1="120" x2="298" y2="120" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+  <line x1="260" y1="190" x2="298" y2="190" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+  <line x1="260" y1="260" x2="298" y2="260" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+  <line x1="260" y1="330" x2="298" y2="330" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+  <line x1="580" y1="120" x2="618" y2="120" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+  <line x1="580" y1="280" x2="618" y2="280" stroke="#9fb0c0" stroke-width="2" marker-end="url(#a0)"/>
+</svg>
+<div class="legend">
+  <span><i class="sw" style="background:#4aa3ff"></i>NL / code (existant)</span>
+  <span><i class="sw" style="background:#3fd68f"></i>P2.1 graph / P2.3 table (implémentés)</span>
+  <span><i class="sw" style="background:#ffb454"></i>P2.2 extract-text (pipeline, pas un crate)</span>
+  <span><i class="sw" style="background:#b79bff"></i>sorties CIR</span>
+</div>
+</section>
+
+<!-- ==================== 1. ENTRAINEMENT ==================== -->
+<section class="card" id="train">
+<h2>1 · Entraînement — <code>gcn-train</code> (aucun frontend, données annotées)</h2>
+<svg viewBox="0 0 1120 430" role="img" aria-label="Pipeline entrainement">
+  <defs>
+    <marker id="aB" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9fb0c0"/>
+    </marker>
+  </defs>
+  <!-- row 1 -->
+  <rect x="10" y="20" width="170" height="86" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="95" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">JSON gcn-nl v4</text>
+  <text x="95" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">--data-dir / --val-dir</text>
+  <text x="95" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">sources[], third, intent</text>
+
+  <rect x="200" y="20" width="180" height="86" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="290" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">GCNDataLoader</text>
+  <text x="290" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">TrainingSample</text>
+  <text x="290" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">gold_node, edge_map ★</text>
+
+  <rect x="400" y="20" width="190" height="86" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="495" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">reps_from_sentence</text>
+  <text x="495" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">(reps, valid_idxs,</text>
+  <text x="495" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">connector_reps)</text>
+
+  <rect x="610" y="20" width="230" height="86" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="725" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">forward (+ teacher forcing)</text>
+  <text x="725" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">L1 → L2 passe1 → R-GCN</text>
+  <text x="725" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">→ L2 passe2 → tête arêtes</text>
+
+  <rect x="860" y="20" width="150" height="86" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="935" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">loss</text>
+  <text x="935" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">mask ∅, weights,</text>
+  <text x="935" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">smoothing, silver</text>
+
+  <!-- row 2 -->
+  <rect x="10" y="160" width="180" height="86" rx="9" fill="#16202c" stroke="#ffb454" stroke-width="2"/>
+  <text x="100" y="185" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">backward + SGD</text>
+  <text x="100" y="203" fill="#9fb0c0" text-anchor="middle" font-size="11">d_node → d_enriched</text>
+  <text x="100" y="219" fill="#9fb0c0" text-anchor="middle" font-size="11">d_edge → src/dst, R-GCN⁻¹</text>
+
+  <rect x="210" y="160" width="230" height="86" rx="9" fill="#16202c" stroke="#b79bff" stroke-width="2"/>
+  <text x="325" y="185" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">_run_eval_pass (val SANS oracle)</text>
+  <text x="325" y="203" fill="#9fb0c0" text-anchor="middle" font-size="11">node/edge F1, GEM, ECE</text>
+  <text x="325" y="219" fill="#9fb0c0" text-anchor="middle" font-size="11">asymétrie volontaire (BUG-1)</text>
+
+  <rect x="460" y="160" width="180" height="86" rx="9" fill="#16202c" stroke="#b79bff" stroke-width="2"/>
+  <text x="550" y="185" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">early stopping</text>
+  <text x="550" y="203" fill="#9fb0c0" text-anchor="middle" font-size="11">patience, T5-min</text>
+  <text x="550" y="219" fill="#9fb0c0" text-anchor="middle" font-size="11">optimize_temperature</text>
+
+  <rect x="660" y="160" width="220" height="86" rx="9" fill="#16202c" stroke="#ff6b6b" stroke-width="2"/>
+  <text x="770" y="185" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">save_checkpoint .npz</text>
+  <text x="770" y="203" fill="#9fb0c0" text-anchor="middle" font-size="11">atomique tmp+replace</text>
+  <text x="770" y="219" fill="#9fb0c0" text-anchor="middle" font-size="11">_arch_json + _vocab_json</text>
+
+  <rect x="900" y="160" width="110" height="86" rx="9" fill="#16202c" stroke="#9fb0c0" stroke-width="2"/>
+  <text x="955" y="185" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">emit()</text>
+  <text x="955" y="203" fill="#9fb0c0" text-anchor="middle" font-size="11">CIR dict</text>
+  <text x="955" y="219" fill="#9fb0c0" text-anchor="middle" font-size="11">serde Rust</text>
+
+  <!-- arrows row1 -->
+  <line x1="180" y1="63" x2="198" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="380" y1="63" x2="398" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="590" y1="63" x2="608" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="840" y1="63" x2="858" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <!-- down + row2 -->
+  <line x1="935" y1="106" x2="935" y2="140" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="900" y1="203" x2="882" y2="203" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="660" y1="203" x2="642" y2="203" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="460" y1="203" x2="442" y2="203" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+  <line x1="210" y1="203" x2="192" y2="203" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aB)"/>
+
+  <!-- config strip -->
+  <rect x="10" y="290" width="1100" height="110" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="30" y="315" fill="#ffb454" font-size="13" font-weight="bold">Config référence</text>
+  <text x="30" y="338" fill="#e8eef4" font-size="12">gcn-train --weighted-loss --use-attention --bidirectional --lr 0.0005 (explicites : défauts False/False/False/0.001) · --embedding-dim 128 --all-pairs déjà défauts</text>
+  <text x="30" y="360" fill="#9fb0c0" font-size="12">★ edge_map = seule vérité arêtes · hyperedge_map (N-aires) non supervisé · edge_conf_map = poids confidence · logit_mask toujours construit · val SANS teacher forcing (F1 non optimiste).</text>
+  <text x="30" y="380" fill="#9fb0c0" font-size="12">Jamais de frontend ici : tokens UD annotés du JSON, jamais spacy, jamais gcn analyze.</text>
+</svg>
+<div class="legend">
+  <span><i class="sw" style="background:#4aa3ff"></i>données / loader</span>
+  <span><i class="sw" style="background:#3fd68f"></i>forward / loss</span>
+  <span><i class="sw" style="background:#ffb454"></i>backward</span>
+  <span><i class="sw" style="background:#b79bff"></i>éval / arrêt</span>
+  <span><i class="sw" style="background:#ff6b6b"></i>artefact</span>
+</div>
+</section>
+
+<!-- ==================== 2. INFERENCE ==================== -->
+<section class="card" id="infer">
+<h2>2 · Inférence — <code>GCNEngine.analyze()</code> (frontend = bridge FR par défaut)</h2>
+<svg viewBox="0 0 1120 470" role="img" aria-label="Pipeline inference">
+  <defs>
+    <marker id="aG" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9fb0c0"/>
+    </marker>
+  </defs>
+  <rect x="10" y="20" width="200" height="86" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="110" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">phrase pré-segmentée</text>
+  <text x="110" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">appelant / extract-text</text>
+  <text x="110" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">1 ligne = 1 phrase</text>
+
+  <rect x="230" y="20" width="230" height="86" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="345" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">TextParser.parse()</text>
+  <text x="345" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">défaut: GCNBridgeParser</text>
+  <text x="345" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">→ gcn analyze (FR) dégradé*</text>
+
+  <rect x="480" y="20" width="220" height="86" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="590" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">forward SANS gold</text>
+  <text x="590" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">edge_types = 0 / two-pass</text>
+  <text x="590" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">seuils edge/thêta 0.65</text>
+
+  <rect x="720" y="20" width="170" height="86" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="805" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">CIR prédit</text>
+  <text x="805" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">conf, d6, in_cycle</text>
+  <text x="805" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">third/joint, lang=und</text>
+
+  <rect x="910" y="20" width="200" height="86" rx="9" fill="#16202c" stroke="#b79bff" stroke-width="2"/>
+  <text x="1010" y="45" fill="#e8eef4" text-anchor="middle" font-size="13" font-weight="bold">usages</text>
+  <text x="1010" y="63" fill="#9fb0c0" text-anchor="middle" font-size="11">batch/stream/verbalize</text>
+  <text x="1010" y="79" fill="#9fb0c0" text-anchor="middle" font-size="11">predict_links/discuss/index</text>
+
+  <line x1="210" y1="63" x2="228" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aG)"/>
+  <line x1="460" y1="63" x2="478" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aG)"/>
+  <line x1="700" y1="63" x2="718" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aG)"/>
+  <line x1="890" y1="63" x2="908" y2="63" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aG)"/>
+
+  <!-- second row : alternatives -->
+  <rect x="10" y="150" width="340" height="120" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="30" y="175" fill="#ffb454" font-size="13" font-weight="bold">Choix du frontend = explicite (pas d'auto-détection)</text>
+  <text x="30" y="197" fill="#e8eef4" font-size="12">gcn analyze ───────── texte FR → FrenchParser</text>
+  <text x="30" y="217" fill="#e8eef4" font-size="12">gcn analyze-graph ── bundle STIX → parse_stix</text>
+  <text x="30" y="237" fill="#e8eef4" font-size="12">gcn analyze-table ── CSV (+flags schéma) → parse_table</text>
+  <text x="30" y="257" fill="#9fb0c0" font-size="12">code / EN : lib seule, sans sous-commande CLI (EN absent des deps gcn-cli ; code dép orpheline inutilisée) · Python : TextParser custom injectable</text>
+
+  <rect x="370" y="150" width="360" height="120" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="390" y="175" fill="#ffb454" font-size="13" font-weight="bold">Pré-traitement gcn extract-text</text>
+  <text x="390" y="197" fill="#e8eef4" font-size="12">.txt/.md recopie · .html détaggé interne</text>
+  <text x="390" y="217" fill="#e8eef4" font-size="12">.ipynb markdown seul · .pdf via pdftotext externe</text>
+  <text x="390" y="237" fill="#e8eef4" font-size="12">→ split_sentences FR/EN → 1 phrase / ligne</text>
+  <text x="390" y="257" fill="#9fb0c0" font-size="12">erreur explicite si poppler absent / extension inconnue</text>
+
+  <rect x="750" y="150" width="360" height="120" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="770" y="175" fill="#ffb454" font-size="13" font-weight="bold">Aval optionnel (Rust)</text>
+  <text x="770" y="197" fill="#e8eef4" font-size="12">re-middleend_process() systématique</text>
+  <text x="770" y="217" fill="#e8eef4" font-size="12">gcn-backend : Pearl 1-3, GCN-QL (21 requêtes)</text>
+  <text x="770" y="237" fill="#e8eef4" font-size="12">gcn query / export (50 MB max, SPOF ≤ 500)</text>
+  <text x="770" y="257" fill="#9fb0c0" font-size="12">discuss : nlu_route intent → requête · index : discours Éq.10</text>
+
+  <rect x="10" y="300" width="1100" height="130" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="30" y="325" fill="#ff6b6b" font-size="13" font-weight="bold">⚠ Bridge heuristique dégradé (frontend/bridge.py) — max qualité = données annotées</text>
+  <text x="30" y="348" fill="#e8eef4" font-size="12">* bridge/frontend/bridge.py docstring : root_pos ~85%, root_dep_rel ~80%, has_object ~90%, has_temporal_obl ~85%, subject_pos ~70%, root_morph={} dégradé, is_negative False (0%), has_advcl True si condition sinon False.</text>
+  <text x="30" y="370" fill="#9fb0c0" font-size="12">GCNEngine.from_pretrained(ckpt, trusted=True) requis (allow_pickle, local seul) · ckpt v2 (d=79) incompatibles v4 (d=106) → scripts/init_v3_stub.py · training=False forcé pendant forward.</text>
+  <text x="30" y="392" fill="#9fb0c0" font-size="12">gcn forward supprimé : utiliser GCNEngine ou gcn-discuss (message d'erreur explicite dans gcn-cli).</text>
+</svg>
+</section>
+
+<!-- ==================== 3. COUCHES ==================== -->
+<section class="card" id="couches">
+<h2>3 · Zoom couches L0 → L3 + dimensions (d_clause = 106)</h2>
+<svg viewBox="0 0 1120 520" role="img" aria-label="Couches et dimensions">
+  <defs>
+    <marker id="aV" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9fb0c0"/>
+    </marker>
+  </defs>
+  <!-- L0 -->
+  <rect x="10" y="20" width="200" height="110" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="110" y="45" fill="#4aa3ff" text-anchor="middle" font-size="13" font-weight="bold">L0 · Parse</text>
+  <text x="110" y="65" fill="#e8eef4" text-anchor="middle" font-size="12">UDRepresentation</text>
+  <text x="110" y="83" fill="#9fb0c0" text-anchor="middle" font-size="11">root_lemma/pos/dep_rel</text>
+  <text x="110" y="99" fill="#9fb0c0" text-anchor="middle" font-size="11">+ morph, spans, flags</text>
+  <text x="110" y="115" fill="#9fb0c0" text-anchor="middle" font-size="11">sentence_type.classify()</text>
+  <!-- L1 -->
+  <rect x="230" y="20" width="240" height="110" rx="9" fill="#16202c" stroke="#4aa3ff" stroke-width="2"/>
+  <text x="350" y="45" fill="#4aa3ff" text-anchor="middle" font-size="13" font-weight="bold">L1 · Vectorisation UD pure</text>
+  <text x="350" y="65" fill="#e8eef4" text-anchor="middle" font-size="12">vectorize_clause → (106,)</text>
+  <text x="350" y="83" fill="#9fb0c0" text-anchor="middle" font-size="11">18 UPOS + 38 dep + 5 subj + 5 tense</text>
+  <text x="350" y="99" fill="#9fb0c0" text-anchor="middle" font-size="11">+ 4 aspect + 5 mood + 3 voice + 7 pron</text>
+  <text x="350" y="115" fill="#9fb0c0" text-anchor="middle" font-size="11">+ 1 pol + 3 flags + 12 posit + 5 tern</text>
+  <!-- L2 -->
+  <rect x="490" y="20" width="220" height="110" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="600" y="45" fill="#3fd68f" text-anchor="middle" font-size="13" font-weight="bold">L2 · MLPEncoder</text>
+  <text x="600" y="65" fill="#e8eef4" text-anchor="middle" font-size="12">3 têtes supervisées</text>
+  <text x="600" y="83" fill="#9fb0c0" text-anchor="middle" font-size="11">nœuds → 8 (D5) · arêtes → 19</text>
+  <text x="600" y="99" fill="#9fb0c0" text-anchor="middle" font-size="11">intent → 21 (Éq.6, opt)</text>
+  <text x="600" y="115" fill="#9fb0c0" text-anchor="middle" font-size="11">dropout edge 0.3 · T=1.0</text>
+  <!-- L3 -->
+  <rect x="730" y="20" width="200" height="110" rx="9" fill="#16202c" stroke="#3fd68f" stroke-width="2"/>
+  <text x="830" y="45" fill="#3fd68f" text-anchor="middle" font-size="13" font-weight="bold">L3 · R-GCN / GAT</text>
+  <text x="830" y="65" fill="#e8eef4" text-anchor="middle" font-size="12">cycles OK (DiGraph)</text>
+  <text x="830" y="83" fill="#9fb0c0" text-anchor="middle" font-size="11">all_pairs=True · bidi=38</text>
+  <text x="830" y="99" fill="#9fb0c0" text-anchor="middle" font-size="11">PairNorm/DropEdge/CompGCN</text>
+  <text x="830" y="115" fill="#9fb0c0" text-anchor="middle" font-size="11">d_in = d_out = d_eff</text>
+  <!-- emit -->
+  <rect x="950" y="20" width="160" height="110" rx="9" fill="#16202c" stroke="#b79bff" stroke-width="2"/>
+  <text x="1030" y="45" fill="#b79bff" text-anchor="middle" font-size="13" font-weight="bold">emit()</text>
+  <text x="1030" y="65" fill="#e8eef4" text-anchor="middle" font-size="12">CIR dict</text>
+  <text x="1030" y="83" fill="#9fb0c0" text-anchor="middle" font-size="11">conf / conf_d6</text>
+  <text x="1030" y="99" fill="#9fb0c0" text-anchor="middle" font-size="11">négation §9.4</text>
+  <text x="1030" y="115" fill="#9fb0c0" text-anchor="middle" font-size="11">third / joint_id</text>
+
+  <line x1="210" y1="75" x2="228" y2="75" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aV)"/>
+  <line x1="470" y1="75" x2="488" y2="75" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aV)"/>
+  <line x1="710" y1="75" x2="728" y2="75" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aV)"/>
+  <line x1="930" y1="75" x2="948" y2="75" stroke="#9fb0c0" stroke-width="2" marker-end="url(#aV)"/>
+
+  <!-- dims strip -->
+  <rect x="10" y="155" width="1100" height="150" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="30" y="180" fill="#4aa3ff" font-size="13" font-weight="bold">Dimensions effectives (FeatureVocabulary, point unique de vérité)</text>
+  <text x="30" y="203" fill="#e8eef4" font-size="12">d_clause = 106 · d_eff = 106 + d_emb (+2·d_emb si subject_object_emb) → 234 à d_emb=128 · d_conn = 31 (18+11+2) → 159 · d_edge = 2·d_clause + d_conn + 4 inter → 247 (0 emb) / 375 (128)</text>
+  <text x="30" y="225" fill="#e8eef4" font-size="12">d_edge_closed (MLPEncoder.d_edge) = d_edge + 2·emb + 2·d_eff + 2·8 → 1115 à emb128 · contrainte : graph.d_out == d_eff sinon ValueError.</text>
+  <text x="30" y="247" fill="#9fb0c0" font-size="12">Règle dure : zéro lemme en L1 (UD structurel seul, LangMarkers opt couche 2) · word_embedding D10 obligatoire (d_emb=0 → ValueError au chargement).</text>
+  <text x="30" y="269" fill="#9fb0c0" font-size="12">Ontologie v4 BREAKING : 8 nœuds D5 (processus, etat_local, etat_global, entite, condition, concept, evenement, contrainte), 19 relations (11 + 8 ternaires), aliases v2→D5 en lecture.</text>
+
+  <!-- forward detail -->
+  <rect x="10" y="325" width="1100" height="175" rx="9" fill="#0c1219" stroke="#263445"/>
+  <text x="30" y="350" fill="#3fd68f" font-size="13" font-weight="bold">Déroulé forward _forward_from_reps (train vs inférence : seul gold_edge_map change)</text>
+  <text x="30" y="373" fill="#e8eef4" font-size="12">1) vectorize_clause → clause_vecs (N, d_eff) + routing embeddings + tête intent si n_intent&gt;0</text>
+  <text x="30" y="395" fill="#e8eef4" font-size="12">2) forward_node passe 1 → R-GCN [edge_index all_pairs|adjacents ; edge_types = gold (train) | 0 / two-pass (inf)] (+inverses si bidi) × n_rgcn_layers → forward_node passe 2 → argmax types</text>
+  <text x="30" y="417" fill="#e8eef4" font-size="12">3) arêtes closed-loop : vectorize_edge + enriched[src/dst] + softmax(nœuds) → forward_edge → softmax/T → seuils, ambiguïté top-2 (candidates), négation, marker</text>
+  <text x="30" y="439" fill="#e8eef4" font-size="12">4) build_label + _infer_scope/origin/temporal_ref + emit() → CIR (confidence, confidence_ml/d6, temporal_gap, in_cycle DFS, ambiguous/candidates, third/joint_group_id, provenance ml_python)</text>
+  <text x="30" y="461" fill="#e8eef4" font-size="12">5) backward : snapshots → backward_node_dx + backward_edge_dx (split vers src/dst) → update → couches graph inverses → word_embedding (pool_routing) · PT via torch optimizer.</text>
+</svg>
+</section>
+
+<!-- ==================== 4. FICHIERS ==================== -->
+<section class="card" id="fichiers">
+<h2>4 · Fichiers sources (vérité exécutable)</h2>
+<h3>Commun</h3>
+<table>
+<tr><th>Bloc</th><th>Fichier</th><th>Rôle</th></tr>
+<tr><td>L0</td><td><code>gcn-python/src/gcn_python/layer0/interface.py</code>, <code>frontend/bridge.py</code>, <code>layer1/representation.py</code>, <code>layer1/sentence_type.py</code></td><td>Protocol TextParser, bridge FR, UDRepresentation, classify()</td></tr>
+<tr><td>L1</td><td><code>layer1/features.py</code>, <code>constants.py</code></td><td>FeatureVocabulary, vectorize_*, taxonomie 8/19/21</td></tr>
+<tr><td>L2/L3</td><td><code>layer2/reference.py</code>, <code>layer3/reference.py|gat.py|pytorch_rgcn.py</code></td><td>MLPEncoder, RGCN/GAT/PT, Protocols</td></tr>
+<tr><td>Pipeline</td><td><code>pipeline/cgnp.py</code>, <code>pipeline/ir_emitter.py</code>, <code>pipeline/label_builder.py|discourse.py|nlu_routing.py</code></td><td>forward/loss/backward, emit, labels, Éq.10/Éq.6</td></tr>
+</table>
+<h3>Entraînement</h3>
+<table>
+<tr><th>Bloc</th><th>Fichier</th><th>Rôle</th></tr>
+<tr><td>Data</td><td><code>data/schema.py|json_reader.py|loader.py|edge_norm.py</code></td><td>records, lecture JSON, TrainingSample, normalisation nNNN</td></tr>
+<tr><td>Train</td><td><code>training/train.py</code>, <code>training/checkpoint.py</code>, <code>evaluation/eval_runner.py|calibration.py|metrics.py</code></td><td>boucle SGD, ckpt atomique, éval, T5-min/ECE</td></tr>
+</table>
+<h3>Inférence</h3>
+<table>
+<tr><th>Bloc</th><th>Fichier</th><th>Rôle</th></tr>
+<tr><td>API</td><td><code>engine.py</code>, <code>discuss.py</code>, <code>index.py</code>, <code>verbalizer/</code></td><td>GCNEngine, session, indexation, décodeurs</td></tr>
+<tr><td>Rust</td><td><code>gcn-core/crates/gcn-cli/src/main.rs|extract.rs</code>, <code>gcn-ir</code>, <code>gcn-middleend</code>, <code>gcn-backend</code></td><td>CLI frontends FR/graph/table, contrat CIR, enrichissement, Pearl+GCN-QL</td></tr>
+</table>
+</section>
+
+</main>
+<footer>
+<p style="max-width:1180px;margin:0 auto;padding:0 20px 26px;">GCN v4.0 · doc locale (<code>docs/</code> gitignoré) · entraînement = JSON annotés, aucun frontend · inférence = bridge FR par défaut, choix frontend explicite.</p>
+</footer>
+</body>
+</html>

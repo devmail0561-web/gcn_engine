@@ -1,0 +1,385 @@
+ Plan : améliorations architecturales — moteur agnostique langue
+
+ Context
+
+ Le moteur R-GCN + GAT opère sur des tokens UD (Universal Dependencies) — il est
+ langue-agnostique par construction. Ce plan adresse ses 3 désavantages structurels face
+ aux transformers sans rompre cet agnosticisme et sans perdre ses avantages actuels
+ (interprétabilité W_r, contraintes structurelles, inférence rapide, tokens UD).
+
+ Exploration codebase réalisée (2026-09-24) :
+ - layer1/embedding.py : WordEmbedding(d_emb, frozen) — pretrained via load_from_file()
+ - layer3/pytorch_rgcn.py : RGCNLayerPT, W_r (n_rel, d_out, d_in), entrée forward_torch()
+ - layer2/reference.py : MLPEncoder, forward_batch() avec docstring explicite
+   "encodeurs Transformer surchargeront cette méthode pour la self-attention"
+ - pipeline/cgnp.py : Layer2 appelé 2× (avant et après R-GCN), hook MHA déjà anticipé
+
+ Phases et ordre d'implémentation
+
+ Classées par ratio impact / effort décroissant :
+
+ ┌───────┬────────────────────────────────────────────┬───────────────────────────────────┐
+ │ Phase │                    Fix                     │         Impact principal          │
+ ├───────┼────────────────────────────────────────────┼───────────────────────────────────┤
+ │ A     │ Embeddings pré-entraînés multilingues      │ Sample efficiency, inductive bias │
+ ├───────┼────────────────────────────────────────────┼───────────────────────────────────┤
+ │ B     │ PairNorm + DropEdge                        │ Convergence couches profondes     │
+ ├───────┼────────────────────────────────────────────┼───────────────────────────────────┤
+ │ C     │ MHA globale (TransformerMLPEncoder)        │ Contexte long, arcs distants      │
+ ├───────┼────────────────────────────────────────────┼───────────────────────────────────┤
+ │ D     │ CompGCN (embeddings relationnels continus) │ Généralisation schema             │
+ └───────┴────────────────────────────────────────────┴───────────────────────────────────┘
+
+ ---
+
+ Phase A — Embeddings pré-entraînés multilingues
+
+ Problème : W_E initialisé aléatoirement (Xavier) → moteur repart de zéro sur chaque
+ dataset. Les LLMs fine-tunés partent de représentations linguistiques riches.
+
+ Contrainte agnosticisme : pas de CamemBERT (FR uniquement). Solution :
+ fastText multilingue (cc.XX.300.bin disponible pour 157 langues, même API).
+
+ Fichiers :
+ - gcn-python/src/gcn_python/layer1/embedding.py (nouvelle méthode load_from_fasttext)
+ - gcn-python/src/gcn_python/training/train.py (CLI --fasttext, remplace --embedding-file)
+
+ Décision CLI : --fasttext et --embedding-file sont mutuellement exclusifs — erreur
+ click.ClickException si les deux sont passés simultanément. --fasttext impose d_emb=300
+ (pas besoin de --embedding-dim), frozen=True par défaut. Il s'insère dans le bloc
+ if d_emb > 0: existant (train.py l.224-232) en remplacement de la branche --embedding-file.
+
+ Dépendance optionnelle : fasttext-wheel (ou fasttext) — import conditionnel dans
+ load_from_fasttext() avec ImportError clair si absent.
+
+ Persistance checkpoint : déjà géré dans training/checkpoint.py:59-88 (d_emb l.71 +
+ freeze_embeddings l.88 + plage _pretrained_start/_end l.128-135). Aucun changement à faire
+ dans engine.py — arch.get("d_emb", 0) à la lecture (l.134) est déjà en place.
+
+ Patch embedding.py (via load_from_file() existante) :
+ @classmethod
+ def load_from_fasttext(cls, ft_model, vocab: list[str], d_emb: int = 300,
+                        frozen: bool = True) -> "WordEmbedding":
+     # Convertit fastText → word2vec texte → délègue à load_from_file() (gère _pretrained_start/_end)
+     import tempfile, pathlib
+     tmp = pathlib.Path(tempfile.mkdtemp()) / "_ft_vecs.txt"
+     with open(tmp, "w", encoding="utf-8") as f:
+         f.write(f"{len(vocab)} {d_emb}\n")
+         for lemma in vocab:
+             vec = ft_model.get_word_vector(lemma)
+             f.write(lemma + " " + " ".join(f"{v:.6f}" for v in vec) + "\n")
+     obj = cls(d_emb=d_emb, frozen=frozen)
+     obj.load_from_file(str(tmp))
+     return obj
+
+ lookup() ne fait PAS d'auto-add (vérifié : retourne _unk si absent). L'approche
+ via fichier temporaire + load_from_file() contourne ce problème — aucune autre API à créer.
+
+ Tests :
+ def test_load_from_fasttext_sets_pretrained_range():
+     # mock ft_model.get_word_vector → vecteur fixe
+     # assert emb._pretrained_start == 0
+     # assert emb._E[known_idx] == vecteur_mock
+
+ def test_frozen_embedding_does_not_update_on_backward():
+     # backward() sur index pretrained → _E inchangé
+
+ ---
+
+ Phase B — PairNorm + DropEdge (anti-over-smoothing)
+
+ Problème : k ≥ 3 couches R-GCN → over-smoothing (convergence des représentations).
+ Sigmoid hardcodé à ligne 163 aggrave le gradient vanishing en profondeur.
+
+ Scope backend (décision) : RGCNLayerPT uniquement. RGCNLayer NumPy (path standard sans
+ --use-attention) reste inchangé. Les nouveaux kwargs sont optionnels (défaut False/0.0) pour
+ rester transparents au clonage de couches dans cgnp.py:130-151 (fallback TypeError silencieux
+ sur kwargs inconnus — les défauts évitent ce problème).
+
+ Fichier : gcn-python/src/gcn_python/layer3/pytorch_rgcn.py
+
+ Patch __init__ :
+ def __init__(self, d_in, d_out, n_relations=None, device=None, seed=42,
+              pairnorm: bool = False, drop_edge: float = 0.0) -> None:
+     ...
+     self.pairnorm = pairnorm
+     self.drop_edge = drop_edge  # prob de suppression d'arête en train
+
+ Patch _forward_pt après agrégation (avant activation) :
+
+ Note : edge_index et edge_types arrivent comme np.ndarray en entrée de _forward_pt
+ (la conversion vers tenseurs PyTorch se fait en interne aux lignes 138-140). Le masque doit
+ donc être NumPy, appliqué avant la conversion interne.
+
+ # DropEdge : masque NumPy avant conversion tensor (edge_index est np.ndarray ici)
+ # IMPORTANT : appliquer mask en une seule expression (atomique)
+ if self.training and self.drop_edge > 0.0:
+     mask = np.random.rand(edge_index.shape[1]) > self.drop_edge
+     edge_index, edge_types = edge_index[:, mask], edge_types[mask]
+
+ Note additionnelle : self.training est accessible (hérité de nn.Module) mais pas encore
+ utilisé dans pytorch_rgcn.py. Pattern existant dans gat.py:222 et layer3/reference.py:63.
+ L'appelant (train.py) doit appeler layer.train() / layer.eval() autour des boucles
+ d'entraînement et de validation.
+
+ ... agrégation R-GCN existante ...
+
+ PairNorm
+
+ if self.pairnorm:
+     out = out - out.mean(dim=0, keepdim=True)
+     out = out / (out.norm(dim=1, keepdim=True) + 1e-8)
+
+ Backward compatible : `pairnorm=False, drop_edge=0.0` par défaut → comportement inchangé.
+
+ **Tests :**
+ ```python
+ def test_pairnorm_prevents_representation_collapse():
+     # k=4 couches avec pairnorm=True → std(H) > seuil après k passes
+
+ def test_drop_edge_not_applied_in_eval_mode():
+     # layer.eval() → drop_edge n'affecte pas edge_index
+
+ ---
+
+ Phase C — MHA globale (TransformerMLPEncoder)
+
+ Problème : R-GCN avec k couches ne voit que le voisinage k-hop. Arcs causaux distants
+ (distance syntaxique > 2) non capturés.
+
+ Découverte codebase : reference.py contient la docstring :
+ "encodeurs Transformer surchargeront cette méthode pour la self-attention"
+ → le hook est déjà prévu. Il suffit de sous-classer MLPEncoder.
+
+ Fichiers :
+ - gcn-python/src/gcn_python/layer2/reference.py (pré-requis + nouvelle classe)
+ - gcn-python/src/gcn_python/training/train.py (ligne 240 — substitution + CLI --global-attention)
+ - gcn-python/src/gcn_python/engine.py (ligne 158 — substitution pour from_pretrained)
+
+ Localisation réelle : cgnp.py reçoit l'encodeur comme instance pré-construite
+ (encoder: CausalEncoder, ligne 42). La substitution se fait en amont :
+ - train.py:240 : encoder = MLPEncoder(d_clause=d_effective, ...) → remplacer par
+   encoder = TransformerMLPEncoder(d_clause=d_effective, ..., n_heads=n_heads) si --global-attention
+ - engine.py:158 : même substitution pour from_pretrained
+   d_effective inclut déjà d_emb — la dimension passée à l'encodeur est toujours D_effective,
+   jamais vocabulary.d_clause brut.
+
+ Prérequis (reference.py ligne 66) : MLPEncoder.__init__ ne stocke PAS d_clause
+ (vérifié : utilisé uniquement dans _LinearLayer(d_clause, mlp_hidden, rng) à la ligne 91,
+ jamais assigné à self). Ajouter une ligne dans MLPEncoder.__init__ après validation :
+
+ self.d_clause = d_clause   # requis par TransformerMLPEncoder et introspection
+
+ Fallback sans modifier la classe parent : d = self._node_layers[0].W.shape[1]
+ (_node_layers[0].W est (mlp_hidden, d_clause) → .shape[1] = d_clause). Moins lisible.
+
+ Mode gradient MHA (décision) : poids fixes (réservoir + résidu). La MHA n'est pas
+ entraînée : .detach() avant le retour vers NumPy est intentionnel. Le gradient SGD NumPy
+ (backward_node_dx) ne traverse pas la MHA — acceptable car le gain vient du contexte global
+ injecté dans H_enriched, pas de l'optimisation des têtes d'attention elles-mêmes.
+
+ Import conditionnel : layer2/reference.py est aujourd'hui NumPy pur. Ajouter en tête de
+ la nouvelle classe (pas en haut du fichier) :
+ try:
+     import torch as _torch
+ except ImportError as _e:
+     raise ImportError("TransformerMLPEncoder requiert PyTorch.") from _e
+
+ Patch reference.py (nouvelle classe) :
+ class TransformerMLPEncoder(MLPEncoder):
+     def __init__(self, *args, n_heads: int = 4, **kwargs) -> None:
+         try:
+             import torch as _torch
+         except ImportError as _e:
+             raise ImportError("TransformerMLPEncoder requiert PyTorch.") from _e
+         super().__init__(*args, **kwargs)
+         d = self.d_clause   # disponible grâce au prérequis self.d_clause = d_clause
+         if d % n_heads != 0:
+             raise ValueError(f"d_clause={d} non divisible par n_heads={n_heads}")
+         self._mha = _torch.nn.MultiheadAttention(d, n_heads, batch_first=True)
+         self._torch = _torch
+
+     def forward_batch(self, node_vecs: np.ndarray) -> np.ndarray:
+         H = self._torch.as_tensor(node_vecs, dtype=self._torch.float32).unsqueeze(0)  # (1, N, d)
+         with self._torch.no_grad():   # poids fixes — pas de gradient à travers MHA
+             H_att, _ = self._mha(H, H, H)
+         H_enriched = (H + H_att).squeeze(0).cpu().numpy()   # résidu, retour NumPy
+         return super().forward_batch(H_enriched)
+
+ MHA sur les N nœuds UD (≤ 40 typiquement) — coût O(N²×d), négligeable.
+
+ Persistance flag : _arch_json doit inclure "global_attention": true et "n_gat_heads_mha": int.
+ Reconstruction dans engine.py:158 : si arch.get("global_attention", False) → instancier
+ TransformerMLPEncoder au lieu de MLPEncoder.
+
+ Tests :
+ def test_transformer_encoder_forward_batch_shape():
+     enc = TransformerMLPEncoder(d_clause=64, d_edge=128, n_heads=4)
+     out = enc.forward_batch(np.random.randn(10, 64).astype(np.float32))
+     assert out.shape == (10, enc.n_node_types)
+
+ def test_transformer_encoder_attends_globally():
+     # deux nœuds identiques sauf position → outputs différents (contexte global)
+
+ ---
+
+ Phase D — CompGCN (embeddings relationnels continus)
+
+ Problème : W_r ∈ R^{n_rel × d_out × d_in} = matrices discrètes, aucune généralisation
+ entre types de relations proches sémantiquement (ex: CAUSE → ENABLE → PREVENT).
+
+ Principe CompGCN : apprendre E_r ∈ R^{n_rel × d_rel} (embeddings de relations),
+ puis W_effective = Linear(e_r). Les relations proches ont des W similaires.
+
+ Fichier : gcn-python/src/gcn_python/layer3/pytorch_rgcn.py
+
+ Noms de méthodes réels (vérifiés) :
+ - Sauvegarde : parameters() — méthode custom (ligne 169), retourne [W_r, W_0] en numpy
+ - Chargement : load_state(arrays) — ligne 184, prend list[np.ndarray]
+   (pas load_weights — nom erroné dans les drafts précédents)
+
+ Patch __init__ :
+ def __init__(self, ..., use_compgcn: bool = False, d_rel_emb: int = 32) -> None:
+     ...
+     self.use_compgcn = use_compgcn
+     scale = np.sqrt(2.0 / d_in)  # He init (cohérent avec W_r existant)
+     if use_compgcn:
+         self.E_r    = nn.Parameter(torch.randn(n_relations, d_rel_emb) * 0.01)
+         self.W_comp = nn.Parameter(torch.randn(d_rel_emb, d_out * d_in) * scale)
+         # W_r conservé comme dummy non-Parameter pour que load_state() reste robuste
+         self.register_buffer("W_r", torch.zeros(n_relations, d_out, d_in))
+     else:
+         self.W_r    = nn.Parameter(torch.randn(n_relations, d_out, d_in) * scale)
+
+ Patch _forward_pt :
+ if self.use_compgcn:
+     W_r = (self.E_r @ self.W_comp).view(self.n_relations, self.d_out, self.d_in)
+ else:
+     W_r = self.W_r
+ # reste inchangé
+
+ Checkpoint serialization (bloquant résolu) :
+ Surcharger parameters() et load_state() dans RGCNLayerPT pour brancher sur use_compgcn :
+
+ def parameters(self) -> list[np.ndarray]:       # surcharge de la méthode custom ligne 169
+     if self.use_compgcn:
+         return [self.E_r.detach().cpu().numpy(),
+                 self.W_comp.detach().cpu().numpy()]
+     return super().parameters()  # [W_r, W_0] existant
+
+ def load_state(self, arrays: list[np.ndarray]) -> None:   # surcharge ligne 184
+     if self.use_compgcn:
+         # arrays = [E_r, W_comp]
+         with torch.no_grad():
+             self.E_r.copy_(torch.as_tensor(arrays[0], dtype=torch.float32))
+             self.W_comp.copy_(torch.as_tensor(arrays[1], dtype=torch.float32))
+     else:
+         super().load_state(arrays)
+
+ update() à brancher (oubli corrigé) :
+ update() à la ligne 176 indexe grads[0]/grads[1] avec les shapes W_r/W_0. Avec CompGCN,
+ grads auraient les shapes E_r/W_comp. Brancher comme parameters() :
+ def update(self, grads: list[np.ndarray], lr: float) -> None:
+     if self.use_compgcn:
+         with torch.no_grad():
+             self.E_r    -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
+             self.W_comp -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
+     else:
+         # comportement existant
+         with torch.no_grad():
+             self.W_r -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
+             self.W_0 -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)
+
+ Note mémoire : register_buffer("W_r", zeros(n_rel, d_out, d_in)) occupe toujours
+ n_rel × d_out × d_in × 4 bytes même quand CompGCN est actif. Acceptable pour l'instant
+ (moins de 1 Mo pour n_rel=79, d_out=64, d_in=64 → ~1.3 Mo). Peut être optimisé ultérieurement
+ en utilisant None avec des guards explicites si le gain mémoire devient critique.
+
+ _arch_json et reconstruction :
+ - _arch_json doit inclure "use_compgcn": bool et "d_rel_emb": int
+ - Reconstruction dans train.py : RGCNLayerPT(... , use_compgcn=use_compgcn, d_rel_emb=d_rel_emb)
+ - Reconstruction dans engine.py : arch.get("use_compgcn", False) + arch.get("d_rel_emb", 32)
+ - eval_runner : pas de reconstruction de couche (charge via checkpoint) → pas de changement
+
+ Backward compatible : use_compgcn=False par défaut.
+ Interprétabilité préservée : E_r[i] est l'embedding de la relation i (lisible, t-SNE possible).
+
+ Tests :
+ def test_compgcn_forward_shape_unchanged():
+     layer = RGCNLayerPT(d_in=8, d_out=16, n_relations=3, use_compgcn=True)
+     out = layer.message_pass(np.randn(5,8), edge_index, edge_types)
+     assert out.shape == (5, 16)
+
+ def test_compgcn_relation_embeddings_are_close_for_similar_relations():
+     # après quelques steps de gradient, E_r[CAUSE] et E_r[ENABLE] plus proches que E_r[TEMPORAL]
+
+ ---
+
+ Interactions inter-phases
+
+ A + C (dépendance de dimension) :
+ Si Phase A active (--fasttext, d_emb=300), alors D_effective = d_clause_vocab + 300.
+ TransformerMLPEncoder doit recevoir ce D_effective comme d_clause, pas d_clause_vocab seul.
+ Dans cgnp.py, d_clause passé à l'encodeur est calculé après ajout de d_emb — vérifier
+ que la valeur passée au constructeur TransformerMLPEncoder(d_clause=..., ...) est bien
+ D_effective et non vocabulary.d_clause brut.
+ A et C sont indépendantes séparément, mais leur combinaison nécessite cette vérification.
+
+ B + D (DropEdge et agrégation CompGCN) :
+ Le masquage DropEdge se produit AVANT l'agrégation. CompGCN modifie W_r mais pas
+ l'agrégation elle-même — les deux patches opèrent sur des variables différentes, pas de conflit.
+
+ ---
+
+ Avantages préservés par phase
+
+ ┌───────────────────────────┬─────────────────┬─────┬────────────┬───────────────┐
+ │      Avantage actuel      │        A        │  B  │     C      │       D       │
+ ├───────────────────────────┼─────────────────┼─────┼────────────┼───────────────┤
+ │ Interprétabilité W_r      │ ✓ frozen        │ ✓   │ ✓          │ ✓ E_r lisible │
+ ├───────────────────────────┼─────────────────┼─────┼────────────┼───────────────┤
+ │ Agnosticisme langue       │ ✓ fastText 157L │ ✓   │ ✓ nœuds UD │ ✓             │
+ ├───────────────────────────┼─────────────────┼─────┼────────────┼───────────────┤
+ │ Inférence rapide          │ ✓ offline       │ ✓   │ ✓ N≤40     │ ✓             │
+ ├───────────────────────────┼─────────────────┼─────┼────────────┼───────────────┤
+ │ Tokens UD (pas sous-mots) │ ✓               │ ✓   │ ✓          │ ✓             │
+ ├───────────────────────────┼─────────────────┼─────┼────────────┼───────────────┤
+ │ Contraintes structurelles │ ✓               │ ✓   │ ✓          │ ✓             │
+ └───────────────────────────┴─────────────────┴─────┴────────────┴───────────────┘
+
+ ---
+
+ Ordre d'exécution (décision)
+
+ A → B → C → D séquentiellement. Chaque phase : implémentation → tests → non-régression
+ pytest gcn-python/tests/ -x → commit. Pas de build en une passe.
+
+ ---
+
+ Vérification end-to-end par phase
+
+ Phase A :
+ - pytest gcn-python/tests/ -x → suite existante verte
+ - gcn-train --fasttext cc.fr.300.bin DATA/train/ --d-emb 300 → log d_eff=N+300
+ - gcn-train --fasttext f.bin --embedding-file e.txt ... → ClickException (mutuellement exclusifs)
+ - from_pretrained(model.npz) sur checkpoint entraîné avec --fasttext → d_emb restauré, shapes OK
+
+ Phase B :
+ - pytest gcn-python/tests/ -x → verts
+ - Run k=4 couches pairnorm=True drop_edge=0.1 : std(H_layer4) > 0.1 (pas de collapse)
+ - layer.eval() → DropEdge inactif (même edge_index en entrée/sortie)
+ - Baseline avg_loss inchangée si pairnorm=False drop_edge=0.0 (backward compat)
+
+ Phase C :
+ - pytest gcn-python/tests/ -x → verts
+ - gcn-train --global-attention DATA/train/ DATA/val/ → val_f1 >= baseline_val_f1
+ - from_pretrained(model_mha.npz) → TransformerMLPEncoder reconstruit (pas MLPEncoder)
+ - Sans PyTorch installé → ImportError clair à l'instanciation de TransformerMLPEncoder
+
+ Phase D :
+ - pytest gcn-python/tests/ -x → verts
+ - gcn-train --use-compgcn DATA/train/ → shapes [E_r, W_comp] dans checkpoint
+ - load_state([E_r_array, W_comp_array]) → poids correctement chargés
+ - update(grads, lr) avec shapes CompGCN → pas d'IndexError
+ - Après entraînement : np.linalg.norm(E_r[CAUSE] - E_r[ENABLE]) < np.linalg.norm(E_r[CAUSE] - E_r[TEMPORAL])
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌

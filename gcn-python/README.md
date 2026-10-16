@@ -1,7 +1,7 @@
 # gcn-python — Moteur de raisonnement causal GCN-Core
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Tests](https://img.shields.io/badge/tests-668-passing)](tests/)
+[![Tests](https://img.shields.io/badge/tests-685-passing)](tests/)
 
 Implémentation de référence NumPy du moteur causal GCN-Core. Extrait la structure causale de texte et répond à des requêtes Pearl sur le graphe résultant.
 
@@ -167,16 +167,160 @@ Options notables :
 
 ## Inférence
 
+### GCNEngine — point d'entrée haut niveau
+
+```python
+from gcn_python import GCNEngine
+
+# Charger un checkpoint entraîné
+engine = GCNEngine.from_pretrained("checkpoints/model_v4.npz")
+
+# Analyser une phrase
+cir = engine.analyze("Si les traitements échouent, le médecin prescrit un autre médicament.")
+print(cir["edges"][0][2]["relation"])   # "condition"
+print(cir["nodes"][0]["type"])          # "processus"
+
+# Analyser plusieurs phrases
+results = engine.analyze_batch([
+    "La pluie cause des inondations.",
+    "Si la demande baisse, les ventes chutent.",
+])
+```
+
+### Chemin tok in-process — sans binaire, sans UD (T6 : zéro frontend)
+
+Le chemin cible refacto : texte → `tokenizer.split` → socle B (clauses +
+source) → E_tok → pooling fixe → têtes MLP/R-GCN → CIR. Zéro lexique
+dans le chemin (vérifiable par grep) : l'association texte→CIR est apprise
+(E_tok + têtes), jamais codée. Ajouter une langue = ajouter des DONNÉES (D2).
+
+```python
+from gcn_python.engine import GCNEngine
+from gcn_python.pipeline.forward_ids import TokForwardEngine
+
+# 1. Construire le vocabulaire (ids stables, ordre indifférent)
+tok = TokForwardEngine(d_model=128, seed=42)
+tok.build_vocab(["Les ventes baissent. On reduit les couts."])
+
+# 2. Inférence (gate capacitaire : E_tok vide → ValueError)
+engine = GCNEngine(pipeline_legacy, tok_engine=tok)
+cir = engine.analyze("Les ventes baissent. On reduit les couts.", use_tok=True)
+
+# 3. Persister / recharger (s1+, allow_pickle=False, fail-fast)
+tok.save_npz("tok.npz")
+engine2 = GCNEngine.from_pretrained("tok.npz", trusted=True)  # moteur tok-only
+cir = engine2.analyze("Les ventes baissent. On reduit les couts.", use_tok=True)
+```
+
+Gates et limites (doctrine 6b — pas de chiffres présentés comme mesure) :
+- Têtes **non entraînées** par défaut (aléatoires seedées) : CIR structurels,
+  non calibrés. Entraînement : `training/train_tok.py` sur paires gold
+  (actuellement GELÉ R8 : 3 types de nœuds à 0 — fail-fast, pas d'acharnement).
+- `scope="unknown"`, `origin="explicit"`, `negated=False` (aucun signal sur ce
+  chemin v0) ; paires en fenêtre k=2 (R7) ; nœuds = phrases du socle
+  (granularité bloc — en batch, une ligne = un CIR).
+- Cache M1a : hit 0,18 ms vs miss ~10 ms (epoch-tag, FIFO 1024, copies).
+  `tok.cache_stats()`, `tok.clear_cache()`.
+- Legacy inchangé par défaut (`use_tok=False`) ; `--use-tok` sur
+  `gcn-discuss`/`gcn-index` (auto-activé sur checkpoint s1+).
+
+### Cache d'analyse Ph10-M1a — pas de recalcul des phrases vues
+
+`pipeline.analyze()` mémorise (clé = empreinte paramètres + parseur + texte) :
+répétition → parse ET forward sautés, état NLU/vecs restauré.
+`pipeline.cache_stats()` (hits/misses), `pipeline.clear_cache()`.
+Invalidation automatique : tout `update*` du forward, `backward`/`apply_*`,
+`load_checkpoint` bump `param_epoch` (recalcul du tag sinon O(1)).
+**Convention obligatoire : toute future méthode mutant des paramètres du
+forward DOIT appeler `param_epoch.bump()`.** Le train appelle `forward()`,
+jamais `analyze()` : aucun risque d'empoisonnement. Jamais de cache sur les
+graphes de session. `analyze_batch` déduplique (une analyse par texte distinct,
+ordre préservé). `predict_links(..., threshold/topk)` pré-filtre avant tri
+(ordre identique).
+
+### Mémoire Ph10-M3 — mesuré d'abord (garde-fou chiffré)
+
+Audit : processus ~54 Mo, forward ~7 ms, pic tracemalloc 481 Ko/50 forwards,
+float32 de bout en bout (zéro fuite float64 — gate testé). D'où :
+- **Fait (M3a)** : `add_lemma` O(n²) → `_add_lemmas_bulk` O(n) (RNG
+  bit-identique, dernier doublon gagne comme avant) : vec-file 22k lignes
+  150 s → 1,2 s (~125×). `load_from_file(only={...})` : passe streaming,
+  parse sauté hors vocabulaire (fichier 58 Mo → utile). `SessionStore.load`
+  en mmap (copie par clé, fermeture sûre).
+- **Écarté, documenté** : float16 (déjà float32 partout : gain nul, risque
+  qualité) ; pré-allocation des zones (temporaires à l'échelle du Ko :
+  gain < 1 %) ; mmap du checkpoint (partage `torch.as_tensor` → use-after-free
+  à la fermeture — refusé définitivement) ; copie intégrale de l'index vecs
+  (scan sémantique = tout toucher de toute façon).
+
+### Inférence via CLI
+
 ```bash
 # Session interactive
 gcn-discuss --checkpoint model.npz
 
+# Session sur checkpoint tok (auto-détecté, --use-tok explicite possible)
+gcn-discuss --checkpoint tok.npz --use-tok
+
 # Indexation batch
 gcn-index --corpus rapports/ --checkpoint model.npz --output graph.json
+
+# Indexation tok (granularité bloc : une ligne = un CIR multi-phrases)
+gcn-index --corpus rapports/ --checkpoint tok.npz --output graph.json --use-tok
 
 # Évaluation
 gcn-eval --data-dir gcn-datasets/real/val/ --model-path model.npz
 ```
+
+### Session de dialogue — mémoire conversationnelle (Ph9)
+
+`DialogueSession` (`gcn_python/dialogue.py`) : sujets (3 derniers + continuité),
+clarification unique, langue (tag), journal + révocation. **Moteur
+language-agnostic : aucun lexique de langue** — mécanismes structurels
+(chiffres Unicode, répétition de nom, script Unicode) et réponses en codes
+(même modèle que le DSL : `explain:`, `chain:`) :
+
+```python
+from gcn_python.dialogue import DialogueSession
+from gcn_python.verbalizer.instructions import InstructionHandler
+
+s = DialogueSession()
+h = InstructionHandler()
+resp, info = s.handle("explain: insomnie", h)  # "  topic: insomnie\n..."
+```
+
+| Code | Sens |
+|------|------|
+| `topic: <label>` | sujet compris (toujours annoncé, pour correction) |
+| `clarify: A \| B` | ambiguïté (≥ 2 labels exacts) — répondre `1`/`2` ou le nom |
+| `abandoned: A \| B` | clarification abandonnée (3 tours ou bascule nette) |
+| `lang: <code>` | `lang: wo` = consigne persistante ; `lang:` = lecture ; `lang: auto` = retour au fil (script Unicode du message) |
+| `revoke: [tour]` | retire les apports utilisateur du tour (jamais le corpus) |
+| `origin: question-only` / `user-only` | réponse prouvée que par l'utilisateur (9a : une question ne pose jamais un fait) |
+
+Origine 9a : `add_cir(cir, session_origin="document" | "affirmation_utilisateur" | "question_utilisateur")`
+(requise, `ValueError` sinon) ; poids FIGÉS 1.0/0.8/0.5 appliqués à l'écriture
+(D-ORIG) ; nœuds en upgrade-only ; graphes pré-9a migrés `document+migrated`
+au `load`. Les questions (`?`/`؟`, hors commandes) enrichissent le graphe en
+`question_utilisateur` via `handle(..., engine=...)`.
+
+### Session bornée Ph10-M2 — compacter au lieu de refuser
+
+Plafonds configurables (`DialogueSession(max_nodes=500, max_edges=2000,
+max_turns=200)`, `SessionStore(max_vecs=5000, snapshot_every=10)`) : au
+dépassement, rangement automatique ANNONCÉ (`compacted: merged N node(s),
+...`) — fusion nœuds même label (recâblage, origine max) puis arêtes
+identiques (hors clés volatiles `session_turn`), résumé des vieux tours
+(entrée `summary`, sujets gardés). **Jamais de refus.** Journal disque
+(`history.jsonl`) = audit append-only, exempt de plafond (mémoire bornée,
+disque tracé).
+
+`SessionStore.save()` : photo complète (`graph.json`) à la 1re save puis
+toutes les `snapshot_every` (ou après destruction : revoke/fusion/clear
+détectée par compteurs), journal des ajouts (`graph_log.jsonl`) entre-temps ;
+`load()` rejoue puis re-snapshotte (toute lecture finit en photo propre).
+Paraphrases M2c : overlap trigrammes ≥ 0.75 (`resolve`, après exact/partiel,
+jamais de `clarify` sur du flou ; synonymes vrais = futur moteur+vecs).
 
 ---
 
@@ -215,12 +359,102 @@ cmd = nlu_route("Pourquoi les ventes baissent ?", pipeline=pipeline)
 
 ---
 
+## Modules clés — exemples
+
+### FeatureVocabulary + vectorize_clause
+
+```python
+from gcn_python.layer1.features import FeatureVocabulary, vectorize_clause
+from gcn_python.data.loader import reps_from_sentence
+
+vocab = FeatureVocabulary()
+print(vocab.d_clause)                           # 106
+print(vocab.d_clause_effective(d_emb=128))      # 234
+
+# Vectoriser une clause depuis un SentenceRecord
+reps, idxs, conn_reps = reps_from_sentence(sample)
+vec = vectorize_clause(reps[0], vocab)          # ndarray (106,)
+```
+
+### SentenceProfile — classify()
+
+```python
+from gcn_python.layer1.sentence_type import classify, LangMarkers
+
+tokens = [
+    {"id": 0, "form": "Si",      "lemma": "si",     "pos": "SCONJ",
+     "dep_rel": "mark", "dep_head": 2, "morph": {}},
+    {"id": 2, "form": "échoue",  "lemma": "échouer", "pos": "VERB",
+     "dep_rel": "advcl", "dep_head": 4, "morph": {"Mood": "Ind"}},
+]
+profile = classify(tokens)
+print(profile.sentence_type)      # SentenceType.DECLARATIVE
+print(profile.subordination)      # SubordinationType.CONDITION
+print(profile.is_complex)         # True
+```
+
+### MLPEncoder + RGCNLayer
+
+```python
+from gcn_python.layer1.features import FeatureVocabulary
+from gcn_python.layer2.reference import MLPEncoder
+from gcn_python.layer3.reference import RGCNLayer
+from gcn_python.constants import RELATION_TYPES, NODE_TYPES
+
+vocab  = FeatureVocabulary()
+d_eff  = vocab.d_clause_effective(d_emb=128)        # 234
+d_edge = vocab.d_edge_closed_loop(d_eff, 8, 128)   # 1115
+
+encoder = MLPEncoder(d_clause=d_eff, d_edge=d_edge)
+graph   = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=len(RELATION_TYPES))  # 19
+```
+
+### GCNDataLoader
+
+```python
+from pathlib import Path
+from gcn_python.data.loader import GCNDataLoader
+
+loader = GCNDataLoader(Path("gcn-datasets/splits/train/"))
+for sample in loader:
+    print(sample.sentence.text)
+    print(sample.gold_node_labels)   # ndarray (N,)
+    print(sample.edge_map)           # {(i,j): relation_idx}
+```
+
+### Évaluation
+
+```python
+from gcn_python.evaluation.metrics import edge_macro_f1, node_f1_per_class
+from gcn_python.constants import RELATION_TYPES_V2
+
+# F1 macro sur les 11 classes v2 partagées (métrique K2)
+f1 = edge_macro_f1(y_true, y_pred, class_subset=RELATION_TYPES_V2)
+
+# F1 par classe avec support
+per_class = node_f1_per_class(y_true, y_pred)
+for name, (p, r, f, sup) in per_class.items():
+    if sup > 0:
+        print(f"{name}: F1={f:.3f} (n={sup})")
+```
+
+### Checkpoint
+
+```python
+from gcn_python.training.checkpoint import save_checkpoint, load_checkpoint
+
+save_checkpoint(pipeline, Path("checkpoints/model_v4.npz"))
+pipeline2 = load_checkpoint(Path("checkpoints/model_v4.npz"))
+```
+
+---
+
 ## Tests
 
 ```bash
 cd gcn-python
 PYTHONPATH=src python -m pytest tests/ -v
-# 668 passed, 3 xfailed (checkpoints v2 incompatibles d_clause 79→106)
+# 685 passed, 3 xfailed (checkpoints v2 incompatibles d_clause 79→106)
 ```
 
 Les 3 xfailed sont attendus : les checkpoints v2 (`prod_v1.npz`, d_clause=79) sont incompatibles

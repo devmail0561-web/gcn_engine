@@ -1,0 +1,49 @@
+{
+  "type": "intervention",
+  "target": "Beta",
+  "severed_count": 1,
+  "severed": [
+    {
+      "from": "Alpha",
+      "to": "Beta",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": true,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    }
+  ],
+  "effects": [
+    {
+      "from": "Beta",
+      "to": "Gamma",
+      "relation": "cause",
+      "confidence": 0.9,
+      "negated": false,
+      "origin": "explicit",
+      "explicit": true,
+      "scope": "unknown"
+    }
+  ],
+  "blocked_by": [],
+  "caveats": [
+    {
+      "node": "Beta",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    },
+    {
+      "node": "Gamma",
+      "field": "scope",
+      "candidates": [
+        "unknown"
+      ],
+      "hint": "portée incertaine : généralisation suspendue"
+    }
+  ],
+  "warnings": []
+}

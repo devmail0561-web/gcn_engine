@@ -1,5 +1,10 @@
 # SAD — Software Architecture Document : GCN-Core
 
+> **Document pré-refacto (≤ v4.0, sept. 2026) — archivé, non normatif.**
+> Références 7 types de nœuds / 11 relations et chemins UD/lattice supplantés par
+> la branche `refacto/arch-cible-refacto-2026-10` (8 nœuds D5 / 19 relations / tokenizer
+> ids stables / tête act). Source de vérité : `README.md` racine + `docs/refactory/`.
+
 **Grammaire Causale Naturelle : Implémentation de Référence**
 
 Basé sur le papier de recherche de Michel Tendeng, Université Numérique Cheikh Hamidou Kane (UN-CHK), Septembre 2026

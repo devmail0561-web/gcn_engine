@@ -1,0 +1,372 @@
+{
+ "mc3001": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3002": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3003": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3004": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3005": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3006": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3007": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3008": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3009": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3010": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3011": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3012": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3013": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3014": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3015": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3016": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3017": {
+  "verdict": "non",
+  "motif": "src chevauche tgt (linge blanchi→linge)",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3018": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3019": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3020": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3021": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3022": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3023": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3024": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3025": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3026": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3027": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3028": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3029": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3030": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3031": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3032": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3033": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3034": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3035": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3036": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3037": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3038": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3039": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3040": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3041": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3042": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3043": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3044": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3045": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3046": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3047": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3048": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3049": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3050": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3051": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3052": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3053": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3054": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3055": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3056": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3057": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3058": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3059": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3060": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3061": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée (lieu au lieu d'effet évité)",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3062": {
+  "verdict": "non",
+  "motif": "sens inversé (convention P4 : cloche puis alerte)",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3063": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3064": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3065": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3066": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3067": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3068": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3069": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3070": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3071": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3072": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3073": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée (temps au lieu d'effet évité)",
+  "validateur": "machine-PV1-R5"
+ },
+ "mc3074": {
+  "verdict": "oui",
+  "motif": "R5 auteur : paraphrase + contre-lecture OK",
+  "validateur": "machine-PV1-R5"
+ }
+}

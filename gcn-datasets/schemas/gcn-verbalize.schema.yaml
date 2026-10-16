@@ -19,7 +19,7 @@
 
 schema:
   name: "gcn-verbalize"
-  version: "1.0"
+  version: "4.0"
   description: >
     Paires (CausalIR, surface_text) pour l'entraînement du décodeur verbalisateur.
     Un même CausalIR peut être associé à plusieurs surfaces (cross-modal).
@@ -41,11 +41,21 @@ example:
     source_text: "string — texte ou code source d'origine"
     nodes:
       - id: "integer"
-        node_type: "etat | action | transition | processus | condition | entite | etat_systemique"
+        node_type: "processus | etat_local | etat_global | entite | condition | concept | evenement | contrainte"
         label: "string — étiquette courte du nœud"
         origin: "explicit | inferred | hypothetical"
     edges:
-      - _format: "[src_node_id, dst_node_id, {relation, confidence, negated, explicit}]"
+      - _format: >
+          [src_node_id, dst_node_id, {
+            relation,        # 19 types v4.0 (voir gcn-nl.schema.yaml)
+            confidence,      # float [0.0, 1.0]
+            negated,         # bool
+            explicit,        # bool
+            third,           # {role: condition|mediator, node: id, polarity?} — optionnel
+            sources,         # [id1, id2] — pour joint_cause/joint_prevent uniquement
+            joint_group_id,  # sha256[:16] — pour joint_cause/joint_prevent
+            intent           # explain|find_causes|find_effects|chain|spof|do|analogy|other
+          }]
 
   # Surface textuelle cible — ce que le décodeur doit produire
   surface:
@@ -70,7 +80,7 @@ cross_modal_example:
     source_text: "Si les ventes baissent, on réduit les coûts."
     nodes:
       - {id: 0, node_type: processus, label: "décroissance(ventes)", origin: explicit}
-      - {id: 1, node_type: action,    label: "réduire(coûts)",        origin: explicit}
+      - {id: 1, node_type: processus, label: "réduire(coûts)",        origin: explicit}
     edges:
       - [0, 1, {relation: condition, confidence: 1.0, negated: false, explicit: true}]
   surfaces:

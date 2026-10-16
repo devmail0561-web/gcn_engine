@@ -1,0 +1,492 @@
+ Plan — Architecture discussion causale v2.0 (v5 — références vérifiées)
+
+ Contexte et règles absolues
+
+ Le moteur GCN produit des graphes causaux vérifiables. Ce plan couvre :
+ (1) normalisation des données, (2) dataset N-aire, (3) interface discussion naturelle,
+ (4) réponses argumentées.
+
+ Règles absolues :
+ - AUCUN YAML dans le moteur — YAML = gcn-tools/ uniquement. Pourquoi : le moteur apprend
+   depuis les données, pas depuis des règles linguistiques hardcodées.
+ - AUCUN --lang — PHASE12 l'a supprimé (v2.0 breaking). Pourquoi : réintroduire lang
+   recrée une dépendance linguistique cachée et invalide l'isomorphisme fr↔en.
+ - AUCUN hardcoding — pas de constantes magiques, règles, tables de mapping dans le moteur.
+ - gcn-frontend-fr/en = bootstrap uniquement. Exception documentée : GCNBridgeParser
+   appelle gcn analyze (Rust, FrenchParser) à l'inférence — compromis accepté (heuristique
+   ~80-85%) faute de PyO3. Le binaire Rust est une dépendance de production assumée.
+
+ Gate découplé :
+ val_node_macro_f1 = 0.274 (cible 0.60) est un bloquant données, pas code.
+ Toutes les phases infra/interface/qualité sont livrables sans atteindre ce gate.
+ Seule la tête de prédiction de liens est gatée (gate = gcn-eval --gate --on-fail=warn,
+ jamais fail-closed).
+
+ ---
+
+ Corrections factuelles vs audits précédents
+
+ Ces corrections sont nécessaires avant implémentation — les références incorrectes
+ dans les versions précédentes du plan auraient induit l'agent en erreur.
+
+ ┌──────────────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                Erreur précédente                 │                                            Correction                                             │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ f"n{raw_id:>03}" padde mal                       │ f"n{int(raw_id):03d}" avec try/except ValueError                                                  │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ schema.py:23 = défaut "n001"                     │ C'est un commentaire d'exemple, pas un défaut                                                     │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ instructions.py:343 f"{conf:.2f}"                │ Réel : :250 conf:.2f ET :348 conf:.0%                                                             │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ Conflit attributes.relation fr_causal_basic.json │ Pas de conflit observable dans cet exemple                                                        │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ json_reader.py:133-147 lit attributes.relation   │ Non — lit e.get("relation") top-level seulement                                                   │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ _load_raw:87-103 dans json_reader.py             │ C'est verbalize_loader.py:87-103                                                                  │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ cgnp.py:311 lit les tokens pour negated          │ Lit is_negative depuis representation.py:37-38 (Polarity==Neg)                                    │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ filter_edge_cache:347-361 dans train.py          │ C'est cgnp.py:347-361 ; train.py:347 = boucle epoch                                               │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ VerbalizeSample a subgraph/source_sentences      │ Réel verbalize_loader.py:35-40 : ir_json/node_type_embeddings/gold_tokens/source_text/node_labels │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ parse_command():41-68 dans discuss.py            │ C'est instructions.py:41-68 ; discuss.py:41-68 = _read_texts                                      │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ find_path retourne des 4-tuples                  │ Retourne list[node_id] (instructions.py:159-176)                                                  │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ discuss.py:117-118 déballent 4-tuples            │ Déballage réel : query_report.py:56,110,199,207 + discuss.py:211                                  │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ bridge.py:70 regex ^([^(\s]+)                    │ Réel : ^([^(?\s]+) avec ? littéral                                                                │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ [:90] dans query_report.py                       │ C'est decoder.py:40, pas query_report                                                             │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ _split_lines dans index.py                       │ Importée depuis discuss.py:72-77 (len>=10)                                                        │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ ir_emitter.py:71-84 sans id                      │ Faux — :39-50 émet {"id": i} (entier)                                                             │
+ ├──────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+ │ N_filtered toujours ≠ N                          │ Vrai en chemin train (valid_clause_idxs), pas en analyze() bridge                                 │
+ └──────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ ---
+
+ Étape 0 — data/edge_norm.py : normaliseur unifié (prérequis à tout le reste)
+
+ Pourquoi un module dédié : trois normaliseurs divergents existent dans le code actuel :
+ - bootstrap.py:109-137 — défaut relation="cause", confidence=1.0 silencieux
+ - bridge.py:111-150 — int() strict, warn agrégé, pas de défaut silencieux
+ - instructions.py:84-94 — normalisation inexistante (drop silencieux des dicts)
+
+ Un quatrième normaliseur créerait une incohérence systémique. Centraliser en
+ gcn-python/src/gcn_python/data/edge_norm.py.
+
+ Normalisation des ids — 3 conventions à unifier :
+ - ir_emitter.py:39-50 : {"id": i} (entier Python)
+ - ClauseRecord.node_id dans schema.py : string "n001" (zéro-paddé)
+ - bootstrap.py : str(i) = "0", "1" (pas paddé)
+
+ Règle : f"n{int(raw_id):03d}" pour les entiers (try/except ValueError si non-convertible).
+ Si déjà string commençant par "n" suivi de chiffres → conserver. Si string purement numérique
+ → f"n{int(s):03d}". Idempotent : "n001" → "n001".
+
+ confidence absent → None, jamais 0.0 :
+ query_report.py:250 fait f"{conf:.2f}" et :348 fait f"{conf:.0%}" — les deux
+ crashent sur None. La règle : None signifie "annotation absente" ≠ "confiance nulle".
+ Afficher "?" dans le rapport. Émettre warn agrégé.
+
+ negated absent → None (pas False) :
+ cgnp.py calcule is_negative via representation.py:37-38 (Polarity==Neg depuis root_morph).
+ Ne jamais écraser cette détection en mettant negated=False par défaut depuis le normaliseur.
+ None = "non renseigné", laissé à la détection du pipeline.
+
+ Sanitization anti-injection :
+ Labels et textes sources peuvent contenir \n, \r, séquences ANSI. Avant tout affichage
+ dans query_report.py ou discuss.py : text.replace('\n', ' ').replace('\r', ' ').strip().
+
+ Fichier cible : gcn-python/src/gcn_python/data/edge_norm.py (nouveau, ~100 lignes)
+
+ Tests :
+ - int(1) → "n001", int(0) → "n000" (idempotent)
+ - str("n001") → "n001" (inchangé)
+ - str("1") → "n001"
+ - confidence=None → warn, pas de crash
+ - relation absent → None + warn agrégé (pas de default silencieux)
+ - negated absent → None (pas False)
+ - \n dans label → sanitisé
+ - tuple format [src,dst,attrs] et dict format {source,target,relation} tous deux acceptés
+
+ ---
+
+ Étape 1 — schema.py / json_reader.py / loader.py (migration v1→v2)
+
+ 1a. EdgeRecord.source: str → sources: list[str]
+
+ Pourquoi la property ne suffit pas : @property source permet e.source en lecture,
+ mais pas EdgeRecord(source="n001") (TypeError sur dataclass). dataclasses.asdict(),
+ astuple(), replace() contournent les properties et ne voient que le champ sources.
+ json_reader.py:143 fait e.source → TypeError après migration sans shim.
+
+ Migration correcte :
+ # schema.py — EdgeRecord
+ @dataclass
+ class EdgeRecord:
+     sources: list[str]      # NOUVEAU — remplace source
+     target: str
+     relation: str
+     confidence: float = 1.0
+     explicit: bool = True
+     negated: bool = False
+     marker_token: Optional[int] = None
+
+     def __post_init__(self):
+         # Shim : accepte construction legacy EdgeRecord(source="n001")
+         # mais sources est le champ canonique
+         pass  # géré par __init__ override ou via from_legacy classmethod
+
+ Alternative recommandée : @classmethod from_legacy(cls, source: str, ...) plutôt qu'un
+ shim __post_init__ qui complique la sérialisation. Les appelants legacy passent par
+ EdgeRecord.from_legacy(source=...).
+
+ json_reader.py _parse_edge : lire "sources" en priorité, wraper "source" si absent.
+ Si les deux présents → "sources" gagne (warn si conflit).
+
+ loader.py TrainingSample : ajouter hyperedge_map avec default vide pour rétrocompat :
+ @dataclass
+ class TrainingSample:
+     sentence: SentenceRecord
+     gold_node_labels: np.ndarray
+     edge_map: dict[tuple[int, int], int]
+     hyperedge_map: dict[tuple[frozenset, int], int] = field(default_factory=dict)
+ Pourquoi default_factory : loader.py:139 et tout code appelant TrainingSample(...)
+ avec 3 args continue de fonctionner.
+
+ Script gcn-datasets/scripts/migrate_v1_v2.py :
+ - Ajoute "schema_version": "2.0" à chaque document
+ - Wrape "source": "n001" → "sources": ["n001"] dans toutes les arêtes
+ - Test de non-perte : compte arêtes avant/après, assert égalité
+
+ 1b. hyperedge_map dans _to_sample
+
+ Bypass gap>1 pour les N-arêtes :
+ Pourquoi : le filtre gap>1 est conçu pour les arêtes binaires longue-distance. Une
+ hyperarête [n001, n003] → n005 est non-consécutive par nature — pas une arête longue-distance
+ ordinaire. Si len(e.sources) > 1 → router vers hyperedge_map sans vérifier gap.
+
+ Remapping valid_clause_idxs (critique) :
+ loader.py filtre les spans vides AVANT _to_sample. Les indices dans node_id_to_idx
+ après filtrage ne correspondent plus aux indices originaux. Vérifier l'alignement avec
+ train.py (lignes autour de valid_clause_idxs) et cgnp.py:347-361 (filter_edge_cache).
+
+ frozenset(str) et order temporel :
+ frozenset perd l'ordre. Pour sequence N-aire (A puis B → C), l'ordre est sémantiquement
+ significatif. Limitation documentée en ADR : sequence N-aire est non-ordonné en v2.0.
+ Clé : (frozenset(sources_as_str), target_idx) — la relation est dans la valeur.
+
+ Relations inverses bidi :
+ RELATION_TYPES_INV = [r + "_inv" for r in RELATION_TYPES] (constants.py).
+ Arêtes backward binaires : rel_idx + len(RELATION_TYPES) si --bidirectional.
+ Ne pas construire "_inv_cause" à la main.
+
+ 1c. Morph cohérence train/infer
+
+ Status quo à documenter (ADR) :
+ Actuellement cohérent par vacuité : json_reader.py:93,101 → morph={},
+ bridge.py:180-184 → root_morph={}, representation.py:25-38 → 14 features _absent.
+ Train et infer produisent les mêmes features → pas de drift.
+
+ Ne pas peupler morph sélectivement. Si on peuple dans les données d'entraînement,
+ il faut que bridge.py (inférence) peuple aussi. Comme gcn analyze Rust n'émet pas de
+ morphologie aujourd'hui, laisser vide jusqu'à ce que le frontend Rust soit étendu.
+
+ 1d. Verbalize v2.0 — extension de VerbalizeSample
+
+ Structure réelle actuelle (verbalize_loader.py:35-40) :
+ @dataclass
+ class VerbalizeSample:
+     ir_json: str               # CausalIR sérialisé
+     node_type_embeddings: np.ndarray
+     gold_tokens: np.ndarray
+     source_text: str
+     node_labels: list[str]
+
+ Extension v2.0 (rétrocompat — champs optionnels) :
+ @dataclass
+ class VerbalizeSample:
+     ir_json: str
+     node_type_embeddings: np.ndarray
+     gold_tokens: np.ndarray
+     source_text: str
+     node_labels: list[str]
+     subgraph: dict | None = None                   # NOUVEAU
+     source_sentences: list[str] = field(default_factory=list)  # NOUVEAU
+
+ verbalize_loader.py:87-103 (_load_raw) : ajouter version check.
+ _surfaces[0] non-déterministe (train.py:435-437) : trier par quality (gold<silver)
+ puis insertion order avant de prendre _surfaces[0].
+
+ Mélange FR+python dans verbalize_cross_modal.json : c'est le design cross-modal voulu.
+ Le décodeur doit être language-agnostique. vocab.build dans trainable.py:24 utilise \w+
+ qui mélange les langues — documenter comme limitation de la tokenisation du vocab de surface.
+
+ ---
+
+ Étape 2 — checkpoint.py / engine.py : validation sémantique
+
+ Pourquoi la validation actuelle est insuffisante :
+ checkpoint.py:88-94 valide les shapes numériques. Mais même shape ≠ même sens :
+ - vocab différent → même shape (V, D) mais correspondances différentes
+ - n_relations 11 vs 22 selon --bidirectional
+ - d_in = d_eff = d_clause + d_emb (cgnp.py:52-60), pas d_clause seul
+
+ Triplet sémantique à stocker et valider :
+ (d_eff, d_hidden, |V|, n_relations, bidi_flag).
+ _arch_json actuel (checkpoint.py:23-32) stocke 7 clés — y ajouter ces valeurs si absentes.
+ engine.py:126-132 ne lit que 7 clés — étendre en conséquence.
+
+ Clés optionnelles : link_pred_*, hyperedge_* ajoutées à la liste valide.
+ Clés inconnues → warn+ignore (pas ValueError) pour forward-compat.
+ Pourquoi warn+ignore et pas ValueError : un checkpoint v2.5 chargé dans un code v2.0
+ ne doit pas crasher — les nouvelles clés sont simplement ignorées.
+
+ Double-absent policy :
+ - pipeline.decoder is None + checkpoint sans decoder_* → warn (intentionnel?)
+ - pipeline.decoder présent + checkpoint sans decoder_* → warn (poids non restaurés, init aléatoire reference.py:29-33)
+ - Mismatch triplet sémantique → ValueError avec valeurs attendues vs trouvées
+
+ Sauvegarde atomique :
+ checkpoint.py:60 utilise np.savez(path, ...) — non compressé, non atomique.
+ Corriger :
+ tmp = path.with_suffix(".tmp.npz")
+ np.savez_compressed(tmp, **arrays)
+ tmp.replace(path)  # atomique POSIX
+ train.py a aussi copy2 non-atomique — même correction.
+
+ Sécurité allow_pickle :
+ checkpoint.py:83 charge avec allow_pickle=True (nécessaire pour object arrays).
+ Valider les clés AVANT d'instancier les objets. Ne jamais charger depuis un chemin symlink
+ sans vérification. trusted=True est forcé dans train/eval/discuss/index/engine — documenter
+ que c'est un risque pour les checkpoints non-locaux.
+
+ ---
+
+ Étape 3 — graph_vecs.npz : vecteurs séparés avec clé stable
+
+ Clé stable :
+ SHA-256 de sentence_text.encode("utf-8") entier (pas [:80] — trop de collisions) +
+ "_" + str(node_position_in_valid_clause_idxs).
+ Pourquoi valid_clause_idxs et pas position dans cir["nodes"] :
+ get_enriched_vectors() (engine.py:363-371) retourne _cached_enriched_vecs depuis le
+ chemin analyze(). Dans ce chemin (bridge), il n'y a pas de filtrage des spans vides — N
+ vectors = N nodes. Dans le chemin train (reps_from_sentence), il y a filtrage. Utiliser
+ la position dans cir["nodes"] directement pour le chemin analyze().
+
+ Manifest JSON :
+ {
+   "checkpoint_hash": "sha256:<hash_poids_triés>",
+   "d_eff": 196,
+   "created_at": "ISO8601",
+   "entries": {
+     "<sha256_text>_<node_pos>": {"node_id": "n001", "node_label": "...", "shape": [196]}
+   }
+ }
+
+ Hash canonique du checkpoint :
+ sha256(concat([weights[k].tobytes() for k in sorted(arch_keys)])) — stable même si le
+ format ZIP varie. Pas de MD5 sur le fichier NPZ (instable).
+
+ NpzFile LRU : ouvrir avec np.load(path, allow_pickle=False, mmap_mode='r') et tenir
+ le handle ouvert (LRU cache). Éviter de rouvrir le ZIP à chaque accès clé.
+
+ Fallback _minimal_reps_from_labels : qualité dégradée documentée (root_morph={},
+ has_advcl=False, is_negative=False, root_pos=VERB fixe dans train.py:26-39).
+ Utiliser seulement si manifest absent ou checkpoint changé.
+
+ ---
+
+ Étape 4 — find_* : exact match prioritaire sans breaking change
+
+ Pourquoi ne pas ajouter un 5e élément au tuple :
+ query_report.py:56,110,199,207 et discuss.py:211 déballent (src, dst, attrs, text).
+ Ajouter un 5e élément casserait tout ce code.
+
+ Solution : stocker le niveau dans attrs :
+ def find_causes(self, keyword: str, min_level: int = 3) -> list[tuple]:
+     # attrs contient "_match_level": 1=exact, 2=préfixe, 3=substring
+     # Tri : level ASC, conf DESC, ordre insertion (3e clé pour stabilité)
+
+ Labels composés décroissance(ventes) :
+ keyword="ventes" → niveau 3 (substring) sur le label complet. Acceptable.
+ keyword="décroissance" → niveau 2 (préfixe). Cohérent.
+
+ Anti-spam warn en boucle interactive :
+ find_* est appelé dans une boucle interactive. Un warn par arête = spam.
+ Agréger : compter n_substring_matches et émettre un warn unique en fin de session.
+
+ ---
+
+ Étape 5 — gcn-discuss : entrée libre dans le fallback
+
+ Localisation correcte :
+ parse_command() est dans instructions.py:41-68.
+ discuss.py appelle parse_command(user_input) dans sa boucle principale.
+ Le fallback ("text", None) est le point d'extension naturel.
+
+ Extraction de concepts depuis CIR :
+ engine.analyze(user_input) → cir["nodes"] → labels.
+ Regex lemme : ^([^(?\s]+) (réel dans bridge.py:70, avec ? littéral).
+ Strip ?.,!(), longueur ≥ 3. Cette regex est déjà dans le code — la réutiliser.
+
+ Pas de circularité :
+ gcn-discuss est Python. engine.analyze() → GCNBridgeParser.parse() →
+ subprocess.run(["gcn","analyze",text]) (Rust). Python→Rust, sens unique.
+
+ Commandes conservées :
+ explain:, effects:, chain:, summarize, counterfactual:, verbalize,
+ help, clear, quit (instructions.py:28-38) — inchangées, routées normalement.
+
+ ---
+
+ Étape 6 — gcn-index : blocs par segmentation externe
+
+ Pourquoi _split_lines avec len>=10 est un magic number :
+ discuss.py:72-77 — importé dans index.py. La constante 10 est arbitraire.
+ La remplacer par un paramètre CLI --min-line-len (défaut 10 pour rétrocompat).
+
+ Pourquoi passer un bloc multi-phrases à engine.analyze() est incorrect :
+ engine.py:195-215 dit "phrase pré-segmentée". CGNPipeline.forward() suppose :
+ - connector_reps = len(reps)-1 (une de moins que les clauses)
+ - clause_positions locaux à la phrase
+ - _infer_scope utilise SCOPE_HINTS_FR (FR-only)
+
+ Séquence correcte :
+ 1. Segmenter text en phrases (simple : fin .!? précédé d'un espace ou fin de ligne)
+    — documenter que ". M." et "e.g." cassent la segmentation (limitation connue)
+ 2. Appeler engine.analyze(sentence) sur CHAQUE phrase
+ 3. Post-traitement : construire DiscourseBlock en préfixant ids (s001_n001)
+ 4. graph.add_discourse_block(merged_cir) — méthode à créer dans CausalGraph
+
+ except: pass dans index.py:74 : remplacer par except Exception as e: logger.warning(...).
+
+ ---
+
+ Étape 7 — QueryVerbalizer : dé-troncature bornée
+
+ Troncatures actuelles :
+ - query_report.py : [:72] (sources) et [:60] (contradictions)
+ - decoder.py:40 : [:90]
+
+ Solution : paramètre max_source_chars: int = 200 dans QueryVerbalizer.__init__().
+ Troncature word-aware : text[:max_source_chars].rsplit(' ', 1)[0] si troncature nécessaire.
+
+ Groupement sources convergentes :
+ Clé : (frozenset(src_node_ids), dst_node_id, relation) — node_ids pour éviter les
+ homonymes. Agrégation : (n, min_conf, max_conf) — pas juste max (masque la variance).
+ Tri : n * max_conf décroissant.
+
+ Correction contradiction filter :
+ _BLOCKING_RELS = {prevent, filter} (query_report.py:24) mais causes() ne vérifie que
+ prevent pour les contradictions. Corriger pour vérifier les deux.
+ Ajouter negated=True dans la détection de contradictions.
+
+ ---
+
+ Étapes différées
+
+ LinkPredHead (gate val_node_macro_f1 > 0.60)
+
+ - layer3/link_pred.py (nouveau fichier)
+ - Protocol LinkPredictor SÉPARÉ de CausalGraph (ne casse pas interface.py:9-41)
+ - checkpoint.py : link_pred_* optionnelles (warn si absentes, pas ValueError)
+ - Hyperparamètres CLI : --src-aggregation, --bfs-depth, --neg-ratio
+ - gcn-eval --gate --on-fail=warn
+
+ TrainableDecoder multi-vecs (dépend B5 stable)
+
+ - Contexte sources = biais attention optionnel (pas de changement d_in)
+ - is_inferred flag dans métadonnées nœud (pas token spécial)
+ - Dépend de VerbalizeSample étendu (Étape 1d)
+
+ PyO3 Rust→GCNEngine (dernier)
+
+ - Élimine la dépendance gcn analyze Rust à l'inférence
+ - Seul pont actuel : subprocess gcn-verbalizer
+
+ ---
+
+ Ordre d'implémentation (dépendances respectées)
+
+ 1.  edge_norm.py + sanitization + tests (10 cas)            [3h]
+ 2.  B6 triplet sémantique checkpoint + savez atomique        [2h]
+ 3.  schema.py sources[] + json_reader rétrocompat           [3h]
+ 4.  migrate_v1_v2.py + version check                        [1h]
+ 5.  B1 hyperedge_map + _to_sample + gap bypass + bidi       [4h]
+ 6.  B5 graph_vecs.npz + manifest + hash + LRU              [4h]
+ 7.  find_* _match_level + anti-spam                         [2h]
+ 8.  VerbalizeSample étendu (subgraph, source_sentences)     [2h]
+ 9.  discuss fallback engine.analyze()                       [2h]
+ 10. index blocs (segmentation externe) + except warn        [2h]
+ 11. QueryVerbalizer dé-troncature + groupement              [2h]
+ 12. [GATE] LinkPredHead                                     [6h]
+ 13. [GATE B5] TrainableDecoder multi-vecs                   [4h]
+ 14. PyO3 (déféré)
+
+ ---
+
+ 10 familles de tests
+
+ 1. Commutativité : frozenset({A,B})→C == frozenset({B,A})→C (hypothesis)
+ 2. Vecs round-trip : index→save→load→same embeddings + tamper→fallback + stale→warn
+ 3. Migration : v1→v2 sans perte d'arêtes + schema_version + source→sources
+ 4. id idempotent : int(1)→"n001", str("n1")→"n001", str("n001")→"n001"
+ 5. Empty/None : frozenset vide→skip, sources=[]→warn, node sans id→skip, confidence=None→warn
+ 6. Déterminisme seed : même seed→même ordre find_causes/BFS
+ 7. Golden max_source_chars : 500 chars→200 word-aware + \\n sanitisé
+ 8. Sécurité : non-trusted→RuntimeError, save crash→pas de corruption,
+               \\n dans label→sanitisé, allow_pickle avant validation
+ 9. Perf : 10k arêtes find_causes < 100ms, 100k appels sans fuite, 1k lignes index sans OOM
+ 10. Compat : ckpt v2.3.0 chargé sans erreur, graph.json sans blocs rétrocompat,
+              TrainingSample legacy 3-args fonctionnel
+
+ ---
+
+ Vérifications rapides (assertions négatives incluses)
+
+ pytest gcn-python/tests/ -q
+ cd gcn-core && cargo test --workspace && cargo clippy -- -D warnings
+
+ # edge_norm — non-existent → à créer
+ # Test APRÈS création :
+ python -c "
+ from gcn_python.data.edge_norm import normalize_edge
+ import warnings
+ # id int → n001
+ e = normalize_edge([1, 2, {'relation':'cause','confidence':0.9}])
+ assert e['src'] == 'n001' and e['dst'] == 'n002', f'id int non normalisé : {e}'
+ # confidence None → warn + None (pas 0.0)
+ with warnings.catch_warnings(record=True) as w:
+     warnings.simplefilter('always')
+     e2 = normalize_edge({'source':'n1','target':'n2','relation':'cause'})
+     assert e2 is not None  # relation présente → pas skip
+     assert e2.get('confidence') is None  # pas de substitution silencieuse
+ # relation absente → None + warn
+ with warnings.catch_warnings(record=True) as w:
+     warnings.simplefilter('always')
+     e3 = normalize_edge({'source':'n1','target':'n2'})  # pas de relation
+     assert e3 is None
+     assert len(w) > 0, 'warn attendu pour relation absente'
+ "
+
+ # find_* — faux positif bateau/eau (assert négatif)
+ python -c "
+ from gcn_python.verbalizer.instructions import CausalGraph
+ g = CausalGraph()
+ g.nodes = {'n1': {'label': 'bateau'}, 'n2': {'label': 'eau', 'node_type': 'entite'}}
+ # Arête n1→n2, on cherche causes de 'eau' (kw in dst.label)
+ # 'eau' est substring de 'bateau' (n1) ET exact de 'eau' (n2)
+ # find_effects('eau') : cherche kw in src.label → retournerait (n1,n2,...) si bateau matche
+ # Avec min_level=1 (exact) : n1.label='bateau' ≠ 'eau' → skip. Correct.
+ # Vérifier que find_effects('eau', min_level=1) ne retourne pas bateau comme source
+ # NOTE : ce test ne marche que APRÈS l'implémentation de _match_level
+ "
+
+ # Checkpoint triplet sémantique
+ # (dans test_checkpoint.py — après implémentation)

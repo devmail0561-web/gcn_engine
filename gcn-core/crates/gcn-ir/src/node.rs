@@ -41,6 +41,22 @@ pub enum CausalDirection {
 }
 
 impl NodeType {
+    /// Nom canonique snake_case (identique au serde) → `NodeType`.
+    /// Source unique des conversions dans le moteur (D1).
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s {
+            "processus" => Some(NodeType::Processus),
+            "etat_local" => Some(NodeType::EtatLocal),
+            "etat_global" => Some(NodeType::EtatGlobal),
+            "entite" => Some(NodeType::Entite),
+            "condition" => Some(NodeType::Condition),
+            "concept" => Some(NodeType::Concept),
+            "evenement" => Some(NodeType::Evenement),
+            "contrainte" => Some(NodeType::Contrainte),
+            _ => None,
+        }
+    }
+
     pub fn causal_direction(&self) -> CausalDirection {
         match self {
             NodeType::Processus => CausalDirection::Both,
@@ -61,7 +77,10 @@ pub enum AgentType {
     Human,
     Collective,
     Institutional,
+    /// Forces/phénomènes naturels (tempête, pluie) — pas les personnes (= Human).
     Natural,
+    /// Le système lui-même agissant (réponse, file-action, DO délégué — phase 9).
+    System,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -76,29 +95,38 @@ pub enum NodeOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub u32);
 
+/// Span source : snake_case canonique (`token_span`, `synthetic`) ;
+/// aliases PascalCase = sorties Rust antérieures (tolérance D-S03, socle 0b).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceSpan {
-    TokenSpan {
-        start: u32,
-        end: u32,
-    },
+    #[serde(alias = "TokenSpan")]
+    TokenSpan { start: u32, end: u32 },
+    #[serde(alias = "CodeSpan")]
     CodeSpan {
         start_line: u32,
         start_col: u32,
         end_line: u32,
         end_col: u32,
     },
+    #[serde(alias = "Synthetic")]
     Synthetic,
 }
 
+/// Attributs nœud : tous optionnels en lecture (tolérance D-S03, socle 0b).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NodeAttributes {
+    #[serde(default)]
     pub entity: Option<String>,
+    #[serde(default)]
     pub quality: Option<String>,
+    #[serde(default)]
     pub agent: Option<String>,
+    #[serde(default)]
     pub patient: Option<String>,
+    #[serde(default)]
     pub agent_type: Option<AgentType>,
+    #[serde(default)]
     pub reversible: Option<bool>,
 }
 
@@ -111,6 +139,8 @@ pub struct CausalNode {
     pub scope: Scope,
     pub modifiers: SmallVec<[Modifier; 4]>,
     pub temporal_ref: TemporalRef,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub temporal_index: Option<i32>,
     pub origin: NodeOrigin,
     pub attributes: NodeAttributes,
@@ -118,4 +148,9 @@ pub struct CausalNode {
     /// None = nœud de premier niveau. Optionnel en lecture pour compat CIR v1.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub parent: Option<NodeId>,
+    /// Symbole grammatical source (tree-sitter `kind`, ex. "if_statement").
+    /// Peuplé par gcn-frontend-code uniquement ; None ailleurs et en lecture
+    /// des CIR antérieurs. Vocabulaire fini et stable (cf. kinds.rs).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub kind: Option<String>,
 }

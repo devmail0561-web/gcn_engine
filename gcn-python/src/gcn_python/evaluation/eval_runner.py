@@ -23,7 +23,7 @@ from ..layer2.reference import MLPEncoder
 from ..layer3.reference import RGCNLayer
 from ..pipeline.cgnp import CGNPipeline
 from ..security import guarded_np_load
-from ..training.checkpoint import load_checkpoint
+from ..training.checkpoint import LegacyUDError, checkpoint_format_kind, load_checkpoint
 
 _FORBIDDEN_EVAL_DIRS = {"final", "c1_merged", "c1_oversampled"}
 
@@ -46,6 +46,14 @@ def run_eval(
             f"run_eval : répertoire '{dir_name}' interdit pour l'évaluation "
             f"(contient train+val fusionnés → mémorisation). "
             f"Utilisez un split val/test séparé (ex: combined_v2/val_v2)."
+        )
+    # R4 — refus legacy en eval AVANT toute construction (liste zip, sans
+    # désérialisation) : exit!=0 + message convert-or-retrain.
+    if checkpoint_format_kind(model_path) == "legacy-ud":
+        raise LegacyUDError(
+            f"run_eval : {Path(model_path).name} est un checkpoint legacy-UD — refusé. "
+            "legacy-UD : convertir ou ré-entraîner "
+            "(scripts/convert_legacy_ud.py --dry-run d'abord)."
         )
     # Reconstruire le pipeline depuis l'arch du checkpoint (miroir de
     # GCNEngine.from_pretrained) : sinon tout modèle bidirectional / embeddings /
@@ -108,16 +116,63 @@ def run_eval(
         if bool(_arch.get("freeze_embeddings", False)):
             _word_embedding.frozen = True
     _mlp_hidden = int(_arch.get("mlp_hidden", 128))
+    # Éq.6 : restaurer la tête intent depuis ses métas (cf. engine.py) —
+    # sinon les poids intent_layer_* ne sont jamais rechargés.
+    _n_intent = 0
+    if "_intent_meta_json" in _raw:
+        try:
+            _n_intent = int(json.loads(str(_raw["_intent_meta_json"][0])).get(
+                "n_intent_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_intent = 0
+    # P4a : idem tête type de phrase.
+    _n_sentence = 0
+    if "_sentence_meta_json" in _raw:
+        try:
+            _n_sentence = int(json.loads(str(_raw["_sentence_meta_json"][0])).get(
+                "n_sentence_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_sentence = 0
+    # P4a : idem tête type de phrase.
+    _n_sentence = 0
+    if "_sentence_meta_json" in _raw:
+        try:
+            _n_sentence = int(json.loads(str(_raw["_sentence_meta_json"][0])).get(
+                "n_sentence_types", 0))
+        except (ValueError, TypeError, AttributeError):
+            _n_sentence = 0
     _sob_eval = bool(_arch.get("subject_object_emb", False))
     _global_attention = bool(_arch.get("global_attention", False))
     _mha_heads = int(_arch.get("n_gat_heads_mha", 4))
-    _d_edge_val = vocab.d_edge_closed_loop(_d_eff, len(NODE_TYPES), _d_emb, _sob_eval)
+    # v5.8 (P3) : types actifs coarse — absents = fin (8/19 historiques).
+    _active_nodes = list(_arch.get("active_node_types") or list(NODE_TYPES))
+    _active_rels = list(_arch.get("active_relation_types") or list(RELATION_TYPES))
+    _nremap = _arch.get("node_remap") or None
+    _eremap = _arch.get("edge_remap") or None
+    _node_remap = ({int(k): int(v) for k, v in _nremap.items()} if _nremap else None)
+    _edge_remap = ({int(k): int(v) for k, v in _eremap.items()} if _eremap else None)
+    _d_edge_val = vocab.d_edge_closed_loop(_d_eff, len(_active_nodes), _d_emb, _sob_eval)
     if _global_attention:
         from ..layer2.reference import TransformerMLPEncoder
         encoder = TransformerMLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val,
-                                        mlp_hidden=_mlp_hidden, n_heads=_mha_heads)
+                                        mlp_hidden=_mlp_hidden, n_heads=_mha_heads,
+                                        n_node_types=len(_active_nodes),
+                                        n_relation_types=len(_active_rels),
+                                        n_intent_types=_n_intent,
+                                        n_sentence_types=_n_sentence,
+                                        intent_conditioned=bool(
+                                            _arch.get("intent_conditioned", False)),
+                                        qual_heads=bool(_arch.get("qual_heads", False)))
     else:
-        encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden)
+        encoder = MLPEncoder(d_clause=_d_eff, d_edge=_d_edge_val, mlp_hidden=_mlp_hidden,
+                             n_node_types=len(_active_nodes),
+                             n_relation_types=len(_active_rels),
+                             n_intent_types=_n_intent,
+                             n_sentence_types=_n_sentence,
+                             intent_conditioned=bool(
+                                 _arch.get("intent_conditioned", False)),
+                             qual_heads=bool(_arch.get("qual_heads", False)))
+
     if _gclass == "RGCNLayerGAT":
         try:
             from ..layer3.gat import RGCNLayerGAT
@@ -157,9 +212,17 @@ def run_eval(
                            all_pairs=_all_pairs, n_rgcn_layers=_n_layers,
                            edge_threshold=_edge_threshold, drop_morph=_drop_morph,
                            temperature=_temperature, bfs_depth=_bfs_depth,
+                           node_types=list(_active_nodes),
+                           relation_types=list(_active_rels),
+                           no_positional=bool(_arch.get("no_positional", False)),
+                           no_ternary=bool(_arch.get("no_ternary", False)),
+                           no_mood=bool(_arch.get("no_mood", False)),
+                           no_tense=bool(_arch.get("no_tense", False)),
                            clause_pooling=str(_arch.get("clause_pooling", "root")),
                            subject_object_emb=bool(_arch.get("subject_object_emb", False)),
-                           gat_residual=bool(_arch.get("gat_residual", False)))
+                           gat_residual=bool(_arch.get("gat_residual", False)),
+                           n_intent_types=_n_intent,
+                           n_sentence_types=_n_sentence)
     # Trust acquis plus haut : audit pickle (guarded_np_load) + _arch_json
     # présent et parseable. load_checkpoint refait de son côté le même audit.
     load_checkpoint(pipeline, model_path, trusted=True)
@@ -213,10 +276,14 @@ def run_eval(
             gold_node = sample.gold_node_labels[np.array(valid_clause_idxs, dtype=np.int64)]
         else:
             gold_node = sample.gold_node_labels
+        # v5.8 (P3) : remap coarse — mêmes tables que le train.
+        if _node_remap is not None and gold_node is not None:
+            gold_node = np.array([_node_remap.get(int(i), int(i)) for i in gold_node],
+                                 dtype=np.int64)
 
         node_pred_idxs = np.argmax(node_logits, axis=1)
-        all_node_preds.extend(NODE_TYPES[i] for i in node_pred_idxs)
-        all_node_gold.extend(NODE_TYPES[i] for i in gold_node)
+        all_node_preds.extend(pipeline.node_types[i] for i in node_pred_idxs)
+        all_node_gold.extend(pipeline.node_types[i] for i in gold_node)
 
         if (valid_clause_idxs and len(valid_clause_idxs) >= 2
                 and sample.edge_map and edge_logits is not None and len(edge_logits) > 0):
@@ -238,20 +305,32 @@ def run_eval(
             if valid_mask.any():
                 valid_idxs = np.where(valid_mask)[0]
                 gold_edge = gold_edge_full[valid_idxs]
+                if _edge_remap is not None:
+                    gold_edge = np.array(
+                        [_edge_remap.get(int(i), int(i)) for i in gold_edge],
+                        dtype=np.int64)
                 # NB: argmax sur tous les logits — ne filtre pas par edge_threshold.
                 # Mesure la qualité intrinsèque du classifieur, pas le comportement prod.
                 edge_pred_idxs = np.argmax(edge_logits[valid_idxs], axis=1)
-                all_edge_preds.extend(RELATION_TYPES[i] for i in edge_pred_idxs)
-                all_edge_gold.extend(RELATION_TYPES[i] for i in gold_edge)
+                all_edge_preds.extend(pipeline.relation_types[i] for i in edge_pred_idxs)
+                all_edge_gold.extend(pipeline.relation_types[i] for i in gold_edge)
 
-        # causal_graph_similarity: compare pred_cir vs gold CIR reconstructed from sample
+        # causal_graph_similarity: compare pred_cir vs gold CIR reconstructed from sample.
+        # v5.8 (P3) : noms en espace actif (remap) pour comparer au CIR prédit.
         if pred_cir is not None:
-            gold_nodes = [
-                {"node_type": NODE_TYPES[int(lbl)] if int(lbl) < len(NODE_TYPES) else "action"}
-                for lbl in sample.gold_node_labels
-            ]
+            def _an(lbl):
+                _i = int(lbl)
+                if _node_remap is not None:
+                    _i = _node_remap.get(_i, _i)
+                return pipeline.node_types[_i] if 0 <= _i < len(pipeline.node_types) else "action"
+            def _ar(rel):
+                _i = int(rel)
+                if _edge_remap is not None:
+                    _i = _edge_remap.get(_i, _i)
+                return pipeline.relation_types[_i] if 0 <= _i < len(pipeline.relation_types) else pipeline.relation_types[0]
+            gold_nodes = [{"node_type": _an(lbl)} for lbl in sample.gold_node_labels]
             gold_edges = [
-                [src, tgt, {"relation": RELATION_TYPES[int(rel)]}]
+                [src, tgt, {"relation": _ar(rel)}]
                 for (src, tgt), rel in sample.edge_map.items()
                 if 0 <= int(rel) < len(RELATION_TYPES)
             ]

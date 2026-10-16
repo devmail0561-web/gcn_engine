@@ -28,7 +28,7 @@ def _accumulate_over_nodes(encoder, X, n_nodes):
     all_grads = None
     for i in range(n_nodes):
         encoder.forward_node(X[i])
-        grads_i, _ = encoder.backward_node_dx(np.ones(7, dtype=np.float32))
+        grads_i, _ = encoder.backward_node_dx(np.ones(8, dtype=np.float32))
         if all_grads is None:
             all_grads = [(dW.copy(), db.copy()) for dW, db in grads_i]
         else:

@@ -1,0 +1,32 @@
+[
+ {
+  "id": "pw-1279",
+  "verdict": "non",
+  "motif": "override re-jugement aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ {
+  "id": "g0-12517",
+  "verdict": "non",
+  "motif": "override re-jugement aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ {
+  "id": "g0-1022",
+  "verdict": "non",
+  "motif": "override re-jugement aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ {
+  "id": "g0-1022",
+  "verdict": "non",
+  "motif": "override re-jugement aveugle",
+  "validateur": "machine-PV1-aveugle"
+ },
+ {
+  "id": "pw-659",
+  "verdict": "non",
+  "motif": "override re-jugement aveugle",
+  "validateur": "machine-PV1-aveugle"
+ }
+]

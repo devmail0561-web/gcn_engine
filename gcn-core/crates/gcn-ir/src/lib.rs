@@ -7,6 +7,7 @@ pub mod code;
 pub mod edge;
 pub mod error;
 pub mod ir;
+pub mod lattice;
 pub mod modifier;
 pub mod node;
 pub mod normalize;
@@ -20,9 +21,10 @@ pub use edge::{
 };
 pub use error::{GcnError, GcnResult};
 pub use ir::{
-    Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CycleType, IrMetadata,
-    NaturalLanguage, ProgrammingLanguage, SourceLanguage,
+    Act, Ambiguity, AmbiguityCandidate, AmbiguousField, CausalCycle, CausalIR, CirIntent,
+    CycleType, GraphFormat, IrMetadata, NaturalLanguage, ProgrammingLanguage, SourceLanguage,
 };
+pub use lattice::{Lattice, LatticeDep, LatticePos, LatticeToken};
 pub use modifier::{FrequencyKind, LocationScope, Maturity, Modifier};
 pub use node::{
     AgentType, CausalDirection, CausalNode, NodeAttributes, NodeId, NodeOrigin, NodeType,
@@ -31,6 +33,11 @@ pub use node::{
 pub use normalize::normalize_label;
 pub use scope::Scope;
 pub use temporal::{GapNature, TemporalAnchor, TemporalGap, TemporalRef};
+
+/// Version du contrat d'échange M1 (pont Python → Rust, socle 0b, D-S03).
+/// Émise par `ir_emitter.py` et les frontends Rust ; vérifiée en CI
+/// (test de compatibilité + gate de version).
+pub const EXCHANGE_SCHEMA_VERSION: &str = "2.0";
 
 #[cfg(test)]
 mod tests {
@@ -142,6 +149,7 @@ mod tests {
             cycles: vec![],
             unresolved: vec![],
             metadata: IrMetadata::default(),
+            intent: None,
         };
         assert_eq!(ir.node_count(), 0);
         assert_eq!(ir.edge_count(), 0);

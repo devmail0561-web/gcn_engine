@@ -1,6 +1,6 @@
 # gcn-frontend-code — Code Source → CausalIR
 
-Version: 2.5.0
+Version: 4.0.0
 
 [![Crates.io](https://img.shields.io/crates/v/gcn-frontend-code)](https://crates.io/crates/gcn-frontend-code)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -31,7 +31,7 @@ if x < y:
 
 ```toml
 [dependencies]
-gcn-frontend-code = "2.5.0"
+gcn-frontend-code = "4.0.0"
 ```
 
 ---
@@ -113,7 +113,7 @@ CausalIR {
   source_lang: Programming { lang: Python },
   nodes: [
     CausalNode { node_type: Condition, label: "x < y", ... },
-    CausalNode { node_type: Action,    label: "reduce(z)", ... },
+    CausalNode { node_type: Processus, label: "reduce(z)", ... },
   ],
   edges: [
     (NodeId(0), NodeId(1), CausalEdge { relation: Condition, confidence: 1.0, ... })

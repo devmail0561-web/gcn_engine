@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..constants import NODE_TYPE_ALIASES, NODE_TYPES, RELATION_TYPES
+from ..constants import NODE_TYPE_ALIASES, NODE_TYPES, QUALIFIERS, RELATION_TYPES
 from ..layer1.representation import UDRepresentation
 from .json_reader import load_all_sentences
 from .schema import ClauseRecord, SentenceRecord, TokenRecord
@@ -34,6 +34,21 @@ def _relation_idx(relation: str, sentence_id: str) -> int:
     return RELATION_TYPES.index(relation)
 
 
+def _qual_idx(edge) -> dict[str, int]:
+    """Indices QUALIFIERS d'une arête (defaults EdgeRecord si absents/invalides).
+
+    Jamais d'erreur : valeur inconnue → idx 0 (défaut documenté). Le N_min
+    des têtes quals se joue sur les comptages, pas ici.
+    """
+    out = {}
+    for _qn, _classes in QUALIFIERS.items():
+        _v = str(getattr(edge, _qn, "") or "")
+        if not _v:
+            _v = _classes[0]
+        out[_qn] = _classes.index(_v) if _v in _classes else 0
+    return out
+
+
 @dataclass
 class TrainingSample:
     sentence: SentenceRecord
@@ -41,6 +56,31 @@ class TrainingSample:
     edge_map: dict  # {(src_clause_idx, tgt_clause_idx): rel_idx} — seule source de vérité pour les arêtes
     hyperedge_map: dict = field(default_factory=dict)  # {(frozenset(sources_str), tgt_idx): rel_idx} N-aires
     edge_conf_map: dict = field(default_factory=dict)  # {(src, tgt): float} — confidence par arête (S-5)
+    # P4 quals : {(src_idx, tgt_idx): {"polarity": pi, "voice": vi, "modality": mi}}
+    # indices dans QUALIFIERS. Defaults EdgeRecord (positive/active/indicative).
+    qual_map: dict = field(default_factory=dict)
+    # Ternaire (§11.5) : {(src_idx, tgt_idx): (role, node_id_str)} depuis EdgeRecord.third.
+    # Propagé jusqu'ici (pas encore supervisé — loss BCE quand N_min=20) pour que
+    # le moteur voie le tiers dès que les données existent. Vide sur données actuelles.
+    third_map: dict = field(default_factory=dict)
+    # P4a : type de phrase résolu (annoté > règle bootstrap). "" = indéterminé.
+    sentence_type: str = ""
+    sentence_type_source: str = ""  # "annotated" | "rule" | ""
+
+
+def derive_sentence_type(text: str) -> str:
+    """Type de phrase par règle de ponctuation (bootstrap P4a).
+
+    "?" → interrogative, "!" → exclamative, sinon declarative. L'impératif
+    (verbe initial sans sujet) exige l'annotation — la règle ne devine pas.
+    Remplacé par SentenceRecord.sentence_type dès qu'annoté.
+    """
+    t = (text or "").rstrip()
+    if t.endswith("?"):
+        return "interrogative"
+    if t.endswith("!"):
+        return "exclamative"
+    return "declarative"
 
 
 class GCNDataLoader:
@@ -48,18 +88,26 @@ class GCNDataLoader:
 
     def __init__(self, data_dir: Path, repeat: bool = False,
                   all_pairs: bool = True, shuffle: bool = False, seed: int = 42,
-                  silver_weight: float = 1.0):
+                  silver_weight: float = 1.0, strict_directions: bool = False):
         self.data_dir = data_dir
         self.repeat = repeat
         self.all_pairs = all_pairs  # True par défaut — toutes les paires supervisées
         self._shuffle = shuffle
         self._rng = np.random.default_rng(seed) if shuffle else None
         self.silver_weight = silver_weight  # Amélioration F (1.0 = aucun effet)
+        # Remaps directionnels : False = warn + drop/swap historique ;
+        # True = fail-closed (ValueError propagée, sample non silencié).
+        self._strict_directions = bool(strict_directions)
         self._records = load_all_sentences(data_dir, silver_weight)
         self._warned_total = False
         # Compteur agrégé pour arêtes asymétriques en direction inverse
         self._total_backward_asymmetric = 0
         self._warned_backward_asymmetric = False
+        # Tripwire modifiers (plan v2) : le champ existe au schéma mais aucun
+        # consommateur moteur — si des modifiers apparaissent, le signaler au
+        # lieu de les ignorer silencieusement.
+        self._total_modifiers = 0
+        self._warned_modifiers = False
 
     def __len__(self) -> int:
         return len(self._records)
@@ -74,6 +122,8 @@ class GCNDataLoader:
                 try:
                     yield self._to_sample(rec)
                 except ValueError as exc:
+                    if getattr(self, "_strict_directions", False):
+                        raise
                     warnings.warn(f"[{rec.id}] sample ignoré : {exc}", UserWarning, stacklevel=2)
             if (not self.repeat
                     and hasattr(self, '_total_backward_asymmetric')
@@ -89,6 +139,18 @@ class GCNDataLoader:
                     stacklevel=2,
                 )
                 self._warned_backward_asymmetric = True
+            if (not self.repeat
+                    and hasattr(self, '_total_modifiers')
+                    and self._total_modifiers > 0
+                    and hasattr(self, '_warned_modifiers')
+                    and not self._warned_modifiers):
+                warnings.warn(
+                    f"Total : {self._total_modifiers} modifieur(s) annoté(s) sans "
+                    f"consommateur moteur — inventaire requis avant feature/tête.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self._warned_modifiers = True
             if not self.repeat:
                 break
 
@@ -97,6 +159,10 @@ class GCNDataLoader:
         # pour éviter de rejeter toute la phrase sur une arête non-supervisable
         # dont la relation serait inconnue.
         node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
+        # Tripwire modifiers : compteur robuste même si _to_sample est appelé
+        # hors __init__ (tests) — pas d'AttributeError.
+        self._total_modifiers = getattr(self, '_total_modifiers', 0) + sum(
+            1 for c in rec.clauses if getattr(c, 'modifiers', None))
         node_labels = np.array(
             [_node_type_idx(c.node_type, rec.id) for c in rec.clauses],
             dtype=np.int64,
@@ -104,6 +170,8 @@ class GCNDataLoader:
         edge_map: dict[tuple[int, int], int] = {}
         edge_conf_map: dict[tuple[int, int], float] = {}
         hyperedge_map: dict[tuple[frozenset, int], int] = {}
+        third_map: dict[tuple[int, int], tuple[str, str]] = {}
+        qual_map: dict[tuple[int, int], dict[str, int]] = {}
         n_backward = 0
         for e in rec.edges:
             src_list = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
@@ -137,6 +205,11 @@ class GCNDataLoader:
             rel_idx = _relation_idx(e.relation, rec.id)
             if src_idx > tgt_idx:
                 n_backward += 1
+                if getattr(self, "_strict_directions", False):
+                    raise ValueError(
+                        f"[{rec.id}] arête {e.relation} en direction inverse "
+                        f"({src_id}→{tgt}) src={src_idx} > tgt={tgt_idx} "
+                        "(--strict-directions : corriger l'annotation au lieu du remap).")
                 if e.relation in {"cause", "enable", "prevent"}:
                     warnings.warn(
                         f"[{rec.id}] arête asymétrique ignorée : {e.relation} "
@@ -158,11 +231,22 @@ class GCNDataLoader:
                     edge_map[key] = rel_idx
                     if e.confidence is not None:
                         edge_conf_map[key] = float(e.confidence)
+                    _third = getattr(e, "third", None) or {}
+                    if isinstance(_third, dict) and _third.get("role") in ("condition", "mediator") \
+                            and _third.get("node") is not None:
+                        third_map[key] = (_third["role"], str(_third["node"]))
+                    qual_map[key] = _qual_idx(e)
             else:
                 key = (src_idx, tgt_idx)
                 edge_map[key] = rel_idx
                 if e.confidence is not None:
                     edge_conf_map[key] = float(e.confidence)
+                third = getattr(e, "third", None) or {}
+                role = third.get("role") if isinstance(third, dict) else None
+                tnode = third.get("node") if isinstance(third, dict) else None
+                if role in ("condition", "mediator") and tnode is not None:
+                    third_map[key] = (role, str(tnode))
+                qual_map[key] = _qual_idx(e)
         if n_backward:
             warnings.warn(
                 f"[{rec.id}] {n_backward} arête(s) gold en direction inverse (src > tgt). "
@@ -172,7 +256,18 @@ class GCNDataLoader:
                 UserWarning,
                 stacklevel=2,
             )
-        return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map)
+        # P4a : type de phrase — annoté prime, règle bootstrap sinon.
+        _st_annot = (getattr(rec, 'sentence_type', '') or '').strip().lower()
+        if _st_annot:
+            _st, _st_src = _st_annot, "annotated"
+        else:
+            _st, _st_src = derive_sentence_type(rec.text), "rule"
+        return TrainingSample(rec, node_labels, edge_map, hyperedge_map, edge_conf_map,
+                              qual_map, third_map, _st, _st_src)
+
+
+# B : compteur d'orphelins rattachés (dérive pooling/feat[11] tracée).
+_ORPHAN_STATS: dict[str, int] = {"attached": 0, "sentences": 0}
 
 
 def reps_from_sentence(
@@ -198,31 +293,65 @@ def reps_from_sentence(
         if rep is not None:
             result.append(rep)
             valid_indices.append(i)
-    connector_reps: list[UDRepresentation | None] = [
-        _connector_between(
-            rec.clauses[valid_indices[k]],
-            rec.clauses[valid_indices[k + 1]],
-            rec.tokens,
+    connector_reps: list[UDRepresentation | None] = []
+    # Marqueurs gold : index (src_clause_idx, tgt_clause_idx) -> marker_token.
+    # Le marker annoté prime sur la redécouverte syntaxique (moteur apprend
+    # depuis l'annotation ; fallback _connector_between sinon).
+    node_id_to_idx = {c.node_id: i for i, c in enumerate(rec.clauses)}
+    gold_markers: dict[tuple[int, int], int] = {}
+    for e in rec.edges:
+        srcs = list(getattr(e, "sources", None) or ([e.source] if e.source else []))
+        if len(srcs) != 1 or e.marker_token is None:
+            continue
+        a = node_id_to_idx.get(srcs[0])
+        b = node_id_to_idx.get(getattr(e, "target", ""))
+        if a is not None and b is not None:
+            try:
+                gold_markers[(a, b)] = int(e.marker_token)
+            except (TypeError, ValueError):
+                warnings.warn(
+                    f"[{rec.id}] marker_token invalide {e.marker_token!r} — redécouverte syntaxique.",
+                    UserWarning, stacklevel=2,
+                )
+    for k in range(len(result) - 1):
+        a, b = valid_indices[k], valid_indices[k + 1]
+        connector_reps.append(
+            _connector_between(
+                rec.clauses[a], rec.clauses[b], rec.tokens,
+                marker_token=gold_markers.get((a, b)),
+            )
         )
-        for k in range(len(result) - 1)
-    ]
+    # P4a : orphelins de bord (ex. "?" final hors span) rattachés à la clause
+    # adjacente pour le pooling lexical — sinon la ponctuation illocutoire
+    # n'atteint aucune rep et le type de phrase est inobservable. Orphelins
+    # médians inchangés (candidats connecteurs, cf. _connector_between).
+    # token_span/root intacts : seul tokens (pooling) est étendu.
+    if result:
+        _covered = {t["id"] for r in result for t in r.tokens}
+        _first_start = min(r.token_span[0] for r in result)
+        _last_end = max(r.token_span[1] for r in result)
+        _n_orph = 0
+        for t in rec.tokens:
+            if t.id in _covered:
+                continue
+            _tok = {"lemma": t.lemma, "pos": t.pos, "dep_rel": t.dep_rel,
+                    "morph": t.morph, "id": t.id, "dep_head": t.dep_head,
+                    "form": t.form}
+            if t.id < _first_start:
+                result[0].tokens.insert(0, _tok)
+                _n_orph += 1
+            elif t.id > _last_end:
+                result[-1].tokens.append(_tok)
+                _n_orph += 1
+        # B (dérive orphelins) : compté au niveau module, pas silencieux —
+        # recalcule feat[11] (relative_depth) et le pooling ; effet faible mais réel.
+        _ORPHAN_STATS["attached"] += _n_orph
+        _ORPHAN_STATS["sentences"] += 1 if _n_orph else 0
     return result, valid_indices, connector_reps
 
 
-def _connector_between(
-    clause_a: ClauseRecord,
-    clause_b: ClauseRecord,
-    all_tokens: list[TokenRecord],
-) -> UDRepresentation | None:
-    """Retourne une UDRepresentation pour le token connecteur entre deux spans consécutives."""
-    end_a = clause_a.token_span[1]
-    start_b = clause_b.token_span[0]
-    gap_toks = [t for t in all_tokens if end_a < t.id < start_b]
-    if not gap_toks:
-        return None
-    tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
-    if tok is None:
-        return None
+def _rep_from_token(tok) -> UDRepresentation:
+    """UDRepresentation ponctuelle depuis un token (connecteur gold ou redécouvert)."""
     return UDRepresentation(
         tokens=[{"lemma": tok.lemma, "pos": tok.pos, "dep_rel": tok.dep_rel, "morph": tok.morph,
                  "id": tok.id, "dep_head": tok.dep_head, "form": tok.form}],
@@ -236,6 +365,37 @@ def _connector_between(
         has_temporal_obl=False,
         token_span=(tok.id, tok.id),
     )
+
+
+def _connector_between(
+    clause_a: ClauseRecord,
+    clause_b: ClauseRecord,
+    all_tokens: list[TokenRecord],
+    marker_token: int | None = None,
+) -> UDRepresentation | None:
+    """Token connecteur entre deux spans consécutives.
+
+    marker_token (annotation gold) prime : le token désigné est pris tel quel,
+    sans filtre POS — l'annotateur sait. Sinon redécouverte syntaxique
+    (SCONJ/CCONJ/ADP du gap). None si rien dans les deux cas.
+    """
+    if marker_token is not None:
+        tok = next((t for t in all_tokens if t.id == marker_token), None)
+        if tok is not None:
+            return _rep_from_token(tok)
+        warnings.warn(
+            f"marker_token={marker_token} sans token correspondant — redécouverte syntaxique.",
+            UserWarning, stacklevel=3,
+        )
+    end_a = clause_a.token_span[1]
+    start_b = clause_b.token_span[0]
+    gap_toks = [t for t in all_tokens if end_a < t.id < start_b]
+    if not gap_toks:
+        return None
+    tok = next((t for t in gap_toks if t.pos in {"SCONJ", "CCONJ", "ADP"}), None)
+    if tok is None:
+        return None
+    return _rep_from_token(tok)
 
 
 def _rep_from_clause(

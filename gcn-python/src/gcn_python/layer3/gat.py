@@ -30,7 +30,8 @@ except ImportError as e:  # pragma: no cover
 
 import numpy as np
 
-from ..constants import RELATION_TYPES
+from ..constants import RELATION_TYPES, rgcn_n_relations
+from ..param_epoch import bump as _bump_param_epoch
 
 
 def _softmax_per_dst(
@@ -83,7 +84,7 @@ class RGCNLayerGAT(nn.Module):
         super().__init__()
         self.d_in = d_in
         self.d_out = d_out
-        self.n_relations = n_relations or len(RELATION_TYPES)
+        self.n_relations = n_relations or rgcn_n_relations(len(RELATION_TYPES), False)
         self.dropout_rate = dropout
         self.n_heads = n_heads
         self.output_activation = output_activation
@@ -304,6 +305,7 @@ class RGCNLayerGAT(nn.Module):
 
     def update(self, grads: list[np.ndarray], lr: float) -> None:
         """Mise à jour manuelle des poids (gradient descent numpy)."""
+        _bump_param_epoch()  # M1a : invalide le cache analyze (sens sûr)
         with torch.no_grad():
             self.W_r -= lr * torch.as_tensor(grads[0], dtype=torch.float32, device=self._device)
             self.W_0 -= lr * torch.as_tensor(grads[1], dtype=torch.float32, device=self._device)

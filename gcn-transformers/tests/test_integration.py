@@ -8,18 +8,29 @@ import numpy as np
 from gcn_transformers import XLMRobertaEncoder
 
 
-def test_pipeline_forward(vocab, dimensions, sample_ud_reps):
-    """Test forward avec CGNPipeline."""
+def _pipeline_v4(vocab):
+    """Pipeline contrat v4 (D10 : WordEmbedding requis, 19 relations + no-edge).
+
+    Les tests écrivaient le contrat v2 (sans embedding, 11 relations) —
+    incompatible avec gcn-python>=4.0.0 (floor pyproject).
+    """
+    from gcn_python.layer1.embedding import WordEmbedding
     from gcn_python.layer3.reference import RGCNLayer
     from gcn_python.pipeline.cgnp import CGNPipeline
 
-    encoder = XLMRobertaEncoder(d_clause=dimensions["d_clause"], d_edge=dimensions["d_edge"])
-    graph = RGCNLayer(
-        d_in=dimensions["d_clause"],
-        d_out=dimensions["d_clause"],  # DOIT rester == d_clause
-        n_relations=11
-    )
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    we = WordEmbedding(d_emb=8)
+    d_eff = vocab.d_clause_effective(8, False)
+    d_edge = vocab.d_edge_closed_loop(d_eff, 8, 8, False)
+    encoder = XLMRobertaEncoder(d_clause=d_eff, d_edge=d_edge)
+    graph = RGCNLayer(d_in=d_eff, d_out=d_eff, n_relations=20)
+    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab,
+                           word_embedding=we)
+    return pipeline, encoder
+
+
+def test_pipeline_forward(vocab, dimensions, sample_ud_reps):
+    """Test forward avec CGNPipeline."""
+    pipeline, encoder = _pipeline_v4(vocab)
 
     # Forward
     result = pipeline.forward(sample_ud_reps, "La pluie cause l'inondation.")
@@ -32,16 +43,7 @@ def test_pipeline_forward(vocab, dimensions, sample_ud_reps):
 
 def test_pipeline_forward_backward(vocab, dimensions, sample_ud_reps, sample_gold_labels):
     """Test forward+backward avec CGNPipeline (API correcte)."""
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
-
-    encoder = XLMRobertaEncoder(d_clause=dimensions["d_clause"], d_edge=dimensions["d_edge"])
-    graph = RGCNLayer(
-        d_in=dimensions["d_clause"],
-        d_out=dimensions["d_clause"],
-        n_relations=11
-    )
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    pipeline, encoder = _pipeline_v4(vocab)
 
     # Forward
     result = pipeline.forward(sample_ud_reps, "La pluie cause l'inondation.")
@@ -76,16 +78,7 @@ def test_pipeline_forward_backward(vocab, dimensions, sample_ud_reps, sample_gol
 
 def test_pipeline_multiple_epochs(vocab, dimensions, sample_ud_reps, sample_gold_labels):
     """Test entraînement sur plusieurs epochs (vérifier accumulation gradients)."""
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
-
-    encoder = XLMRobertaEncoder(d_clause=dimensions["d_clause"], d_edge=dimensions["d_edge"])
-    graph = RGCNLayer(
-        d_in=dimensions["d_clause"],
-        d_out=dimensions["d_clause"],
-        n_relations=11
-    )
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    pipeline, encoder = _pipeline_v4(vocab)
 
     losses = []
     for epoch in range(3):
@@ -124,16 +117,7 @@ def test_pipeline_multiple_epochs(vocab, dimensions, sample_ud_reps, sample_gold
 
 def test_pipeline_with_eval_mode(vocab, dimensions, sample_ud_reps):
     """Test eval mode (dropout désactivé)."""
-    from gcn_python.layer3.reference import RGCNLayer
-    from gcn_python.pipeline.cgnp import CGNPipeline
-
-    encoder = XLMRobertaEncoder(d_clause=dimensions["d_clause"], d_edge=dimensions["d_edge"])
-    graph = RGCNLayer(
-        d_in=dimensions["d_clause"],
-        d_out=dimensions["d_clause"],
-        n_relations=11
-    )
-    pipeline = CGNPipeline(encoder=encoder, graph=graph, vocabulary=vocab)
+    pipeline, encoder = _pipeline_v4(vocab)
 
     # Mode eval
     encoder.eval()

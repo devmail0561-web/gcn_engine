@@ -7,6 +7,312 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased] — v4.0
 
+### Lot tok in-process P0+P1 (2026-10-13, 11 commits)
+
+- **P0 vitrine** : README borné assertions sourcées (ETUDE_SA §2.1), perf unifiée
+  v4 gold-only quota64 moy 0.239±0.04 (0.468/0.1867 archivés, incomparables),
+  badges/tests 260/887, bandeaux pré-refacto SAD/ANALYSIS, `reason()` ordre
+  filtre-puis-pont documenté. Makefile `test` : PYTHONPATH obligatoire + note
+  (editable repointé vers source locale 4.0.0 — `make test` testait le checkout
+  stale actions-runner avant).
+- **P1-V5/V3** : garde subprocess transition-safe (git autorisé, bridge connu,
+  compteur lattice → 0) ; import mort `_LABEL_RE` supprimé (comportement identique).
+- **V6 chemin tok** : `pipeline/forward_ids.py` (TokForwardEngine d_model=128,
+  seeds seed/+1/+2, fenêtre k=2, base [src|dst|gap], R-GCN no-edge, negated=False,
+  scope unknown, inférence seule non calibrée) + `nlu/tok.py` (segmentation socle,
+  T6 : zéro frontend, zéro lexique) + `engine.analyze(use_tok)` + gate capacitaire
+  + `from_pretrained` s1+ → moteur tok-only + cache M1a (hit 0,18 ms vs miss ~10 ms).
+- **Training** : `data/gold_spans.py` (SpanError, parité oracle), `training/train_tok.py`
+  (SGD phrase, R8/GelError, best-edge + patience, CSV provenance) ;
+  `scripts/audit_spans_tok.py` rejouable (v4/final2 : rejet 0 %, 0 erreur structurelle).
+- **Premier run v4/final2** : GELÉ R8 correct (3 types nœuds à 0 — fail-fast, exit 2),
+  OOV val 23,7 % publié (écart R5 documenté). Persistance s1+ (roundtrip prouvé).
+- **Vert : 932 Python + 260 Rust, guards 0, ruff propre.** Legacy intact (opt-in),
+  pin SA inchangé (dérive à traiter côté SA).
+- **Preuve d'échange M1** : CIR produit par le chemin tok (3 nœuds, 3 arêtes,
+  têtes non entraînées — `prevent` partout à ~0.55, non calibré assumé) accepté
+  par le binaire Rust : `gcn query "WHY couts?"` → enveloppe `UserResponse`
+  (match flou, causes citées, exit 0). Zéro glue neuve — le même `emit()`.
+
+### Lot CLI --use-tok (2026-10-13)
+
+- `cli/tok_flags.resolve_use_tok` : auto-force tok-only, gate E_tok vide
+  (`ClickException` propagée) ; `--use-tok`/`--lang` sur `gcn-discuss` et
+  `gcn-index` (défaut legacy inchangé) ; passthrough `dialogue.handle`.
+- Granularité tok = bloc : `gcn-index` analyse la ligne entière en mode tok
+  (les clauses du socle sont des phrases — sous-segmenter viderait k=2,
+  prouvé par l'échec initial du test e2e).
+- Pattern branché pour moteurs factices (régression `test_black_box` F4c
+  attrapée et réparée en cours) ; extras pipeline (discours, vecs) ignorés
+  avec une info unique en tok-only.
+- README `gcn-python` : section chemin tok (usage vérifié exécutable) + CLI.
+- **Vert : 939 Python, guards 0, ruff propre** (9 lints `dialogue.py`
+  pré-existants intacts, vérifiés par stash-comparaison).
+
+### Lot tok suite — persistance, entraînement, intent, loader (2026-10-13)
+
+- **s1+** (`TokForwardEngine.save_npz/load_npz`) : E_tok + vocab + hash +
+  d_model + têtes + arch, `allow_pickle=False`, fail-fast
+  (format/hash/dims/formes/ontologies), legacy refusé, roundtrip prouvé.
+- **Boucle fermée** : `from_pretrained` détecte le s1+ sans désérialisation
+  → moteur tok-only (`pipeline=None`, legacy refusé avec conseil,
+  `analyze_batch`/`or_skip`/`stream` cohérents, properties 8/19) ; legacy intact.
+- **Cache M1a tok** : clé (epoch, texte, lang) au-dessus du socle —
+  hit 0,18 ms vs miss ~10 ms (≈55×), invalidation au bump, FIFO, copies.
+- **Training** (`train_tok.py` + `data/gold_spans.py` + `data/tok_loader.py`) :
+  supervision gold pure (char-spans validés, `SpanError`), SGD phrase
+  (chaîne dx complète, bump M1a), R8/`GelError` fail-fast, best-edge +
+  patience + restore, CSV provenance, CLI (exit 2 = GELÉ).
+- **Premier run v4/final2** : GELÉ R8 correct (3 types nœuds à 0),
+  OOV val 23,7 % publié ; `scripts/audit_spans_tok.py` rejouable
+  (rejet 0 %, 0 erreur structurelle, 46/9/9 × 11 relations).
+- **Intent T4 règles v0** : `emit(intent=)` additif (legacy byte-identique),
+  `detect_act` propagé (assert/question/request + bascule `lang: wo`),
+  `route_intent` fonctionnel (store/filed), échange Rust prouvé (exit 0).
+- **Vert : 952 Python + 260 Rust, guards 0, ruff propre.** Têtes non
+  entraînées (structurel, non calibré — doctrine 6b) ; training bloqué
+  données (voir « Reporté » dans PROGRESS.md).
+
+### Cleanup S5 audit — garde lints partagée (2026-10-09)
+
+- `[workspace.lints.clippy]` : `uninlined_format_args`, `redundant_closure_for_method_calls`, `format_push_string`, `map_unwrap_or` (hérité par les 10 crates). Reste de pedantic exclu : casts (revue sémantique), docs FR (bruit), `must_use` (51 sites, bruit), bras identiques voulus.
+- Micro-fixes mécaniques (`--fix` relu : `map_or`, refs de méthodes, `write!`/`writeln!`) + 10 sites manuels (`fallback`/`export`/`respond`, import `fmt::Write`). Sémantique identique (eagerness préservée, snapshots verts).
+- `cargo audit` : exit 0, 0 vulnérabilité (61 deps, base 1296 avis). Déjà en CI, rien à ajouter.
+- Pins `==` non posés (politique upgrades = owner) ; `proptest` déjà retiré (S2).
+- **Vert workspace : 258 passés, 0 échoué, clippy `-D warnings` 0, fmt propre.**
+
+### Cleanup S6 audit — ménage disque sans risque code (2026-10-09)
+
+- Supprimés (disque 98 %) : doublon imbriqué `checkpoints/archive_v2/model_train_v2.npz` (md5 identique ×3, 2 copies restantes, aucune référence de chemin), dists périmées `gcn-python/dist` 1.0.2–2.5.0 (gardé 4.0.0, rebuildable), 29 `__pycache__` (~5 Mo). ~32 Mo libérés.
+- `dist/` des outils ignorés (`gcn-annotate`, `gcn-scraper`) — plus de `??` parasites.
+- Volontairement intacts : `target/` 13 Go (rebuild 10–20 min si `cargo clean` — à ne faire qu'en critique), doublons datasets restants (`A_*`/`B_*`, `*.best_edge`) et blobs 37 Mo en histoire (filter-repo = réécriture, décision owner).
+
+### Cleanup S2 audit — surface M4 resserrée (2026-10-09)
+
+- Supprimés : `build_maps_pub` (0 usage, vérifié hors `target/`) et `proptest` (dev-dep inutilisée, 0 référence ; workspace + `gcn-ir`).
+- Convention documentée (README crate) : cœurs `*_ctx` en `pub(crate)`, API publique = variantes `ir` + `execute`/`chain_strict`/`filter_links`/`caveats_for` (wrappers fins, tests inchangés).
+- **Vert workspace : 258 passés, 0 échoué, clippy 0, fmt propre.**
+
+### Fix F2 audit — save/detect asymétrie R4 (2026-10-09)
+- **Cause racine des 11 échecs pré-existants** : `save_checkpoint` n'écrivait jamais `format_refacto`, donc le détecteur classait ses propres sorties en legacy-UD et `run_eval` (R4, `allow_legacy=False`) les refusait toutes (`LegacyUDError`).
+- **Fix** : `save_checkpoint` écrit `format_refacto=20261007` (constante `FORMAT_REFACTO` partagée). Détecteur inchangé : les vrais legacy (sans marqueur) restent refusés.
+- **Vert Python : 855 passés, 3 xfailed, 0 échoué** (11 pré-existants résorbés, aucune régression).
+
+### Lot A — démarrage refacto-2026-10 (2026-10-08, branche `refacto/arch-cible-refacto-2026-10`)
+
+- **Baselines (I2, `docs/refactory/baselines-2026-10-08.md`, local)** : `cargo test -p gcn-backend` 67 passés / 4,2 s ; supervision 351 M, models 56 M, checkpoints 253 M ; Python 3.11.9, rustc 1.98.0, **pas de GPU local** (S4-opt impossible, reste exclu). `val_edge_f1` : réfs contradictoires (0.468 vs 0.1867, harnais distincts) — re-mesure sur harnais unique au slice/socle ; ECE différée à la gate Ph5.
+- **Gardes CI (I1)** : nouveau job `guards` — `gcn_transformers==0` et `import torch` top-level `==0` dans `gcn-python/src/` (durs), comptage `subprocess|gcn_bin|Lattice` informatif (8 fichiers sources, cible 0 en fin de refacto). Miroir local : `make guards`, branché avant `make gates`.
+- **Socle 0c (gate GO)** : `scripts/select_gold_mini.py` (seed 42, déterministe) — `gold_mini` 85 phrases extraites des lots v4 08-24 (11 relations × 7-10, + 5 exclamatives / 3 interrogatives), jamais vues au train ; held-out re-gelés hors docs (mixte_final test 380 + v4/final2 test) + manifests sha256.
+- **Comptes sans cap (`scripts/count_classes.py`)** : 321 343 phrases / 35 521 CIR ; 11 relations directes ≥1 491 occurrences ; **8 nouvelles relations à 0 occurrence** → gel R8 programmé pour ces classes jusqu'au gold-3000 ; aliases legacy v2 confirmés dans les pools anciens.
+
+### Slice -1 — gate GO (2026-10-08)
+- **Verdict GO, vérifié par re-run** : `scripts/slice_minus1_gate.py` (sous-agent, relu) — harnais existant (`GCNDataLoader`, `CGNPipeline`, boucle `train.py`), 4 phrases gold_mini (cause/sequence/condition/opposition, 2 nœuds + 1 arête), 300 steps, arch défauts `gcn-train` (d_emb=128), lr=0.05, eval **sans oracle**. Seed 42 : loss_eval=0.0057 (<0.20), acc=4/4, Δcos=+0.130 (≥0.05) ; seed 123 : 0.0066, 4/4, +0.094. Zone grise non déclenchée. Caveat : phrases jouets — gate appliqué tel qu'écrit, robustesse via socle + held-out. **Socle autorisé.**
+
+### Backend Phase 1 — négation bloqueuse + tiers (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D1])** : arête niée = propagation COUPÉE (pas d'inversion) dans `bfs_ancestors`/`bfs_descendants`/`bfs_path_links`/`abduct`/`intervene`/`counterfactual` (+ résiduel) ; niées collectées triées pour `blocked_by` ; nouveau `chain_with_blocked()` (pur / coupé-par-négation / vraiment-aucun-chemin) ; `chain()` inchangé en signature ; `DO.severed` inclut les entrantes niées.
+- **`gcn-backend/src/query.rs`** : champ `blocked_by: Vec<LinkDto>` (`#[serde(default)]`, additif — anciens JSON sans le champ toujours lisibles) sur `Causes/Effects/Path/Intervention/CounterfactualDiff` ; `CHAIN found:false + blocked_by` = coupure par négation vs vide = aucun chemin ; `chain_strict` exige le `third_node` des liens ternaires sur le chemin (sinon `NoPath`, `--strict` inchangé).
+- **Tests** : nouveau `tests/test_query_gold.rs` (12 tests : chaîne niée WHY/CHAIN/DO/CF, prevent, diamant, joint, cycle, temporel désordonné, tiers strict ×2 — dont 1 correction d'attente documentée : diamant WHY = 3 liens arbre couvrant, pas 4) ; `test_ternary_pearl.rs` adapté (tuples 3 éléments). **Vert : 61 + 12 + 6, clippy `-D warnings` propre, `cargo fmt` propre, workspace check OK.**
+- **README crate** : contrat `blocked_by` + sémantique négation/tiers documentés.
+
+### Backend Phase 2 — résolution exact-puis-flou (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D2])** : nouveau trait `LabelSim` (score 0 = exact, >0 = flou ; `DefaultLabelSim` = paliers normalisés, cosinus appelant mappable, backend sans ML) ; `find_all_ranked_with` ; `why_scoped/what_scoped (+_with)` — exacts (tous) > flous (≤ limite) > `Err(candidats)`, limite sur flous seuls ; `DEFAULT_AMBIGUITY_LIMIT = 5`.
+- **`gcn-backend/src/query.rs` + `error.rs`** : `Query::Why/What` portent `ambiguity_limit` (parsé via suffixe `AMBIGUITY_LIMIT=N`, défaut 5 ; sans label ou N mal formé → `QueryParseError`) ; excès flou → `Err(Ambiguous { candidates })` (frontière Ph8 : partiel + question) ; `match_scores: Vec<(String, u8)>` + `fuzzy: bool` (`#[serde(default)]`, additifs) sur `Causes/Effects`.
+- **Tests** : 6 nouveaux gold (exact > flou, 7 flous → Ambiguous + 7 candidats, limite 7 → réponse + warning, 6 exacts → quota non déclenché, parsing limite, `LabelSim` injecté) ; 2 tests P0-1 mis à jour (agrégation porte sur l'ensemble exact — l'ancien mélange exact+flou est interdit par D2). **Vert : 61 + 18 + 6, clippy `-D warnings` propre, fmt propre, workspace OK.**
+- **README crate** : politique exact-puis-flou + `AMBIGUITY_LIMIT` + `Ambiguous` documentés.
+
+### Backend Phase 3 — ranking Dijkstra + TOPK (2026-10-08)
+
+- **`gcn-backend/src/pearl.rs` ([D3])** : `CHAIN` = Dijkstra confiance-max (coût `−ln(conf)`, conf ≤ 0 → epsilon, niées jamais traversées) + k-chemins (Yen, déterministes) via `chain_topk()` ; `ScoredPath { links, confidence }` ; `WHY/WHAT` triés par force (produit depuis la cible, égalités par ids) ; `chain()`/`chain_strict`/temporels/NormDiff branchés sur le meilleur Dijkstra (shift BFS→confiance-max assumé et testé).
+- **`gcn-backend/src/analogy.rs`** : `find_analogies(ir, from, to, min_score, weights)` — `DEFAULT_ANALOGY_WEIGHTS = [0.40, 0.30, 0.20, 0.10]`, `DEFAULT_ANALOGY_MIN_SCORE = 0.3` (documentés).
+- **`gcn-backend/src/query.rs`** : `Chain { from, to, topk }` (suffixe `TOPK=N`, défaut 3, 0/mal formé → erreur), `Analogy { from, to, weights, min_score }` (suffixes `WEIGHTS=a,b,c,d` + `MIN_SCORE=x`, ordre libre) ; `Path` += `path_confidence: f32` + `ranked_paths: Vec<RankedPathDto>` (`#[serde(default)]`, additifs ; `ranked_paths` ssi TOPK > 1, rang 1 = `links`).
+- **Tests** : 6 nouveaux gold (rank1 direct 0.9 vs 0.25, TOPK=2 ordonnés, TOPK=1 sans ranked, détour fort 0.81 > direct 0.1, WHY 0.9 > 0.5 > 0.45, ANALOGY seuil 1.01 → vide, parsing). **Vert : 61 + 24 + 6, clippy `-D warnings` propre (3 lints corrigés : type-complexity, collapsible-if, while-let), fmt propre, workspace OK.**
+- **README crate** : ranking + `TOPK`/`WEIGHTS`/`MIN_SCORE` + shift documentés.
+
+### Backend Phase 4 — verrouillage tests + gate P0 GO (2026-10-08)
+
+- **Nouveau `tests/test_properties.rs` (11 tests)** : déterminisme (6 requêtes × 2 runs = mêmes octets JSON), monotonie (retirer une arête ne crée jamais de lien), joint-nécessité (co-source retirée = groupe invalide), négation-bloque (aucun lien traversé nié + abduction exclut l'ancêtre via niée), temporel (indices ordonnés ⟺ `temporally_ordered`), ambiguïté (5 flous OK / 6 → `Ambiguous`, frontière exacte), fuzz `Query::parse` (20 invalides → erreur typée dont unicode/overflow/`TOPK=0`, 7 valides, jamais panic).
+- **Snapshots JSON (`tests/snapshots/`, comparés à l'octet)** : `why_gamma_negated`, `chain_alpha_beta_ranked`, `do_beta_negated` — relus (tri force, `blocked_by`, produit f32 `0.80999994`) ; régénération via `SNAPSHOT_UPDATE=1` (diff revu exigé).
+- **Validité des joints (enforcement Ph4, `pearl.rs`)** : `edge_link` efface `joint_group_id` orphelin (< 2 arêtes → arête simple), `group_by_joint_id` exclut les singletons (contrefactuels cohérents). 1 fixture ternaire mise à jour (groupe valide à 2 co-sources) ; comportement documenté (README).
+- **Gate P0 — GO → P0 LIVRÉ** : `cargo test -p gcn-backend` **102 passés (61 + 11 + 24 + 6)**, `clippy --all-targets -D warnings` 0 erreur, `cargo fmt --check` propre, `cargo check --workspace` 0 erreur.
+
+### Backend Phase 8 — always-answer + pont M1 (2026-10-08)
+
+- **`gcn-verbalizer/src/fallback.rs` (nouveau, 8c)** : `say(status, lang, kind)` + `Status` + `SpeechKind` (9 cas FR déterministes : Answer, NotFound, Ambiguous, BlockedPath, NoPathEmpty, TooBig, BadQuery, EmptyIr, Incident) — pur Rust std, testé sans Python, ne ment jamais (constat + miettes + suggestions). Dépendance `serde` ajoutée à la crate (déjà workspace, rien d'externe).
+- **`gcn-backend/src/respond.rs` (nouveau, 8a)** : `respond(input, ir) -> UserResponse` (jamais d'Err) + contrat versionné `{status, phrase, lang, result?, caveats, suggestions}` ; règle de statut documentée (Degrade = parse/introuvable/vide/incident ; Partiel = ambigu/sans-chemin/flou/coupures/trop-gros/temporel-rejeté ; Ok sinon) ; `fuzzy → Partiel` + suggestion label exact ; `AMBIGUITY` → candidats + question ; coupure niée → bloqueurs + `DO`/`WHY` ; `SPOF > 500` → partiel + top degrés ; parse → aide + « vouliez-vous dire » (distance ≤ 2) ; `execute()` inchangé.
+- **Pont M1 (CLI)** : `gcn query` imprime l'enveloppe `UserResponse` JSON (vérifié bout-en-bout : ok → exit 0, dégrade → exit 1, `--strict` inchangé) ; roundtrip CIR JSON → UserResponse JSON testé (D-PH8 : **socle 0b débloqué**).
+- **Tests (8b/8d)** : `tests/test_respond.rs` (12 tests : 11 cas enveloppe + property always-answer 16 requêtes × 4 IR adverses + roundtrip) + 3 tests unitaires `say`. **Vert : 61 + 11 + 24 + 12 + 6 (+ 6 verbalizer), clippy workspace `-D warnings` 0 erreur, fmt propre.**
+- **READMEs** : `gcn-backend` (enveloppe + règle statut + CLI), `gcn-verbalizer` (`say`).
+
+### Socle 0a — moteur B spaCy + format s0 (2026-10-08)
+
+- **Nouveau `gcn-python/src/gcn_python/layer0/engine_b.py`** : `analyze(text, lang) → (clauses, connecteurs, source)`, import spaCy lazy, pin `==3.8` vérifié (env 3.8.16 + `fr_core_news_sm`), timeout 30 s, fallback systématique + compteur (`fallback_stats`, seuil proposé 5 %), `{outil, version, source}`, `format_refacto=20261007` via `to_record`/`save_record` (s0 seul, garde anti-s1/s2/s3 testée), jamais importé par `pipeline/`/`training/`/`engine.py` (garde testée).
+- **Nouveau `layer0/fallback_regex.py`** (stdlib) : segmentation ponctuation forte + familles `?/؟/？/¿…?/!`, connecteurs via tables existantes (`causal_scorer` fr/en + `balanced_auto` es/de, origine tracée) ; pt/it = segmentation seule (aucune table auditée, écart documenté).
+- **Tests `test_engine_b.py` (11 verts)** + `ruff` propre (22 lints corrigés : `global` → état dict, `except` resserrés, `__all__` triés). Cadre D-SPACY respecté : spaCy hors moteur appris.
+
+### Socle 0b — contrat CIR versionné + lecteur tolérant (2026-10-08, D-S03)
+
+- **Vrai CIR Python → Rust prouvé** : `ir_emitter` (schema 2.0) parsé par `gcn query` bout-en-bout (WHY + CYCLES reclassé par middleend). 3 incompatibilités trouvées et corrigées : `cycles` listes nues → `[]` côté émetteur (middleend recalcule+classe, consommateurs Python : aucun ; test S-7 mis à jour), `SourceSpan` snake_case + aliases PascalCase, `temporal_ref` déjà snake_case.
+- **`gcn-ir`** : `#[serde(default)]` systématique sur champs `Option` (attrs, spans, gaps, markers, in_cycle, hints, metadata) + `EXCHANGE_SCHEMA_VERSION = "2.0"`.
+- **Gate CI** : `tests/test_exchange_contract.rs` (fixture réelle `python_emitter_s0.json` + clés futures `tok_vocab`/inconnues ignorées + formes historiques + roundtrip M1) + `test_m1_contract_version_and_cycles` côté Python (les deux jobs CI existants couvrent).
+- **Gate Format s0 — GO** : `format_refacto=20261007` écrit (B) + roundtrip Rust vert.
+
+### Refacto L0 — tokenizer + profils script (2026-10-08)
+
+- **Nouveau `gcn-python/src/gcn_python/layer0/tokenizer.py`** : `split(text) → (ids, offsets, tokens)` — 1 tokenizer, 0 frontend par langue (T6) ; profils latin (minuscule + sans-accent) / CJK-sans-espaces (thaï/lao/myanmar/khmer inclus) / arabe RTL (NFC, diacritiques gardés) / autres (NFC) ; ponctuation en tokens propres (`?` pour les actes) ; apostrophe interne gardée ; ids 64 bits stables sha256 **sans vocab** (R5, `PYTHONHASHSEED`-indépendants, prouvé inter-processus) ; offsets dans l'original ; `tokenizer_hash` (R5, s1 à venir) ; stdlib seule, jamais `hash()`.
+- **Tests `test_tokenizer.py` (10 verts)** + `ruff` propre. L0 n'efface rien (legacy cohabite jusqu'à la bascule).
+
+### Refacto L1 — E_tok + forward_ids + d_model (2026-10-08)
+
+- **Nouveau `layer1/tok_embedding.py`** : `TokEmbedding(d_model=128)` — vocab = ids stables triés (ordre d'insertion indifférent), OOV → zéros + compteur (Option A, garde R5), `backward`/`update` SGD, `to_dict`/`from_dict` + `.npz` s1/s2 (`format_refacto`, `tok_vocab`, `tokenizer_hash`, `d_model`, fail-fast). Bug réel trouvé : ids 64 bits non signés → `uint64` (overflow `int64`).
+- **Nouveau `layer1/l1_forward.py`** : `forward_ids(ids, mask)` (lookup + masque, copies R1) + `align_spans` (spans chars → indices tokens, règle unique) + `pool_clauses` (moyenne fixe, clause vide → zéros comptés) + `PoolMap` miroir lignes→tokens (R1) ; indices hors E → `ValueError` explicite.
+- **Tests (9 + 8 verts)** : déterminisme, roundtrips, rejets, smoke L0→L1 sur phrase gold (couverture totale, gradient sans fuite OOV). Legacy intact (bascule plus tard).
+
+### Refacto tête act + route intent (2026-10-08)
+
+- **Nouveau `layer2/act.py`** : 3 actes (`assert/question/request`, ordre = indices tête) + `detect_act` règles v0 ([R9] `!`→assert saillant, `?/؟/？`→question, consigne→request+bascule, politesse→request, défaut assert assumé) + `detect_lang` ([R-LANG] consigne > arabe→ar > CJK→und > fr ; impératif nu → assert, écart assumé documenté).
+- **Nouveau `layer2/act_head.py`** : MLP (d_model→64→3) NumPy + softmax, `forward/backward/update`, format **s3** (`format_refacto`, `act_types`, `d_model`, fail-fast) ; smoke : 6 reps → 6/6.
+- **Nouveau `pipeline/route_intent.py`** : couches (b) — assert→store, question→query+dsl (`nlu_route` injecté, `None` sinon), request→ack factuel+filé (9c) ; `cir.intent` prio 0, jamais deviné.
+- **Rust `CirIntent {act, lang, saillant}` + `CausalIR.intent: Option` (serde default)** : absent→None, langue absente→`fr`, roundtrip testé (R9 avant tête) ; 7 sites `intent: None` (frontends+tests).
+- **Matrice silver 30 (R9) : 30/30** (`scripts/silver_matrix_30.py` + gate `test_silver_matrix`, gold_mini stratifié seed 42 ; weight silver 0.0 maintenu).
+- **Tests (14 + 3 + 1 verts)** + `ruff` propre (fichiers neufs ; UP037 préexistant sur `stage2.py` laissé intact). Moteur/éval/train : câblage à la bascule (documenté, pas ici).
+
+### Refacto convertisseur legacy-UD → refacto (2026-10-08, R4)
+
+- **Nouveau `scripts/convert_legacy_ud.py`** : one-shot table E (lemmes → ids stables calculés comme le runtime, vocab trié, `_unk`/absents abandonnés, collisions comptées premier-gagnant, têtes MLP/RGCN non converties → ré-entraîner) ; `--dry-run` (rien écrit, mtime/hash vérifiés) ; rapport JSON + sha256. Bug réel trouvé : `save_npz` `int64` → `uint64` (corrigé dans `TokEmbedding`).
+- **`training/checkpoint.py`** : `LegacyUDError` + `checkpoint_format_kind()` (zip, sans désérialisation) + `load_checkpoint(allow_legacy=True)` (dual-read transitoire ; `False` → refus).
+- **`evaluation/eval_runner.py`** : refus legacy en eval AVANT construction (`exit!=0` + « legacy-UD : convertir ou ré-entraîner ») ; ban `final/` préexistant épinglé en tests.
+- **Gardes R4** : `make guards` + CI `guards` interdisent `models/final` et `checkpoints/final`.
+- **Tests (8 verts)** : dry-run, déterminisme (gold hash), équivalence forward par lemme, refus (script + `load_checkpoint` + `run_eval`), ban `final/`, kinds. Legacy `E`/`têtes` intacts.
+
+### Refacto loss + seuils grid F1 + chunk_hash (2026-10-08, étape 5)
+
+- **Nouveau `training/refacto_loss.py`** : CE nœuds/arêtes/actes par phrase, `build_class_mask` (N≥30, [R8]), `require_min_counts` → `GelError`, silver 0.0/0.3 ([R9]), fallback → 0.0 ([T1]). BCE hors périmètre (acté).
+- **Nouveau `evaluation/grid_f1.py`** : `predict_with_thresholds` (marge top-1−top-2 = ambiguïté v0), micro-F1, `run_grid` (250 essais, tripwire `!= (0.0,0.65,1.0)`), gate `check_gel_or_grid`.
+- **Nouveau `layer1/chunk.py`** : `chunk_hash` ([C]), manifest `{tokenizer_hash, d_model}` exact + `assert_compatible` (vec_dim + hash, [C]/[R5]).
+- **Script `grid_f1_thresholds.py` (jouet, R10)** : toy 300 steps → GEL exit 2 (11 relations 6-9 < 30, correct) ; `--force` démo : 250 essais, meilleur (0.0, 0.8, 0.5) F1=0.12 ≠ ref, non adopté. Vrai grid après gold-3000.
+- **Tests (13 + 2 gate verts)** + `ruff` propre. Gate R8/R10 : GEL démontré, pas programmé.
+
+### Refacto NLU sans UD + B (2026-10-08, étape 6 — fin du socle moteur hors BCE)
+
+- **Nouveau `nlu/infer.py`** : `infer_nlu(text, lang)` — B segmente → acte par clause ([T6] ponctuation) + langue du message ([R-LANG]) + concepts sans UD + attentes P2 (`expects_response/action` dérivées de l'acte, pas du `SentenceProfile` UD) ; `silver_annotate` (+ traçabilité §6 : source, phrase-hash, campagne, outil+version) = branchement silver-B. Lazy, no-cycle (garde testée), spaCy toujours lazy dans B.
+- **Chaîne P1/P2/P3 ([D])** : P1 = 21 legacy SOUS `question` (`legacy_router` injecté dans `route_intent`, e2e testé) ; P2 = attentes ; P3 = `?` consommé par `detect_act`.
+- **Tests (8 verts)** + `ruff` propre. Session/discuss (`add_cir`, clarification 9c, file-action) : câblage phase 9 (documenté, pas ici).
+
+### Backend Phase 6b — produit sans chiffres faux (2026-10-08, gate NO-GO acté)
+
+- **Nouvelles requêtes** : `ASK <label>` (fiche 1 saut, sans propagation), `WHY-NOT <a> -> <b>` (`coupure_negation` = bloqueurs niés, `aucun_lien` + proches, `chemin_existe` sinon), `WHY/WHAT … TOPK=N` (N meilleurs + `total`), `EXPLAIN <e> CONTRAST <f>` (distinctives vs partagées), `ANALOGY … HOPS=N` (≥ 2 = contexte 1-saut Jaccard 50/50, défaut 1 inchangé).
+- **Dérivations D3 systématiques** : `LinkDto.derived_from` (sources résolues en labels, partout).
+- **Enveloppes Ph8** : ASK/WHY-NOT/contraste verbalisés (matrice always-answer étendue aux nouvelles syntaxes).
+- **Tests (8 gold + 4 enveloppes verts)** : fiche, TOPK+total, 3 verdicts WHY-NOT, contraste, HOPS, D3, parsing/erreurs. 2 bugs trouvés : double-découpe suffixes (panic fuzz → corrigé), groupe joint singleton (fixture → groupe valide). **Vert workspace : 240 passés, 0 échoué, clippy 0, fmt propre.**
+- **README crate** : requêtes + DTOs 6b documentés.
+
+### Backend Phase 7 — gisement CIR (2026-10-08, 7c enterré : NO-GO Ph5)
+
+- **7a gaps + cycles** : concession/opposition BLOQUEUSES (même `blocked_by`, motif `causal_gap`) ; `damped`/`amplifying` sur liens + `CycleDto.effect` ; CHAIN_T rejette l'oscillation sans phase.
+- **7b origine** : ranking × poids FIGÉS (1.0/0.7/0.3, D-ORIG : 9a côté session) ; `origin` sur liens ; `caveats` systématiques (hypothétiques, ambiguïtés, portées) ; `DOUBTS`.
+- **7f provenance** : méthode/modèle/span/kind sur liens (+ `explicit`) ; filtres `ONLY_EXPLICIT`/`METHOD=`/`SINCE=` (+ `SCOPE=`/`AGENT=` parsés, appliqués en 7d/7e) ; `PROVENANCE` (fiche : qui/quand/comment/span).
+- **7d agents** : `irreversible` FIGÉ (effets calculés) ; `agent`/`patient`/`agent_type` ; `AGENT=` ; EXPLAIN `by_agent` ; `AgentType::System` ajouté (le système lui-même — les 4 valeurs ne suffisaient pas ; `Natural` = forces/phénomènes).
+- **7e scope** : Null BLOQUEUR (`null_scope`, règle dst) ; `witness_only` + exclu des agrégats ; `WHERE scope=` (+ mot-clé `WHERE`).
+- **Tests (3 + 4 + 2 + 3 + 4 gold verts)** + 3 snapshots régénérés (diff additif revu). **Vert workspace : 257 passés, 0 échoué, clippy 0, fmt propre.**
+- **README crate** : requêtes/filtres/DTOs Ph7 + note agent_type (champ vide aujourd'hui → attribution gold-3000 requise).
+
+### Dialogue Phase 9 — mémoire conversationnelle, moteur language-agnostic (2026-10-09)
+
+- **Contrainte actée (note M. Tendeng)** : le moteur n'est pas FR ou EN — aucun lexique de langue (pronoms, marqueurs, phrases). Mécanismes structurels + réponses en codes (`topic:`/`clarify:`/`abandoned:`/`revoked:`/`lang:`/`origin:`), même modèle que le DSL.
+- **9a origine** : `add_cir(cir, session_origin=...)` requis (`ValueError` sinon) ; poids FIGÉS 1.0/0.8/0.5 appliqués à l'écriture (D-ORIG : consommateurs aval inchangés, export Rust futur compatible sans double compte) ; copies anti-alias ; nœuds upgrade-only ; `load` migre le legacy (`document+migrated`) ; tags `[question]`/`[affirmation]` + `origin: question-only/user-only` dans `_explain`/`_effects`/`QueryVerbalizer` ; ordre doc 0.6 > question 0.9×0.5 vérifié.
+- **9b sujets** : `DialogueSession` — pile 3 sujets, continuité (aucun concept reconnu → sujet en cours), chiffres Unicode + répétition de nom, `topic:` toujours annoncé ; reprise 2 tours via journal.
+- **9c clarification** : une seule en attente (rappel, jamais de file) ; réponse par chiffre/nom ; survit aux tours vagues ; abandon après 3 tours ou bascule exacte nette, toujours annoncé.
+- **9d langue** : tag opaque (`lang: <code>` persistant, `lang: auto` retour fil) + script Unicode par message ; priorité consigne > message > fil > `und`. Pas de prose traduite : réponses structurelles.
+- **9e journal + correction** : tours {n, question, sujet, résumé, statut, langue, ajouts} persistés (`record_exchange` étendu, `from_history`) ; `revoke: [tour]` ne retire que les apports utilisateur (corpus intact, annoncé) ; résumé auto différé Ph10-M2.
+- **`discuss.py`** : branche question déléguée à `handle()` (routage NLU + résolution sémantique conservés) ; `_format_response` déménagé en `dialogue.py` (re-export compat).
+- **Tests (28 dialogue + 9 origine verts)** : scénarios multi-tours scriptés, fake engine (sans checkpoint). **Vert Python : 809 passés (11 échecs pré-existants inchangés : eval/lot1/black-box), Rust untouched.**
+- **README gcn-python** : section dialogue + codes documentés.
+
+### Backend Phase 10-M4 — un seul calcul de graphe par requête (2026-10-09)
+
+- **`pearl.rs`** : nouveau `GraphCtx { ir, g, nm, em }` (petgraph + index, un build) + cœurs `*_ctx` (scope WHY/WHAT, `why`/`what`, `chain_topk`/`with_blocked`/`chain`/`chain_temporal`, `intervene`, `counterfactual`, `abduct`, `direct_links`, `spof_all`) ; variantes `ir` en wrappers fins (résultats identiques).
+- **`query.rs`** : `execute()` construit le ctx une fois ; `filter_links`/`caveats_for`/`link_to_dto` sur ctx (index au lieu de scans linéaires répétés) ; `find_best`/`node_label`/`group_by_agent` via ctx ; bras Aggregate sans build local ; `chain_strict` même traitement ; `respond.rs:path_context` idem.
+- **Preuve** : 257 tests existants verts SANS modification + nouveau test d'équivalence wrappers/ctx (`ctx_matches_direct_on_fixture`, 13 fonctions) ; sorties byte-identiques sur gros IR.
+- **Mesure honnête (release, 3000 nœuds, 5 requêtes WHY/CHAIN/DO/CF/EXPLAIN)** : ~1140 ms avant → ~870 ms après (**~1,3×**, stable sur 3 runs ; inchangé avec filtres). Sous la cible 3-4× du plan : Dijkstra/BFS dominent, pas la construction des maps. M4 = invariant structurel + fondation M1/M2, pas un miracle.
+- **Vert workspace : 258 passés, 0 échoué, clippy 0, fmt propre.**
+
+### Pipeline Phase 10-M1 — ne pas recalculer les mots déjà vus (2026-10-09)
+
+- **M1a cache analyze (`cgnp.py`)** : clé = empreinte paramètres (sha256, via `checkpoint_hash`) + parseur (binaire résolu + mtime/taille : upgrade tokenizer détecté) + texte. Hit → parse ET forward sautés, état `_cached_*` d'inférence restauré (NLU/vecs OK), CIR en copie indépendante. FIFO 1024, `cache_stats()`/`clear_cache()`. Train-safe : le train appelle `forward()`, jamais `analyze()` ; snapshots backward exclus ; jamais de cache sur les graphes de session.
+- **Invalidation** : `param_epoch` global — bump dans tous les `update*` du forward (encodeur ×6 via `_apply_grads`+`update`, embeddings, R-GCN ×2, GAT), `backward`/`apply_*` (redondant, ceinture), `load_checkpoint`. Tag rehashé seulement si epoch bougé, sinon O(1) — sans quoi le hash (~10 ms) mangerait le gain. Convention documentée (README + module).
+- **Mesure honnête (répétition ×50, 6 clauses, d_emb=64)** : 6,19 ms → 0,74 ms/appel (**~8,4×**, 1 parse au lieu de 51). Trouvé en route : le tag plein coûtait 10 ms/appel — corrigé par l'epoch.
+- **M1b lots** : `analyze_batch` déduplique (une analyse par texte distinct, ordre préservé, copies indépendantes). Batching forward stacking écarté : RGCN par phrase (mélanger = faux), forward ~7 ms — risque/bénéfice contre.
+- **M1c paires** : `predict_links(threshold/topk)` — pré-filtre avant tri complet (ordre prouvé identique) + `nlargest` pour top-K. Mesuré : ~0 sur cette forme (le score domine le tri) — structurel, pas un miracle.
+- **Tests (10 verts)** : répétition sans recalcul (compteur parseur), restauration NLU/vecs, copies indépendantes, invalidation par vrai `update`, isolation parseur, FIFO, bypass forward, dédup batch, pré-filtre identique.
+- **Vert Python : 819 passés (11 échecs pré-existants inchangés), README gcn-python documenté.**
+
+### Session Phase 10-M2 — compacter au lieu de refuser (2026-10-09, avec 9e)
+
+- **M2a plafonds + annonce** : `DialogueSession(max_nodes=500, max_edges=2000, max_turns=200)` — `merge_duplicate_nodes` (même label normalisé, recâblage, origine max, jamais de downgrade) puis `merge_duplicate_edges` (attrs hors volatiles `session_turn`), réponse quand même + `compacted: ...` (codes, moteur agnostic). Vieux tours repliés en entrée `summary` (sujets + numéros gardés, aplatissement imbriqué) ; `record_summary` persiste ; vecs FIFO 5000 (cache recomputable, silencieux) ; disque audit exempt (mémoire bornée).
+- **M2b save incrémentale** : photo + `graph_log.jsonl` (deltas nœuds/arêtes), cadence `snapshot_every=10`, photo forcée après destruction (compteurs `_adds/_dels` : revoke/fusion/clear détectés — sans quoi un revoke ressusciterait au replay). `load()` rejoue + re-snapshotte ; rapport +`replayed`/`resnapshotted`. Mesuré (800 nœuds/400 arêtes +croissance) : 8,3 ms → 0,3 ms (**~28×**).
+- **M2c paraphrases** : overlap trigrammes ≥ **0.75** (monté de 0.5 : `eau`⊂`bateau`=0.67 via `au#` — vérifié), min-longueur anti-bruit, après exact/partiel, jamais de `clarify` sur du flou (repli continuité). Variantes morphologiques OK (`fatigues`→`fatigue` 0.86) ; synonymes vrais = futur vecs.
+- **Test pré-existant adapté (pas affaibli)** : `test_discuss_block_counter_resumes_across_sessions` lisait `graph.json` brut — avec M2b la vérité = photo+journal : porté sur `SessionStore.load()` (F4c revérifié : 4 ids, pas d'écrasement).
+- **Tests (18 verts)** : fusions (+précédence, +confs distinctes, +volatiles), caps annoncés, silence sous caps, résumé (+persisté), vecs, photo/journal/cadence/destruction/équivalence, paraphrases (valeurs, exact-gagnant, repli).
+- **Vert Python : 837 passés (11 échecs pré-existants inchangés : eval/lot1/black-box).**
+
+### Mémoire Phase 10-M3 — alléger avec garde-fou (2026-10-09, en dernier)
+
+- **Audit d'abord** : processus ~54 Mo stables (forwards sans fuite), pic tracemalloc 481 Ko/50 forwards, float32 de bout en bout (zéro fuite float64). La RAM n'est pas le goulot (cf. plan) — M3 dimensionné en conséquence.
+- **M3a fait** : `add_lemma` faisait un `vstack` O(n²) par lemme → `_add_lemmas_bulk` O(n) (RNG bit-identique prouvé, dernier doublon gagne, écrasement existants conservé ; `build_vocab`/`from_json` migrés). Vec-file 22k lignes : **150 s → 1,2 s (~125×)**. `load_from_file(only=...)` : subset streaming (58 Mo → utile, gel contigu inchangé). `SessionStore.load` en mmap (copie par clé).
+- **M3b gate** : test discipline float32 (poids + états forward) — float16 écarté (déjà float32 : gain nul, risque qualité). Qualité : suite verte inchangée, gold existants intacts.
+- **M3c no-op acté** : temporaires à l'échelle du Ko — pré-allocation : gain < 1 %, non fait (nombres ci-dessus). Checkpoint mmap refusé (partage torch = use-after-free).
+- **Tests (7 verts)** : bulk identique, subset, mmap roundtrip, float32.
+- **Vert Python : 844 passés (11 échecs pré-existants inchangés).**
+
+### Backend Phase 5 — gate calibration NO-GO → 6b (2026-10-08)
+- **Mesures (harnais slice réutilisé, gold_mini 81 unseen + held-out, seeds 42/123)** : ECE nœuds 0.49/0.33, arêtes 0.54/0.55 (held-out 0.27-0.52, >> 0.15) ; monotonie non (nœuds Spearman −0.10/+0.10, held-out anti-monotone −0.80) ; T* sature au plafond (aplatissement dégénéré) ; N=81 < 100.
+- **Verdict NO-GO (mesuré, pas par défaut) → quantification enterrée, route 6b** : calibrer produirait des chiffres faux (surconfiance dans l'erreur, exactitude arêtes 9-22 %). Preuves : `/tmp/ph5/` (rejouable `ph5_gate.py`, ~4 s).
+
+### Session v4 : 7 bugs ouverts corrigés + P0/P2 (2026-09-29, branche `feat/p2-frontends`)
+
+**Bugs moteur §2.7–§2.13 (tous clos ; §2.10 volontairement sans changement) :**
+- **`training/train.py` (T5-min silencieuse)** : boucle réécrite — `reps_from_sentence` + `pipeline.forward(reps, …)` (même chemin que `_run_eval_pass`), alignement logits↔gold, `warnings.warn` par phrase au lieu de `except: pass`, message si zéro logit. Puis extrait en `collect_val_logits_for_calibration()` testable (`tests/test_t5_collection.py`, 2 tests).
+- **`training/train.py` + `pipeline/cgnp.py` (seed partiel)** : `CGNPipeline` accepte `seed` (couches R-GCN extra en `seed + extra_i*100`) ; `_init_seed` propagé à `WordEmbedding` (×2), `CGNPipeline`, `LinkPredHead` (défautait à 0).
+- **`layer1/embedding.py` (OOV→`_unk`, Option A)** : `lookup()` retourne zéro pour les OOV vrais, `backward()` no-op — `_unk` reste propre.
+- **`gcn-backend/src/export.rs` (DOT PascalCase)** : relations ET tooltip nœuds en snake_case serde (cohérent avec `link_to_dto`) ; test DOT mis à jour.
+- **`gcn-backend/src/pearl.rs` (`spof_all` sans garde)** : retourne `Result` avec garde interne 500 nœuds (**breaking** — bump mineur requis) ; appelants MAJ (`query.rs`, test, README). Constante dédupliquée ensuite, sémantique silencieuse de `count_reachable_pairs*` documentée.
+- **`gcn-frontend-fr/en/src/rules.rs`** : `filter`/`filtre`/`filtrage` → `RelationType::Filter` (ternaires au ML, décision tenue).
+- **Hyperarêtes** : confirmé sans changement (attente N_min=20 ternaires annotés).
+
+**P0 — stub v3 (`scripts/init_v3_stub.py`, `gcn-datasets/checkpoints/stub_v3.npz`) :**
+- 2 bugs du script corrigés : `d_hidden` restait à 207 (→ 234) et `d_ecl` ignorait l'embedding connecteur D10 (987 → 1115 via `FeatureVocabulary`, source unique). Stub chargeable (`load_checkpoint` OK) + forward bout-en-bout vérifié. Variable morte `d_edge_v3` supprimée (review).
+
+**P2.1 — `gcn-frontend-graph` (nouveau crate)** : STIX 2.x → CausalIR, mapping compilé SANS YAML (règle moteur), `SourceSpan::Synthetic`, confiance 1.0, `GraphParseReport` (ignorés comptés). `SourceLanguage::Graph { Stix21 }` (additif). CLI `gcn analyze-graph`. Audit : `detects` → `Enable` ajouté (couverture ATT&CK).
+
+**P2.2 — `gcn extract-text` (module `gcn-cli`)** : TXT recopie, HTML détaggué en interne, IPYNB markdown seul, PDF via `pdftotext` externe (erreur explicite sans poppler), découpeur de phrases FR/EN. Review : panique `strip_tag_blocks` sur caractères multi-octets (ex. U+0130) corrigée (recherche ASCII sans ombre minuscule).
+
+**P2.3 — `gcn-frontend-table` (nouveau crate)** : CSV cause/effet → CausalIR, schéma en paramètres CLI, parseur RFC-4180 sans dépendance, `TableParseReport`. Audit : confiances hors [0,1] → ignorées+comptées (plus de clamp silencieux), `DuplicateColumn` typée. `SourceLanguage::Graph { Table }`. CLI `gcn analyze-table`.
+
+**Refactor D1 (source unique)** : `RelationType::from_name` / `NodeType::from_name` ajoutés dans `gcn-ir` (roundtrip serde prouvé 19+8) ; `gcn-frontend-code/mapper.rs` (relations) délégué. `node_type_str_to_enum` du même fichier inchangé (aliases v2 `action/transition/etat` rejetés à raison).
+
+**Règle moteur rappelée** : taxonomies = guides d'annotation (référençables) ; **zéro YAML chargé dans le moteur, savoir compilé** — vérifié (aucune dep YAML ajoutée, aucun `Lexicon::load` dans le nouveau code).
+
+### Correctifs audit 2 (2026-09-29)
+
+- **`gcn-backend/src/query.rs`** : `&input[..200]` (octet) → slicing `char_indices().nth(200)` — élimine le panic UTF-8 sur requêtes contenant é/ü/à en position 199.
+- **`scripts/init_v3_stub.py`** : `np.load(allow_pickle=True)` → `guarded_np_load` — audit pickle préalable avant chargement du checkpoint v2 (vecteur RCE colmaté).
+- **`gcn-python/verbalizer/trainable.py`** : `LexicalConnectorAssembler` `n_relations` défaut `11` → `len(RELATION_TYPES)` (19). Idem `from_json`. Élimine le `ValueError` sur les 8 nouveaux types v3.
+- **`gcn-python/training/train.py`** : appel `LexicalConnectorAssembler` avec `n_relations=len(RELATION_TYPES)` explicite.
+- **`gcn-python/data/edge_norm.py`** : `UserWarning` émis quand une relation est silencieusement remplacée par `joint_cause` sur 2 sources.
+- **`gcn-core/crates/gcn-backend/src/pearl.rs`** : filtre `MediatedCause` corrigé — `*d == mediator_id && *s != target.id` (arêtes *arrivant* au médiateur) au lieu de `*s == mediator_id` (sortant). Élimine les faux causaux Pearl sur le contrefactuel.
+- **`gcn-tools/gcn-annotate/src/gcn_annotate/normalize.py`** : `NODE_TYPES` mis à jour vers les 8 types D5 v4 (`processus`, `etat_local`, `etat_global`, `entite`, `condition`, `concept`, `evenement`, `contrainte`). Aliases inversés v2→v4 (était v4→v2).
+
+### Nettoyage docs/schémas (2026-09-29)
+
+- **`gcn-transformers/README.md`** : commentaires `d_clause=79→106`, `n_node_types=7→8`, `n_relations=11→19`, `d_edge=365→475`, `207→234`.
+- **`gcn-transformers/tests/test_audit_fixes.py`** : `d_clause=79, d_edge=365` → `106, 475`.
+- **`README.md`** : exemple `CausalEncoder` mis à jour (D_clause 80→106, D_edge 346→475, 7→8 nœuds, 11→19 relations). Enum `NodeType`/`RelationType` → v3.0. Badges tests : 186→192 Rust, 467→685 Python.
+- **`gcn-datasets/schemas/gcn-nl.schema.yaml`** : version 1.0→4.0 ; 7 types → 8 types D5 avec aliases migration ; 11 relations → 19 ; ajout champs `sources`, `third`, `joint_group_id`, `intent`.
+- **`gcn-datasets/schemas/gcn-pl.schema.yaml`** : version 1.0→4.0 ; types nœuds D5 avec code_mappings ; 19 relations ; champs ternaires.
+- **`gcn-datasets/schemas/gcn-verbalize.schema.yaml`** : version 1.0→4.0 ; types D5 ; format edge v4 avec tous les champs.
+
 ### Correctifs post-audit D5/D10 (2026-09-28)
 
 - **`gcn-backend/analogy.rs`** : tableau `dynamic` mort supprimé (`Processus==Processus` capté par `a==b` — branche dead code depuis D5). Commentaires D4 (`Action/Transition`) remplacés par D5.

@@ -40,6 +40,34 @@ impl RelationType {
     pub fn is_joint(&self) -> bool {
         matches!(self, RelationType::JointCause | RelationType::JointPrevent)
     }
+
+    /// Nom canonique snake_case (identique au serde) → `RelationType`.
+    /// Source unique des conversions dans le moteur (D1 : pas de match
+    /// dupliqué dans les frontends).
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s {
+            "cause" => Some(RelationType::Cause),
+            "enable" => Some(RelationType::Enable),
+            "prevent" => Some(RelationType::Prevent),
+            "condition" => Some(RelationType::Condition),
+            "concession" => Some(RelationType::Concession),
+            "sequence" => Some(RelationType::Sequence),
+            "motivation" => Some(RelationType::Motivation),
+            "filter" => Some(RelationType::Filter),
+            "opposition" => Some(RelationType::Opposition),
+            "data_dependency" => Some(RelationType::DataDependency),
+            "control_dependency" => Some(RelationType::ControlDependency),
+            "analogy" => Some(RelationType::Analogy),
+            "counterfactual" => Some(RelationType::Counterfactual),
+            "conditional_cause" => Some(RelationType::ConditionalCause),
+            "mediated_cause" => Some(RelationType::MediatedCause),
+            "joint_cause" => Some(RelationType::JointCause),
+            "conditional_prevent" => Some(RelationType::ConditionalPrevent),
+            "mediated_prevent" => Some(RelationType::MediatedPrevent),
+            "joint_prevent" => Some(RelationType::JointPrevent),
+            _ => None,
+        }
+    }
 }
 
 /// D2/Éq.12 ETUDE — rôle du tiers dans une relation ternaire.
@@ -154,10 +182,16 @@ impl Provenance {
 pub struct CausalEdge {
     pub relation: RelationType,
     pub confidence: f32,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub temporal_gap: Option<TemporalGap>,
     pub explicit: bool,
     pub negated: bool,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub marker_token: Option<u32>,
+    /// Optionnel en lecture (tolérance D-S03, socle 0b).
+    #[serde(default)]
     pub in_cycle: Option<CycleId>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub provenance: Option<Provenance>,

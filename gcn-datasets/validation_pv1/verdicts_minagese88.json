@@ -1,0 +1,442 @@
+{
+ "se-11": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-28": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-44": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-52": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-65": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-259": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-278": {
+  "verdict": "non",
+  "motif": "span dégénéré",
+  "validateur": "machine-PV1"
+ },
+ "se-280": {
+  "verdict": "non",
+  "motif": "manière, pas prévention",
+  "validateur": "machine-PV1"
+ },
+ "se-281": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-282": {
+  "verdict": "non",
+  "motif": "allégation, pas fait",
+  "validateur": "machine-PV1"
+ },
+ "se-428": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-429": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-447": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-473": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-582": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-593": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-606": {
+  "verdict": "non",
+  "motif": "cible mal étiquetée",
+  "validateur": "machine-PV1"
+ },
+ "se-632": {
+  "verdict": "non",
+  "motif": "verbe échoué en n1",
+  "validateur": "machine-PV1"
+ },
+ "se-638": {
+  "verdict": "non",
+  "motif": "span dégénéré (Pour)",
+  "validateur": "machine-PV1"
+ },
+ "se-682": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-744": {
+  "verdict": "non",
+  "motif": "réfléchi + inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-747": {
+  "verdict": "non",
+  "motif": "token cassé + inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-758": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-764": {
+  "verdict": "non",
+  "motif": "span dégénéré (Pour)",
+  "validateur": "machine-PV1"
+ },
+ "se-835": {
+  "verdict": "non",
+  "motif": "négation (n'empêche en rien)",
+  "validateur": "machine-PV1"
+ },
+ "se-844": {
+  "verdict": "non",
+  "motif": "métalinguistique",
+  "validateur": "machine-PV1"
+ },
+ "se-846": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-848": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-939": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-945": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-1041": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-1042": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-66": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-108": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-286": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-376": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-405": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-408": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-511": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-581": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-610": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-658": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-47": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-53": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-61": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-84": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-123": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-133": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-144": {
+  "verdict": "non",
+  "motif": "mixte EN/FR",
+  "validateur": "machine-PV1"
+ },
+ "se-145": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-150": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-155": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-163": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-168": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-174": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-177": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-180": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-184": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-186": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-187": {
+  "verdict": "non",
+  "motif": "sens inversé",
+  "validateur": "machine-PV1"
+ },
+ "se-210": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-215": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-216": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-223": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-225": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-232": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-255": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-258": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-270": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-374": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-388": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-449": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-459": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-475": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-543": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-587": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-595": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-655": {
+  "verdict": "non",
+  "motif": "adjectif, pas de dépendance",
+  "validateur": "machine-PV1"
+ },
+ "se-663": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-668": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-673": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-732": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-754": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-860": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-914": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-926": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-1047": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ },
+ "se-1052": {
+  "verdict": "oui",
+  "motif": "PV-4 restants",
+  "validateur": "machine-PV1"
+ }
+}

@@ -71,7 +71,7 @@ def test_find_match_level_order():
     g.nodes = {"n1": {"label": "bateau"}, "n2": {"label": "eau", "node_type": "entite"}}
     g.add_cir({"nodes": [{"id": "n1", "label": "bateau"}, {"id": "n2", "label": "eau"}],
                "edges": [["n1", "n2", {"relation": "cause", "confidence": 0.9}]],
-               "source_text": "t"})
+               "source_text": "t"}, session_origin="document")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         # "eau" ne doit PAS matcher "bateau" au niveau word-boundary (défaut min_level=2)
@@ -89,7 +89,7 @@ def test_query_truncation_word_aware():
     long_text = "mot " * 100 + "\nINJECTÉ"
     g.add_cir({"nodes": [{"id": "n1", "label": "a"}, {"id": "n2", "label": "b"}],
                "edges": [["n1", "n2", {"relation": "cause", "confidence": None}]],
-               "source_text": long_text})
+               "source_text": long_text}, session_origin="document")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         out = QueryVerbalizer(g, max_source_chars=200).causes("b")
@@ -172,7 +172,7 @@ def test_session_save_load_roundtrip(tmp_path):
     s = SessionStore(sdir)
     s.graph.add_cir({"nodes": [{"id": "n1", "label": "a"}, {"id": "n2", "label": "b"}],
                      "edges": [["n1", "n2", {"relation": "cause", "confidence": 0.9}]],
-                     "source_text": "a cause b"})
+                     "source_text": "a cause b"}, session_origin="document")
     s.vecs[stable_key("a cause b", 0)] = np.ones(4, dtype=np.float32)
     s.vecs_meta[stable_key("a cause b", 0)] = {"node_id": "n1"}
     s.record_exchange("pourquoi b ?", True)
@@ -239,7 +239,9 @@ def test_run_eval_respects_checkpoint_arch(tmp_path):
     from gcn_python.training.checkpoint import save_checkpoint
     vocab = FeatureVocabulary()
     enc = MLPEncoder(d_clause=vocab.d_clause_effective(4), d_edge=vocab.d_edge_closed_loop(vocab.d_clause_effective(4), len(NODE_TYPES), 4))
-    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4), n_relations=22)
+    from gcn_python.constants import RELATION_TYPES, rgcn_n_relations
+    gr = RGCNLayer(d_in=vocab.d_clause_effective(4), d_out=vocab.d_clause_effective(4),
+                   n_relations=rgcn_n_relations(len(RELATION_TYPES), True))
     pipe = CGNPipeline(encoder=enc, graph=gr, vocabulary=vocab,
                        all_pairs=True, bidirectional=True, word_embedding=make_word_embedding())
     ckpt = tmp_path / "arch.npz"

@@ -1,0 +1,2428 @@
+{
+ "schema_version": "4.0",
+ "document": {
+  "id": "silver-ternary-proposal-20",
+  "lang": "fr",
+  "weight": 0.0,
+  "sentences": [
+   {
+    "id": "t001",
+    "text": "Si le pare-feu est actif, l'attaque échoue.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "pare-feu",
+      "lemma": "pare-feu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "est",
+      "lemma": "est",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "actif,",
+      "lemma": "actif,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "l'attaque",
+      "lemma": "l'attaque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "échoue.",
+      "lemma": "échoue.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "le pare-feu est actif",
+       "token_span": [
+        2,
+        5
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "l'attaque échoue",
+       "token_span": [
+        6,
+        7
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n000"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t002",
+    "text": "Le traitement guérit si le diagnostic est précoce.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "traitement",
+      "lemma": "traitement",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "guérit",
+      "lemma": "guérit",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "diagnostic",
+      "lemma": "diagnostic",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "est",
+      "lemma": "est",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "précoce.",
+      "lemma": "précoce.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "Le traitement guérit",
+       "token_span": [
+        1,
+        3
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "le diagnostic est précoce",
+       "token_span": [
+        5,
+        8
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t003",
+    "text": "Sans sauvegarde, la panne efface les données.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sauvegarde,",
+      "lemma": "sauvegarde,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "panne",
+      "lemma": "panne",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "efface",
+      "lemma": "efface",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "données.",
+      "lemma": "données.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "la panne efface les données",
+       "token_span": [
+        3,
+        7
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "Sans sauvegarde",
+       "token_span": [
+        1,
+        2
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t004",
+    "text": "Le vaccin protège, à condition d'être conservé au froid.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "vaccin",
+      "lemma": "vaccin",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "protège,",
+      "lemma": "protège,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "condition",
+      "lemma": "condition",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "d'être",
+      "lemma": "d'être",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "conservé",
+      "lemma": "conservé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "au",
+      "lemma": "au",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "froid.",
+      "lemma": "froid.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "Le vaccin protège",
+       "token_span": [
+        1,
+        3
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "condition",
+       "label": "conservé au froid",
+       "token_span": [
+        7,
+        9
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "conditional_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": {
+        "role": "Condition",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t005",
+    "text": "La pluie provoque des inondations via la saturation des sols.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "pluie",
+      "lemma": "pluie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "provoque",
+      "lemma": "provoque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "inondations",
+      "lemma": "inondations",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "via",
+      "lemma": "via",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "saturation",
+      "lemma": "saturation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "des",
+      "lemma": "des",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "sols.",
+      "lemma": "sols.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "La pluie",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "sols saturés",
+       "token_span": [
+        7,
+        10
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "inondations",
+       "token_span": [
+        5,
+        5
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t006",
+    "text": "Le stress cause l'insomnie par l'hypervigilance.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "stress",
+      "lemma": "stress",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "cause",
+      "lemma": "cause",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'insomnie",
+      "lemma": "l'insomnie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "par",
+      "lemma": "par",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "l'hypervigilance.",
+      "lemma": "l'hypervigilance.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_local",
+       "label": "Le stress",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "hypervigilance",
+       "token_span": [
+        6,
+        6
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "insomnie",
+       "token_span": [
+        4,
+        4
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t007",
+    "text": "Le couvre-feu a stoppé l'émeute grâce à l'intervention policière.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "couvre-feu",
+      "lemma": "couvre-feu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "a",
+      "lemma": "a",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "stoppé",
+      "lemma": "stoppé",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "l'émeute",
+      "lemma": "l'émeute",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "grâce",
+      "lemma": "grâce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'intervention",
+      "lemma": "l'intervention",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "policière.",
+      "lemma": "policière.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "Le couvre-feu",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "intervention policière",
+       "token_span": [
+        8,
+        9
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "émeute stoppée",
+       "token_span": [
+        5,
+        5
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t008",
+    "text": "L'antibiotique élimine l'infection en détruisant la paroi bactérienne.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "L'antibiotique",
+      "lemma": "l'antibiotique",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "élimine",
+      "lemma": "élimine",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "l'infection",
+      "lemma": "l'infection",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "en",
+      "lemma": "en",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "détruisant",
+      "lemma": "détruisant",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "paroi",
+      "lemma": "paroi",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "bactérienne.",
+      "lemma": "bactérienne.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "L'antibiotique",
+       "token_span": [
+        1,
+        1
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "etat_local",
+       "label": "paroi détruite",
+       "token_span": [
+        6,
+        8
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "infection éliminée",
+       "token_span": [
+        3,
+        3
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "mediated_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n002",
+       "third": {
+        "role": "Mediator",
+        "node": "n001"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "t009",
+    "text": "La sécheresse et la canicule ont provoqué l'incendie.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "sécheresse",
+      "lemma": "sécheresse",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "canicule",
+      "lemma": "canicule",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "ont",
+      "lemma": "ont",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "provoqué",
+      "lemma": "provoqué",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "l'incendie.",
+      "lemma": "l'incendie.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "etat_global",
+       "label": "La sécheresse",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "etat_global",
+       "label": "la canicule",
+       "token_span": [
+        4,
+        5
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "incendie",
+       "token_span": [
+        8,
+        8
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t010",
+    "text": "Le masque et la distance réduisent la contagion.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "masque",
+      "lemma": "masque",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "distance",
+      "lemma": "distance",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "réduisent",
+      "lemma": "réduisent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "contagion.",
+      "lemma": "contagion.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "Le masque",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "la distance",
+       "token_span": [
+        4,
+        5
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "etat_local",
+       "label": "contagion réduite",
+       "token_span": [
+        7,
+        8
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t011",
+    "text": "La formation et l'outillage augmentent la productivité.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "La",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "formation",
+      "lemma": "formation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "l'outillage",
+      "lemma": "l'outillage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "augmentent",
+      "lemma": "augmentent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "productivité.",
+      "lemma": "productivité.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "processus",
+       "label": "La formation",
+       "token_span": [
+        1,
+        2
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "l'outillage",
+       "token_span": [
+        4,
+        4
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "concept",
+       "label": "productivité",
+       "token_span": [
+        7,
+        7
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_cause",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t012",
+    "text": "Le mot de passe et la biométrie bloquent l'intrusion.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "mot",
+      "lemma": "mot",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "de",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "passe",
+      "lemma": "passe",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "et",
+      "lemma": "et",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "biométrie",
+      "lemma": "biométrie",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "bloquent",
+      "lemma": "bloquent",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "l'intrusion.",
+      "lemma": "l'intrusion.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "entite",
+       "label": "Le mot de passe",
+       "token_span": [
+        1,
+        4
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "entite",
+       "label": "la biométrie",
+       "token_span": [
+        6,
+        7
+       ]
+      },
+      {
+       "id": "n002",
+       "type": "evenement",
+       "label": "intrusion bloquée",
+       "token_span": [
+        9,
+        9
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "joint_prevent",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "sources": [
+        "n000",
+        "n001"
+       ],
+       "target": "n002",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t013",
+    "text": "Comme le tabac cause le cancer, l'amiante cause le mésothéliome.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Comme",
+      "lemma": "comme",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "tabac",
+      "lemma": "tabac",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "cause",
+      "lemma": "cause",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "cancer,",
+      "lemma": "cancer,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'amiante",
+      "lemma": "l'amiante",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "cause",
+      "lemma": "cause",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "mésothéliome.",
+      "lemma": "mésothéliome.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "tabac→cancer",
+       "token_span": [
+        2,
+        6
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "amiante→mésothéliome",
+       "token_span": [
+        7,
+        10
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t014",
+    "text": "De même que la digue retient l'eau, le pare-feu retient les attaques.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "De",
+      "lemma": "de",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "même",
+      "lemma": "même",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "que",
+      "lemma": "que",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "digue",
+      "lemma": "digue",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "retient",
+      "lemma": "retient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'eau,",
+      "lemma": "l'eau,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "pare-feu",
+      "lemma": "pare-feu",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "retient",
+      "lemma": "retient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 12,
+      "form": "attaques.",
+      "lemma": "attaques.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "digue→eau",
+       "token_span": [
+        4,
+        7
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "pare-feu→attaques",
+       "token_span": [
+        8,
+        12
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t015",
+    "text": "Tel le vaccin contre la grippe, ce patch protège le système.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Tel",
+      "lemma": "tel",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "vaccin",
+      "lemma": "vaccin",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "contre",
+      "lemma": "contre",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "grippe,",
+      "lemma": "grippe,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "ce",
+      "lemma": "ce",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "patch",
+      "lemma": "patch",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "protège",
+      "lemma": "protège",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 10,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 11,
+      "form": "système.",
+      "lemma": "système.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "vaccin→grippe",
+       "token_span": [
+        2,
+        6
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "patch→système",
+       "token_span": [
+        7,
+        11
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t016",
+    "text": "Comme la rouille ronge le fer, l'inflation ronge l'épargne.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Comme",
+      "lemma": "comme",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "rouille",
+      "lemma": "rouille",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "ronge",
+      "lemma": "ronge",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "fer,",
+      "lemma": "fer,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "l'inflation",
+      "lemma": "l'inflation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "ronge",
+      "lemma": "ronge",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "l'épargne.",
+      "lemma": "l'épargne.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "concept",
+       "label": "rouille→fer",
+       "token_span": [
+        2,
+        6
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "concept",
+       "label": "inflation→épargne",
+       "token_span": [
+        7,
+        9
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "analogy",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t017",
+    "text": "Sans la ceinture, le choc aurait été mortel.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "ceinture,",
+      "lemma": "ceinture,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "choc",
+      "lemma": "choc",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "été",
+      "lemma": "été",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "mortel.",
+      "lemma": "mortel.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "condition",
+       "label": "Sans la ceinture",
+       "token_span": [
+        1,
+        3
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "choc mortel hypothétique",
+       "token_span": [
+        4,
+        8
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t018",
+    "text": "Si l'alerte avait sonné, l'évacuation aurait réussi.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Si",
+      "lemma": "si",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "l'alerte",
+      "lemma": "l'alerte",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "avait",
+      "lemma": "avait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "sonné,",
+      "lemma": "sonné,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "l'évacuation",
+      "lemma": "l'évacuation",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "réussi.",
+      "lemma": "réussi.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "alerte non sonnée (irréel)",
+       "token_span": [
+        2,
+        4
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "évacuation ratée (irréel)",
+       "token_span": [
+        5,
+        7
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t019",
+    "text": "Avec un dépistage précoce, le patient aurait survécu.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Avec",
+      "lemma": "avec",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "un",
+      "lemma": "un",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "dépistage",
+      "lemma": "dépistage",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "précoce,",
+      "lemma": "précoce,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "le",
+      "lemma": "le",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "patient",
+      "lemma": "patient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "aurait",
+      "lemma": "aurait",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "survécu.",
+      "lemma": "survécu.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "dépistage non réalisé (irréel)",
+       "token_span": [
+        1,
+        4
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "survie hypothétique",
+       "token_span": [
+        5,
+        8
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   },
+   {
+    "id": "t020",
+    "text": "Sans la grève, les trains seraient arrivés à l'heure.",
+    "tokens": [
+     {
+      "id": 1,
+      "form": "Sans",
+      "lemma": "sans",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 2,
+      "form": "la",
+      "lemma": "la",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 3,
+      "form": "grève,",
+      "lemma": "grève,",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 4,
+      "form": "les",
+      "lemma": "les",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 5,
+      "form": "trains",
+      "lemma": "trains",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 6,
+      "form": "seraient",
+      "lemma": "seraient",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 7,
+      "form": "arrivés",
+      "lemma": "arrivés",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 8,
+      "form": "à",
+      "lemma": "à",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     },
+     {
+      "id": 9,
+      "form": "l'heure.",
+      "lemma": "l'heure.",
+      "pos": "other",
+      "dep_rel": "other",
+      "dep_head": -1,
+      "morph": {}
+     }
+    ],
+    "cir": {
+     "nodes": [
+      {
+       "id": "n000",
+       "type": "evenement",
+       "label": "Sans la grève",
+       "token_span": [
+        1,
+        3
+       ]
+      },
+      {
+       "id": "n001",
+       "type": "evenement",
+       "label": "retard (irréel)",
+       "token_span": [
+        7,
+        9
+       ]
+      }
+     ],
+     "edges": [
+      {
+       "relation": "counterfactual",
+       "confidence": 0.0,
+       "explicit": true,
+       "negated": false,
+       "source": "n000",
+       "target": "n001",
+       "third": null
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

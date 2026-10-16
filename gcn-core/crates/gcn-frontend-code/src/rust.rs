@@ -1,21 +1,22 @@
 // Copyright 2026 Michel Tendeng
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-
 use gcn_ir::{
     CausalEdge, CausalIR, CausalNode, IrMetadata, NodeId, ProgrammingLanguage, RelationType,
     SourceLanguage,
 };
 use tree_sitter::Parser;
 
-use crate::common::{control_edge, emit_node};
+use crate::common::{CodeParseReport, control_edge, emit_node};
 use crate::error::CodeParserError;
-use crate::resources::CodeResources;
+use crate::kinds::{Lang, is_transparent, kind_info};
 
-pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParserError> {
-    let res = CodeResources::load_rust(taxonomies_root)?;
+pub fn parse(source: &str) -> Result<CausalIR, CodeParserError> {
+    Ok(parse_with_report(source)?.0)
+}
 
+/// P0-3 : variante avec `CodeParseReport` (kinds ignorés + troncatures comptés).
+pub fn parse_with_report(source: &str) -> Result<(CausalIR, CodeParseReport), CodeParserError> {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())
@@ -33,33 +34,46 @@ pub fn parse(source: &str, taxonomies_root: &Path) -> Result<CausalIR, CodeParse
     let mut nodes: Vec<CausalNode> = Vec::new();
     let mut edges: Vec<(NodeId, NodeId, CausalEdge)> = Vec::new();
     let mut next_id: u32 = 0;
+    let mut report = CodeParseReport::default();
 
-    walk_block(root, src_bytes, &res, &mut nodes, &mut edges, &mut next_id);
+    walk_block(
+        root,
+        src_bytes,
+        &mut nodes,
+        &mut edges,
+        &mut next_id,
+        &mut report,
+    );
 
-    Ok(CausalIR {
-        source_lang: SourceLanguage::Programming {
-            lang: ProgrammingLanguage::Rust,
+    Ok((
+        CausalIR {
+            source_lang: SourceLanguage::Programming {
+                lang: ProgrammingLanguage::Rust,
+            },
+            source_text: source.to_string(),
+            nodes,
+            edges,
+            cycles: vec![],
+            unresolved: vec![],
+            metadata: IrMetadata {
+                schema_version: "2.0".to_string(),
+                pipeline: vec!["gcn-frontend-code".to_string()],
+                created_at: None,
+            },
+            // Frontends symboliques : pas d'intent (tête act, T4).
+            intent: None,
         },
-        source_text: source.to_string(),
-        nodes,
-        edges,
-        cycles: vec![],
-        unresolved: vec![],
-        metadata: IrMetadata {
-            schema_version: "2.0".to_string(),
-            pipeline: vec!["gcn-frontend-code".to_string()],
-            created_at: None,
-        },
-    })
+        report,
+    ))
 }
 
 fn walk_block(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut block_ids: Vec<NodeId> = Vec::new();
     let mut cursor = node.walk();
@@ -68,31 +82,42 @@ fn walk_block(
         if raw_child.is_extra() || !raw_child.is_named() {
             continue;
         }
-        let child = if res.transparent.contains(raw_child.kind()) {
+        let child = if is_transparent(Lang::Rust, raw_child.kind()) {
             let mut c = raw_child.walk();
             raw_child.named_children(&mut c).next().unwrap_or(raw_child)
         } else {
             raw_child
         };
         let kind = child.kind();
-        let Some(&node_type) = res.kind_to_node_type.get(kind) else {
+        let Some(info) = kind_info(Lang::Rust, kind) else {
+            // P0-3 : kind non mappé → ignoré MAIS compté (était `continue` silencieux).
+            report.skipped_unmapped += 1;
             continue;
         };
 
-        let id = emit_node(child, src, node_type, nodes, next_id, res);
-        let edge_rel = res
-            .kind_to_edge_type
-            .get(kind)
-            .copied()
-            .unwrap_or(RelationType::ControlDependency);
+        let id = emit_node(
+            child,
+            src,
+            info.node_type,
+            nodes,
+            next_id,
+            info.label,
+            report,
+        );
+        let edge_rel =
+            kind_info(Lang::Rust, kind).map_or(RelationType::ControlDependency, |i| i.edge_type);
 
         let body_ids = match kind {
-            "if_expression" | "match_expression" => walk_if(child, src, res, nodes, edges, next_id),
+            "if_expression" | "match_expression" => {
+                walk_if(child, src, nodes, edges, next_id, report)
+            }
             "while_expression" | "for_expression" | "loop_expression" | "function_item" => {
-                walk_body_of(child, src, res, nodes, edges, next_id)
+                walk_body_of(child, src, nodes, edges, next_id, report)
             }
             // impl_item body is declaration_list, not block
-            "impl_item" | "trait_item" => walk_body_of_decl(child, src, res, nodes, edges, next_id),
+            "impl_item" | "trait_item" => {
+                walk_body_of_decl(child, src, nodes, edges, next_id, report)
+            }
             _ => vec![],
         };
         for body_id in body_ids {
@@ -111,18 +136,18 @@ fn walk_block(
 fn walk_if(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut body_ids = Vec::new();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "block" => body_ids.extend(walk_block(child, src, res, nodes, edges, next_id)),
+            "block" => body_ids.extend(walk_block(child, src, nodes, edges, next_id, report)),
             "else_clause" => {
-                body_ids.extend(walk_body_of(child, src, res, nodes, edges, next_id));
+                body_ids.extend(walk_body_of(child, src, nodes, edges, next_id, report));
             }
             _ => {}
         }
@@ -134,15 +159,15 @@ fn walk_if(
 fn walk_body_of(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "block" {
-            return walk_block(child, src, res, nodes, edges, next_id);
+            return walk_block(child, src, nodes, edges, next_id, report);
         }
     }
     vec![]
@@ -152,15 +177,15 @@ fn walk_body_of(
 fn walk_body_of_decl(
     node: tree_sitter::Node<'_>,
     src: &[u8],
-    res: &CodeResources,
     nodes: &mut Vec<CausalNode>,
     edges: &mut Vec<(NodeId, NodeId, CausalEdge)>,
     next_id: &mut u32,
+    report: &mut CodeParseReport,
 ) -> Vec<NodeId> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "declaration_list" {
-            return walk_block(child, src, res, nodes, edges, next_id);
+            return walk_block(child, src, nodes, edges, next_id, report);
         }
     }
     vec![]
