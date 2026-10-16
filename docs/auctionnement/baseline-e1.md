@@ -475,4 +475,21 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
 - Aveugle humain 10% (11 cas, seed 20261021, `silver_ph5_AVEUGLE.md`) :
   **EN ATTENTE — gate ≥95% (11/11 requis)**. Si échec : golds humains intégraux.
 
+## Cause racine + voie B fermée (2026-10-16, DIAGNOSTIC PROUVÉ)
+
+- `train_tok.py:518,533` : la perte n'accumule QUE les paires gold
+  (`if p not in edge_gold: continue`) — **les vrais négatifs ne sont jamais
+  entraînés**. L'éval fait pareil. La tête apprend « quelle relation sachant
+  qu'il y en a une », jamais « y en a-t-il une ». L'absence n'existe pas
+  dans l'objectif — d'où paires sur fragments + surconfiance structurelles.
+- Voie B (seuil d'abstention sur conf calibrée) TESTÉE et FERMÉE : courbe
+  précision/rappel sur 297 paires (106 golds) — max-F1 au seuil 0.0
+  (tout garder, P=0.357) ; P ne dépasse 0.38 à aucun seuil ; médianes
+  conf gold/non 0.50/0.45 (recouvrement total). La confiance ne porte
+  AUCUN signal de détection — le seuil est inutile.
+- Reste la voie A (classe d'absence) : tête 5→6 (ou tête d'existence),
+  réentraînement avec les ~190 vrais négatifs PV1, éval détection+F1,
+  rupture compat checkpoint, revalidation E. **Changement d'architecture —
+  décision humaine requise (scope, compat, effort).**
+
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis
