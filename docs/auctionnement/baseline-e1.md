@@ -516,4 +516,20 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
 - Leçon : à ~200 paires, la supervision production sert la RELATION
   (diversité), pas la DÉTECTION (échelle insuffisante d'un ordre).
 
+## Ph5 vague 4 — B-c1 validé, précision stable (2026-10-16)
+
+- 150 phrases fraîches (H1/H2 seuls — H3 verbal abandonné, règle
+  anti-mot-matching), pipeline B-c1 deux passages : 65 phrases, 163 paires
+  (rendement ×1.7 vs v2 — B-c1 extrait plus, ex. protases « Parce que »).
+- PV1 exhaustif : **19 oui + 41 corriger = 60 golds (36.8%)** —
+  quatrième point stable (34.2/37.2/36.8). Cumul production : 166 golds.
+- B-c1 prouvé utile : les causales en tête autrefois monolithiques
+  (v2-254) sont extraites ; les corrections restent dominées par
+  causale/sequentielle/systemique explicites ratées par la tête.
+- Doctrine révisée (longitudinale) : sujet + verbe d'effet
+  (perturber/entraîner/permettre-X-tiers) = causale, PAS sujet-prédicat
+  (v2-98, v1-219 corrigés ; v2-3089-e0 « diriger » reste NON — pas d'effet).
+- ECE révisé N=107 (2 labels ajoutés) : brut 0.159, T*=2.50 (stable),
+  ECE-temp 0.086 → GO inchangé. Checkpoint e9ter_calibre inchangé (T=2.5).
+
 ## Prochain : gate d'entrée anti-dégénéré → re-mesure précision production → Ph5-bis

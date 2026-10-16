@@ -724,7 +724,7 @@
   "motif": "restrictive: 'sans' = privation (restent sans électricité)"
  },
  "98-e0": {
-  "verdict": "non",
+  "verdict": "corriger",
   "pred": "restrictive",
   "conf": 0.5952216458036296,
   "logits": [
@@ -734,7 +734,8 @@
    -1.0828304290771484,
    -2.2040514945983887
   ],
-  "motif": "sujet-prédicat"
+  "motif": "sujet-prédicat [RÉVISÉ 2026-10-16 : verbe d'effet (entraîner) = causale, pas prédication]",
+  "gold": "causale"
  },
  "99-e0": {
   "verdict": "non",
