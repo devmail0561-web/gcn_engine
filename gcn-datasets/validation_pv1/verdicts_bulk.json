@@ -1,0 +1,2114 @@
+{
+ "bulk000": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk006": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk007": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk008": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk009": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk010": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk011": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk014": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk015": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk016": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk017": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk019": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk020": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk021": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk022": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk023": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk025": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk026": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk028": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk032": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk034": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk036": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk037": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk039": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk040": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk042": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk043": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk044": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk046": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk047": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk048": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk049": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk050": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk053": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk054": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk055": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk056": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk057": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk058": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk059": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk061": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk064": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk065": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk067": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk068": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk069": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk071": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk072": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk074": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk075": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk076": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk077": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk081": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk083": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk084": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk086": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk087": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk088": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk089": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk092": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk093": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk094": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk095": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk096": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk100": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk101": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk102": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk103": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk104": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk105": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk106": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk107": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk108": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk114": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk116": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk120": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk125": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk126": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk127": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk128": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk134": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk135": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk137": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk141": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk142": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R3"
+  ],
+  "auto": "manuel"
+ },
+ "bulk143": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk145": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk146": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk147": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk148": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk150": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk151": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk152": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk153": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk156": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk157": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk159": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk160": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk161": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk162": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk164": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk165": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk166": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk169": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk170": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk171": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk172": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk175": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk176": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk180": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk182": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk183": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk185": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk186": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk187": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk188": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk195": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk196": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk197": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk198": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk201": {
+  "verdict": "corriger",
+  "gold": "enable",
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk202": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk204": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk205": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk207": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk209": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk210": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk212": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk217": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk218": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk219": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk222": {
+  "verdict": "corriger",
+  "gold": "cause",
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk226": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk227": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk230": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk234": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk236": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk237": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk240": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk242": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk243": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk244": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk251": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk254": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk256": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk257": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk260": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [
+   "R5"
+  ],
+  "auto": "manuel"
+ },
+ "bulk261": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk264": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk265": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk266": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk267": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk268": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk269": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk271": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [
+   "R6"
+  ],
+  "auto": "manuel"
+ },
+ "bulk272": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk275": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk276": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk278": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk280": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk283": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto"
+ },
+ "bulk285": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk286": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk287": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk289": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk290": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk294": {
+  "verdict": "non",
+  "gold": null,
+  "signaux": [
+   false,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk295": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   false,
+   true
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk296": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   false
+  ],
+  "red": [],
+  "auto": "manuel"
+ },
+ "bulk297": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ },
+ "bulk299": {
+  "verdict": "oui",
+  "gold": null,
+  "signaux": [
+   true,
+   false,
+   true,
+   true
+  ],
+  "red": [],
+  "auto": "oui-auto-r1"
+ }
+}
