@@ -460,10 +460,12 @@ E0 0.107 (sac) → E4/E5 0.318/0.390 (contexte) → E6 0.351 (init MLM, bruit) �
   PV1 exhaustif → **19 oui + 35 corriger = 54 golds (37.2%)**, cohérent v2.
 - Cumul : **52 + 54 = 106 golds**. Gate `require_production_sample(N>=100)` :
   **FRANCHI**.
-- `optimize_temperature` : **ECE brut 0.154 → T*=2.50 → ECE-temp 0.088 ≤ 0.15 :
-  GO** (isotonie non requise). Distribution : causale 37, negative 30,
-  restrictive 16, systemique 12, sequentielle 11 (classes <30 : ECE global
-  valide, ECE par classe non garanti — noté).
+- `optimize_temperature` : **ECE brut 0.145 → T*=2.50 → ECE-temp 0.078 ≤ 0.15 :
+  GO** (isotonie non requise). Distribution : causale 37, negative 29,
+  restrictive 17, systemique 12, sequentielle 11 (classes <30 : ECE global
+  valide, ECE par classe non garanti — noté). Auto-contrôle : erreur de
+  classement v3-2217 (oui au lieu de corriger) détectée via l'aveugle,
+  corrigée avant clôture (ECE 0.154→0.145/0.088→0.078 — GO inchangé).
 - Checkpoint calibré : `DATA/supervision/v4/mesures/e9ter_calibre.npz`
   (T=2.5 + provenance) — vérifié : 0.618 → 0.374 sur exemple.
 - T*=2.5 = modèle très surconfiant : cohérent avec les 14 surconfiants v1.

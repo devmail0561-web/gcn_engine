@@ -63,7 +63,7 @@ DÉCRYPTAGE - Une vaste étude française confirme que l’incidence du cancer d
 La Haute autorité de Santé estime que la vaccination annuelle des personnels en contact avec des patients fragiles est le seul moyen de protéger ces derniers.
 - A « La Haute autorité de Santé estime que la vaccination annuelle des personnels en contact avec des pat »
 - B « protéger ces derniers. »
-- relation proposée : **negative** (prédite : negative)
+- relation proposée : **restrictive** (prédite : negative)
 - ton verdict : [ ] oui  [ ] non  [ ] corriger → ___
 
 ## Cas 10 (v3 2064-e0)

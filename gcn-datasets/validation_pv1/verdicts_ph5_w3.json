@@ -1868,8 +1868,8 @@
   "motif": "negative→systemique: 'si' = condition"
  },
  "2217-e0": {
-  "verdict": "oui",
-  "gold": "negative",
+  "verdict": "corriger",
+  "gold": "restrictive",
   "conf": 0.3290597319000213,
   "logits": [
    -1.192415714263916,
@@ -1878,7 +1878,8 @@
    -0.3246050775051117,
    -0.5220876336097717
   ],
-  "motif": "restrictive: 'seul' = restriction d'unicité (cf. uniquement)"
+  "motif": "CORRIGER→restrictive (erreur de classement initiale 'oui' : pred negative ≠ restrictive 'seul')",
+  "pred": "negative"
  },
  "2219-e0": {
   "verdict": "non",
