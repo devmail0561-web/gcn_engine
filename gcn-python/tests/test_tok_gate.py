@@ -4,6 +4,7 @@
 
 71/71 abstentions non-gold, 0 gold perdu, 13/14 surconfiants interceptés.
 """
+
 import pytest
 
 from gcn_python.nlu.tok import clause_degeneree, parse_text
@@ -42,13 +43,15 @@ def test_parse_text_vide_et_types():
 
 def test_subdivision_connecteurs():
     from gcn_python.nlu.tok import subdiviser_connecteurs
+
     t = "Il reste parce que la pluie tombe."
     s, x = subdiviser_connecteurs(t, [[0, len(t)]], [t], "fr")
     assert len(x) == 2 and x[1].startswith("parce que")
     assert s[0][0] == 0 and s[-1][1] == len(t)
     t2 = "Les ventes baissent. On reduit les couts."
-    _, x2 = subdiviser_connecteurs(t2, [[0, 19], [20, len(t2)]],
-                                   ["Les ventes baissent.", "On reduit les couts."], "fr")
+    _, x2 = subdiviser_connecteurs(
+        t2, [[0, 19], [20, len(t2)]], ["Les ventes baissent.", "On reduit les couts."], "fr"
+    )
     assert x2 == ["Les ventes baissent.", "On reduit les couts."]
 
 
@@ -56,7 +59,7 @@ def test_subdivision_connecteur_en_tete():
     # B-c1 : protase en tête -> coupe à la première virgule (ponctuation
     # seule, aucun mot-matching ajouté).
     from gcn_python.nlu.tok import subdiviser_connecteurs
-    t = ("Parce qu'il a fourni une représentation simple, "
-         "l'article a eu une influence considérable.")
+
+    t = "Parce qu'il a fourni une représentation simple, l'article a eu une influence considérable."
     _, x = subdiviser_connecteurs(t, [[0, len(t)]], [t], "fr")
     assert len(x) == 2 and x[0].startswith("Parce qu")

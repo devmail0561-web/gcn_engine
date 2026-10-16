@@ -167,9 +167,7 @@ class TokForwardEngine:
         # dérivations fixes). Zéro lexique, zéro langue.
         self.use_context = bool(use_context)
         self.ctx = (
-            ContextEncoder(d_model=self.d_model, seed=self.seed + 3)
-            if self.use_context
-            else None
+            ContextEncoder(d_model=self.d_model, seed=self.seed + 3) if self.use_context else None
         )
         self.last_oov_rate: float = 0.0
         # Cache analyze (miroir M1a) : clé (epoch params, texte) — toute
@@ -340,10 +338,14 @@ class TokForwardEngine:
             _ex_layers = getattr(obj.encoder, "_exist_layers", None)
             _has_ex = bool(int(z["has_exist"])) if "has_exist" in cles else False
             if _has_ex and _ex_layers is None:
-                raise ValueError("checkpoint avec tête existence mais moteur sans — reconstruire avec exist_head=True.")
+                raise ValueError(
+                    "checkpoint avec tête existence mais moteur sans — reconstruire avec exist_head=True."
+                )
             if _ex_layers is not None:
                 if not _has_ex:
-                    raise ValueError("moteur avec tête existence mais checkpoint sans — ré-entraîner.")
+                    raise ValueError(
+                        "moteur avec tête existence mais checkpoint sans — ré-entraîner."
+                    )
                 for i, couche in enumerate(_ex_layers):
                     w = _np.asarray(z[f"exist_L{i}_W"], dtype=_np.float32)
                     b = _np.asarray(z[f"exist_L{i}_b"], dtype=_np.float32)
@@ -569,6 +571,7 @@ class TokForwardEngine:
             conf = 0.0 if not np.isfinite(conf) else min(1.0, max(0.0, conf))
             if _exist_on:
                 import math as _math
+
                 p_exist = 1.0 / (1.0 + _math.exp(-exist_logits[-1]))
                 if p_exist < self.exist_threshold:
                     continue

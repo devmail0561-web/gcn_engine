@@ -90,7 +90,7 @@ def convertir_phrase(s: dict, *, window_k: int = WINDOW_K) -> dict:
     ejoint = {}
     for (j, r), _srcs in _par_cible.items():
         if len(_srcs) >= 2:
-            _gid = f"j{ j}x{r}x{'-'.join(str(i) for i in sorted(_srcs))}"
+            _gid = f"j{j}x{r}x{'-'.join(str(i) for i in sorted(_srcs))}"
             for i in _srcs:
                 ejoint[(i, j)] = _gid
     ids, offsets, _ = tok_split(s["text"])

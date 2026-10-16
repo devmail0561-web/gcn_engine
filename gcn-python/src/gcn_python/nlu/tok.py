@@ -15,6 +15,7 @@ du runtime interdit ``pipeline/``, ``training/`` et ``engine.py`` de le faire.
 
 from __future__ import annotations
 
+import itertools
 import re as _re
 
 from ..layer0 import engine_b
@@ -87,7 +88,7 @@ def parse_text(text: str, lang: str = "fr") -> dict:
     spans, textes = subdiviser_connecteurs(text, spans, textes, lang)
     # Re-gate : la subdivision peut isoler des fragments.
     spans2, textes2 = [], []
-    for sp, tx in zip(spans, textes):
+    for sp, tx in zip(spans, textes, strict=True):
         motif = clause_degeneree(tx)
         if motif is not None:
             rejetees.append((tx, motif))
@@ -106,8 +107,7 @@ def parse_text(text: str, lang: str = "fr") -> dict:
     }
 
 
-def subdiviser_connecteurs(text: str, spans: list, textes: list,
-                           lang: str) -> tuple[list, list]:
+def subdiviser_connecteurs(text: str, spans: list, textes: list, lang: str) -> tuple[list, list]:
     """Scinde chaque clause aux connecteurs détectés (mécanisme, pas lexique :
     les tables sont celles, existantes et auditées, de ``fallback_regex``).
 
@@ -124,25 +124,30 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
     """
     try:
         conns = find_connectors(text, lang)
-    except Exception:
+    except Exception:  # noqa: BLE001 — incident tables = clause intacte (garde socle)
         return spans, textes
     nspans, ntextes = [], []
-    for sp, tx in zip(spans, textes):
+    for sp, tx in zip(spans, textes, strict=True):
         debut, fin = sp[0], sp[1]
         # Connecteur en tête vraie (<3 car. : ponctuation ouvrante seule).
         # Les préfixes paratexte (« - [3] ») sont isolés par la coupe
         # intérieure puis repris au second passage (itération ci-dessous).
-        en_tete = {c["span"][0] for c in conns
-                   if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin}
-        coupes = sorted({c["span"][0] for c in conns
-                         if debut < c["span"][0] and c["span"][1] <= fin
-                         and c["span"][0] > debut} - en_tete)
+        en_tete = {
+            c["span"][0] for c in conns if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin
+        }
+        coupes = sorted(
+            {
+                c["span"][0]
+                for c in conns
+                if debut < c["span"][0] and c["span"][1] <= fin and c["span"][0] > debut
+            }
+            - en_tete
+        )
         # Filtre : coupe trop proche des bords (<3 caractères de matière).
         coupes = [p for p in coupes if p - debut >= 3 and fin - p >= 3]
         if en_tete and not coupes:
             # B-c1 : protase introduite en tête → coupe à la première virgule.
-            fin_tete = max(c["span"][1] for c in conns
-                           if c["span"][0] in en_tete)
+            fin_tete = max(c["span"][1] for c in conns if c["span"][0] in en_tete)
             suiv = text[fin_tete:fin]
             pos_virgule = suiv.find(",")
             if pos_virgule >= 3 and (len(suiv) - pos_virgule) >= 4:
@@ -151,8 +156,7 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
             nspans.append(sp)
             ntextes.append(tx)
             continue
-        bornes = [debut] + coupes + [fin]
-        for a, b in zip(bornes, bornes[1:]):
+        for a, b in itertools.pairwise([debut, *coupes, fin]):
             brut = text[a:b]
             morceau = brut.strip()
             if morceau:
@@ -164,10 +168,9 @@ def subdiviser_connecteurs(text: str, spans: list, textes: list,
     # préfixe) sont coupées à la première virgule (protase | apodose).
     # Itération bornée à un passage (pas de récursion).
     fspans, ftextes = [], []
-    for sp, tx in zip(nspans, ntextes):
+    for sp, tx in zip(nspans, ntextes, strict=True):
         debut, fin = sp[0], sp[1]
-        tete = [c for c in conns
-                if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin]
+        tete = [c for c in conns if 0 <= c["span"][0] - debut < 3 and c["span"][1] <= fin]
         if tete:
             fin_tete = max(c["span"][1] for c in tete)
             suiv = text[fin_tete:fin]
